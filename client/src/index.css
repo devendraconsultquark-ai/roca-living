@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand Theme Colors */
+  --color-brand-primary: #000000;    /* Navy - structural, headers, sidebars */
+  --color-brand-accent: #f16900;     /* Orange - primary brand accent */
+  --color-brand-accent-hover: #ff8425; /* Darker orange for hover states */
+  --color-accent-blue: #f2a302;      /* Blue - demoted to secondary/informational, focus rings */
+  
+  /* Backgrounds & Surfaces */
+  --color-app-bg: #F5F4F0;           /* Neutral page background */
+  --color-card-bg: #FFFFFF;          /* White cards, tables, panels */
+  --color-header-bg: #F8F9FA;        /* Table headers, section labels */
+  --color-section-tile: #F2F2F2;     /* Property/tenant grey tiles */
+  --color-payment-panel: #1A1A2E;    /* Dark near-black panel */
+  --color-border-color: #DDDDDD;     /* Thin rules, borders */
+
+  /* Status Colors */
+  --color-status-success: #2E7D32;   /* Green - active, compliant, paid */
+  --color-status-warning: #f2a302;   /* Amber - arrears, expiring soon, pending */
+  --color-status-danger: #C62828;    /* Red - overdue, expired, failed */
+  --color-status-muted: #888888;     /* Grey - onboarding, draft, not started */
+
+  /* Text Colors */
+  --color-text-primary: #1A1A1A;
+  --color-text-secondary: #555555;
+  --color-text-muted: #888888;
+  --color-text-white: #FFFFFF;
+
+  /* Chart Colors */
+  --color-chart-green: #3A7D44;
+  --color-chart-orange: #E8A020;
+  --color-chart-red: #C62828;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, Arial, sans-serif;
+}
+
+/* Base resets & styling defaults */
+*, ::before, ::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-app-bg);
+  color: #1A1A1A; /* Text Primary hex */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Theme Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-color);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-brand-accent);
+}
+
+/* Firefox compatibility */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-color) transparent;
+}
