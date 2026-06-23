@@ -4,12 +4,7 @@ import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { useToast } from '../components/UI/ToastContext';
 
-const documentsData = [
-  { id: 'DOC-881', name: 'AST Tenancy Lease Agreement.pdf', property: 'Flat 12, Living Towers, Manchester M1', category: 'Tenancy Contract', date: '2025-06-01' },
-  { id: 'DOC-882', name: 'Gas Safety Certificate (CP12).pdf', property: 'Flat 12, Living Towers, Manchester M1', category: 'Compliance Certificate', date: '2025-05-14' },
-  { id: 'DOC-883', name: 'Energy Performance Certificate (EPC).pdf', property: '78 Oak Avenue, Bristol BS2', category: 'Compliance Certificate', date: '2024-08-20' },
-  { id: 'DOC-884', name: 'ROCA Living Terms of Business.pdf', property: 'All Properties', category: 'Terms of Business', date: '2024-06-11' },
-];
+const documentsData = [];
 
 export const Documents = () => {
   const { addToast } = useToast();

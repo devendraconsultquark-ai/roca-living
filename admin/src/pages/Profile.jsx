@@ -1,48 +1,93 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Shield, Phone, Mail, Building, Save, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../components/UI/ToastContext';
 import { Input } from '../components/UI/Input';
 import { Button } from '../components/UI/Button';
+import { useAuth } from '../context/AuthContext';
+import api from '../utilities/api';
 
 export const Profile = () => {
   const { addToast } = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const { user, logout } = useAuth();
 
   const [profileData, setProfileData] = useState({
-    name: 'Admin User',
-    email: 'admin@rocaliving.com',
-    phone: '+44 7911 123456',
-    role: 'ADMIN',
+    name: '',
+    email: '',
+    phone: '',
+    role: '',
     department: 'Operations & Support',
     office: 'London Head Office',
   });
+
+  useEffect(() => {
+    if (user) {
+      setProfileData(prev => ({
+        ...prev,
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.phone || '',
+        role: user.role || '',
+      }));
+    }
+  }, [user]);
 
   const handleChange = (e) => {
     const { id, value } = e.target;
     setProfileData(prev => ({ ...prev, [id]: value }));
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     setLoading(true);
     
-    // Simulate fast offline save
-    setTimeout(() => {
-      setLoading(false);
-      addToast('Profile updated successfully! (Mock Save)', 'success');
-      localStorage.setItem('user', JSON.stringify({
-        role: 'ADMIN',
+    try {
+      await api.patch('/auth/profile', {
+        name: profileData.name,
         email: profileData.email,
-        name: profileData.name
-      }));
-    }, 400);
+        phone: profileData.phone
+      });
+      addToast('Profile updated successfully!', 'success');
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to update profile', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [passwordLoading, setPasswordLoading] = useState(false);
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      addToast('New password and confirm password do not match', 'warning');
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      await api.patch('/auth/change-password', {
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword
+      });
+      addToast('Password changed successfully!', 'success');
+      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to change password', 'error');
+    } finally {
+      setPasswordLoading(false);
+    }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('user');
-    navigate('/login');
+    logout();
   };
 
   return (
@@ -154,6 +199,55 @@ export const Profile = () => {
             </Button>
           </div>
         </form>
+
+        {/* Change Password Form */}
+        <div className="md:col-span-2 md:col-start-2 bg-white border border-border-color rounded-2xl p-6 shadow-sm flex flex-col gap-6">
+          <form onSubmit={handlePasswordChange} className="flex flex-col gap-6">
+            <div className="flex flex-col gap-4">
+              <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 select-none">
+                <Shield size={16} className="text-brand-accent" />
+                Change Password
+              </h3>
+              
+              <div className="border-t border-border-color/60 pt-4 grid grid-cols-1 sm:grid-cols-3 gap-5">
+                <Input
+                  label="Current Password"
+                  id="currentPassword"
+                  type="password"
+                  required
+                  value={passwordData.currentPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                />
+                <Input
+                  label="New Password"
+                  id="newPassword"
+                  type="password"
+                  required
+                  value={passwordData.newPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                />
+                <Input
+                  label="Confirm Password"
+                  id="confirmPassword"
+                  type="password"
+                  required
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="border-t border-border-color/60 pt-6 flex justify-end">
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={passwordLoading}
+              >
+                {passwordLoading ? 'Updating Password...' : 'Update Password'}
+              </Button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

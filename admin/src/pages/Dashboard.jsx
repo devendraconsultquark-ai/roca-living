@@ -1,23 +1,65 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Users, Home, Wrench, Wallet, ArrowRight, UserPlus, PlusCircle } from 'lucide-react';
 import { Button } from '../components/UI/Button';
 import { StatCard } from '../components/UI/StatCard';
+import api from '../utilities/api';
 
 export const Dashboard = () => {
+  const [pipeline, setPipeline] = useState(null);
+  const [activities, setActivities] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [pipelineRes, activitiesRes] = await Promise.all([
+          api.get('/reports/pipeline'),
+          api.get('/reports/recent-activity')
+        ]);
+        setPipeline(pipelineRes.data.data);
+        setActivities(activitiesRes.data.data || []);
+      } catch (err) {
+        console.error('Failed to fetch dashboard reports data', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
   const stats = [
-    { name: 'YTD Revenue Collected', value: '£348,450.00', icon: Wallet, color: 'text-brand-accent bg-brand-accent/10', valueColor: 'text-brand-accent' },
-    { name: 'Active Landlords', value: '48 Partners', icon: Users, color: 'text-brand-primary bg-brand-primary/10', valueColor: 'text-[#1A1A1A]' },
-    { name: 'Occupancy Rate', value: '96.4%', icon: Home, color: 'text-status-success bg-status-success/10', valueColor: 'text-status-success' },
-    { name: 'Open Maintenance', value: '14 Tickets', icon: Wrench, color: 'text-status-warning bg-status-warning/10', valueColor: 'text-status-warning' },
+    { 
+      name: 'YTD Revenue Collected', 
+      value: pipeline ? `£${parseFloat(pipeline.ytd_revenue).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '£0.00', 
+      icon: Wallet, 
+      color: 'text-brand-accent bg-brand-accent/10', 
+      valueColor: 'text-brand-accent' 
+    },
+    { 
+      name: 'Active Landlords', 
+      value: pipeline ? `${pipeline.total_landlords} Partners` : '0 Partners', 
+      icon: Users, 
+      color: 'text-brand-primary bg-brand-primary/10', 
+      valueColor: 'text-[#1A1A1A]' 
+    },
+    { 
+      name: 'Occupancy Rate', 
+      value: pipeline && pipeline.total_properties > 0 ? `${(pipeline.let / pipeline.total_properties * 100).toFixed(1)}%` : '0.0%', 
+      icon: Home, 
+      color: 'text-status-success bg-status-success/10', 
+      valueColor: 'text-status-success' 
+    },
+    { 
+      name: 'Open Maintenance', 
+      value: pipeline ? `${pipeline.maintenance_open} Tickets` : '0 Tickets', 
+      icon: Wrench, 
+      color: 'text-status-warning bg-status-warning/10', 
+      valueColor: 'text-status-warning' 
+    },
   ];
 
-  const recentActivities = [
-    { id: 1, title: 'New Onboarding wizard started', desc: 'Draft onboarding created for Landlord James Carter', time: '10 mins ago', type: 'info' },
-    { id: 2, title: 'Maintenance Quote Approved', desc: 'Flat 12 boiler quote (£420.00) signed off by landlord', time: '1 hour ago', type: 'success' },
-    { id: 3, title: 'Rental payment received', desc: '£1,850.00 cleared for Property ID #1842', time: '3 hours ago', type: 'success' },
-    { id: 4, title: 'Failed payout alert', desc: 'Payout of £2,100.00 to Landlord ID #094 failed due to sort-code mismatch', time: '5 hours ago', type: 'danger' },
-  ];
+  const recentActivities = activities.slice(0, 5); // display up to 5 entries
 
   return (
     <div className="py-6 max-w-7xl mx-auto px-4 flex flex-col gap-8">
@@ -99,20 +141,26 @@ export const Dashboard = () => {
         <div className="bg-white border border-[#DDDDDD] rounded-[8px] p-4 shadow-xs flex flex-col gap-4 lg:col-span-2">
           <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider select-none">Recent Staff Notifications</h3>
           <div className="flex flex-col gap-3.5">
-            {recentActivities.map(act => (
-              <div key={act.id} className="flex items-start justify-between gap-4 p-3.5 hover:bg-[#F8FAFC] rounded-xl transition-colors border border-transparent hover:border-border-color/40">
-                <div className="flex items-start gap-3">
-                  <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
-                    act.type === 'success' ? 'bg-status-success' : act.type === 'danger' ? 'bg-status-danger' : 'bg-brand-accent'
-                  }`} />
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-bold text-gray-700 leading-none">{act.title}</h4>
-                    <p className="text-xs text-gray-400 font-semibold mt-1.5">{act.desc}</p>
+            {loading ? (
+              <div className="h-28 bg-gray-50 rounded-xl animate-pulse w-full" />
+            ) : recentActivities.length === 0 ? (
+              <p className="text-xs text-gray-400 py-4 text-center">No recent activities found.</p>
+            ) : (
+              recentActivities.map(act => (
+                <div key={act.id} className="flex items-start justify-between gap-4 p-3.5 hover:bg-[#F8FAFC] rounded-xl transition-colors border border-transparent hover:border-border-color/40">
+                  <div className="flex items-start gap-3">
+                    <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
+                      act.type === 'success' ? 'bg-status-success' : act.type === 'danger' ? 'bg-status-danger' : 'bg-brand-accent'
+                    }`} />
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-bold text-gray-700 leading-none">{act.title}</h4>
+                      <p className="text-xs text-gray-400 font-semibold mt-1.5">{act.desc}</p>
+                    </div>
                   </div>
+                  <span className="text-[10px] font-bold text-gray-400 shrink-0">{act.time}</span>
                 </div>
-                <span className="text-[10px] font-bold text-gray-400 shrink-0">{act.time}</span>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>

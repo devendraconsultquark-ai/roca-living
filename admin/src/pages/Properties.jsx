@@ -1,18 +1,199 @@
-import React from 'react';
-import { Home, CheckCircle2, AlertTriangle, HelpCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Home, CheckCircle2, AlertTriangle, HelpCircle, Edit, Trash2 } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { StatCard } from '../components/UI/StatCard';
-
-const propertiesData = [
-  { id: 'PROP-101', address: 'Flat 12, Living Towers, Manchester M1', landlord: 'John Doe', rent: 1850.00, status: 'Occupied', gasCompliance: 'Compliant', epcCompliance: 'Compliant' },
-  { id: 'PROP-102', address: '78 Oak Avenue, Bristol BS2', landlord: 'Sarah Jenkins', rent: 1400.00, status: 'Occupied', gasCompliance: 'Compliant', epcCompliance: 'Compliant' },
-  { id: 'PROP-103', address: '14 High Street, London E14', landlord: 'Robert Vance', rent: 3100.00, status: 'Occupied', gasCompliance: 'Action Required', epcCompliance: 'Compliant' },
-  { id: 'PROP-104', address: 'Building C, Apartment 4B, Birmingham B3', landlord: 'Emily Carter', rent: 1200.00, status: 'Vacant', gasCompliance: 'Compliant', epcCompliance: 'Pending Renewal' },
-  { id: 'PROP-105', address: '22 Queen Street, Liverpool L3', landlord: 'William Hughes', rent: 950.00, status: 'Occupied', gasCompliance: 'Compliant', epcCompliance: 'Compliant' },
-];
+import { Input } from '../components/UI/Input';
+import { Dropdown } from '../components/UI/Dropdown';
+import { StatusPill } from '../components/UI/StatusPill';
+import { useToast } from '../components/UI/ToastContext';
+import api from '../utilities/api';
 
 export const Properties = () => {
+  const [properties, setProperties] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [landlordsList, setLandlordsList] = useState([]);
+  
+  // Modal & Form State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newProperty, setNewProperty] = useState({
+    landlord_id: '',
+    address_line1: '',
+    address_line2: '',
+    city: '',
+    postcode: '',
+    property_type: 'flat',
+    bedrooms: '',
+    rent_pcm: '',
+    mgmt_fee_pct: '12.00'
+  });
+
+  // Edit Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingPropertyId, setEditingPropertyId] = useState(null);
+  const [editingProperty, setEditingProperty] = useState({
+    address_line1: '',
+    address_line2: '',
+    city: '',
+    postcode: '',
+    property_type: 'flat',
+    bedrooms: '',
+    rent_pcm: '',
+    mgmt_fee_pct: '12.00',
+    status: 'onboarding'
+  });
+
+  const [formErrors, setFormErrors] = useState({});
+  const { addToast } = useToast();
+
+  const handleEditClick = async (row) => {
+    try {
+      const response = await api.get(`/properties/${row.id}`);
+      const info = response.data.data;
+      setEditingPropertyId(row.id);
+      setEditingProperty({
+        address_line1: info.address_line1 || '',
+        address_line2: info.address_line2 || '',
+        city: info.city || '',
+        postcode: info.postcode || '',
+        property_type: info.property_type || 'flat',
+        bedrooms: info.bedrooms !== null ? String(info.bedrooms) : '',
+        rent_pcm: info.rent_pcm !== null ? String(info.rent_pcm) : '',
+        mgmt_fee_pct: info.mgmt_fee_pct !== null ? String(info.mgmt_fee_pct) : '12.00',
+        status: info.status || 'onboarding'
+      });
+      setIsEditModalOpen(true);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to fetch property details', 'error');
+    }
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setFormErrors({});
+
+    try {
+      await api.patch(`/properties/${editingPropertyId}`, editingProperty);
+      addToast('Property updated successfully!', 'success');
+      setIsEditModalOpen(false);
+      fetchProperties();
+    } catch (err) {
+      console.error(err);
+      if (err.response?.data?.errors) {
+        const errorsObj = {};
+        err.response.data.errors.forEach((e) => {
+          errorsObj[e.field] = e.message;
+        });
+        setFormErrors(errorsObj);
+      } else {
+        const msg = err.response?.data?.message || 'Failed to update property';
+        addToast(msg, 'error');
+      }
+    }
+  };
+
+  const handleDeleteClick = async (row) => {
+    if (window.confirm(`Are you sure you want to delete property "${row.address}"? This will delete all associated tenancies, compliance checklists, rent schedules, and maintenance records.`)) {
+      try {
+        await api.delete(`/properties/${row.id}`);
+        addToast('Property deleted successfully', 'success');
+        fetchProperties();
+      } catch (err) {
+        addToast(err.response?.data?.message || 'Failed to delete property', 'error');
+      }
+    }
+  };
+
+
+  const fetchProperties = async () => {
+    setLoading(true);
+    try {
+      const response = await api.get('/properties');
+      const formatted = (response.data.data || []).map((p) => ({
+        ...p,
+        address: `${p.address_line1}${p.address_line2 ? `, ${p.address_line2}` : ''}, ${p.city} ${p.postcode}`,
+        landlord: p.landlord_name,
+        rent: p.rent_pcm ? parseFloat(p.rent_pcm) : 0,
+        status: p.status
+      }));
+      setProperties(formatted);
+      setError(null);
+    } catch (err) {
+      const errMsg = err.response?.data?.message || 'Error loading properties';
+      setError(errMsg);
+      addToast(errMsg, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchLandlordsList = async () => {
+    try {
+      const res = await api.get('/landlords');
+      setLandlordsList(res.data.data || []);
+    } catch (err) {
+      console.error('Failed to fetch landlords list for dropdown:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchProperties();
+    fetchLandlordsList();
+  }, []);
+
+  const handleAddPropertySubmit = async (e) => {
+    e.preventDefault();
+    setFormErrors({});
+
+    try {
+      await api.post('/properties', newProperty);
+      addToast('Property added successfully!', 'success');
+      setIsModalOpen(false);
+      setNewProperty({
+        landlord_id: '',
+        address_line1: '',
+        address_line2: '',
+        city: '',
+        postcode: '',
+        property_type: 'flat',
+        bedrooms: '',
+        rent_pcm: '',
+        mgmt_fee_pct: '12.00'
+      });
+      fetchProperties();
+    } catch (err) {
+      console.error(err);
+      if (err.response?.data?.errors) {
+        const errorsObj = {};
+        err.response.data.errors.forEach((e) => {
+          errorsObj[e.field] = e.message;
+        });
+        setFormErrors(errorsObj);
+      } else {
+        const msg = err.response?.data?.message || 'Failed to add property';
+        addToast(msg, 'error');
+      }
+    }
+  };
+
+  const renderCertStatus = (statusValue) => {
+    if (!statusValue || statusValue === 'not_uploaded') return '-';
+    const config = {
+      compliant: { color: 'text-status-success', icon: CheckCircle2, text: 'Compliant' },
+      expiring_soon: { color: 'text-status-warning', icon: AlertTriangle, text: 'Expiring Soon' },
+      expired: { color: 'text-status-danger', icon: AlertTriangle, text: 'Expired' }
+    };
+    const item = config[statusValue] || { color: 'text-status-muted', icon: HelpCircle, text: statusValue };
+    const Icon = item.icon;
+    return (
+      <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${item.color}`}>
+        <Icon size={13} />
+        {item.text}
+      </span>
+    );
+  };
+
   const columns = [
     { header: 'Property ID', accessor: 'id', sortable: true },
     { header: 'Address', accessor: 'address', sortable: true },
@@ -22,45 +203,57 @@ export const Properties = () => {
       accessor: 'rent', 
       align: 'right', 
       sortable: true,
-      renderCell: (row) => `£${row.rent.toFixed(2)}`
+      renderCell: (row) => {
+        const rentVal = typeof row.rent === 'number' ? row.rent : parseFloat(row.rent);
+        return rentVal !== null && rentVal !== undefined && !isNaN(rentVal) && rentVal > 0 
+          ? `£${rentVal.toFixed(2)}` 
+          : '-';
+      }
     },
     { 
       header: 'Tenancy Status', 
       accessor: 'status',
-      renderCell: (row) => (
-        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
-          row.status === 'Occupied' 
-            ? 'bg-brand-accent/10 text-brand-accent border-brand-accent/20' 
-            : 'bg-status-muted/10 text-status-muted border-status-muted/20 animate-pulse'
-        }`}>
-          {row.status}
-        </span>
-      )
+      renderCell: (row) => {
+        let pillStatus = 'draft';
+        if (row.status === 'let') pillStatus = 'active';
+        else if (row.status === 'vacant') pillStatus = 'pending';
+        else if (row.status === 'onboarding') pillStatus = 'draft';
+        return <StatusPill status={pillStatus} />;
+      }
     },
     { 
       header: 'Gas Certificate', 
       accessor: 'gasCompliance',
-      renderCell: (row) => (
-        <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${
-          row.gasCompliance === 'Compliant' ? 'text-status-success' : 'text-status-danger'
-        }`}>
-          {row.gasCompliance === 'Compliant' ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
-          {row.gasCompliance}
-        </span>
-      )
+      renderCell: (row) => renderCertStatus(row.gasCompliance)
     },
     { 
       header: 'EPC rating', 
       accessor: 'epcCompliance',
-      renderCell: (row) => (
-        <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${
-          row.epcCompliance === 'Compliant' ? 'text-status-success' : 'text-status-warning'
-        }`}>
-          {row.epcCompliance === 'Compliant' ? <CheckCircle2 size={13} /> : <HelpCircle size={13} />}
-          {row.epcCompliance}
-        </span>
-      )
+      renderCell: (row) => renderCertStatus(row.epcCompliance)
     },
+    {
+      header: 'Actions',
+      accessor: 'id',
+      align: 'center',
+      renderCell: (row) => (
+        <div className="flex justify-center gap-1">
+          <button
+            onClick={() => handleEditClick(row)}
+            className="p-1.5 text-gray-500 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
+            title="Edit property details"
+          >
+            <Edit size={16} />
+          </button>
+          <button
+            onClick={() => handleDeleteClick(row)}
+            className="p-1.5 text-gray-500 hover:text-status-danger hover:bg-status-danger/5 rounded-lg transition-colors cursor-pointer"
+            title="Delete property"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      )
+    }
   ];
 
   return (
@@ -71,7 +264,12 @@ export const Properties = () => {
           <h2 className="text-2xl font-bold text-[#1A1A1A]">Properties Portfolio</h2>
           <p className="text-sm text-gray-500 mt-1">Manage standard parameters, safety compliance certificates, and occupancies.</p>
         </div>
-        <Button variant="primary" icon={Home} className="shadow-sm">
+        <Button 
+          variant="primary" 
+          icon={Home} 
+          className="shadow-sm"
+          onClick={() => setIsModalOpen(true)}
+        >
           Add New Property
         </Button>
       </div>
@@ -80,27 +278,27 @@ export const Properties = () => {
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-5">
         <StatCard
           label="Total Properties"
-          value="86 units"
+          value={`${properties.length} units`}
           icon={Home}
           iconColor="text-brand-primary bg-brand-primary/10"
         />
         <StatCard
           label="Occupied"
-          value="82 units"
+          value={`${properties.filter(p => p.status === 'let').length} units`}
           icon={CheckCircle2}
           iconColor="text-status-success bg-status-success/10"
           valueColor="text-status-success"
         />
         <StatCard
           label="Vacant Units"
-          value="4 units"
+          value={`${properties.filter(p => p.status === 'vacant').length} units`}
           icon={HelpCircle}
           iconColor="text-brand-accent bg-brand-accent/10"
           valueColor="text-brand-accent"
         />
         <StatCard
           label="Safety Warnings"
-          value="2 Non-Compliant"
+          value={`${properties.filter(p => p.gasCompliance === 'expired' || p.epcCompliance === 'expired' || p.gasCompliance === 'not_uploaded' || p.epcCompliance === 'not_uploaded').length} Warnings`}
           icon={AlertTriangle}
           iconColor="text-status-danger bg-status-danger/10"
           valueColor="text-status-danger"
@@ -109,8 +307,274 @@ export const Properties = () => {
 
       {/* Grid container */}
       <div className="bg-white rounded-2xl border border-border-color/60 p-4 shadow-sm">
-        <DataTable columns={columns} data={propertiesData} />
+        {loading ? (
+          <div className="space-y-4 py-4">
+            <div className="h-10 bg-gray-100/80 rounded-lg animate-pulse w-full" />
+            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+          </div>
+        ) : error ? (
+          <div className="border border-status-danger bg-status-danger/5 rounded-xl p-6 text-center text-status-danger font-semibold">
+            {error}
+          </div>
+        ) : (
+          <DataTable columns={columns} data={properties} />
+        )}
       </div>
+
+      {/* Add New Property Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-brand-primary/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-border-color max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold text-[#1A1A1A] mb-4">Add New Property</h3>
+            
+            <form onSubmit={handleAddPropertySubmit} className="flex flex-col gap-4">
+              <Dropdown
+                label="Associated Landlord"
+                id="landlord_id"
+                placeholder="Select landlord..."
+                searchable
+                value={newProperty.landlord_id}
+                onChange={(val) => {
+                  setNewProperty(prev => ({ ...prev, landlord_id: val }));
+                  if (formErrors.landlord_id) setFormErrors(prev => ({ ...prev, landlord_id: '' }));
+                }}
+                error={formErrors.landlord_id}
+                options={landlordsList.map((l) => ({ value: l.id, label: `${l.name} (${l.email})` }))}
+              />
+              <Input
+                label="Address Line 1"
+                id="address_line1"
+                required
+                value={newProperty.address_line1}
+                onChange={(e) => setNewProperty({ ...newProperty, address_line1: e.target.value })}
+                error={formErrors.address_line1}
+              />
+              <Input
+                label="Address Line 2"
+                id="address_line2"
+                value={newProperty.address_line2}
+                onChange={(e) => setNewProperty({ ...newProperty, address_line2: e.target.value })}
+                error={formErrors.address_line2}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="City"
+                  id="city"
+                  required
+                  value={newProperty.city}
+                  onChange={(e) => setNewProperty({ ...newProperty, city: e.target.value })}
+                  error={formErrors.city}
+                />
+                <Input
+                  label="Postcode"
+                  id="postcode"
+                  required
+                  value={newProperty.postcode}
+                  onChange={(e) => setNewProperty({ ...newProperty, postcode: e.target.value })}
+                  error={formErrors.postcode}
+                />
+              </div>
+              <Dropdown
+                label="Property Type"
+                id="property_type"
+                placeholder="Select type..."
+                value={newProperty.property_type}
+                onChange={(val) => {
+                  setNewProperty(prev => ({ ...prev, property_type: val }));
+                  if (formErrors.property_type) setFormErrors(prev => ({ ...prev, property_type: '' }));
+                }}
+                error={formErrors.property_type}
+                options={[
+                  { value: 'flat', label: 'Flat' },
+                  { value: 'house', label: 'House' },
+                  { value: 'HMO', label: 'HMO' }
+                ]}
+              />
+              <div className="grid grid-cols-3 gap-4">
+                <Input
+                  label="Bedrooms"
+                  id="bedrooms"
+                  type="number"
+                  value={newProperty.bedrooms}
+                  onChange={(e) => setNewProperty({ ...newProperty, bedrooms: e.target.value })}
+                  error={formErrors.bedrooms}
+                />
+                <Input
+                  label="Monthly Rent"
+                  id="rent_pcm"
+                  type="number"
+                  placeholder="£"
+                  value={newProperty.rent_pcm}
+                  onChange={(e) => setNewProperty({ ...newProperty, rent_pcm: e.target.value })}
+                  error={formErrors.rent_pcm}
+                />
+                <Input
+                  label="Mgmt Fee %"
+                  id="mgmt_fee_pct"
+                  type="number"
+                  step="0.01"
+                  placeholder="%"
+                  value={newProperty.mgmt_fee_pct}
+                  onChange={(e) => setNewProperty({ ...newProperty, mgmt_fee_pct: e.target.value })}
+                  error={formErrors.mgmt_fee_pct}
+                />
+              </div>
+              
+              <div className="flex gap-3 justify-end mt-2">
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setFormErrors({});
+                    setNewProperty({
+                      landlord_id: '',
+                      address_line1: '',
+                      address_line2: '',
+                      city: '',
+                      postcode: '',
+                      property_type: 'flat',
+                      bedrooms: '',
+                      rent_pcm: '',
+                      mgmt_fee_pct: '12.00'
+                    });
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary">
+                  Add Property
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Property Modal */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 bg-brand-primary/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-border-color max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold text-[#1A1A1A] mb-4">Edit Property Details</h3>
+            
+            <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
+              <Input
+                label="Address Line 1"
+                id="edit_address_line1"
+                required
+                value={editingProperty.address_line1}
+                onChange={(e) => setEditingProperty({ ...editingProperty, address_line1: e.target.value })}
+                error={formErrors.address_line1}
+              />
+              <Input
+                label="Address Line 2"
+                id="edit_address_line2"
+                value={editingProperty.address_line2}
+                onChange={(e) => setEditingProperty({ ...editingProperty, address_line2: e.target.value })}
+                error={formErrors.address_line2}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="City"
+                  id="edit_city"
+                  required
+                  value={editingProperty.city}
+                  onChange={(e) => setEditingProperty({ ...editingProperty, city: e.target.value })}
+                  error={formErrors.city}
+                />
+                <Input
+                  label="Postcode"
+                  id="edit_postcode"
+                  required
+                  value={editingProperty.postcode}
+                  onChange={(e) => setEditingProperty({ ...editingProperty, postcode: e.target.value })}
+                  error={formErrors.postcode}
+                />
+              </div>
+              <Dropdown
+                label="Property Type"
+                id="edit_property_type"
+                placeholder="Select type..."
+                value={editingProperty.property_type}
+                onChange={(val) => {
+                  setEditingProperty(prev => ({ ...prev, property_type: val }));
+                  if (formErrors.property_type) setFormErrors(prev => ({ ...prev, property_type: '' }));
+                }}
+                error={formErrors.property_type}
+                options={[
+                  { value: 'flat', label: 'Flat' },
+                  { value: 'house', label: 'House' },
+                  { value: 'HMO', label: 'HMO' }
+                ]}
+              />
+              <div className="grid grid-cols-3 gap-4">
+                <Input
+                  label="Bedrooms"
+                  id="edit_bedrooms"
+                  type="number"
+                  value={editingProperty.bedrooms}
+                  onChange={(e) => setEditingProperty({ ...editingProperty, bedrooms: e.target.value })}
+                  error={formErrors.bedrooms}
+                />
+                <Input
+                  label="Monthly Rent"
+                  id="edit_rent_pcm"
+                  type="number"
+                  placeholder="£"
+                  value={editingProperty.rent_pcm}
+                  onChange={(e) => setEditingProperty({ ...editingProperty, rent_pcm: e.target.value })}
+                  error={formErrors.rent_pcm}
+                />
+                <Input
+                  label="Mgmt Fee %"
+                  id="edit_mgmt_fee_pct"
+                  type="number"
+                  step="0.01"
+                  placeholder="%"
+                  value={editingProperty.mgmt_fee_pct}
+                  onChange={(e) => setEditingProperty({ ...editingProperty, mgmt_fee_pct: e.target.value })}
+                  error={formErrors.mgmt_fee_pct}
+                />
+              </div>
+
+              <Dropdown
+                label="Property Status"
+                id="edit_status"
+                placeholder="Select status..."
+                value={editingProperty.status}
+                onChange={(val) => {
+                  setEditingProperty(prev => ({ ...prev, status: val }));
+                  if (formErrors.status) setFormErrors(prev => ({ ...prev, status: '' }));
+                }}
+                error={formErrors.status}
+                options={[
+                  { value: 'onboarding', label: 'Onboarding' },
+                  { value: 'vacant', label: 'Vacant' },
+                  { value: 'let', label: 'Let' }
+                ]}
+              />
+              
+              <div className="flex gap-3 justify-end mt-2">
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  onClick={() => {
+                    setIsEditModalOpen(false);
+                    setFormErrors({});
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary">
+                  Save Changes
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

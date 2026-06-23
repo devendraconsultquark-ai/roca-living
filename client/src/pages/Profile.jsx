@@ -1,32 +1,47 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, CreditCard, AlertTriangle, CheckCircle2, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../components/UI/ToastContext';
 import { Input } from '../components/UI/Input';
 import { Button } from '../components/UI/Button';
 import api from '../utilities/api';
+import { useAuth } from '../context/AuthContext';
 
 export const Profile = () => {
   const { addToast } = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const { user, logout } = useAuth();
 
   // Profile Form State
   const [profileData, setProfileData] = useState({
     // Contact
-    name: 'John Doe',
-    email: 'landlord@rocaliving.com',
-    phone: '+44 7123 456789',
-    address: '14 High Street, Manchester, M1 1AD',
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
 
     // Bank
     bankName: 'Barclays Bank PLC',
-    accountName: 'John Doe',
+    accountName: '',
     sortCode: '20-30-40',
     accountNumber: '12345678',
   });
 
   const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    if (user) {
+      setProfileData(prev => ({
+        ...prev,
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.phone || '',
+        address: user.address || '',
+        accountName: user.name || '',
+      }));
+    }
+  }, [user]);
 
   const handleChange = (e) => {
     const { id, value } = e.target;
@@ -73,8 +88,7 @@ export const Profile = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('user');
-    navigate('/login');
+    logout();
   };
 
   return (

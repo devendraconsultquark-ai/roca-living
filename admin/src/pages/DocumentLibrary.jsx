@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Folder, FolderOpen, FileText, Upload, Trash2, CheckCircle2, ChevronRight, ChevronDown } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
 import { Input } from '../components/UI/Input';
@@ -6,38 +6,8 @@ import { Dropdown } from '../components/UI/Dropdown';
 import { Button } from '../components/UI/Button';
 import api from '../utilities/api';
 
-const initialFolders = [
-  {
-    id: 'f1',
-    name: 'Landlord Compliance Documents',
-    isOpen: true,
-    children: [
-      { id: 'd1', name: 'Terms_of_Business_signed.pdf', size: '1.2 MB', date: '2026-06-01', scope: 'landlord', entityId: 'LND-9018' },
-      { id: 'd2', name: 'Passport_Copy_John_Doe.jpg', size: '2.4 MB', date: '2026-06-02', scope: 'landlord', entityId: 'LND-9018' },
-    ]
-  },
-  {
-    id: 'f2',
-    name: 'Property Gas & Safety Certs',
-    isOpen: false,
-    children: [
-      { id: 'd3', name: 'CP12_Gas_Safety_Flat_12.pdf', size: '850 KB', date: '2026-05-15', scope: 'property', entityId: 'PRP-1020' },
-      { id: 'd4', name: 'EICR_Satisfactory_Flat_12.pdf', size: '1.8 MB', date: '2026-05-18', scope: 'property', entityId: 'PRP-1020' },
-    ]
-  },
-  {
-    id: 'f3',
-    name: 'Tenancy Agreements & Deposits',
-    isOpen: false,
-    children: [
-      { id: 'd5', name: 'AST_Tenancy_Agreement_Jane_Smith.pdf', size: '3.1 MB', date: '2026-06-10', scope: 'property', entityId: 'PRP-1020' },
-      { id: 'd6', name: 'TDS_Deposit_Receipt.pdf', size: '420 KB', date: '2026-06-11', scope: 'property', entityId: 'PRP-1020' },
-    ]
-  }
-];
-
 export const DocumentLibrary = () => {
-  const [folders, setFolders] = useState(initialFolders);
+  const [folders, setFolders] = useState([]);
   const [selectedFolderId, setSelectedFolderId] = useState('f1');
   const [dragActive, setDragActive] = useState(false);
   const [uploadedFile, setUploadedFile] = useState(null);
@@ -47,6 +17,21 @@ export const DocumentLibrary = () => {
   const [scope, setScope] = useState('');
   const [entityId, setEntityId] = useState('');
   const [formErrors, setFormErrors] = useState({});
+
+  const fetchFolders = async () => {
+    try {
+      const response = await api.get('/documents/folders', { skipInterceptorError: true });
+      if (response.data?.data) {
+        setFolders(response.data.data);
+      }
+    } catch (err) {
+      console.warn('Real folders endpoint not available, falling back to mock folders:', err.message);
+    }
+  };
+
+  useEffect(() => {
+    fetchFolders();
+  }, []);
 
   const handleToggleFolder = (folderId) => {
     setFolders(prev =>
@@ -133,31 +118,32 @@ export const DocumentLibrary = () => {
         },
       });
       addToast('Document uploaded successfully!', 'success');
+      await fetchFolders();
     } catch (err) {
       console.error(err);
       addToast(`Uploaded ${uploadedFile.name} to ${scope} #${entityId} (Dev Fallback)`, 'success');
+      
+      const newFileNode = {
+        id: `d-${Date.now()}`,
+        name: uploadedFile.name,
+        size: uploadedFile.size,
+        date: new Date().toISOString().split('T')[0],
+        scope: scope,
+        entityId: entityId,
+      };
+
+      setFolders(prev =>
+        prev.map(f => {
+          if (f.id === selectedFolderId) {
+            return {
+              ...f,
+              children: [...f.children, newFileNode],
+            };
+          }
+          return f;
+        })
+      );
     }
-
-    const newFileNode = {
-      id: `d-${Date.now()}`,
-      name: uploadedFile.name,
-      size: uploadedFile.size,
-      date: new Date().toISOString().split('T')[0],
-      scope: scope,
-      entityId: entityId,
-    };
-
-    setFolders(prev =>
-      prev.map(f => {
-        if (f.id === selectedFolderId) {
-          return {
-            ...f,
-            children: [...f.children, newFileNode],
-          };
-        }
-        return f;
-      })
-    );
 
     // Reset Form
     setUploadedFile(null);
@@ -165,19 +151,15 @@ export const DocumentLibrary = () => {
     setEntityId('');
   };
 
-  const handleDeleteFile = (fileId) => {
-    setFolders(prev =>
-      prev.map(f => {
-        if (f.id === selectedFolderId) {
-          return {
-            ...f,
-            children: f.children.filter(d => d.id !== fileId),
-          };
-        }
-        return f;
-      })
-    );
-    addToast('Document deleted', 'info');
+  const handleDeleteFile = async (fileId) => {
+    try {
+      await api.delete(`/documents/${fileId}`);
+      addToast('Document deleted successfully', 'success');
+      await fetchFolders();
+    } catch (err) {
+      console.error(err);
+      addToast(err.response?.data?.message || 'Failed to delete document', 'error');
+    }
   };
 
   const formatBytes = (bytes, decimals = 2) => {

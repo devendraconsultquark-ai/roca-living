@@ -1,8 +1,21 @@
-import dotenv from "dotenv/config";
+import dotenv from "dotenv/config"; // reload trigger
 import { app } from "./app.js";
 import logger from "./src/utils/logger.js";
 import pool, { verifyDbConnection } from "./src/config/db.js";
+import { runPhase1Migrations } from './src/db/migrations/phase1_tables.js';
+import { runPhase2Migrations } from './src/db/migrations/phase2_accounting_tables.js';
+import { runPhase3Migrations } from './src/db/migrations/phase3_operations_tables.js';
+import { runPhase4Migrations } from './src/db/migrations/phase4_agents_tables.js';
+import { runPhase6Migrations } from './src/db/migrations/phase6_forgot_password.js';
+import { runPhase7Migrations } from './src/db/migrations/phase7_statement_metadata.js';
+import { startScheduler } from './src/jobs/scheduler.js';
+import { ensurePuppeteerDependencies } from './src/utils/puppeteerGenerator.js';
 const PORT = process.env.PORT || 9000;
+
+if (!process.env.JWT_SECRET) {
+  logger.error("FATAL ERROR: JWT_SECRET environment variable is missing!");
+  process.exit(1);
+}
 
 // Verify DB first, then start server
 const startServer = async () => {
@@ -12,9 +25,30 @@ const startServer = async () => {
     process.exit(1);
   }
 
+  await runPhase1Migrations();
+  logger.info('Phase 1 migrations complete');
+
+  await runPhase2Migrations();
+  logger.info('Phase 2 migrations complete');
+
+  await runPhase3Migrations();
+  logger.info('Phase 3 migrations complete');
+
+  await runPhase4Migrations();
+  logger.info('Phase 4 migrations complete');
+
+  await runPhase6Migrations();
+  logger.info('Phase 6 migrations complete');
+
+  await runPhase7Migrations();
+  logger.info('Phase 7 migrations complete');
+
+  await ensurePuppeteerDependencies();
+
   const server = app.listen(PORT, () => {
     logger.info(`Server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
     console.log(`Server is running on http://localhost:${PORT}`);
+    startScheduler();
   });
 
   // Graceful Shutdown Handler

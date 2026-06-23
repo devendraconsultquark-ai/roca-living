@@ -1,38 +1,51 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Input } from '../components/UI/Input';
 import { Button } from '../components/UI/Button';
 import { Logo } from '../components/UI/Logo';
-import api from '../utilities/api';
+import { useAuth } from '../context/AuthContext';
 
 export const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { login, isAuthenticated, user } = useAuth();
 
-  const handleLogin = (e) => {
+  useEffect(() => {
+    if (isAuthenticated && user?.role === 'ADMIN') {
+      navigate('/dashboard');
+    }
+  }, [isAuthenticated, user, navigate]);
+
+  const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
+    setFieldErrors({});
     setIsLoading(true);
 
-    // 1. Simple frontend check for email and password
-    if (email === 'admin@rocaliving.com' && password === 'admin123') {
-
-      // 2. Create a mock user object and save it to localStorage
-      const mockUser = { role: 'ADMIN', email, name: 'Admin User' };
-      localStorage.setItem('user', JSON.stringify(mockUser));
-
-      // 3. Redirect to the dashboard
-      navigate('/dashboard');
-    } else {
-      // 4. Show error if credentials are wrong
-      setError('Login failed. Please check your credentials.');
+    try {
+      await login({ email, password });
+    } catch (err) {
+      console.error(err);
+      
+      const errorMessages = err.response?.data?.errors;
+      
+      if (Array.isArray(errorMessages) && errorMessages.length > 0) {
+        const errorsMap = {};
+        errorMessages.forEach((m) => {
+          errorsMap[m.field] = m.message;
+        });
+        setFieldErrors(errorsMap);
+      } else {
+        const errorMessage = err.response?.data?.message || 'Login failed. Please check your credentials.';
+        setError(errorMessage);
+      }
       setIsLoading(false);
     }
   };
-
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-app-bg px-4 py-12">
@@ -60,7 +73,11 @@ export const LoginPage = () => {
             required
             placeholder="e.g. admin@rocaliving.com"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            error={fieldErrors.email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: '' }));
+            }}
           />
 
           <Input
@@ -70,7 +87,11 @@ export const LoginPage = () => {
             required
             placeholder="••••••••"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            error={fieldErrors.password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (fieldErrors.password) setFieldErrors((prev) => ({ ...prev, password: '' }));
+            }}
           />
 
           <Button
@@ -83,7 +104,13 @@ export const LoginPage = () => {
             {isLoading ? 'Signing In...' : 'Sign In'}
           </Button>
 
-          <div className="text-center mt-2">
+          <div className="text-center mt-2 flex flex-col gap-2">
+            <span
+              onClick={() => navigate('/forgot-password')}
+              className="text-xs text-brand-accent hover:underline font-bold cursor-pointer"
+            >
+              Forgot Password?
+            </span>
             <span className="text-xs text-status-muted">
               Secure, authorized access only.
             </span>

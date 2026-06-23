@@ -4,6 +4,9 @@ import { Check, User, ShieldCheck, Home, ClipboardList, CalendarDays, Key } from
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
 import { Button } from '../components/UI/Button';
+import api from '../utilities/api';
+import { useToast } from '../components/UI/ToastContext';
+
 
 const steps = [
   { id: 1, name: 'Landlord & ToB', icon: User },
@@ -19,6 +22,10 @@ export const OnboardingWizard = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSuccess, setIsSuccess] = useState(false);
   const [errors, setErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const [createdIds, setCreatedIds] = useState(null);
+  const { addToast } = useToast();
+
 
   // Centralized onboarding form data
   const [formData, setFormData] = useState({
@@ -148,15 +155,27 @@ export const OnboardingWizard = () => {
     return Object.keys(stepErrors).length === 0;
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (validateStep(currentStep)) {
       if (currentStep < 6) {
         setCurrentStep((prev) => prev + 1);
       } else {
-        setIsSuccess(true);
+        setSubmitting(true);
+        try {
+          const res = await api.post('/onboarding', formData);
+          if (res.data && res.data.success) {
+            setCreatedIds(res.data.data);
+            setIsSuccess(true);
+          }
+        } catch (error) {
+          addToast(error.response?.data?.message || 'Onboarding failed', 'error');
+        } finally {
+          setSubmitting(false);
+        }
       }
     }
   };
+
 
   const handleBack = () => {
     setErrors({});
@@ -193,6 +212,7 @@ export const OnboardingWizard = () => {
     setErrors({});
     setIsSuccess(false);
     setCurrentStep(1);
+    setCreatedIds(null);
   };
 
   const progressPercent = (currentStep / 6) * 100;
@@ -222,11 +242,13 @@ export const OnboardingWizard = () => {
               <p className="text-gray-400 font-semibold">LANDLORD</p>
               <p className="font-bold text-[#1A1A1A] text-sm mt-0.5">{formData.landlordName}</p>
               <p className="text-gray-500">{formData.landlordEmail}</p>
+              {createdIds && <p className="text-[10px] text-gray-400 mt-1">ID: {createdIds.landlord_id}</p>}
             </div>
             <div>
               <p className="text-gray-400 font-semibold">PROPERTY ADDRESS</p>
               <p className="font-bold text-[#1A1A1A] text-sm mt-0.5">{formData.addressLine1}</p>
               <p className="text-gray-500">{formData.city}, {formData.postcode}</p>
+              {createdIds && <p className="text-[10px] text-gray-400 mt-1">ID: {createdIds.property_id}</p>}
             </div>
             <div>
               <p className="text-gray-400 font-semibold">COMPLIANCE CERTIFICATES</p>
@@ -237,8 +259,10 @@ export const OnboardingWizard = () => {
               <p className="text-gray-400 font-semibold">TENANCY DETAILS</p>
               <p className="font-bold text-[#1A1A1A] text-sm mt-0.5">Tenant: {formData.tenantName}</p>
               <p className="text-gray-500">Rent: £{formData.rentPrice}/mo</p>
+              {createdIds && <p className="text-[10px] text-gray-400 mt-1">Tenancy ID: {createdIds.tenancy_id}</p>}
             </div>
           </div>
+
 
           <div className="flex gap-4">
             <Button variant="secondary" onClick={() => navigate('/dashboard')}>
@@ -602,8 +626,8 @@ export const OnboardingWizard = () => {
                 <Button variant="ghost" onClick={() => navigate('/dashboard')}>
                   Cancel
                 </Button>
-                <Button variant="primary" onClick={handleNext}>
-                  {currentStep === 6 ? 'Finish & Save' : 'Save & Continue'}
+                 <Button variant="primary" onClick={handleNext} disabled={submitting}>
+                  {submitting ? 'Saving...' : (currentStep === 6 ? 'Finish & Save' : 'Save & Continue')}
                 </Button>
               </div>
             </div>

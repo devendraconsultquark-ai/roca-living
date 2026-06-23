@@ -139,7 +139,7 @@ export const LandlordLayout = () => {
         </header>
 
         {/* Viewport content area */}
-        <main className="flex-grow p-4 md:p-6 overflow-y-auto max-w-[1440px] w-full mx-auto">
+        <main className="flex-grow overflow-y-auto max-w-[1440px] w-full mx-auto">
           <Outlet />
         </main>
       </div>

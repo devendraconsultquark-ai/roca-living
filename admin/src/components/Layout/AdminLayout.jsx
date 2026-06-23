@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Home, Calendar, UserCheck, ShieldAlert,
-  Wallet, FileSpreadsheet, Wrench, UserCog, PiggyBank, Droplet,
+  Wallet, FileSpreadsheet, Receipt, Wrench, UserCog, PiggyBank, Droplet,
   FolderOpen, BarChart3, Settings, Menu, X, Bell, User, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { Logo } from '../UI/Logo';
@@ -22,6 +22,7 @@ export const AdminLayout = () => {
     { name: 'Agents', path: '/agents', icon: ShieldAlert },
     { name: 'Accounting', path: '/accounting', icon: Wallet },
     { name: 'Statements', path: '/statements', icon: FileSpreadsheet },
+    { name: 'Invoices', path: '/invoices', icon: Receipt },
     { name: 'Maintenance', path: '/maintenance', icon: Wrench },
     { name: 'Contractors', path: '/contractors', icon: UserCog },
     { name: 'Deposits', path: '/deposits', icon: PiggyBank },
@@ -149,7 +150,7 @@ export const AdminLayout = () => {
         </header>
 
         {/* Viewport content area */}
-        <main className="flex-grow p-4 md:p-6 overflow-y-auto max-w-[1440px] w-full mx-auto">
+        <main className="flex-grow overflow-y-auto max-w-[1440px] w-full mx-auto">
           <Outlet />
         </main>
       </div>

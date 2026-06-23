@@ -10,7 +10,8 @@ export const registerSchema = z.object({
             .min(2, "Name must be at least 2 characters"),
 
       email: requiredString("Email is required")
-            .email("Invalid email format"),
+            .email("Invalid email format")
+            .transform(val => val.toLowerCase()),
 
       password: requiredString("Password is required")
             .min(8, "Password must be at least 8 characters long")
@@ -30,11 +31,8 @@ export const registerSchema = z.object({
 
 export const loginSchema = z.object({
       email: requiredString("Email is required")
-            .email("Invalid email format"),
+            .email("Invalid email format")
+            .transform(val => val.toLowerCase()),
 
-      password: requiredString("Password is required")
-            .min(8, "Password must be at least 8 characters long")
-            .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-            .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-            .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character"),
+      password: requiredString("Password is required"),
 })

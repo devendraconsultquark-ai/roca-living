@@ -1,17 +1,107 @@
-import React from 'react';
-import { Users, CheckCircle2, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Users, CheckCircle2, AlertTriangle, Edit, X, Trash2 } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { StatCard } from '../components/UI/StatCard';
-
-const tenantsData = [
-  { id: 'TNT-501', name: 'Michael Scott', email: 'michael@dundermifflin.com', phone: '+44 7900 112233', property: 'Flat 12, Living Towers, Manchester M1', balance: 0.00, status: 'Active' },
-  { id: 'TNT-502', name: 'Pam Beesly', email: 'pam@dundermifflin.com', phone: '+44 7900 445566', property: '78 Oak Avenue, Bristol BS2', balance: -150.00, status: 'In Arrears' },
-  { id: 'TNT-503', name: 'Jim Halpert', email: 'jim@dundermifflin.com', phone: '+44 7900 778899', property: '14 High Street, London E14', balance: 0.00, status: 'Active' },
-  { id: 'TNT-504', name: 'Angela Martin', email: 'angela@dundermifflin.com', phone: '+44 7900 990011', property: '22 Queen Street, Liverpool L3', balance: 0.00, status: 'Active' },
-];
+import { Input } from '../components/UI/Input';
+import { Dropdown } from '../components/UI/Dropdown';
+import { useToast } from '../components/UI/ToastContext';
+import api from '../utilities/api';
 
 export const Tenants = () => {
+  const [tenants, setTenants] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  // Edit Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingTenantId, setEditingTenantId] = useState(null);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    right_to_rent_status: 'pending',
+    right_to_rent_expiry: ''
+  });
+  const [formErrors, setFormErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const { addToast } = useToast();
+
+  const handleEditClick = (row) => {
+    setEditingTenantId(row.rawId);
+    setEditForm({
+      name: row.name || '',
+      email: row.email === '-' ? '' : row.email || '',
+      phone: row.phone === '-' ? '' : row.phone || '',
+      right_to_rent_status: row.right_to_rent_status || 'pending',
+      right_to_rent_expiry: row.right_to_rent_expiry || ''
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    const errs = {};
+    if (!editForm.name.trim()) errs.name = 'Full name is required';
+    if (Object.keys(errs).length > 0) { setFormErrors(errs); return; }
+
+    setFormErrors({});
+    setSubmitting(true);
+    try {
+      await api.patch(`/tenancies/tenants/${editingTenantId}`, editForm);
+      addToast('Tenant details updated successfully!', 'success');
+      setIsEditModalOpen(false);
+      fetchTenants();
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to update tenant details', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteClick = async (row) => {
+    if (window.confirm(`Are you sure you want to delete tenant "${row.name}"?`)) {
+      try {
+        await api.delete(`/tenancies/tenants/${row.rawId}`);
+        addToast('Tenant deleted successfully', 'success');
+        fetchTenants();
+      } catch (err) {
+        addToast(err.response?.data?.message || 'Failed to delete tenant', 'error');
+      }
+    }
+  };
+
+
+  const fetchTenants = async () => {
+    setLoading(true);
+    try {
+      const response = await api.get('/tenancies/tenants/all');
+      const data = response.data.data || [];
+      // Ensure balance is parsed to a float/number
+      const formatted = data.map(t => ({
+        ...t,
+        balance: parseFloat(t.balance || 0)
+      }));
+      setTenants(formatted);
+      setError(null);
+    } catch (err) {
+      console.error(err);
+      const errMsg = err.response?.data?.message || 'Error loading tenants';
+      setError(errMsg);
+      addToast(errMsg, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTenants();
+  }, []);
+
+  const totalTenants = tenants.length;
+  const paymentsUpToDate = tenants.filter(t => t.balance >= 0).length;
+  const tenantsInArrears = tenants.filter(t => t.balance < 0).length;
+
   const columns = [
     { header: 'Tenant ID', accessor: 'id', sortable: true },
     { header: 'Full Name', accessor: 'name', sortable: true },
@@ -42,6 +132,29 @@ export const Tenants = () => {
         </span>
       )
     },
+    {
+      header: 'Actions',
+      accessor: 'id',
+      align: 'center',
+      renderCell: (row) => (
+        <div className="flex justify-center gap-1">
+          <button
+            onClick={() => handleEditClick(row)}
+            className="p-1.5 text-gray-500 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
+            title="Edit tenant details"
+          >
+            <Edit size={16} />
+          </button>
+          <button
+            onClick={() => handleDeleteClick(row)}
+            className="p-1.5 text-gray-500 hover:text-status-danger hover:bg-status-danger/5 rounded-lg transition-colors cursor-pointer"
+            title="Delete tenant"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      )
+    }
   ];
 
   return (
@@ -61,20 +174,20 @@ export const Tenants = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <StatCard
           label="Total Tenants"
-          value="114 Residents"
+          value={loading ? '...' : `${totalTenants} Residents`}
           icon={Users}
           iconColor="text-brand-primary bg-brand-primary/10"
         />
         <StatCard
           label="Payments Up to Date"
-          value="112 Accounts"
+          value={loading ? '...' : `${paymentsUpToDate} Accounts`}
           icon={CheckCircle2}
           iconColor="text-status-success bg-status-success/10"
           valueColor="text-status-success"
         />
         <StatCard
           label="Tenants in Arrears"
-          value="2 Accounts"
+          value={loading ? '...' : `${tenantsInArrears} Accounts`}
           icon={AlertTriangle}
           iconColor="text-status-danger bg-status-danger/10"
           valueColor="text-status-danger"
@@ -83,8 +196,87 @@ export const Tenants = () => {
 
       {/* Grid container */}
       <div className="bg-white rounded-2xl border border-border-color/60 p-4 shadow-sm">
-        <DataTable columns={columns} data={tenantsData} />
+        {loading ? (
+          <div className="space-y-4 py-4">
+            <div className="h-10 bg-gray-100/80 rounded-lg animate-pulse w-full" />
+            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+          </div>
+        ) : error ? (
+          <div className="border border-status-danger bg-status-danger/5 rounded-xl p-6 text-center text-status-danger font-semibold">
+            {error}
+          </div>
+        ) : (
+          <DataTable columns={columns} data={tenants} />
+        )}
       </div>
+
+      {/* Edit Tenant Modal */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 bg-brand-primary/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-border-color">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-[#1A1A1A]">Edit Tenant Details</h3>
+              <button onClick={() => { setIsEditModalOpen(false); setFormErrors({}); }} className="text-gray-400 hover:text-gray-700 cursor-pointer">
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
+              <Input
+                label="Full Name"
+                id="edit-t-name"
+                required
+                value={editForm.name}
+                onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))}
+                error={formErrors.name}
+              />
+              <Input
+                label="Email Address"
+                id="edit-t-email"
+                type="email"
+                value={editForm.email}
+                onChange={(e) => setEditForm(f => ({ ...f, email: e.target.value }))}
+              />
+              <Input
+                label="Phone Number"
+                id="edit-t-phone"
+                value={editForm.phone}
+                onChange={(e) => setEditForm(f => ({ ...f, phone: e.target.value }))}
+              />
+              <Dropdown
+                label="Right to Rent Status"
+                id="edit-t-rtr-status"
+                placeholder="Select status"
+                value={editForm.right_to_rent_status}
+                onChange={(val) => setEditForm(f => ({ ...f, right_to_rent_status: val }))}
+                options={[
+                  { value: 'pending', label: 'Pending' },
+                  { value: 'verified', label: 'Approved (Verified)' },
+                  { value: 'failed', label: 'Rejected (Failed)' }
+                ]}
+              />
+              <Input
+                label="Right to Rent Expiry"
+                id="edit-t-rtr-expiry"
+                type="date"
+                value={editForm.right_to_rent_expiry}
+                onChange={(e) => setEditForm(f => ({ ...f, right_to_rent_expiry: e.target.value }))}
+              />
+
+              <div className="flex gap-3 justify-end mt-1">
+                <Button type="button" variant="ghost" onClick={() => { setIsEditModalOpen(false); setFormErrors({}); }}>
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary" disabled={submitting}>
+                  {submitting ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

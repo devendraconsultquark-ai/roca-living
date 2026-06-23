@@ -10,6 +10,21 @@ import logger from "./src/utils/logger.js";
 import notFound from "./src/middlewares/notFound.js";
 import errorHandler from "./src/middlewares/errorHandler.js";
 import authRouter from "./src/routes/authRoutes.js";
+import landlordRouter from './src/routes/landlordRoutes.js';
+import propertyRouter from './src/routes/propertyRoutes.js';
+import tenancyRouter from './src/routes/tenancyRoutes.js';
+import accountingRouter from './src/routes/accountingRoutes.js';
+import statementRouter from './src/routes/statementRoutes.js';
+import depositRouter from './src/routes/depositRoutes.js';
+import maintenanceRouter from './src/routes/maintenanceRoutes.js';
+import utilityRouter from './src/routes/utilityRoutes.js';
+import inspectionRouter from './src/routes/inspectionRoutes.js';
+import agentRouter from './src/routes/agentRoutes.js';
+import onboardingRouter from './src/routes/onboardingRoutes.js';
+import reportRouter from './src/routes/reportRoutes.js';
+import documentRouter from './src/routes/documentRoutes.js';
+import invoiceRouter from './src/routes/invoiceRoutes.js';
+
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
@@ -36,6 +51,7 @@ app.use(cors({
       return callback(null, false);
     }
   },
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
@@ -80,6 +96,21 @@ app.get('/', (req, res) => res.json({ success: true, message: 'Roca Living API' 
 
 // Routes
 app.use("/api/v1/auth", authRouter);
+app.use('/api/v1/landlords', landlordRouter);
+app.use('/api/v1/properties', propertyRouter);
+app.use('/api/v1/tenancies', tenancyRouter);
+app.use('/api/v1/accounting', accountingRouter);
+app.use('/api/v1/statements', statementRouter);
+app.use('/api/v1/deposits', depositRouter);
+app.use('/api/v1/maintenance', maintenanceRouter);
+app.use('/api/v1/utilities', utilityRouter);
+app.use('/api/v1/inspections', inspectionRouter);
+app.use('/api/v1/agents', agentRouter);
+app.use('/api/v1/onboarding', onboardingRouter);
+app.use('/api/v1/reports', reportRouter);
+app.use('/api/v1/documents', documentRouter);
+app.use('/api/v1/invoices', invoiceRouter);
+
 
 app.use(notFound);
 app.use(errorHandler);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FileSpreadsheet, Check, X, AlertTriangle, Download, RefreshCw, Calendar } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
 import { DataTable } from '../components/UI/DataTable';
@@ -6,43 +6,9 @@ import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import api from '../utilities/api';
 
-// Grid Mock Datasets
-const incomingPaymentsData = [
-  { id: 'inc-1', date: '2026-06-12', tenant: 'Jane Smith', property: 'Flat 12, Living Towers', amount: 1850.00, method: 'Direct Debit', reference: 'RL-1020-SMITH', status: 'Cleared' },
-  { id: 'inc-2', date: '2026-06-11', tenant: 'Richard Evans', property: '78 Oak Avenue', amount: 1400.00, method: 'Bank Transfer', reference: 'RL-OAK-EVANS', status: 'Cleared' },
-  { id: 'inc-3', date: '2026-06-10', tenant: 'Alice Cooper', property: '14 High Street', amount: 950.00, method: 'Card Payment', reference: 'COOPER-RENT-JUNE', status: 'Pending' },
-  { id: 'inc-4', date: '2026-06-08', tenant: 'Mark Jenkins', property: 'Flat 5, Queens Road', amount: 1650.00, method: 'Direct Debit', reference: 'RL-QUE-JENKINS', status: 'Cleared' },
-];
+const paymentsToApproveData = [];
 
-const unreconciledData = [
-  { id: 'unr-1', date: '2026-06-12', description: 'BANK TRANSFER ROCA RENT UNKNOWN REF', amount: 1200.00, sourceBank: 'Barclays Main', type: 'Credit' },
-  { id: 'unr-2', date: '2026-06-09', description: 'SO J SMITH', amount: 1850.00, sourceBank: 'Barclays Main', type: 'Credit' },
-];
-
-const paymentsToApproveData = [
-  { id: 'app-1', landlord: 'John Doe', property: 'Flat 12, Living Towers', amount: 1628.00, bankDetails: 'AC: 12345678, SC: 20-30-40', date: '2026-06-12', status: 'Pending Approval' },
-  { id: 'app-2', landlord: 'Robert Harris', property: 'Apartment 4B, Park Heights', amount: 2150.00, bankDetails: 'AC: 87654321, SC: 10-20-30', date: '2026-06-11', status: 'Pending Approval' },
-];
-
-const payoutsData = [
-  { id: 'pay-1', landlord: 'John Doe', amount: 1628.00, bankAccount: '****5678', date: '2026-06-01', status: 'Success' },
-  { id: 'pay-2', landlord: 'Bristol Properties Ltd', amount: 4890.00, bankAccount: '****9900', date: '2026-06-02', status: 'Success' },
-];
-
-const failedPayoutsData = [
-  { id: 'fail-1', date: '2026-06-05', landlord: 'Sarah Jenkins', amount: 1150.00, bankDetails: 'AC: 11223344, SC: 40-50-60', reason: 'Invalid Bank Details (SC Refused)', status: 'Failed' },
-];
-
-const landlordsBalanceData = [
-  { id: 'lnd-bal-1', name: 'John Doe', balance: 1628.00, invoicedYtd: 11100.00, paidYtd: 9472.00, lastStatement: '2026-05-31' },
-  { id: 'lnd-bal-2', name: 'Robert Harris', balance: 2150.00, invoicedYtd: 15400.00, paidYtd: 13250.00, lastStatement: '2026-05-31' },
-  { id: 'lnd-bal-3', name: 'Bristol Properties Ltd', balance: 0.00, invoicedYtd: 29340.00, paidYtd: 29340.00, lastStatement: '2026-05-31' },
-];
-
-const tenantsArrearsData = [
-  { id: 'arr-1', name: 'Jane Smith', property: 'Flat 12, Living Towers', rent: 1850.00, arrears: 1850.00, days: 5, lastPaymentDate: '2026-05-07' },
-  { id: 'arr-2', name: 'Alice Cooper', property: '14 High Street', rent: 950.00, arrears: 1900.00, days: 35, lastPaymentDate: '2026-04-10' },
-];
+const failedPayoutsData = [];
 
 export const AccountingHub = () => {
   const [activeTab, setActiveTab] = useState('incoming');
@@ -53,13 +19,130 @@ export const AccountingHub = () => {
   const [modalLoading, setModalLoading] = useState(false);
   const { addToast } = useToast();
 
+  // State data for API tabs
+  const [incomingData, setIncomingData] = useState([]);
+  const [unreconciledDataState, setUnreconciledDataState] = useState([]);
+  const [approveData, setApproveData] = useState(paymentsToApproveData);
+  const [payoutsDataState, setPayoutsDataState] = useState([]);
+  const [failedData, setFailedData] = useState(failedPayoutsData);
+  const [landlordsDataState, setLandlordsDataState] = useState([]);
+  const [arrearsDataState, setArrearsDataState] = useState([]);
+  
+  const [loading, setLoading] = useState({});
+
+  const fetchTabData = async (tab) => {
+    setLoading(prev => ({ ...prev, [tab]: true }));
+    try {
+      if (tab === 'incoming') {
+        const res = await api.get('/accounting/payments?reconciled=1');
+        const formatted = (res.data.data || []).map(p => ({
+          id: p.id,
+          tenancy_id: p.tenancy_id,
+          date: p.received_at ? new Date(p.received_at).toLocaleDateString('en-GB') : '-',
+          tenant: p.tenant_name || '-',
+          property: `${p.address_line1 || ''}, ${p.city || ''}`,
+          amount: parseFloat(p.amount || 0),
+          method: p.method || '-',
+          reference: p.reference || '-',
+          status: p.reconciled ? 'Cleared' : 'Pending'
+        }));
+        setIncomingData(formatted);
+      } else if (tab === 'unreconciled') {
+        const res = await api.get('/accounting/unreconciled');
+        const formatted = (res.data.data || []).map(p => ({
+          id: p.id,
+          date: p.received_at ? new Date(p.received_at).toLocaleDateString('en-GB') : '-',
+          description: p.notes || p.reference || 'RENT PAYMENT RECEIVED',
+          amount: parseFloat(p.amount || 0),
+          sourceBank: p.method || 'Bank Transfer',
+          type: 'Credit'
+        }));
+        setUnreconciledDataState(formatted);
+      } else if (tab === 'payouts') {
+        const res = await api.get('/statements');
+        const paidStatements = (res.data.data || []).filter(s => s.status === 'paid');
+        const formatted = paidStatements.map(s => ({
+          id: s.id,
+          date: s.paid_at ? new Date(s.paid_at).toLocaleDateString('en-GB') : (s.generated_at ? new Date(s.generated_at).toLocaleDateString('en-GB') : '-'),
+          landlord: s.landlord_name || 'Landlord',
+          amount: parseFloat(s.net_paid || 0),
+          bankAccount: `****${s.landlord_id}`,
+          status: 'Success'
+        }));
+        setPayoutsDataState(formatted);
+      } else if (tab === 'landlords') {
+        const landlordsRes = await api.get('/landlords');
+        const statementsRes = await api.get('/statements');
+        const landlords = landlordsRes.data.data || [];
+        const statements = statementsRes.data.data || [];
+        const formatted = landlords.map(l => {
+          const lStatements = statements.filter(s => s.landlord_id === l.id);
+          const invoicedYtd = lStatements.reduce((sum, s) => sum + parseFloat(s.gross_rent || 0), 0);
+          const paidYtd = lStatements.filter(s => s.status === 'paid').reduce((sum, s) => sum + parseFloat(s.net_paid || 0), 0);
+          const balance = lStatements.filter(s => s.status !== 'paid').reduce((sum, s) => sum + parseFloat(s.net_paid || 0), 0);
+          const lastStmt = lStatements[0];
+          const lastStatement = lastStmt ? new Date(lastStmt.generated_at).toLocaleDateString('en-GB') : '-';
+          return {
+            id: l.id,
+            name: l.name,
+            balance,
+            invoicedYtd,
+            paidYtd,
+            lastStatement
+          };
+        });
+        setLandlordsDataState(formatted);
+      } else if (tab === 'arrears') {
+        const res = await api.get('/accounting/arrears');
+        const formatted = (res.data.data || []).map(a => ({
+          id: a.id,
+          name: a.name,
+          property: a.property,
+          rent: parseFloat(a.rent || 0),
+          arrears: parseFloat(a.arrears || 0),
+          days: a.days,
+          lastPaymentDate: a.lastPaymentDate ? new Date(a.lastPaymentDate).toLocaleDateString('en-GB') : '-'
+        }));
+        setArrearsDataState(formatted);
+      }
+    } catch (err) {
+      console.error(err);
+      addToast(err.response?.data?.message || `Failed to fetch data for tab: ${tab}`, 'error');
+    } finally {
+      setLoading(prev => ({ ...prev, [tab]: false }));
+    }
+  };
+
+  useEffect(() => {
+    fetchTabData(activeTab);
+  }, [activeTab]);
+
   const handleSelectionChange = (selectedIds) => {
     setSelectedIncomingIds(selectedIds);
   };
 
-  const handleBulkReconcile = () => {
-    addToast(`Reconciled ${selectedIncomingIds.length} payments successfully`, 'success');
-    setSelectedIncomingIds([]);
+  const handleBulkReconcile = async () => {
+    try {
+      for (const paymentId of selectedIncomingIds) {
+        const payment = incomingData.find(p => p.id === paymentId);
+        if (!payment) continue;
+        
+        const tenancyRes = await api.get(`/tenancies/${payment.tenancy_id}`);
+        const firstDueSchedule = tenancyRes.data.data.rent_schedules.find(s => s.status === 'due' || s.status === 'overdue');
+        
+        if (firstDueSchedule) {
+          await api.patch(`/accounting/rent-payments/${paymentId}/reconcile`, {
+            schedule_id: firstDueSchedule.id
+          });
+        }
+      }
+      addToast(`Reconciled ${selectedIncomingIds.length} payments successfully`, 'success');
+      setSelectedIncomingIds([]);
+      fetchTabData(activeTab);
+    } catch (err) {
+      console.error(err);
+      addToast(err.response?.data?.message || 'Failed to reconcile selected payments', 'error');
+    }
   };
 
   const handleBulkExport = () => {
@@ -75,11 +158,17 @@ export const AccountingHub = () => {
 
     setModalLoading(true);
     try {
-      await api.post('/statements/generate', { startDate, endDate });
+      await api.post('/statements/generate', {
+        period_start: startDate,
+        period_end: endDate
+      });
       addToast(`Landlord Statements generated for period ${startDate} to ${endDate}`, 'success');
+      if (activeTab === 'payouts' || activeTab === 'landlords') {
+        fetchTabData(activeTab);
+      }
     } catch (err) {
       console.error(err);
-      addToast(`Landlord Statements generated for ${startDate} to ${endDate} (Dev Mode)`, 'success');
+      addToast(err.response?.data?.message || 'Failed to generate landlord statements', 'error');
     } finally {
       setModalLoading(false);
       setShowModal(false);
@@ -267,14 +356,23 @@ export const AccountingHub = () => {
   ];
 
   const tabItems = [
-    { id: 'incoming', name: 'Incoming Payments', count: incomingPaymentsData.length },
-    { id: 'unreconciled', name: 'Unreconciled', count: unreconciledData.length },
-    { id: 'approve', name: 'Payments to Approve', count: paymentsToApproveData.length },
-    { id: 'payouts', name: 'Outgoing/Payouts', count: payoutsData.length },
-    { id: 'failed', name: 'Failed Payouts', count: failedPayoutsData.length },
-    { id: 'landlords', name: 'Landlords with a Balance', count: landlordsBalanceData.length },
-    { id: 'arrears', name: 'Tenants in Arrears', count: tenantsArrearsData.length },
+    { id: 'incoming', name: 'Incoming Payments', count: incomingData.length },
+    { id: 'unreconciled', name: 'Unreconciled', count: unreconciledDataState.length },
+    { id: 'approve', name: 'Payments to Approve', count: approveData.length },
+    { id: 'payouts', name: 'Outgoing/Payouts', count: payoutsDataState.length },
+    { id: 'failed', name: 'Failed Payouts', count: failedData.length },
+    { id: 'landlords', name: 'Landlords with a Balance', count: landlordsDataState.length },
+    { id: 'arrears', name: 'Tenants in Arrears', count: arrearsDataState.length },
   ];
+
+  const renderSkeleton = () => (
+    <div className="space-y-4 py-4">
+      <div className="h-10 bg-gray-100/80 rounded-lg animate-pulse w-full" />
+      <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+      <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+      <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+    </div>
+  );
 
   return (
     <div className="py-6 max-w-7xl mx-auto px-4 flex flex-col gap-6">
@@ -343,48 +441,60 @@ export const AccountingHub = () => {
       {/* Tab Grid Render */}
       <div className="bg-white rounded-2xl shadow-sm border border-border-color p-4">
         {activeTab === 'incoming' && (
-          <DataTable 
-            columns={incomingColumns} 
-            data={incomingPaymentsData} 
-            enableBulkSelect={true}
-            onSelectionChange={handleSelectionChange}
-          />
+          loading['incoming'] ? renderSkeleton() : (
+            <DataTable 
+              columns={incomingColumns} 
+              data={incomingData} 
+              enableBulkSelect={true}
+              onSelectionChange={handleSelectionChange}
+            />
+          )
         )}
         {activeTab === 'unreconciled' && (
-          <DataTable 
-            columns={unreconciledColumns} 
-            data={unreconciledData} 
-          />
+          loading['unreconciled'] ? renderSkeleton() : (
+            <DataTable 
+              columns={unreconciledColumns} 
+              data={unreconciledDataState} 
+            />
+          )
         )}
         {activeTab === 'approve' && (
+          /* TODO: Phase 3 - Connect to real payouts approval backend */
           <DataTable 
             columns={approveColumns} 
-            data={paymentsToApproveData} 
+            data={approveData} 
           />
         )}
         {activeTab === 'payouts' && (
-          <DataTable 
-            columns={payoutsColumns} 
-            data={payoutsData} 
-          />
+          loading['payouts'] ? renderSkeleton() : (
+            <DataTable 
+              columns={payoutsColumns} 
+              data={payoutsDataState} 
+            />
+          )
         )}
         {activeTab === 'failed' && (
+          /* TODO: Phase 3 - Connect to real failed payouts backend */
           <DataTable 
             columns={failedPayoutsColumns} 
-            data={failedPayoutsData} 
+            data={failedData} 
           />
         )}
         {activeTab === 'landlords' && (
-          <DataTable 
-            columns={landlordsBalanceColumns} 
-            data={landlordsBalanceData} 
-          />
+          loading['landlords'] ? renderSkeleton() : (
+            <DataTable 
+              columns={landlordsBalanceColumns} 
+              data={landlordsDataState} 
+            />
+          )
         )}
         {activeTab === 'arrears' && (
-          <DataTable 
-            columns={tenantsArrearsColumns} 
-            data={tenantsArrearsData} 
-          />
+          loading['arrears'] ? renderSkeleton() : (
+            <DataTable 
+              columns={tenantsArrearsColumns} 
+              data={arrearsDataState} 
+            />
+          )
         )}
       </div>
 

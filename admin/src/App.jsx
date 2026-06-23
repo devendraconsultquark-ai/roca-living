@@ -4,6 +4,7 @@ import { AdminLayout } from './components/Layout/AdminLayout';
 import { ToastProvider } from './components/UI/ToastContext';
 import { LoginPage } from './pages/LoginPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { AuthProvider } from './context/AuthContext';
 import { OnboardingWizard } from './pages/OnboardingWizard';
 import { MaintenanceBoard } from './pages/MaintenanceBoard';
 import { DocumentLibrary } from './pages/DocumentLibrary';
@@ -17,12 +18,15 @@ import { Tenancies } from './pages/Tenancies';
 import { Tenants } from './pages/Tenants';
 import { Agents } from './pages/Agents';
 import { Statements } from './pages/Statements';
+import { Invoices } from './pages/Invoices';
 import { Contractors } from './pages/Contractors';
 import { Deposits } from './pages/Deposits';
 import { Utilities } from './pages/Utilities';
 import { Reports } from './pages/Reports';
 import { Settings } from './pages/Settings';
 import { Profile } from './pages/Profile';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 
 // Wildcard 404 handler to prevent blank pages (P6-8 recommendation)
 const NotFound = () => (
@@ -37,37 +41,42 @@ function App() {
   return (
     <ToastProvider>
       <BrowserRouter basename="/roca-living-2/admin">
-        <Routes>
-          {/* Public login route */}
-          <Route path="/login" element={<LoginPage />} />
+        <AuthProvider>
+          <Routes>
+            {/* Public login route */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-          {/* Redirect base URL / to /dashboard */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            {/* Redirect base URL / to /dashboard */}
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-          {/* Wrap all administrative routes inside our shared layout, protected by ADMIN validation */}
-          <Route element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
-            <Route path="/onboarding" element={<OnboardingWizard />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/landlords" element={<Landlords />} />
-            <Route path="/properties" element={<Properties />} />
-            <Route path="/tenancies" element={<Tenancies />} />
-            <Route path="/tenants" element={<Tenants />} />
-            <Route path="/agents" element={<Agents />} />
-            <Route path="/accounting" element={<AccountingHub />} />
-            <Route path="/statements" element={<Statements />} />
-            <Route path="/maintenance" element={<MaintenanceBoard />} />
-            <Route path="/contractors" element={<Contractors />} />
-            <Route path="/deposits" element={<Deposits />} />
-            <Route path="/utilities" element={<Utilities />} />
-            <Route path="/documents" element={<DocumentLibrary />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/profile" element={<Profile />} />
-          </Route>
+            {/* Wrap all administrative routes inside our shared layout, protected by ADMIN validation */}
+            <Route element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
+              <Route path="/onboarding" element={<OnboardingWizard />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/landlords" element={<Landlords />} />
+              <Route path="/properties" element={<Properties />} />
+              <Route path="/tenancies" element={<Tenancies />} />
+              <Route path="/tenants" element={<Tenants />} />
+              <Route path="/agents" element={<Agents />} />
+              <Route path="/accounting" element={<AccountingHub />} />
+              <Route path="/statements" element={<Statements />} />
+              <Route path="/invoices" element={<Invoices />} />
+              <Route path="/maintenance" element={<MaintenanceBoard />} />
+              <Route path="/contractors" element={<Contractors />} />
+              <Route path="/deposits" element={<Deposits />} />
+              <Route path="/utilities" element={<Utilities />} />
+              <Route path="/documents" element={<DocumentLibrary />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/profile" element={<Profile />} />
+            </Route>
 
-          {/* Catch-all Route */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+            {/* Catch-all Route */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </ToastProvider>
   );

@@ -12,11 +12,13 @@ api.interceptors.response.use(
     const status = error.response?.status;
 
     if (status === 401) {
-      // Redirect to login if not already there
-      if (!window.location.pathname.includes('/login')) {
+      // Redirect to login if not already on a public page (login, forgot-password, reset-password)
+      const publicPaths = ['/login', '/forgot-password', '/reset-password'];
+      const isPublicPath = publicPaths.some(path => window.location.pathname.includes(path));
+      if (!isPublicPath) {
         window.location.href = '/roca-living-2/admin/login';
       }
-    } else {
+    } else if (!error.config?.skipInterceptorError) {
       // Dispatch custom event for all other errors
       const errorMessage = error.response?.data?.message || 'Error occurred';
       window.dispatchEvent(

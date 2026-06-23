@@ -1,48 +1,72 @@
-import React from 'react';
-import { Download, FileText } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Download } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import api from '../utilities/api';
 
-const statementRecords = [
-  { id: 'ST-0901', period: 'May 2026', date: '2026-05-31', invoiced: 5500.00, fees: 660.00, payout: 4840.00, status: 'Paid' },
-  { id: 'ST-0882', period: 'Apr 2026', date: '2026-04-30', invoiced: 5500.00, fees: 660.00, payout: 4840.00, status: 'Paid' },
-  { id: 'ST-0761', period: 'Mar 2026', date: '2026-03-31', invoiced: 5100.00, fees: 612.00, payout: 4488.00, status: 'Paid' },
-  { id: 'ST-0654', period: 'Feb 2026', date: '2026-02-28', invoiced: 5100.00, fees: 612.00, payout: 4488.00, status: 'Paid' },
-  { id: 'ST-0543', period: 'Jan 2026', date: '2026-01-31', invoiced: 5100.00, fees: 612.00, payout: 4488.00, status: 'Paid' },
-];
-
 export const Statements = () => {
+  const [statements, setStatements] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const { addToast } = useToast();
+
+  const fetchStatements = async () => {
+    setLoading(true);
+    try {
+      const response = await api.get('/statements/my');
+      const formatted = (response.data.data || []).map((s) => {
+        const totalFees = parseFloat(s.mgmt_fee || 0) + 
+                          parseFloat(s.mgmt_fee_vat || 0) + 
+                          parseFloat(s.roca_letting_fee || 0) + 
+                          parseFloat(s.agent_letting_fee || 0);
+
+        const periodStartStr = s.period_start ? new Date(s.period_start).toLocaleDateString('en-GB') : '';
+        const periodEndStr = s.period_end ? new Date(s.period_end).toLocaleDateString('en-GB') : '';
+
+        return {
+          id: s.id,
+          period: `${periodStartStr} - ${periodEndStr}`,
+          date: s.generated_at ? new Date(s.generated_at).toLocaleDateString('en-GB') : '-',
+          invoiced: parseFloat(s.gross_rent || 0),
+          fees: totalFees,
+          payout: parseFloat(s.net_paid || 0),
+          status: s.status ? s.status.charAt(0).toUpperCase() + s.status.slice(1) : 'Draft'
+        };
+      });
+      setStatements(formatted);
+      setError(null);
+    } catch (err) {
+      console.error(err);
+      const errMsg = err.response?.data?.message || 'Error loading statements';
+      setError(errMsg);
+      addToast(errMsg, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStatements();
+  }, []);
 
   const handleDownloadPDF = async (id, period) => {
     addToast(`Requesting statement PDF for ${period}...`, 'info');
-    
     try {
-      const response = await api.get(`/statements/${id}/download`, { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `ROCA_Statement_${period.replace(' ', '_')}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      addToast(`Statement PDF downloaded for ${period}`, 'success');
-    } catch (err) {
-      console.error('PDF Download failed, triggering fallback', err);
-      
-      // Dev mode offline download fallback
-      const mockText = `ROCA LIVING LANDLORD STATEMENT\nStatement ID: ${id}\nPeriod: ${period}\nNet Payout: £4,840.00\nStatus: PAID\nGenerated in developer offline fallback.`;
-      const blob = new Blob([mockText], { type: 'text/plain' });
+      const response = await api.get(`/statements/${id}/pdf`, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `ROCA_Statement_${period.replace(' ', '_')}.pdf`);
+      link.setAttribute('download', `ROCA_Statement_${period.replace(/\s+/g, '_')}.pdf`);
       document.body.appendChild(link);
       link.click();
       link.remove();
-      addToast(`Downloaded fallback statement for ${period}`, 'success');
+      window.URL.revokeObjectURL(url);
+      addToast(`Statement PDF downloaded for ${period}`, 'success');
+    } catch (err) {
+      console.error(err);
+      addToast(err.response?.data?.message || `Failed to download statement PDF for ${period}`, 'error');
     }
   };
 
@@ -78,11 +102,17 @@ export const Statements = () => {
     { 
       header: 'Payout Status', 
       accessor: 'status',
-      renderCell: (row) => (
-        <span className="px-2 py-0.5 text-[10px] font-bold rounded-full border bg-status-success/10 text-status-success border-status-success/20">
-          {row.status}
-        </span>
-      )
+      renderCell: (row) => {
+        let style = 'bg-status-warning/10 text-status-warning border-status-warning/20';
+        if (row.status === 'Paid' || row.status === 'Sent') {
+          style = 'bg-status-success/10 text-status-success border-status-success/20';
+        }
+        return (
+          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${style}`}>
+            {row.status}
+          </span>
+        );
+      }
     },
     {
       header: 'Statement PDF',
@@ -110,13 +140,25 @@ export const Statements = () => {
 
       {/* Table grid container */}
       <div className="bg-white rounded-2xl border border-border-color p-4 shadow-sm">
-        <DataTable 
-          columns={columns} 
-          data={statementRecords} 
-          initialPageSize={10}
-        />
+        {loading ? (
+          <div className="space-y-4 py-4">
+            <div className="h-10 bg-gray-100/80 rounded-lg animate-pulse w-full" />
+            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+          </div>
+        ) : error ? (
+          <div className="border border-status-danger bg-status-danger/5 rounded-xl p-6 text-center text-status-danger font-semibold">
+            {error}
+          </div>
+        ) : (
+          <DataTable 
+            columns={columns} 
+            data={statements} 
+            initialPageSize={10}
+          />
+        )}
       </div>
-
     </div>
   );
 };

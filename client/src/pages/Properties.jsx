@@ -1,14 +1,59 @@
-import React from 'react';
-import { Home, CheckCircle2, AlertTriangle, Key } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Home, CheckCircle2, AlertTriangle, Key, HelpCircle } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
-
-const landlordProperties = [
-  { id: 'PR-101', address: 'Flat 12, Living Towers, Manchester M1', tenant: 'Michael Scott', rent: 1850.00, occupancy: 'Occupied', gasCompliance: 'Compliant', epcCompliance: 'Compliant', eicrCompliance: 'Compliant' },
-  { id: 'PR-102', address: '78 Oak Avenue, Bristol BS2', tenant: 'Pam Beesly', rent: 1400.00, occupancy: 'Occupied', gasCompliance: 'Compliant', epcCompliance: 'Compliant', eicrCompliance: 'Compliant' },
-  { id: 'PR-103', address: '14 High Street, London E14', tenant: 'Jim Halpert', rent: 3100.00, occupancy: 'Occupied', gasCompliance: 'Action Required', epcCompliance: 'Compliant', eicrCompliance: 'Compliant' },
-];
+import { StatusPill } from '../components/UI/StatusPill';
+import { useToast } from '../components/UI/ToastContext';
+import api from '../utilities/api';
 
 export const Properties = () => {
+  const [properties, setProperties] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const { addToast } = useToast();
+
+  const fetchMyProperties = async () => {
+    setLoading(true);
+    try {
+      const response = await api.get('/properties/my');
+      const formatted = (response.data.data || []).map((p) => ({
+        ...p,
+        address: `${p.address_line1}${p.address_line2 ? `, ${p.address_line2}` : ''}, ${p.city} ${p.postcode}`,
+        tenant: '-', // Tenant is not defined in DB schema for Phase 1
+        rent: p.rent_pcm ? parseFloat(p.rent_pcm) : 0,
+        status: p.status
+      }));
+      setProperties(formatted);
+      setError(null);
+    } catch (err) {
+      const errMsg = err.response?.data?.message || 'Error loading properties';
+      setError(errMsg);
+      addToast(errMsg, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMyProperties();
+  }, []);
+
+  const renderCertStatus = (statusValue) => {
+    if (!statusValue || statusValue === 'not_uploaded') return '-';
+    const config = {
+      compliant: { color: 'text-status-success', icon: CheckCircle2, text: 'Compliant' },
+      expiring_soon: { color: 'text-status-warning', icon: AlertTriangle, text: 'Expiring Soon' },
+      expired: { color: 'text-status-danger', icon: AlertTriangle, text: 'Expired' }
+    };
+    const item = config[statusValue] || { color: 'text-status-muted', icon: HelpCircle, text: statusValue };
+    const Icon = item.icon;
+    return (
+      <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${item.color}`}>
+        <Icon size={13} />
+        {item.text}
+      </span>
+    );
+  };
+
   const columns = [
     { header: 'Property Ref', accessor: 'id', sortable: true },
     { header: 'Property Address', accessor: 'address', sortable: true },
@@ -18,50 +63,50 @@ export const Properties = () => {
       accessor: 'rent', 
       align: 'right', 
       sortable: true,
-      renderCell: (row) => `£${row.rent.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      renderCell: (row) => {
+        const rentVal = typeof row.rent === 'number' ? row.rent : parseFloat(row.rent);
+        return rentVal !== null && rentVal !== undefined && !isNaN(rentVal) && rentVal > 0 
+          ? `£${rentVal.toLocaleString(undefined, { minimumFractionDigits: 2 })}` 
+          : '-';
+      }
     },
     { 
       header: 'Occupancy', 
-      accessor: 'occupancy',
-      renderCell: (row) => (
-        <span className="px-2 py-0.5 text-[10px] font-bold rounded-full border bg-brand-accent/10 text-brand-accent border-brand-accent/20">
-          {row.occupancy}
-        </span>
-      )
+      accessor: 'status',
+      renderCell: (row) => {
+        let pillStatus = 'draft';
+        if (row.status === 'let') pillStatus = 'active';
+        else if (row.status === 'vacant') pillStatus = 'pending';
+        else if (row.status === 'onboarding') pillStatus = 'draft';
+        return <StatusPill status={pillStatus} customLabel={row.status === 'let' ? 'Occupied' : row.status === 'vacant' ? 'Vacant' : 'Onboarding'} />;
+      }
     },
     { 
       header: 'Gas Certificate', 
       accessor: 'gasCompliance',
-      renderCell: (row) => (
-        <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${
-          row.gasCompliance === 'Compliant' ? 'text-status-success' : 'text-status-danger animate-pulse'
-        }`}>
-          {row.gasCompliance === 'Compliant' ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
-          {row.gasCompliance}
-        </span>
-      )
+      renderCell: (row) => renderCertStatus(row.gasCompliance)
     },
     { 
       header: 'EPC Safety', 
       accessor: 'epcCompliance',
-      renderCell: (row) => (
-        <span className="inline-flex items-center gap-1 text-[11px] text-status-success font-semibold">
-          <CheckCircle2 size={13} />
-          {row.epcCompliance}
-        </span>
-      )
+      renderCell: (row) => renderCertStatus(row.epcCompliance)
     },
     { 
       header: 'EICR Electrical', 
       accessor: 'eicrCompliance',
-      renderCell: (row) => (
-        <span className="inline-flex items-center gap-1 text-[11px] text-status-success font-semibold">
-          <CheckCircle2 size={13} />
-          {row.eicrCompliance}
-        </span>
-      )
+      renderCell: (row) => renderCertStatus(row.eicrCompliance)
     },
   ];
+
+  // Calculate gross yield (sum of rents of occupied/let properties)
+  const monthlyGrossYield = properties
+    .filter(p => p.status === 'let')
+    .reduce((sum, p) => sum + (p.rent || 0), 0);
+
+  // Count active warnings (expired certs)
+  const complianceWarnings = properties.filter(
+    p => p.gasCompliance === 'expired' || p.epcCompliance === 'expired' || p.eicrCompliance === 'expired'
+  ).length;
 
   return (
     <div className="py-6 max-w-7xl mx-auto px-4 flex flex-col gap-6">
@@ -76,7 +121,7 @@ export const Properties = () => {
         <div className="bg-white p-5 rounded-2xl border border-border-color/60 shadow-sm flex items-center justify-between">
           <div className="flex flex-col gap-1">
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Managed Units</span>
-            <span className="text-xl font-bold text-[#1A1A1A] mt-0.5">3 Properties</span>
+            <span className="text-xl font-bold text-[#1A1A1A] mt-0.5">{properties.length} Properties</span>
           </div>
           <div className="w-10 h-10 rounded-lg bg-brand-primary/10 text-brand-primary flex items-center justify-center shrink-0">
             <Home size={18} />
@@ -86,7 +131,9 @@ export const Properties = () => {
         <div className="bg-white p-5 rounded-2xl border border-border-color/60 shadow-sm flex items-center justify-between">
           <div className="flex flex-col gap-1">
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Monthly Gross Yield</span>
-            <span className="text-xl font-bold text-status-success mt-0.5">£6,350.00</span>
+            <span className="text-xl font-bold text-status-success mt-0.5">
+              £{monthlyGrossYield.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </span>
           </div>
           <div className="w-10 h-10 rounded-lg bg-status-success/10 text-status-success flex items-center justify-center shrink-0">
             <Key size={18} />
@@ -96,7 +143,9 @@ export const Properties = () => {
         <div className="bg-white p-5 rounded-2xl border border-border-color/60 shadow-sm flex items-center justify-between">
           <div className="flex flex-col gap-1">
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Compliance Status</span>
-            <span className="text-xl font-bold text-status-warning mt-0.5">1 Attention Required</span>
+            <span className="text-xl font-bold text-status-warning mt-0.5">
+              {complianceWarnings > 0 ? `${complianceWarnings} Attention Required` : 'Fully Compliant'}
+            </span>
           </div>
           <div className="w-10 h-10 rounded-lg bg-status-warning/10 text-status-warning flex items-center justify-center shrink-0">
             <AlertTriangle size={18} />
@@ -106,7 +155,20 @@ export const Properties = () => {
 
       {/* Grid container */}
       <div className="bg-white rounded-2xl border border-border-color/60 p-4 shadow-sm">
-        <DataTable columns={columns} data={landlordProperties} />
+        {loading ? (
+          <div className="space-y-4 py-4">
+            <div className="h-10 bg-gray-100/80 rounded-lg animate-pulse w-full" />
+            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+          </div>
+        ) : error ? (
+          <div className="border border-status-danger bg-status-danger/5 rounded-xl p-6 text-center text-status-danger font-semibold">
+            {error}
+          </div>
+        ) : (
+          <DataTable columns={columns} data={properties} />
+        )}
       </div>
     </div>
   );

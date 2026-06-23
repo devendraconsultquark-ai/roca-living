@@ -1,18 +1,142 @@
-import React from 'react';
-import { Users, UserPlus } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Users, UserPlus, Edit, Trash2 } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { StatCard } from '../components/UI/StatCard';
-
-const landlordsData = [
-  { id: 'LL-001', name: 'John Doe', email: 'john.doe@gmail.com', phone: '+44 7123 456789', propertiesCount: 3, payouts: 14500.00, status: 'Active' },
-  { id: 'LL-002', name: 'Sarah Jenkins', email: 'sarah.jenkins@yahoo.com', phone: '+44 7987 654321', propertiesCount: 5, payouts: 26800.00, status: 'Active' },
-  { id: 'LL-003', name: 'Robert Vance', email: 'robert@vance-realty.co.uk', phone: '+44 7555 123456', propertiesCount: 12, payouts: 64900.00, status: 'Active' },
-  { id: 'LL-004', name: 'Emily Carter', email: 'emily.carter@outlook.com', phone: '+44 7333 987654', propertiesCount: 2, payouts: 8400.00, status: 'Pending Verification' },
-  { id: 'LL-005', name: 'William Hughes', email: 'william@hughes-group.co.uk', phone: '+44 7444 654987', propertiesCount: 8, payouts: 38200.00, status: 'Active' },
-];
+import { Input } from '../components/UI/Input';
+import { StatusPill } from '../components/UI/StatusPill';
+import { useToast } from '../components/UI/ToastContext';
+import api from '../utilities/api';
 
 export const Landlords = () => {
+  const [landlords, setLandlords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [search, setSearch] = useState('');
+  
+  // Modal & Form State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newLandlord, setNewLandlord] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: ''
+  });
+  
+  // Edit Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingLandlordId, setEditingLandlordId] = useState(null);
+  const [editingLandlord, setEditingLandlord] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: ''
+  });
+
+  const [formErrors, setFormErrors] = useState({});
+  const { addToast } = useToast();
+
+  const fetchLandlords = async (searchVal = '') => {
+    setLoading(true);
+    try {
+      const response = await api.get(`/landlords${searchVal ? `?search=${encodeURIComponent(searchVal)}` : ''}`);
+      setLandlords(response.data.data || []);
+      setError(null);
+    } catch (err) {
+      const errMsg = err.response?.data?.message || 'Error loading landlords';
+      setError(errMsg);
+      addToast(errMsg, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      fetchLandlords(search);
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [search]);
+
+  const handleRegisterSubmit = async (e) => {
+    e.preventDefault();
+    setFormErrors({});
+
+    try {
+      await api.post('/landlords', newLandlord);
+      addToast('Landlord registered successfully!', 'success');
+      setIsModalOpen(false);
+      setNewLandlord({ name: '', email: '', phone: '', address: '' });
+      fetchLandlords(search);
+    } catch (err) {
+      console.error(err);
+      if (err.response?.data?.errors) {
+        const errorsObj = {};
+        err.response.data.errors.forEach((e) => {
+          errorsObj[e.field] = e.message;
+        });
+        setFormErrors(errorsObj);
+      } else {
+        const msg = err.response?.data?.message || 'Failed to register landlord';
+        addToast(msg, 'error');
+      }
+    }
+  };
+
+  const handleEditClick = async (row) => {
+    try {
+      const response = await api.get(`/landlords/${row.id}`);
+      const info = response.data.data;
+      setEditingLandlordId(row.id);
+      setEditingLandlord({
+        name: info.name || '',
+        email: info.email || '',
+        phone: info.phone || '',
+        address: info.address || ''
+      });
+      setIsEditModalOpen(true);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to fetch landlord details', 'error');
+    }
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setFormErrors({});
+
+    try {
+      await api.patch(`/landlords/${editingLandlordId}`, editingLandlord);
+      addToast('Landlord details updated successfully!', 'success');
+      setIsEditModalOpen(false);
+      fetchLandlords(search);
+    } catch (err) {
+      console.error(err);
+      if (err.response?.data?.errors) {
+        const errorsObj = {};
+        err.response.data.errors.forEach((e) => {
+          errorsObj[e.field] = e.message;
+        });
+        setFormErrors(errorsObj);
+      } else {
+        const msg = err.response?.data?.message || 'Failed to update landlord details';
+        addToast(msg, 'error');
+      }
+    }
+  };
+
+  const handleDeleteClick = async (row) => {
+    if (window.confirm(`Are you sure you want to delete landlord "${row.name}"? This will delete all associated properties, tenancies, compliance checklists, rent schedules, and statements.`)) {
+      try {
+        await api.delete(`/landlords/${row.id}`);
+        addToast('Landlord deleted successfully', 'success');
+        fetchLandlords(search);
+      } catch (err) {
+        addToast(err.response?.data?.message || 'Failed to delete landlord', 'error');
+      }
+    }
+  };
+
   const columns = [
     { header: 'Landlord ID', accessor: 'id', sortable: true },
     { header: 'Full Name', accessor: 'name', sortable: true },
@@ -34,21 +158,44 @@ export const Landlords = () => {
       accessor: 'payouts', 
       align: 'right', 
       sortable: true,
-      renderCell: (row) => `£${row.payouts.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      renderCell: (row) => row.payouts !== null && row.payouts !== undefined 
+        ? `£${row.payouts.toLocaleString(undefined, { minimumFractionDigits: 2 })}` 
+        : '-'
     },
     { 
       header: 'Disbursement Status', 
-      accessor: 'status',
-      renderCell: (row) => (
-        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
-          row.status === 'Active' 
-            ? 'bg-status-success/10 text-status-success border-status-success/20' 
-            : 'bg-status-warning/10 text-status-warning border-status-warning/20'
-        }`}>
-          {row.status}
-        </span>
-      )
+      accessor: 'kyc_status',
+      renderCell: (row) => {
+        let pillStatus = 'draft';
+        if (row.kyc_status === 'passed') pillStatus = 'active';
+        else if (row.kyc_status === 'pending') pillStatus = 'pending';
+        else if (row.kyc_status === 'failed') pillStatus = 'danger';
+        return <StatusPill status={pillStatus} />;
+      }
     },
+    {
+      header: 'Actions',
+      accessor: 'id',
+      align: 'center',
+      renderCell: (row) => (
+        <div className="flex justify-center gap-1">
+          <button
+            onClick={() => handleEditClick(row)}
+            className="p-1.5 text-gray-500 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
+            title="Edit details"
+          >
+            <Edit size={16} />
+          </button>
+          <button
+            onClick={() => handleDeleteClick(row)}
+            className="p-1.5 text-gray-500 hover:text-status-danger hover:bg-status-danger/5 rounded-lg transition-colors cursor-pointer"
+            title="Delete landlord"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      )
+    }
   ];
 
   return (
@@ -59,7 +206,12 @@ export const Landlords = () => {
           <h2 className="text-2xl font-bold text-[#1A1A1A]">Landlords Directory</h2>
           <p className="text-sm text-gray-500 mt-1">Review contact records, active portfolios, and compliance details for registered landlords.</p>
         </div>
-        <Button variant="primary" icon={UserPlus} className="shadow-sm">
+        <Button 
+          variant="primary" 
+          icon={UserPlus} 
+          className="shadow-sm"
+          onClick={() => setIsModalOpen(true)}
+        >
           Register Landlord
         </Button>
       </div>
@@ -68,20 +220,20 @@ export const Landlords = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <StatCard
           label="Total Landlords"
-          value="48 Registered"
+          value={`${landlords.length} Registered`}
           icon={Users}
           iconColor="text-brand-accent bg-brand-accent/10"
         />
         <StatCard
           label="Active Payouts"
-          value="47 Cleared"
+          value={`${landlords.filter(l => l.kyc_status === 'passed').length} Passed`}
           icon={Users}
           iconColor="text-brand-accent bg-brand-accent/10"
           valueColor="text-status-success"
         />
         <StatCard
           label="Awaiting Verification"
-          value="1 Landlord"
+          value={`${landlords.filter(l => l.kyc_status === 'pending' || l.kyc_status === 'not_started').length} Pending`}
           icon={Users}
           iconColor="text-brand-accent bg-brand-accent/10"
           valueColor="text-status-warning"
@@ -90,8 +242,151 @@ export const Landlords = () => {
 
       {/* Grid container */}
       <div className="bg-white rounded-2xl border border-border-color/60 p-4 shadow-sm">
-        <DataTable columns={columns} data={landlordsData} />
+        <div className="mb-4 max-w-md">
+          <Input
+            id="search"
+            placeholder="Search by name or email..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+
+        {loading ? (
+          <div className="space-y-4 py-4">
+            <div className="h-10 bg-gray-100/80 rounded-lg animate-pulse w-full" />
+            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+          </div>
+        ) : error ? (
+          <div className="border border-status-danger bg-status-danger/5 rounded-xl p-6 text-center text-status-danger font-semibold">
+            {error}
+          </div>
+        ) : (
+          <DataTable columns={columns} data={landlords} />
+        )}
       </div>
+
+      {/* Register Landlord Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-brand-primary/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-border-color">
+            <h3 className="text-lg font-bold text-[#1A1A1A] mb-4">Register Landlord</h3>
+            
+            <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-4">
+              <Input
+                label="Full Name"
+                id="name"
+                required
+                value={newLandlord.name}
+                onChange={(e) => setNewLandlord({ ...newLandlord, name: e.target.value })}
+                error={formErrors.name}
+              />
+              <Input
+                label="Email Address"
+                id="email"
+                type="email"
+                required
+                value={newLandlord.email}
+                onChange={(e) => setNewLandlord({ ...newLandlord, email: e.target.value })}
+                error={formErrors.email}
+              />
+              <Input
+                label="Contact Phone"
+                id="phone"
+                required
+                value={newLandlord.phone}
+                onChange={(e) => setNewLandlord({ ...newLandlord, phone: e.target.value })}
+                error={formErrors.phone}
+              />
+              <Input
+                label="Address"
+                id="address"
+                value={newLandlord.address}
+                onChange={(e) => setNewLandlord({ ...newLandlord, address: e.target.value })}
+                error={formErrors.address}
+              />
+              
+              <div className="flex gap-3 justify-end mt-2">
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setFormErrors({});
+                    setNewLandlord({ name: '', email: '', phone: '', address: '' });
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary">
+                  Register
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Landlord Modal */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 bg-brand-primary/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-border-color">
+            <h3 className="text-lg font-bold text-[#1A1A1A] mb-4">Edit Landlord Details</h3>
+            
+            <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
+              <Input
+                label="Full Name"
+                id="edit_name"
+                required
+                value={editingLandlord.name}
+                onChange={(e) => setEditingLandlord({ ...editingLandlord, name: e.target.value })}
+                error={formErrors.name}
+              />
+              <Input
+                label="Email Address"
+                id="edit_email"
+                type="email"
+                required
+                value={editingLandlord.email}
+                onChange={(e) => setEditingLandlord({ ...editingLandlord, email: e.target.value })}
+                error={formErrors.email}
+              />
+              <Input
+                label="Contact Phone"
+                id="edit_phone"
+                required
+                value={editingLandlord.phone}
+                onChange={(e) => setEditingLandlord({ ...editingLandlord, phone: e.target.value })}
+                error={formErrors.phone}
+              />
+              <Input
+                label="Address"
+                id="edit_address"
+                value={editingLandlord.address}
+                onChange={(e) => setEditingLandlord({ ...editingLandlord, address: e.target.value })}
+                error={formErrors.address}
+              />
+              
+              <div className="flex gap-3 justify-end mt-2">
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  onClick={() => {
+                    setIsEditModalOpen(false);
+                    setFormErrors({});
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary">
+                  Save Changes
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
