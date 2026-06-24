@@ -4,6 +4,21 @@ import logger from '../../utils/logger.js';
 export const runPhase1Migrations = async () => {
   logger.info('Starting Phase 1 database migrations...');
 
+  // 0. users
+  if (!(await db.schema.hasTable('users'))) {
+    await db.schema.createTable('users', (table) => {
+      table.increments('id').primary();
+      table.string('name').notNullable();
+      table.string('email').notNullable().unique();
+      table.string('password').notNullable();
+      table.string('phone', 20).notNullable();
+      table.enum('role', ['ADMIN', 'LANDLORD']).defaultTo('LANDLORD').notNullable();
+      table.string('address', 255).nullable();
+      table.timestamps(true, true);
+    });
+    logger.info("Table 'users' created successfully.");
+  }
+
   // 1. landlord_profiles
   if (!(await db.schema.hasTable('landlord_profiles'))) {
     await db.schema.createTable('landlord_profiles', (table) => {
