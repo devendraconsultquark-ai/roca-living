@@ -1,4 +1,4 @@
-const BASE_URL = "http://localhost:8008/api/v1";
+const BASE_URL = "http://localhost:9009/api/v1";
 
 async function run() {
   console.log("=== STARTING PHASE 7 PDF REDESIGN TEST ===");
