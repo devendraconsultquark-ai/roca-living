@@ -10,15 +10,17 @@ export const Input = React.forwardRef(({
   disabled = false,
   placeholder,
   className = '',
+  leftIcon: LeftIcon = null,
   ...props
 }, ref) => {
   const [showPassword, setShowPassword] = useState(false);
 
   const isPassword = type === 'password';
   const rightPadding = isPassword ? 'pr-10' : 'pr-3';
+  const leftPadding = LeftIcon ? 'pl-11' : 'pl-3';
 
   // Base input styles
-  const baseInputStyles = `w-full text-sm font-sans bg-white border rounded-[4px] py-[10px] pl-3 ${rightPadding} transition-all duration-150 focus:outline-none`;
+  const baseInputStyles = `w-full text-sm font-sans bg-white border rounded-[4px] py-[10px] ${leftPadding} ${rightPadding} transition-all duration-150 focus:outline-none`;
   
   // Dynamic state overrides
   const stateStyles = error
@@ -42,8 +44,17 @@ export const Input = React.forwardRef(({
         </label>
       )}
 
-      {/* Input container with relative positioning for eye toggle */}
+      {/* Input container with relative positioning for eye toggle and left icon */}
       <div className="relative w-full">
+        {LeftIcon && (
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none flex items-center justify-center">
+            {typeof LeftIcon === 'string' ? (
+              <span className="material-symbols-outlined text-lg">{LeftIcon}</span>
+            ) : (
+              <LeftIcon size={18} />
+            )}
+          </div>
+        )}
         <input
           id={id}
           ref={ref}

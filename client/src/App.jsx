@@ -10,6 +10,16 @@ import { Dashboard } from './pages/Dashboard';
 import { Statements } from './pages/Statements';
 import { Maintenance } from './pages/Maintenance';
 import { Profile } from './pages/Profile';
+import Home from './pages/Home';
+import AboutUs from './pages/AboutUs';
+import Contact from './pages/Contact';
+import OurServices from './pages/OurServices';
+import Faq from './pages/Faq';
+import Disclaimer from './pages/Disclaimer';
+import PrivacyNotice from './pages/PrivacyNotice';
+import TermsConditions from './pages/TermsConditions';
+import { PublicLayout } from './components/Layout/PublicLayout';
+import ScrollToTop from './components/ScrollToTop';
 
 // Extracted Page Imports
 import { Properties } from './pages/Properties';
@@ -31,16 +41,26 @@ function App() {
   return (
     <ToastProvider>
       <BrowserRouter basename="/roca-living-2/client">
+        <ScrollToTop />
         <AuthProvider>
           <Routes>
+            {/* Public Layout wrapper for website pages */}
+            <Route element={<PublicLayout />}>
+              <Route path="/" element={<Home />} />
+              <Route path="/about-us" element={<AboutUs />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/services" element={<OurServices />} />
+              <Route path="/disclaimer" element={<Disclaimer />} />
+              <Route path="/faq" element={<Faq />} />
+              <Route path="/privacy" element={<PrivacyNotice />} />
+              <Route path="/terms-and-conditions" element={<TermsConditions />} />
+            </Route>
+
             {/* Public login route */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
-
-            {/* Redirect base URL / to /dashboard */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
             {/* Wrap all landlord routes inside our shared layout, protected by LANDLORD validation */}
             <Route element={<ProtectedRoute><LandlordLayout /></ProtectedRoute>}>

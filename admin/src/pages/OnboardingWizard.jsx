@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Check, User, ShieldCheck, Home, ClipboardList, CalendarDays, Key } from 'lucide-react';
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
+import { DatePicker } from '../components/UI/DatePicker';
 import { Button } from '../components/UI/Button';
 import api from '../utilities/api';
 import { useToast } from '../components/UI/ToastContext';
@@ -547,14 +548,16 @@ export const OnboardingWizard = () => {
                     error={errors.rentPrice}
                     onChange={handleChange}
                   />
-                  <Input
-                    label="Tenancy Start Date"
+                  <DatePicker
+                    label="Tenancy Start Date *"
                     id="startDate"
-                    type="date"
                     required
                     value={formData.startDate}
                     error={errors.startDate}
-                    onChange={handleChange}
+                    onChange={(val) => {
+                      setFormData(prev => ({ ...prev, startDate: val }));
+                      if (errors.startDate) setErrors(prev => ({ ...prev, startDate: '' }));
+                    }}
                   />
                   <Input
                     label="Deposit Scheme (TDS) Certificate ID"

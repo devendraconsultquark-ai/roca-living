@@ -12,9 +12,23 @@ api.interceptors.response.use(
     const status = error.response?.status;
 
     if (status === 401) {
-      // Redirect to login if not already on a public page (login, signup, forgot-password, reset-password)
-      const publicPaths = ['/login', '/signup', '/forgot-password', '/reset-password'];
-      const isPublicPath = publicPaths.some(path => window.location.pathname.includes(path));
+      // Redirect to login if not already on a public page (login, signup, forgot-password, reset-password, and website pages)
+      const cleanPath = window.location.pathname.replace(/\/$/, '');
+      const publicPaths = [
+        '/login', 
+        '/signup', 
+        '/forgot-password', 
+        '/reset-password',
+        '/about-us',
+        '/services',
+        '/disclaimer',
+        '/faq',
+        '/privacy',
+        '/terms-and-conditions',
+        '/contact'
+      ];
+      const isHome = cleanPath === '/roca-living-2/client';
+      const isPublicPath = isHome || publicPaths.some(path => cleanPath.endsWith(path));
       if (!isPublicPath) {
         window.location.href = '/roca-living-2/client/login';
       }

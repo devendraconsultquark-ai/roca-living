@@ -2,7 +2,7 @@ import db, { emDb } from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
 import { generatePortraitPDFWithPuppeteer } from '../utils/puppeteerGenerator.js';
-import { generateCombinedHTML } from '../templates/statementInvoiceTemplate.js';
+import { generateStandaloneStatementHTML } from '../templates/statementInvoiceTemplate.js';
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import path from 'path';
@@ -317,25 +317,26 @@ export const generateStatements = catchAsync(async (req, res, next) => {
       tenant_name,
       tenancy_start_date,
       line_items: [
-        { description: "Tenancy sourcing fee (*1st month's rent less 28% discount)", cost: 572.40, vat_percent: 0, discount: 572.40, net: 0 },
+        { description: "Tenancy sourcing fee (*1st month's rent less 28% discount UKV)", cost: 572.40, vat_percent: 0, discount: 572.40, net: 0 },
         { description: "Tenant referencing / right to rent checks", cost: 0, vat_percent: 0, discount: 0, net: 0 },
-        { description: "Deposit registration", cost: 25.00, vat_percent: 0, discount: 25.00, net: 0 },
-        { description: "Tenancy set up - admin", cost: 25.00, vat_percent: 0, discount: 25.00, net: 0 },
-        { description: "Landlord ID / KYC", cost: 30.00, vat_percent: 0, discount: 30.00, net: 0 },
+        { description: "Deposit registration (*UKV 100% discount)", cost: 25.00, vat_percent: 0, discount: 25.00, net: 0 },
+        { description: "Tenancy set up - admin (*UKV 100% discount)", cost: 25.00, vat_percent: 0, discount: 25.00, net: 0 },
+        { description: "Landlord ID / KYC (*UKV 100% discount)", cost: 30.00, vat_percent: 0, discount: 30.00, net: 0 },
         { description: "Check Out - Inventory", cost: 100.00, vat_percent: 0, discount: 100.00, net: 0 },
+        { description: "Proof of Ownership - on file", cost: 0, vat_percent: 0, discount: 0, net: 0 },
         { description: "EPC - on file", cost: 0, vat_percent: 0, discount: 0, net: 0 },
         { description: "EICR - on file", cost: 0, vat_percent: 0, discount: 0, net: 0 },
-        { description: "Management Fee 8% (*discounted 100%)", cost: 63.60, vat_percent: 0, discount: 63.60, net: 0 }
+        { description: `Management Fee 8% (*discounted 100% UKV) (${formatDateGB(period_start)} – ${formatDateGB(period_end)})`, cost: 63.60, vat_percent: 0, discount: 63.60, net: 0 }
       ],
       total_gross: exp_amount || 816.00,
       total_vat: 0.00,
       total_discount: exp_amount || 816.00,
       total_net: 0.00,
-      notes: "• UK Vastgoed (UKV) introductory/new tenant discount applied.\n• All fees shown excluding VAT."
+      notes: "UK Vastgoed (UKV) introductory/new tenant discount applied in accordance with the landlord management agreement.\nAll fees are shown excluding VAT as ROCA Living is not VAT registered."
     };
 
-    // Compile 2-page combined PDF
-    const htmlContent = generateCombinedHTML(statementInput, invoiceInput);
+    // Compile standalone statement PDF (1 Page)
+    const htmlContent = generateStandaloneStatementHTML(statementInput);
     const pdfBuffer = await generatePortraitPDFWithPuppeteer(htmlContent);
 
     // Save combined statement PDF

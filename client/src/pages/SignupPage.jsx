@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Input } from '../components/UI/Input';
-import { Button } from '../components/UI/Button';
-import { Logo } from '../components/UI/Logo';
+import { useNavigate, Link } from 'react-router-dom';
 import { useToast } from '../components/UI/ToastContext';
 import api from '../utilities/api';
+import { Input } from '../components/UI/Input';
+import { Button } from '../components/UI/Button';
 
 export const SignupPage = () => {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    password: '',
+    confirmPassword: '',
+    address: '',
+    agreeToTerms: false,
+  });
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
@@ -19,19 +22,41 @@ export const SignupPage = () => {
   const navigate = useNavigate();
   const { addToast } = useToast();
 
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setForm(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
   const handleSignup = async (e) => {
     e.preventDefault();
     setError('');
     setFieldErrors({});
+
+    if (!form.agreeToTerms) {
+      addToast('Please agree to the Terms & Conditions.', 'error');
+      return;
+    }
+    if (form.password !== form.confirmPassword) {
+      addToast('Passwords do not match.', 'error');
+      return;
+    }
+    if (form.password.length < 8) {
+      addToast('Password must be at least 8 characters.', 'error');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       await api.post('/auth/register', {
-        name,
-        email,
-        password,
-        phone,
-        address,
+        name: form.name,
+        email: form.email,
+        password: form.password,
+        phone: form.phone,
+        address: form.address,
       });
 
       addToast('Registration successful! Please sign in.', 'success');
@@ -44,7 +69,6 @@ export const SignupPage = () => {
       if (Array.isArray(errorMessages) && errorMessages.length > 0) {
         const errorsMap = {};
         errorMessages.forEach((m) => {
-          // Zod error path represents the field name
           errorsMap[m.field] = m.message;
         });
         setFieldErrors(errorsMap);
@@ -56,113 +80,169 @@ export const SignupPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-app-bg px-4 py-12">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-border-color overflow-hidden">
-        {/* Header */}
-        <div className="bg-brand-primary/80 text-white p-8 text-center flex flex-col items-center gap-2">
-          <Logo useLogoPng={true} />
-          <p className="text-xs text-white/70 mt-1">Landlord Partner Portal</p>
-        </div>
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center py-16 px-4 font-sans text-left">
+      <div className="w-full max-w-2xl text-left">
+        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
 
-        {/* Form Body */}
-        <form onSubmit={handleSignup} className="p-8 flex flex-col gap-5">
-          <h3 className="text-lg font-bold text-[#1A1A1A]">Create Account</h3>
+          {/* Header */}
+          <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-10 py-8 text-left">
+            <Link to="/">
+              <img 
+                src={`${import.meta.env.BASE_URL}images/logo.png`} 
+                alt="ROCA Living" 
+                className="h-8 mb-4 object-contain cursor-pointer" 
+              />
+            </Link>
+            <h1 className="text-2xl font-light text-white mb-1">Create Your Account</h1>
+            <p className="text-slate-400 text-sm">Join the ROCA Living resident portal</p>
+          </div>
 
           {error && (
-            <div className="p-3 bg-status-danger/10 border border-status-danger/20 rounded-lg text-status-danger text-xs font-semibold">
+            <div className="mx-10 mt-6 p-3 bg-status-danger/10 border border-status-danger/20 rounded-lg text-status-danger text-xs font-semibold">
               {error}
             </div>
           )}
 
-          <Input
-            label="Full Name"
-            id="name"
-            required
-            placeholder="e.g. John Doe"
-            value={name}
-            error={fieldErrors.name}
-            onChange={(e) => {
-              setName(e.target.value);
-              if (fieldErrors.name) setFieldErrors((prev) => ({ ...prev, name: '' }));
-            }}
-          />
+          <form onSubmit={handleSignup} className="p-8 sm:p-10 space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Full Name */}
+              <Input
+                label="Full Name"
+                id="name"
+                name="name"
+                type="text"
+                value={form.name}
+                error={fieldErrors.name}
+                onChange={e => {
+                  handleChange(e);
+                  if (fieldErrors.name) setFieldErrors(prev => ({ ...prev, name: '' }));
+                }}
+                required
+                placeholder="e.g. John Doe"
+                className="text-left font-sans"
+              />
 
-          <Input
-            label="Email Address"
-            id="email"
-            type="email"
-            required
-            placeholder="e.g. landlord@rocaliving.com"
-            value={email}
-            error={fieldErrors.email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: '' }));
-            }}
-          />
+              {/* Email Address */}
+              <Input
+                label="Email Address"
+                id="email"
+                name="email"
+                type="email"
+                value={form.email}
+                error={fieldErrors.email}
+                onChange={e => {
+                  handleChange(e);
+                  if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: '' }));
+                }}
+                required
+                placeholder="name@example.com"
+                className="text-left font-sans"
+              />
+            </div>
 
-          <Input
-            label="Password"
-            id="password"
-            type="password"
-            required
-            placeholder="Min. 8 chars, 1 uppercase, 1 lowercase, 1 special char"
-            value={password}
-            error={fieldErrors.password}
-            onChange={(e) => {
-              setPassword(e.target.value);
-              if (fieldErrors.password) setFieldErrors((prev) => ({ ...prev, password: '' }));
-            }}
-          />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Phone Number */}
+              <Input
+                label="Phone Number"
+                id="phone"
+                name="phone"
+                type="text"
+                value={form.phone}
+                error={fieldErrors.phone}
+                onChange={e => {
+                  handleChange(e);
+                  if (fieldErrors.phone) setFieldErrors(prev => ({ ...prev, phone: '' }));
+                }}
+                required
+                placeholder="e.g. 07123456789"
+                className="text-left font-sans"
+              />
 
-          <Input
-            label="Phone Number"
-            id="phone"
-            required
-            placeholder="e.g. 07123456789"
-            value={phone}
-            error={fieldErrors.phone}
-            onChange={(e) => {
-              setPhone(e.target.value);
-              if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: '' }));
-            }}
-          />
+              {/* Home Address */}
+              <Input
+                label="Home Address"
+                id="address"
+                name="address"
+                type="text"
+                value={form.address}
+                error={fieldErrors.address}
+                onChange={e => {
+                  handleChange(e);
+                  if (fieldErrors.address) setFieldErrors(prev => ({ ...prev, address: '' }));
+                }}
+                required
+                placeholder="e.g. 14 High Street, Manchester, M1 1AD"
+                className="text-left font-sans"
+              />
+            </div>
 
-          <Input
-            label="Home Address"
-            id="address"
-            required
-            placeholder="e.g. 14 High Street, Manchester, M1 1AD"
-            value={address}
-            error={fieldErrors.address}
-            onChange={(e) => {
-              setAddress(e.target.value);
-              if (fieldErrors.address) setFieldErrors((prev) => ({ ...prev, address: '' }));
-            }}
-          />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Password */}
+              <Input
+                label="Password"
+                id="password"
+                name="password"
+                type="password"
+                value={form.password}
+                error={fieldErrors.password}
+                onChange={e => {
+                  handleChange(e);
+                  if (fieldErrors.password) setFieldErrors(prev => ({ ...prev, password: '' }));
+                }}
+                required
+                placeholder="Min 8 characters"
+                className="text-left font-sans"
+              />
 
-          <Button
-            type="submit"
-            variant="primary"
-            fullWidth
-            disabled={isLoading}
-            className="mt-2"
-          >
-            {isLoading ? 'Registering...' : 'Register'}
-          </Button>
+              {/* Confirm Password */}
+              <Input
+                label="Confirm Password"
+                id="confirmPassword"
+                name="confirmPassword"
+                type="password"
+                value={form.confirmPassword}
+                onChange={handleChange}
+                required
+                placeholder="••••••••"
+                className="text-left font-sans"
+              />
+            </div>
 
-          <div className="text-center mt-2 flex flex-col gap-2">
-            <span
-              onClick={() => navigate('/login')}
-              className="text-xs text-brand-accent hover:underline font-bold cursor-pointer"
+            {/* Terms */}
+            <div className="flex items-start gap-3 pt-1 text-left">
+              <input
+                type="checkbox"
+                id="agreeToTerms"
+                name="agreeToTerms"
+                checked={form.agreeToTerms}
+                onChange={handleChange}
+                className="mt-0.5 w-4 h-4 accent-brand-accent flex-shrink-0 cursor-pointer"
+              />
+              <label htmlFor="agreeToTerms" className="text-sm text-slate-600 leading-relaxed cursor-pointer select-none">
+                I agree to the{" "}
+                <Link to="/terms-and-conditions" className="text-brand-accent font-semibold hover:underline">
+                  Terms &amp; Conditions
+                </Link>
+              </label>
+            </div>
+
+            <Button
+              type="submit"
+              disabled={isLoading}
+              variant="primary"
+              fullWidth
+              className="py-4 px-6 rounded-xl shadow-lg flex items-center justify-center gap-2 text-sm font-bold uppercase tracking-wider transition-all duration-300"
             >
-              Already have an account? Sign In
-            </span>
-            <span className="text-xs text-status-muted">
-              Secure, authorized access only.
-            </span>
-          </div>
-        </form>
+              {isLoading ? "Creating account…" : "Create Account"}
+              <span className="material-symbols-outlined text-lg">person_add</span>
+            </Button>
+
+            <p className="text-center text-sm text-slate-500 pt-2">
+              Already have an account?{" "}
+              <Link to="/login" className="text-brand-accent font-bold hover:underline">Sign In</Link>
+            </p>
+          </form>
+        </div>
       </div>
     </div>
   );

@@ -7,6 +7,11 @@
   --color-brand-accent-hover: #ff8425; /* Darker orange for hover states */
   --color-accent-blue: #f2a302;      /* Blue - demoted to secondary/informational, focus rings */
   
+  /* Mapped colors for public pages */
+  --color-primary: #f16900;
+  --color-background-dark: #000000;
+  --color-background-light: #F5F4F0;
+
   /* Backgrounds & Surfaces */
   --color-app-bg: #F5F4F0;           /* Neutral page background */
   --color-card-bg: #FFFFFF;          /* White cards, tables, panels */
@@ -33,7 +38,7 @@
   --color-chart-red: #C62828;
 
   /* Typography */
-  --font-sans: 'Inter', system-ui, -apple-system, Arial, sans-serif;
+  --font-sans: 'Outfit', 'Inter', system-ui, -apple-system, Arial, sans-serif;
 }
 
 /* Base resets & styling defaults */
@@ -72,4 +77,44 @@ body {
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border-color) transparent;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* ── Public Website Styling Isolation ── */
+html.public-route {
+  font-size: 18px !important;
+}
+
+html.public-route body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+  color: #1e293b !important;
+  background-color: #ffffff !important;
+}
+
+html.public-route h1,
+html.public-route h2,
+html.public-route h3,
+html.public-route h4,
+html.public-route h5,
+html.public-route h6,
+html.public-route p,
+html.public-route span:not(.material-symbols-outlined):not(.material-icons-outlined):not(.material-icons),
+html.public-route a,
+html.public-route button,
+html.public-route input,
+html.public-route textarea,
+html.public-route select,
+html.public-route label,
+html.public-route li {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
 }

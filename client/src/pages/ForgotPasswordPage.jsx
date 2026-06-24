@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Input } from '../components/UI/Input';
-import { Button } from '../components/UI/Button';
-import { Logo } from '../components/UI/Logo';
+import { useNavigate, Link } from 'react-router-dom';
 import { useToast } from '../components/UI/ToastContext';
 import api from '../utilities/api';
+import { Button } from '../components/UI/Button';
+import { Input } from '../components/UI/Input';
+import { ArrowRight } from 'lucide-react';
 
 export const ForgotPasswordPage = () => {
   const [email, setEmail] = useState('');
@@ -33,63 +33,63 @@ export const ForgotPasswordPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-app-bg px-4 py-12">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-border-color overflow-hidden">
-        {/* Navy Header using brand-primary */}
-        <div className="bg-brand-primary/80 text-white p-8 text-center flex flex-col items-center gap-2">
-          <Logo useLogoPng={true} />
-          <p className="text-xs text-white/70 mt-1">Landlord Partner Portal</p>
-        </div>
-
-        {/* Form Body */}
-        <form onSubmit={handleForgotPassword} className="p-8 flex flex-col gap-5">
-          <h3 className="text-lg font-bold text-[#1A1A1A]">Forgot Password</h3>
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center py-16 px-4 font-sans text-left">
+      <div className="w-full max-w-md">
+        <div className="bg-white rounded-[2.5rem] shadow-2xl p-8 sm:p-12">
           
-          <p className="text-xs text-gray-500 leading-relaxed">
-            Enter your registered email address below. We'll send you a link to reset your partner portal password.
-          </p>
+          <div className="text-center mb-10">
+            <div className="w-16 h-16 rounded-2xl bg-slate-100 text-slate-800 flex items-center justify-center mx-auto mb-6">
+              <span className="material-symbols-outlined text-3xl">key</span>
+            </div>
+            <h1 className="text-2xl font-light text-slate-900 tracking-tight">Forgot Password?</h1>
+            <p className="text-slate-500 font-semibold text-sm mt-2 leading-relaxed">
+              Enter your email and we'll send you a secure link to reset your password.
+            </p>
+          </div>
 
           {error && (
-            <div className="p-3 bg-status-danger/10 border border-status-danger/20 rounded-lg text-status-danger text-xs font-semibold">
+            <div className="p-3 bg-status-danger/10 border border-status-danger/20 rounded-lg text-status-danger text-xs font-semibold mb-5">
               {error}
             </div>
           )}
 
           {successMessage && (
-            <div className="p-3 bg-status-success/10 border border-status-success/20 rounded-lg text-status-success text-xs font-semibold">
+            <div className="p-3 bg-status-success/10 border border-status-success/20 rounded-lg text-status-success text-xs font-semibold mb-5">
               {successMessage}
             </div>
           )}
 
-          <Input
-            label="Email Address"
-            id="email"
-            type="email"
-            required
-            placeholder="e.g. landlord@rocaliving.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
+          <form onSubmit={handleForgotPassword} className="space-y-6">
+            <Input
+              label="Email Address"
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@example.com"
+              required
+              leftIcon="mail"
+              className="text-left font-sans"
+            />
 
-          <Button
-            type="submit"
-            variant="primary"
-            fullWidth
-            disabled={isLoading || !!successMessage}
-            className="mt-2"
-          >
-            {isLoading ? 'Submitting...' : 'Send Reset Link'}
-          </Button>
-
-          <div className="text-center mt-2 flex flex-col gap-2">
-            <span
-              onClick={() => navigate('/login')}
-              className="text-xs text-brand-accent hover:underline font-bold cursor-pointer"
+            <Button
+              type="submit"
+              variant="primary"
+              fullWidth
+              disabled={isLoading || !!successMessage}
+              icon={ArrowRight}
+              iconPosition="left"
+              className="py-[16px] px-6 rounded-2xl shadow-lg uppercase tracking-widest text-xs font-bold font-sans flex items-center justify-center gap-2"
             >
-              Back to Sign In
-            </span>
-          </div>
-        </form>
+              {isLoading ? "Sending…" : "Send Reset Link"}
+            </Button>
+
+            <p className="text-center text-sm font-semibold text-slate-400 pt-2">
+              Wait, I remember it!{" "}
+              <Link to="/login" className="text-slate-800 font-bold hover:underline">Go back to Sign In</Link>
+            </p>
+          </form>
+        </div>
       </div>
     </div>
   );
