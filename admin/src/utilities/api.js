@@ -16,7 +16,7 @@ api.interceptors.response.use(
       const publicPaths = ['/login', '/forgot-password', '/reset-password'];
       const isPublicPath = publicPaths.some(path => window.location.pathname.includes(path));
       if (!isPublicPath) {
-        window.location.href = '/roca-living-2/admin/login';
+        window.location.href = '/login';
       }
     } else if (!error.config?.skipInterceptorError) {
       // Dispatch custom event for all other errors

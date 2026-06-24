@@ -27,10 +27,10 @@ api.interceptors.response.use(
         '/terms-and-conditions',
         '/contact'
       ];
-      const isHome = cleanPath === '/roca-living-2/client';
+      const isHome = cleanPath === '' || cleanPath === '/';
       const isPublicPath = isHome || publicPaths.some(path => cleanPath.endsWith(path));
       if (!isPublicPath) {
-        window.location.href = '/roca-living-2/client/login';
+        window.location.href = '/login';
       }
     } else if (!error.config?.skipInterceptorError) {
       // Dispatch custom event for all other errors

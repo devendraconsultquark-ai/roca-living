@@ -10,11 +10,11 @@ const db = knex(knexConfig[environment]);
 export const emDb = knex({
   client: 'mysql2',
   connection: {
-    host: process.env.ROCAEM_DB_HOST || '127.0.0.1',
-    port: Number(process.env.ROCAEM_DB_PORT) || 3306,
-    database: process.env.ROCAEM_DB_NAME || 'roca_dev_db',
-    user: process.env.ROCAEM_DB_USER || 'roca_dev_user',
-    password: process.env.ROCAEM_DB_PASSWORD || 'roca-dev@1234',
+    host: process.env.ROCAEM_DB_HOST,
+    port: Number(process.env.ROCAEM_DB_PORT),
+    database: process.env.ROCAEM_DB_NAME,
+    user: process.env.ROCAEM_DB_USER,
+    password: process.env.ROCAEM_DB_PASSWORD,
   }
 });
 

@@ -249,7 +249,7 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
     password_reset_expires: expiresAt
   });
 
-  const portalPath = portal === 'admin' ? '/roca-living-2/admin' : '/roca-living-2/client';
+  const portalPath = '';
   const origin = req.headers.origin || 'http://localhost:5173';
   const resetUrl = `${origin}${portalPath}/reset-password?token=${rawToken}`;
 

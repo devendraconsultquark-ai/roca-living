@@ -40,7 +40,7 @@ const NotFound = () => (
 function App() {
   return (
     <ToastProvider>
-      <BrowserRouter basename="/roca-living-2/client">
+      <BrowserRouter>
         <ScrollToTop />
         <AuthProvider>
           <Routes>
