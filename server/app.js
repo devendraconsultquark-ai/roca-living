@@ -24,6 +24,7 @@ import onboardingRouter from './src/routes/onboardingRoutes.js';
 import reportRouter from './src/routes/reportRoutes.js';
 import documentRouter from './src/routes/documentRoutes.js';
 import invoiceRouter from './src/routes/invoiceRoutes.js';
+import settingsRouter from './src/routes/settingsRoutes.js';
 
 
 const app = express();
@@ -35,7 +36,7 @@ if (isProd) {
 
 app.use(helmet());
 
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(o => o.trim()) || [];
 if (isProd && allowedOrigins.length === 0) {
   logger.error("WARNING: ALLOWED_ORIGINS env variable is missing or empty in production!");
 }
@@ -53,7 +54,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Portal-Name'],
 }));
 
 // Payload compression
@@ -72,6 +73,19 @@ app.use(rateLimit({
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 }));
+
+// Strict rate limiting for sensitive auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // limit each IP to 5 requests per 15 minutes
+  message: { success: false, message: 'Too many authentication attempts, please try again after 15 minutes' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use('/api/v1/auth/login', authLimiter);
+app.use('/api/v1/auth/forgot-password', authLimiter);
+app.use('/api/v1/auth/reset-password', authLimiter);
 
 app.use(cookieParser());
 
@@ -110,6 +124,7 @@ app.use('/api/v1/onboarding', onboardingRouter);
 app.use('/api/v1/reports', reportRouter);
 app.use('/api/v1/documents', documentRouter);
 app.use('/api/v1/invoices', invoiceRouter);
+app.use('/api/v1/settings', settingsRouter);
 
 
 app.use(notFound);

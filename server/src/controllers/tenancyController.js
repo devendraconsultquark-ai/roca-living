@@ -15,12 +15,20 @@ const addDays = (dateStr, days) => {
 
 const addMonths = (dateStr, months) => {
   const parts = dateStr.split('-');
-  const d = new Date(parts[0], parts[1] - 1, parts[2]);
-  d.setMonth(d.getMonth() + months);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+
+  const targetDate = new Date(year, month + months, 1);
+  const lastDayOfTarget = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0).getDate();
+  const clampedDay = Math.min(day, lastDayOfTarget);
+  targetDate.setDate(clampedDay);
+
+  const targetYear = targetDate.getFullYear();
+  const targetMonthStr = String(targetDate.getMonth() + 1).padStart(2, '0');
+  const targetDayStr = String(targetDate.getDate()).padStart(2, '0');
+
+  return `${targetYear}-${targetMonthStr}-${targetDayStr}`;
 };
 
 const generateSchedules = (startDateStr, endDateStr, rentPcm) => {
@@ -559,14 +567,30 @@ export const getArrears = catchAsync(async (req, res, next) => {
     .where('rent_schedules.status', 'overdue')
     .orderBy('rent_schedules.due_date', 'asc');
 
+  const uniqueTenancyIds = [...new Set(arrears.map(row => row.tenancy_id))];
+  const lastPaymentsMap = {};
+
+  if (uniqueTenancyIds.length > 0) {
+    const lastPayments = await db('rent_payments')
+      .whereIn('tenancy_id', uniqueTenancyIds)
+      .where('reconciled', 1)
+      .whereIn('id', function() {
+        this.select(db.raw('MAX(id)'))
+          .from('rent_payments')
+          .where('reconciled', 1)
+          .groupBy('tenancy_id');
+      });
+
+    for (const p of lastPayments) {
+      lastPaymentsMap[p.tenancy_id] = p;
+    }
+  }
+
   const tenanciesWithArrears = {};
   for (const row of arrears) {
     const tenancyId = row.tenancy_id;
     if (!tenanciesWithArrears[tenancyId]) {
-      const lastPayment = await db('rent_payments')
-        .where({ tenancy_id: tenancyId, reconciled: 1 })
-        .orderBy('received_at', 'desc')
-        .first();
+      const lastPayment = lastPaymentsMap[tenancyId];
 
       const oldestDueDate = new Date(row.due_date);
       const today = new Date();
@@ -610,11 +634,25 @@ export const getAllTenants = catchAsync(async (req, res, next) => {
       'tenancies.id as tenancyId'
     );
 
+  const tenancyIds = [...new Set(tenants.map(t => t.tenancyId))];
+  const overdueMap = {};
+
+  if (tenancyIds.length > 0) {
+    const allOverdue = await db('rent_schedules')
+      .whereIn('tenancy_id', tenancyIds)
+      .where('status', 'overdue');
+
+    for (const s of allOverdue) {
+      if (!overdueMap[s.tenancy_id]) {
+        overdueMap[s.tenancy_id] = [];
+      }
+      overdueMap[s.tenancy_id].push(s);
+    }
+  }
+
   const formatted = [];
   for (const t of tenants) {
-    const overdueSchedules = await db('rent_schedules')
-      .where('tenancy_id', t.tenancyId)
-      .where('status', 'overdue');
+    const overdueSchedules = overdueMap[t.tenancyId] || [];
     
     let balanceVal = 0.0;
     overdueSchedules.forEach(s => {

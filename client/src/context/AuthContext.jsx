@@ -55,15 +55,19 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (credentials) => {
-    const response = await api.post('/auth/login', credentials);
+    const response = await api.post('/auth/login', { ...credentials, portal: 'landlord' });
     dispatch({ type: 'AUTH_SUCCESS', payload: response.data.data });
     return response.data;
   };
 
   const logout = async () => {
-    await api.post('/auth/logout');
+    await api.post('/auth/logout', { portal: 'landlord' });
     dispatch({ type: 'LOGOUT' });
     navigate('/login');
+  };
+
+  const updateUser = (userData) => {
+    dispatch({ type: 'AUTH_SUCCESS', payload: userData });
   };
 
   return (
@@ -74,6 +78,7 @@ export const AuthProvider = ({ children }) => {
         isAuthenticated: state.isAuthenticated,
         login,
         logout,
+        updateUser,
       }}
     >
       {children}

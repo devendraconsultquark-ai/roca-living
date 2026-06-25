@@ -17,9 +17,34 @@ const storage = multer.diskStorage({
   }
 });
 
+const allowedMimeTypes = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/plain',
+  'text/csv',
+  'image/jpeg',
+  'image/png',
+  'image/gif'
+];
+
+const allowedExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.csv', '.jpg', '.jpeg', '.png', '.gif'];
+
+const fileFilter = (req, file, cb) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  
+  if (!allowedExtensions.includes(ext) || !allowedMimeTypes.includes(file.mimetype)) {
+    return cb(new Error('Only document files (PDF, Word, Excel, CSV, TXT) and images (JPEG, PNG, GIF) are allowed!'), false);
+  }
+  cb(null, true);
+};
+
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter
 });
 
 const documentRouter = Router();

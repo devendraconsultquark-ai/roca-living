@@ -45,7 +45,7 @@ export const register = catchAsync(async (req, res, next) => {
 });
 
 export const login = catchAsync(async (req, res, next) => {
-    const { email, password } = req.body;
+    const { email, password, portal } = req.body;
 
     const user = await db("users").where({ email: email.toLowerCase() }).first();
 
@@ -57,6 +57,15 @@ export const login = catchAsync(async (req, res, next) => {
 
     if (!isPasswordMatch) {
         throw new ApiError(401, "Invalid email or password");
+    }
+
+    // Role check based on portal
+    if (portal === 'admin' && user.role !== 'ADMIN') {
+        throw new ApiError(403, "Access denied. Only administrators can sign in to the Admin Portal.");
+    }
+
+    if (portal === 'landlord' && user.role !== 'LANDLORD') {
+        throw new ApiError(403, "Access denied. Only landlords can sign in to the Landlord Portal.");
     }
 
     const token = jwt.sign(
@@ -109,6 +118,8 @@ export const login = catchAsync(async (req, res, next) => {
 });
 
 export const logout = catchAsync(async (req, res, next) => {
+    const { portal } = req.body;
+
     const cookieOptions = {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -116,8 +127,14 @@ export const logout = catchAsync(async (req, res, next) => {
         maxAge: 0
     };
 
-    res.cookie("jwt_admin", "", cookieOptions);
-    res.cookie("jwt_landlord", "", cookieOptions);
+    if (portal === "admin") {
+        res.cookie("jwt_admin", "", cookieOptions);
+    } else if (portal === "landlord") {
+        res.cookie("jwt_landlord", "", cookieOptions);
+    } else {
+        res.cookie("jwt_admin", "", cookieOptions);
+        res.cookie("jwt_landlord", "", cookieOptions);
+    }
 
     res.json({
         success: true,
@@ -125,11 +142,58 @@ export const logout = catchAsync(async (req, res, next) => {
     });
 });
 
+const getUserPayload = async (userId, role) => {
+    if (role === 'LANDLORD') {
+        const data = await db("users")
+            .leftJoin("landlord_profiles", "users.id", "landlord_profiles.user_id")
+            .leftJoin("landlord_payment_details", "users.id", "landlord_payment_details.user_id")
+            .select(
+                "users.id", "users.name", "users.email", "users.phone", "users.role", "users.address", "users.created_at",
+                "landlord_profiles.company_name",
+                "landlord_profiles.initials",
+                "landlord_profiles.nrl_number",
+                "landlord_profiles.is_overseas",
+                "landlord_profiles.nrl_hmrc_approved",
+                "landlord_profiles.nrl_hmrc_ref",
+                "landlord_profiles.nrl_withhold_pct",
+                "landlord_profiles.kyc_status",
+                "landlord_profiles.kyc_provider",
+                "landlord_profiles.kyc_ref",
+                "landlord_profiles.sanctions_checked",
+                "landlord_profiles.tob_status",
+                "landlord_profiles.tob_signed_at",
+                "landlord_profiles.ownership_confirmed",
+                "landlord_profiles.ownership_share",
+                "landlord_payment_details.bank_name",
+                "landlord_payment_details.account_name",
+                "landlord_payment_details.account_number",
+                "landlord_payment_details.sort_code",
+                "landlord_payment_details.iban_bic",
+                "landlord_payment_details.verified_at",
+                "landlord_payment_details.change_pending"
+            )
+            .where({ "users.id": userId })
+            .first();
+
+        if (data) {
+            if (data.nrl_withhold_pct !== null && data.nrl_withhold_pct !== undefined) {
+                data.nrl_withhold_pct = parseFloat(data.nrl_withhold_pct).toFixed(2);
+            }
+            if (data.ownership_share !== null && data.ownership_share !== undefined) {
+                data.ownership_share = parseFloat(data.ownership_share).toFixed(2);
+            }
+        }
+        return data;
+    } else {
+        return await db("users")
+            .select("id", "name", "email", "phone", "role", "address", "created_at")
+            .where({ id: userId })
+            .first();
+    }
+};
+
 export const getMe = catchAsync(async (req, res, next) => {
-    const user = await db("users")
-        .select("id", "name", "email", "phone", "role", "address", "created_at")
-        .where({ id: req.user.id })
-        .first();
+    const user = await getUserPayload(req.user.id, req.user.role);
 
     if (!user) {
         throw new ApiError(404, "User not found");
@@ -164,25 +228,30 @@ export const updateProfile = catchAsync(async (req, res, next) => {
     if (phone !== undefined) updates.phone = phone;
     if (address !== undefined) updates.address = address;
 
-    if (Object.keys(updates).length > 0) {
-        await db("users").where({ id: req.user.id }).update(updates);
-        
+    await db.transaction(async (trx) => {
+        if (Object.keys(updates).length > 0) {
+            await trx("users").where({ id: req.user.id }).update(updates);
+        }
+
+
+
         // Audit log
-        await db("audit_log").insert({
+        const auditMeta = { ...updates };
+        if (user.role === 'LANDLORD') {
+            auditMeta.landlord_profile_changes = true;
+        }
+        await trx("audit_log").insert({
             actor_id: req.user.id,
             actor_role: req.user.role,
             action: 'USER_PROFILE_UPDATED',
             entity_type: 'user',
             entity_id: req.user.id,
-            meta: JSON.stringify(updates),
+            meta: JSON.stringify(auditMeta),
             ip_address: req.ip || null
         });
-    }
+    });
 
-    const updatedUser = await db("users")
-        .select("id", "name", "email", "phone", "role", "address", "created_at")
-        .where({ id: req.user.id })
-        .first();
+    const updatedUser = await getUserPayload(req.user.id, req.user.role);
 
     res.json({
         success: true,
@@ -240,6 +309,14 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
     throw new ApiError(404, "User not found with this email");
   }
 
+  // Cross-portal safety validation
+  if (portal === 'admin' && user.role !== 'ADMIN') {
+    throw new ApiError(403, "Access denied. This email is not registered as an administrator.");
+  }
+  if ((portal === 'client' || portal === 'landlord') && user.role !== 'LANDLORD') {
+    throw new ApiError(403, "Access denied. This email is not registered as a landlord.");
+  }
+
   const rawToken = crypto.randomBytes(32).toString('hex');
   const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour validity
@@ -250,7 +327,20 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
   });
 
   const portalPath = '';
-  const origin = req.headers.origin || 'http://localhost:5173';
+  
+  // Smart origin detection: use req.headers.origin or extract from req.headers.referer, fallback to port defaults
+  let origin = req.headers.origin;
+  if (!origin && req.headers.referer) {
+    try {
+      origin = new URL(req.headers.referer).origin;
+    } catch (e) {
+      // Ignore malformed referrer URLs
+    }
+  }
+  if (!origin) {
+    origin = portal === 'admin' ? 'http://localhost:5174' : 'http://localhost:5173';
+  }
+
   const resetUrl = `${origin}${portalPath}/reset-password?token=${rawToken}`;
 
   // Send the actual email to the user using the template

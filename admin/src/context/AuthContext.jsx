@@ -55,13 +55,13 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (credentials) => {
-    const response = await api.post('/auth/login', credentials);
+    const response = await api.post('/auth/login', { ...credentials, portal: 'admin' });
     dispatch({ type: 'AUTH_SUCCESS', payload: response.data.data });
     return response.data;
   };
 
   const logout = async () => {
-    await api.post('/auth/logout');
+    await api.post('/auth/logout', { portal: 'admin' });
     dispatch({ type: 'LOGOUT' });
     navigate('/login');
   };

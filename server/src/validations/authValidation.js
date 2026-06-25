@@ -35,4 +35,14 @@ export const loginSchema = z.object({
             .transform(val => val.toLowerCase()),
 
       password: requiredString("Password is required"),
+      portal: z.string().optional(),
 })
+
+export const changePasswordSchema = z.object({
+      currentPassword: requiredString("Current password is required"),
+      newPassword: requiredString("New password is required")
+            .min(8, "New password must be at least 8 characters long")
+            .regex(/[A-Z]/, "New password must contain at least one uppercase letter")
+            .regex(/[a-z]/, "New password must contain at least one lowercase letter")
+            .regex(/[^A-Za-z0-9]/, "New password must contain at least one special character"),
+});

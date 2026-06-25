@@ -1,95 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import { User, CreditCard, AlertTriangle, CheckCircle2, LogOut } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { useToast } from '../components/UI/ToastContext';
+import React from 'react';
+import { User, CreditCard, AlertTriangle, LogOut, Shield, Building } from 'lucide-react';
 import { Input } from '../components/UI/Input';
 import { Button } from '../components/UI/Button';
-import api from '../utilities/api';
-import { useAuth } from '../context/AuthContext';
+import { useProfile } from '../hooks/useProfile';
 
 export const Profile = () => {
-  const { addToast } = useToast();
-  const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const { user, logout } = useAuth();
-
-  // Profile Form State
-  const [profileData, setProfileData] = useState({
-    // Contact
-    name: '',
-    email: '',
-    phone: '',
-    address: '',
-
-    // Bank
-    bankName: 'Barclays Bank PLC',
-    accountName: '',
-    sortCode: '20-30-40',
-    accountNumber: '12345678',
-  });
-
-  const [errors, setErrors] = useState({});
-
-  useEffect(() => {
-    if (user) {
-      setProfileData(prev => ({
-        ...prev,
-        name: user.name || '',
-        email: user.email || '',
-        phone: user.phone || '',
-        address: user.address || '',
-        accountName: user.name || '',
-      }));
-    }
-  }, [user]);
-
-  const handleChange = (e) => {
-    const { id, value } = e.target;
-    setProfileData(prev => ({ ...prev, [id]: value }));
-    if (errors[id]) {
-      setErrors(prev => ({ ...prev, [id]: '' }));
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const errs = {};
-
-    // Validate fields
-    if (!profileData.name.trim()) errs.name = 'Full Name is required';
-    if (!profileData.email.trim()) errs.email = 'Email Address is required';
-    if (!profileData.phone.trim()) errs.phone = 'Phone number is required';
-
-    if (!profileData.bankName.trim()) errs.bankName = 'Bank Name is required';
-    if (!profileData.accountName.trim()) errs.accountName = 'Account Name is required';
-    if (!profileData.sortCode.trim()) errs.sortCode = 'Sort Code is required';
-    if (!profileData.accountNumber.trim()) {
-      errs.accountNumber = 'Account Number is required';
-    } else if (profileData.accountNumber.length !== 8) {
-      errs.accountNumber = 'Account Number must be exactly 8 digits';
-    }
-
-    if (Object.keys(errs).length > 0) {
-      setErrors(errs);
-      addToast('Please fix the validation errors before saving', 'warning');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await api.patch('/auth/me/profile', profileData);
-      addToast('Profile changes submitted for verification!', 'success');
-    } catch (err) {
-      console.error(err);
-      addToast('Profile updated. Bank changes pending verification. (Dev Fallback)', 'success');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogout = () => {
-    logout();
-  };
+  const {
+    loading,
+    isEditing,
+    setIsEditing,
+    profileData,
+    errors,
+    passwordData,
+    passwordLoading,
+    passwordErrors,
+    handleChange,
+    handleSubmit,
+    handleLogout,
+    handlePasswordChange,
+    handleCancel
+  } = useProfile();
 
   return (
     <div className="py-6 flex flex-col gap-6 max-w-4xl mx-auto px-4">
@@ -107,15 +37,29 @@ export const Profile = () => {
         </div>
       </div>
 
-      {/* Form Card */}
+      {/* Contact Details Form Card */}
       <form onSubmit={handleSubmit} className="bg-white border border-border-color rounded-2xl p-6 md:p-8 shadow-sm flex flex-col gap-6">
-
-        {/* Contact Details Section */}
         <div className="flex flex-col gap-4">
-          <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 select-none">
-            <User size={16} className="text-brand-accent" />
-            Contact Information
-          </h3>
+          <div className="flex justify-between items-center w-full">
+            <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 select-none">
+              <User size={16} className="text-brand-accent" />
+              Contact Information
+            </h3>
+            <button
+              type="button"
+              onClick={() => {
+                if (isEditing) {
+                  handleCancel();
+                } else {
+                  setIsEditing(true);
+                }
+              }}
+              className="text-xs font-bold text-brand-accent hover:text-brand-accent/80 border border-brand-accent/30 hover:border-brand-accent/50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+            >
+              {isEditing ? 'Cancel Edit' : 'Edit'}
+            </button>
+          </div>
+          
           <div className="border-t border-border-color/60 pt-4 grid grid-cols-1 md:grid-cols-2 gap-5">
             <Input
               label="Full Name"
@@ -124,6 +68,7 @@ export const Profile = () => {
               value={profileData.name}
               error={errors.name}
               onChange={handleChange}
+              disabled={!isEditing}
             />
             <Input
               label="Email Address"
@@ -133,6 +78,7 @@ export const Profile = () => {
               value={profileData.email}
               error={errors.email}
               onChange={handleChange}
+              disabled={!isEditing}
             />
             <Input
               label="Contact Phone"
@@ -141,6 +87,7 @@ export const Profile = () => {
               value={profileData.phone}
               error={errors.phone}
               onChange={handleChange}
+              disabled={!isEditing}
             />
             <Input
               label="Registered Home Address"
@@ -149,52 +96,7 @@ export const Profile = () => {
               value={profileData.address}
               error={errors.address}
               onChange={handleChange}
-            />
-          </div>
-        </div>
-
-        {/* Bank Details Section */}
-        <div className="flex flex-col gap-4 mt-2">
-          <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 select-none">
-            <CreditCard size={16} className="text-brand-accent" />
-            Disbursement Bank Account Details
-          </h3>
-          <div className="border-t border-border-color/60 pt-4 grid grid-cols-1 md:grid-cols-2 gap-5">
-            <Input
-              label="Bank Name"
-              id="bankName"
-              required
-              placeholder="e.g. Barclays Bank"
-              value={profileData.bankName}
-              error={errors.bankName}
-              onChange={handleChange}
-            />
-            <Input
-              label="Account Holder Name"
-              id="accountName"
-              required
-              placeholder="e.g. John Doe"
-              value={profileData.accountName}
-              error={errors.accountName}
-              onChange={handleChange}
-            />
-            <Input
-              label="Sort Code"
-              id="sortCode"
-              required
-              placeholder="e.g. 20-30-40"
-              value={profileData.sortCode}
-              error={errors.sortCode}
-              onChange={handleChange}
-            />
-            <Input
-              label="Account Number"
-              id="accountNumber"
-              required
-              placeholder="e.g. 12345678"
-              value={profileData.accountNumber}
-              error={errors.accountNumber}
-              onChange={handleChange}
+              disabled={!isEditing}
             />
           </div>
         </div>
@@ -210,16 +112,292 @@ export const Profile = () => {
             Log Out
           </button>
           
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={loading}
-          >
-            {loading ? 'Submitting Changes...' : 'Save Profile Changes'}
-          </Button>
+          {isEditing && (
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={loading}
+            >
+              {loading ? 'Submitting Changes...' : 'Save Profile Changes'}
+            </Button>
+          )}
         </div>
-
       </form>
+
+      {/* Company & HMRC Details Card */}
+      <div className="bg-white border border-border-color rounded-2xl p-6 md:p-8 shadow-sm flex flex-col gap-6">
+        <div className="flex flex-col gap-4">
+          <div>
+            <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 select-none">
+              <Building size={16} className="text-brand-accent" />
+              Company & HMRC Tax Details
+            </h3>
+            <p className="text-[11px] text-gray-500 mt-1">Tax statuses and company registration details are legally verified and cannot be edited directly.</p>
+          </div>
+          <div className="border-t border-border-color/60 pt-4 grid grid-cols-1 md:grid-cols-2 gap-5">
+            <Input
+              label="Company Name (Optional)"
+              id="companyName"
+              placeholder="e.g. Acme Properties Ltd"
+              value={profileData.companyName}
+              onChange={handleChange}
+              disabled={true}
+            />
+            <Input
+              label="HMRC Withholding Tax Rate (%)"
+              id="nrlWithholdPct"
+              type="number"
+              step="0.01"
+              placeholder="e.g. 20.00"
+              value={profileData.nrlWithholdPct}
+              onChange={handleChange}
+              disabled={true}
+            />
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-bold text-gray-500 uppercase select-none">Overseas Landlord Status</label>
+              <div className="flex items-center gap-2 h-10 mt-1 select-none">
+                <input
+                  type="checkbox"
+                  id="isOverseas"
+                  checked={profileData.isOverseas}
+                  onChange={handleChange}
+                  disabled={true}
+                  className="w-4 h-4 text-brand-accent border-gray-300 rounded focus:ring-brand-accent cursor-not-allowed"
+                />
+                <span className="text-sm font-semibold text-gray-700">I am an overseas landlord</span>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-bold text-gray-500 uppercase select-none">HMRC Approved</label>
+              <div className="flex items-center gap-2 h-10 mt-1 select-none">
+                <input
+                  type="checkbox"
+                  id="nrlHmrcApproved"
+                  checked={profileData.nrlHmrcApproved}
+                  onChange={handleChange}
+                  disabled={true}
+                  className="w-4 h-4 text-brand-accent border-gray-300 rounded focus:ring-brand-accent cursor-not-allowed"
+                />
+                <span className="text-sm font-semibold text-gray-700">HMRC approved for gross payment</span>
+              </div>
+            </div>
+            <Input
+              label="HMRC Reference Number"
+              id="nrlHmrcRef"
+              placeholder="e.g. NRL123456"
+              value={profileData.nrlHmrcRef}
+              onChange={handleChange}
+              disabled={true}
+            />
+            <Input
+              label="NRL Reference Number"
+              id="nrlNumber"
+              placeholder="e.g. NRL-998877"
+              value={profileData.nrlNumber}
+              disabled={true}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Bank Details Card */}
+      <div className="bg-white border border-border-color rounded-2xl p-6 md:p-8 shadow-sm flex flex-col gap-6">
+        <div className="flex flex-col gap-4">
+          <div>
+            <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 select-none">
+              <CreditCard size={16} className="text-brand-accent" />
+              Disbursement Bank Account Details
+            </h3>
+            <p className="text-[11px] text-gray-500 mt-1">Bank payment details require manual letting agent verification. Please contact support to submit modifications.</p>
+          </div>
+          <div className="border-t border-border-color/60 pt-4 grid grid-cols-1 md:grid-cols-2 gap-5">
+            <Input
+              label="Bank Name"
+              id="bankName"
+              placeholder="e.g. Barclays Bank"
+              value={profileData.bankName}
+              error={errors.bankName}
+              onChange={handleChange}
+              disabled={true}
+            />
+            <Input
+              label="Account Holder Name"
+              id="accountName"
+              placeholder="e.g. John Doe"
+              value={profileData.accountName}
+              error={errors.accountName}
+              onChange={handleChange}
+              disabled={true}
+            />
+            <Input
+              label="Sort Code"
+              id="sortCode"
+              placeholder="e.g. 20-30-40"
+              value={profileData.sortCode}
+              error={errors.sortCode}
+              onChange={handleChange}
+              disabled={true}
+            />
+            <Input
+              label="Account Number"
+              id="accountNumber"
+              placeholder="e.g. 12345678"
+              value={profileData.accountNumber}
+              error={errors.accountNumber}
+              onChange={handleChange}
+              disabled={true}
+            />
+            <Input
+              label="IBAN / BIC (Optional)"
+              id="ibanBic"
+              placeholder="e.g. GB12BARC20304012345678"
+              value={profileData.ibanBic}
+              onChange={handleChange}
+              disabled={true}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Compliance & Account Status Card */}
+      <div className="bg-white border border-border-color rounded-2xl p-6 md:p-8 shadow-sm flex flex-col gap-6">
+        <div className="flex flex-col gap-4">
+          <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 select-none">
+            <Shield size={16} className="text-brand-accent" />
+            Compliance & Account Verification Status
+          </h3>
+          <div className="border-t border-border-color/60 pt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
+            {/* Row 1: KYC Details */}
+            <div className="flex flex-col gap-1.5 bg-gray-50/50 border border-border-color/50 p-4 rounded-xl">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">KYC Status</span>
+              <span className={`text-sm font-bold capitalize select-none ${
+                profileData.kycStatus === 'passed' ? 'text-status-success' :
+                profileData.kycStatus === 'failed' ? 'text-status-danger' :
+                profileData.kycStatus === 'pending' ? 'text-status-warning' : 'text-gray-500'
+              }`}>
+                {profileData.kycStatus.replace('_', ' ')}
+              </span>
+            </div>
+            <div className="flex flex-col gap-1.5 bg-gray-50/50 border border-border-color/50 p-4 rounded-xl">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">KYC Provider</span>
+              <span className="text-sm font-bold text-gray-700 select-none">
+                {profileData.kycProvider || 'N/A'}
+              </span>
+            </div>
+            <div className="flex flex-col gap-1.5 bg-gray-50/50 border border-border-color/50 p-4 rounded-xl">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">KYC Reference</span>
+              <span className="text-sm font-bold text-gray-700 select-none truncate" title={profileData.kycRef}>
+                {profileData.kycRef || 'N/A'}
+              </span>
+            </div>
+            <div className="flex flex-col gap-1.5 bg-gray-50/50 border border-border-color/50 p-4 rounded-xl">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">Sanctions Checked</span>
+              <span className={`text-sm font-bold select-none ${
+                profileData.sanctionsChecked ? 'text-status-success' : 'text-status-danger'
+              }`}>
+                {profileData.sanctionsChecked ? 'Yes' : 'No'}
+              </span>
+            </div>
+
+            {/* Row 2: TOB & Ownership Details */}
+            <div className="flex flex-col gap-1.5 bg-gray-50/50 border border-border-color/50 p-4 rounded-xl">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">TOB Status</span>
+              <span className={`text-sm font-bold capitalize select-none ${
+                profileData.tobStatus === 'signed' ? 'text-status-success' : 'text-gray-500'
+              }`}>
+                {profileData.tobStatus.replace('_', ' ')}
+              </span>
+            </div>
+            <div className="flex flex-col gap-1.5 bg-gray-50/50 border border-border-color/50 p-4 rounded-xl">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">TOB Signed At</span>
+              <span className="text-sm font-bold text-gray-700 select-none">
+                {profileData.tobSignedAt || 'N/A'}
+              </span>
+            </div>
+            <div className="flex flex-col gap-1.5 bg-gray-50/50 border border-border-color/50 p-4 rounded-xl">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">Ownership Confirmed</span>
+              <span className={`text-sm font-bold select-none ${
+                profileData.ownershipConfirmed ? 'text-status-success' : 'text-gray-500'
+              }`}>
+                {profileData.ownershipConfirmed ? 'Confirmed' : 'Pending Confirmation'}
+              </span>
+            </div>
+            <div className="flex flex-col gap-1.5 bg-gray-50/50 border border-border-color/50 p-4 rounded-xl">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">Ownership Share</span>
+              <span className="text-sm font-bold text-gray-700 select-none">
+                {profileData.ownershipShare ? `${profileData.ownershipShare}%` : 'N/A'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Change Password Form */}
+      <div className="bg-white border border-border-color rounded-2xl p-6 md:p-8 shadow-sm flex flex-col gap-6 mt-6">
+        <form onSubmit={handlePasswordChange} className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4">
+            <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 select-none">
+              <Shield size={16} className="text-brand-accent" />
+              Change Password
+            </h3>
+            
+            <div className="border-t border-border-color/60 pt-4 grid grid-cols-1 sm:grid-cols-3 gap-5">
+              <Input
+                label="Current Password"
+                id="currentPassword"
+                type="password"
+                required
+                value={passwordData.currentPassword}
+                error={passwordErrors.currentPassword}
+                onChange={(e) => {
+                  setPasswordData({ ...passwordData, currentPassword: e.target.value });
+                  if (passwordErrors.currentPassword) {
+                    setPasswordErrors(prev => ({ ...prev, currentPassword: '' }));
+                  }
+                }}
+              />
+              <Input
+                label="New Password"
+                id="newPassword"
+                type="password"
+                required
+                value={passwordData.newPassword}
+                error={passwordErrors.newPassword}
+                onChange={(e) => {
+                  setPasswordData({ ...passwordData, newPassword: e.target.value });
+                  if (passwordErrors.newPassword) {
+                    setPasswordErrors(prev => ({ ...prev, newPassword: '' }));
+                  }
+                }}
+              />
+              <Input
+                label="Confirm Password"
+                id="confirmPassword"
+                type="password"
+                required
+                value={passwordData.confirmPassword}
+                error={passwordErrors.confirmPassword}
+                onChange={(e) => {
+                  setPasswordData({ ...passwordData, confirmPassword: e.target.value });
+                  if (passwordErrors.confirmPassword) {
+                    setPasswordErrors(prev => ({ ...prev, confirmPassword: '' }));
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-border-color/60 pt-6 flex justify-end">
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={passwordLoading}
+            >
+              {passwordLoading ? 'Updating Password...' : 'Update Password'}
+            </Button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };

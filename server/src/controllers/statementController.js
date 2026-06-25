@@ -240,42 +240,59 @@ export const generateStatements = catchAsync(async (req, res, next) => {
       throw new ApiError(400, 'Period start and end dates are required');
     }
 
+    if (!landlord_name) {
+      throw new ApiError(400, 'Landlord name is required for statement generation');
+    }
     // Resolve landlord ID
-    let landlordId = 41; // default fallback
-    let landlordUser = await db('users').where({ role: 'LANDLORD' }).where('name', 'like', `%${landlord_name || ''}%`).first();
+    let landlordId = null;
+    let landlordUser = await db('users').where({ role: 'LANDLORD' }).where('name', 'like', `%${landlord_name}%`).first();
     if (landlordUser) {
       landlordId = landlordUser.id;
     } else {
       try {
-        const emLandlord = await emDb('users').where({ role: 'LANDLORD' }).where('name', 'like', `%${landlord_name || ''}%`).first();
+        const emLandlord = await emDb('users').where({ role: 'LANDLORD' }).where('name', 'like', `%${landlord_name}%`).first();
         if (emLandlord) {
           const localByEmail = await db('users').where({ email: emLandlord.email, role: 'LANDLORD' }).first();
-          if (localByEmail) landlordId = localByEmail.id;
+          if (localByEmail) {
+            landlordId = localByEmail.id;
+          } else {
+            throw new ApiError(404, `Landlord '${landlord_name}' found in emDb but has no synced local user account`);
+          }
+        } else {
+          throw new ApiError(404, `Landlord '${landlord_name}' not found locally or in emDb`);
         }
       } catch (err) {
-        console.error('[StatementController] emDb lookup failed:', err.message);
+        if (err instanceof ApiError) throw err;
+        throw new ApiError(500, `Secondary database lookup failed for Landlord '${landlord_name}': ${err.message}`);
       }
     }
 
+    if (!property_address && !property_reference) {
+      throw new ApiError(400, 'Property address or reference is required for statement generation');
+    }
+    const propSearch = property_address || property_reference;
     // Resolve property ID
     let propertyId = null;
-    let resolvedProperty = await db('properties').where('address_line1', 'like', `%${property_address || property_reference || ''}%`).first();
+    let resolvedProperty = await db('properties').where('address_line1', 'like', `%${propSearch}%`).first();
     if (resolvedProperty) {
       propertyId = resolvedProperty.id;
     } else {
       try {
-        const emProp = await emDb('properties').where('name', 'like', `%${property_address || property_reference || ''}%`).first();
+        const emProp = await emDb('properties').where('name', 'like', `%${propSearch}%`).first();
         if (emProp) {
           const localByPostcode = await db('properties').where('postcode', emProp.postcode || '').first();
-          if (localByPostcode) propertyId = localByPostcode.id;
+          if (localByPostcode) {
+            propertyId = localByPostcode.id;
+          } else {
+            throw new ApiError(404, `Property '${propSearch}' found in emDb but has no matching local property by postcode`);
+          }
+        } else {
+          throw new ApiError(404, `Property '${propSearch}' not found locally or in emDb`);
         }
       } catch (err) {
-        console.error('[StatementController] emDb property lookup failed:', err.message);
+        if (err instanceof ApiError) throw err;
+        throw new ApiError(500, `Secondary database lookup failed for Property '${propSearch}': ${err.message}`);
       }
-    }
-    if (!propertyId) {
-      const pFallback = await db('properties').where({ landlord_id: landlordId }).first() || await db('properties').first();
-      if (pFallback) propertyId = pFallback.id;
     }
 
     // Check if statement already exists
@@ -584,7 +601,9 @@ export const generateStatements = catchAsync(async (req, res, next) => {
       const nrlPct = landlordProfile?.nrl_withhold_pct !== null && landlordProfile?.nrl_withhold_pct !== undefined
         ? parseFloat(landlordProfile.nrl_withhold_pct)
         : 20.00;
-      nrl_withheld = (gross_rent * nrlPct) / 100;
+      const allowableExpenses = mgmt_fee + mgmt_fee_vat + roca_letting_fee + agent_letting_fee + deductions;
+      const netIncomeForNrl = Math.max(0, gross_rent - allowableExpenses);
+      nrl_withheld = (netIncomeForNrl * nrlPct) / 100;
     }
 
     // Formulas using precise rounding
@@ -961,15 +980,24 @@ export const getAutofillMetadata = catchAsync(async (req, res, next) => {
   }
 
   // Process EM Properties
-  for (const p of emProps) {
-    let localProfile = null;
-    if (p.landlord_email) {
-      localProfile = await db('users')
-        .leftJoin('landlord_profiles', 'users.id', 'landlord_profiles.user_id')
-        .where('users.email', p.landlord_email)
-        .select('landlord_profiles.initials', 'landlord_profiles.nrl_number')
-        .first();
+  const emEmails = [...new Set(emProps.map(p => p.landlord_email).filter(Boolean))];
+  const localProfileMap = {};
+
+  if (emEmails.length > 0) {
+    const profiles = await db('users')
+      .leftJoin('landlord_profiles', 'users.id', 'landlord_profiles.user_id')
+      .whereIn('users.email', emEmails)
+      .select('users.email', 'landlord_profiles.initials', 'landlord_profiles.nrl_number');
+
+    for (const prof of profiles) {
+      if (prof.email) {
+        localProfileMap[prof.email.toLowerCase()] = prof;
+      }
     }
+  }
+
+  for (const p of emProps) {
+    const localProfile = p.landlord_email ? localProfileMap[p.landlord_email.toLowerCase()] : null;
 
     const propName = p.property_name || p.property_address || '';
     const blockName = parseBlockName(propName, null);

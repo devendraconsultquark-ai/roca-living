@@ -64,21 +64,60 @@ export const ensurePuppeteerDependencies = async () => {
   }
 };
 
+let sharedBrowser = null;
+
+const getSharedBrowser = async () => {
+  if (sharedBrowser && sharedBrowser.connected) {
+    return sharedBrowser;
+  }
+  if (sharedBrowser) {
+    try {
+      await sharedBrowser.close();
+    } catch (e) {}
+    sharedBrowser = null;
+  }
+  console.log('[PuppeteerGenerator] Launching shared headless browser...');
+  sharedBrowser = await puppeteer.launch({
+    headless: 'new',
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+  });
+
+  sharedBrowser.on('disconnected', () => {
+    console.log('[PuppeteerGenerator] Shared browser disconnected.');
+    sharedBrowser = null;
+  });
+
+  return sharedBrowser;
+};
+
+const closeSharedBrowser = async () => {
+  if (sharedBrowser) {
+    console.log('[PuppeteerGenerator] Closing shared browser on shutdown...');
+    try {
+      await sharedBrowser.close();
+    } catch (e) {}
+    sharedBrowser = null;
+  }
+};
+
+process.on('SIGINT', async () => {
+  await closeSharedBrowser();
+});
+process.on('SIGTERM', async () => {
+  await closeSharedBrowser();
+});
+
 /**
  * Compiles a self-contained HTML page into a Portrait PDF buffer using Puppeteer
  * @param {String} htmlContent Complete HTML content string
  * @returns {Promise<Buffer>} Binary PDF buffer
  */
 export const generatePortraitPDFWithPuppeteer = async (htmlContent) => {
-  let browser;
+  let page = null;
   try {
-    console.log('[PuppeteerGenerator] Launching headless browser...');
-    browser = await puppeteer.launch({
-      headless: 'new', // compatible with puppeteer v20+ 
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-
-    const page = await browser.newPage();
+    const browser = await getSharedBrowser();
+    console.log('[PuppeteerGenerator] Creating new page from shared browser...');
+    page = await browser.newPage();
     
     console.log('[PuppeteerGenerator] Setting page HTML content...');
     await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
@@ -101,9 +140,13 @@ export const generatePortraitPDFWithPuppeteer = async (htmlContent) => {
     console.error('[PuppeteerGenerator] Portrait compilation failed:', error);
     throw error;
   } finally {
-    if (browser) {
-      console.log('[PuppeteerGenerator] Closing browser...');
-      await browser.close();
+    if (page) {
+      console.log('[PuppeteerGenerator] Closing page...');
+      try {
+        await page.close();
+      } catch (err) {
+        console.error('[PuppeteerGenerator] Error closing page:', err.message);
+      }
     }
   }
 };

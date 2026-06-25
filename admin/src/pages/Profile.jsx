@@ -12,15 +12,29 @@ export const Profile = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const { user, logout } = useAuth();
+  const [isEditing, setIsEditing] = useState(false);
 
   const [profileData, setProfileData] = useState({
     name: '',
     email: '',
     phone: '',
     role: '',
-    department: 'Operations & Support',
-    office: 'London Head Office',
+    address: '',
   });
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    if (user) {
+      setProfileData(prev => ({
+        ...prev,
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.phone || '',
+        role: user.role || '',
+        address: user.address || '',
+      }));
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -30,6 +44,7 @@ export const Profile = () => {
         email: user.email || '',
         phone: user.phone || '',
         role: user.role || '',
+        address: user.address || '',
       }));
     }
   }, [user]);
@@ -47,9 +62,11 @@ export const Profile = () => {
       await api.patch('/auth/profile', {
         name: profileData.name,
         email: profileData.email,
-        phone: profileData.phone
-      });
+        phone: profileData.phone,
+        address: profileData.address
+      }, { skipInterceptorError: true });
       addToast('Profile updated successfully!', 'success');
+      setIsEditing(false);
     } catch (err) {
       addToast(err.response?.data?.message || 'Failed to update profile', 'error');
     } finally {
@@ -63,11 +80,39 @@ export const Profile = () => {
     confirmPassword: ''
   });
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordErrors, setPasswordErrors] = useState({});
 
   const handlePasswordChange = async (e) => {
     e.preventDefault();
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      addToast('New password and confirm password do not match', 'warning');
+    const errs = {};
+
+    if (!passwordData.currentPassword) {
+      errs.currentPassword = 'Current Password is required';
+    }
+
+    if (!passwordData.newPassword) {
+      errs.newPassword = 'New Password is required';
+    } else {
+      if (passwordData.newPassword.length < 8) {
+        errs.newPassword = 'Password must be at least 8 characters long';
+      } else if (!/[A-Z]/.test(passwordData.newPassword)) {
+        errs.newPassword = 'Password must contain at least one uppercase letter';
+      } else if (!/[a-z]/.test(passwordData.newPassword)) {
+        errs.newPassword = 'Password must contain at least one lowercase letter';
+      } else if (!/[^A-Za-z0-9]/.test(passwordData.newPassword)) {
+        errs.newPassword = 'Password must contain at least one special character';
+      }
+    }
+
+    if (!passwordData.confirmPassword) {
+      errs.confirmPassword = 'Confirm Password is required';
+    } else if (passwordData.newPassword !== passwordData.confirmPassword) {
+      errs.confirmPassword = 'New password and confirm password do not match';
+    }
+
+    if (Object.keys(errs).length > 0) {
+      setPasswordErrors(errs);
+      addToast('Please fix the validation errors before saving', 'warning');
       return;
     }
 
@@ -76,11 +121,22 @@ export const Profile = () => {
       await api.patch('/auth/change-password', {
         currentPassword: passwordData.currentPassword,
         newPassword: passwordData.newPassword
-      });
+      }, { skipInterceptorError: true });
       addToast('Password changed successfully!', 'success');
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setPasswordErrors({});
     } catch (err) {
-      addToast(err.response?.data?.message || 'Failed to change password', 'error');
+      const errorMessages = err.response?.data?.errors;
+      if (Array.isArray(errorMessages) && errorMessages.length > 0) {
+        const errorsMap = {};
+        errorMessages.forEach((m) => {
+          errorsMap[m.field] = m.message;
+        });
+        setPasswordErrors(errorsMap);
+        addToast(err.response?.data?.message || 'Validation failed', 'error');
+      } else {
+        addToast(err.response?.data?.message || 'Failed to change password', 'error');
+      }
     } finally {
       setPasswordLoading(false);
     }
@@ -95,47 +151,32 @@ export const Profile = () => {
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-[#1A1A1A]">Admin Profile</h2>
-        <p className="text-sm text-gray-500 mt-1">Manage your administrative user information and check system permissions.</p>
+        <p className="text-sm text-gray-500 mt-1">Manage your administrative user information and profile settings.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Left Side: Avatar Card */}
-        <div className="bg-white border border-border-color rounded-2xl p-6 shadow-sm flex flex-col items-center justify-center text-center gap-4">
-          <div className="w-24 h-24 rounded-full bg-brand-primary text-white flex items-center justify-center font-bold text-4xl shadow-md">
-            A
-          </div>
-          <div>
-            <h3 className="font-bold text-lg text-[#1A1A1A]">{profileData.name}</h3>
-            <p className="text-xs text-brand-accent font-semibold uppercase tracking-wider">{profileData.role}</p>
-          </div>
-          <div className="w-full border-t border-border-color pt-4 flex flex-col gap-2.5 text-left text-xs text-gray-500">
-            <div className="flex items-center gap-2">
-              <Building size={14} className="text-gray-400" />
-              <span>{profileData.office}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Mail size={14} className="text-gray-400" />
-              <span>{profileData.email}</span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="w-full mt-2 py-2.5 px-4 border border-status-danger/20 hover:border-status-danger/30 text-status-danger hover:bg-status-danger/5 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-2"
-          >
-            <LogOut size={14} />
-            Log Out
-          </button>
-        </div>
-
-        {/* Right Side: Settings Form */}
-        <form onSubmit={handleSave} className="md:col-span-2 bg-white border border-border-color rounded-2xl p-6 shadow-sm flex flex-col gap-6">
+      <div className="flex flex-col gap-6">
+        {/* Settings Form */}
+        <form onSubmit={handleSave} className="bg-white border border-border-color rounded-2xl p-6 shadow-sm flex flex-col gap-6">
           <div className="flex flex-col gap-4">
-            <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 select-none">
-              <User size={16} className="text-brand-accent" />
-              Contact Information
-            </h3>
+            <div className="flex justify-between items-center w-full">
+              <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 select-none">
+                <User size={16} className="text-brand-accent" />
+                Contact Information
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isEditing) {
+                    handleCancel();
+                  } else {
+                    setIsEditing(true);
+                  }
+                }}
+                className="text-xs font-bold text-brand-accent hover:text-brand-accent/80 border border-brand-accent/30 hover:border-brand-accent/50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+              >
+                {isEditing ? 'Cancel Edit' : 'Edit'}
+              </button>
+            </div>
             
             <div className="border-t border-border-color/60 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-5">
               <Input
@@ -144,6 +185,7 @@ export const Profile = () => {
                 required
                 value={profileData.name}
                 onChange={handleChange}
+                disabled={!isEditing}
               />
               <Input
                 label="Email Address"
@@ -152,6 +194,7 @@ export const Profile = () => {
                 required
                 value={profileData.email}
                 onChange={handleChange}
+                disabled={!isEditing}
               />
               <Input
                 label="Contact Phone"
@@ -159,49 +202,45 @@ export const Profile = () => {
                 required
                 value={profileData.phone}
                 onChange={handleChange}
+                disabled={!isEditing}
               />
               <Input
-                label="Department"
-                id="department"
+                label="Registered Home Address"
+                id="address"
                 required
-                value={profileData.department}
+                value={profileData.address}
                 onChange={handleChange}
+                disabled={!isEditing}
               />
             </div>
           </div>
 
-          <div className="flex flex-col gap-4 mt-2">
-            <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 select-none">
-              <Shield size={16} className="text-brand-accent" />
-              System Permissions
-            </h3>
-            
-            <div className="border-t border-border-color/60 pt-4 flex flex-col gap-3">
-              <div className="flex items-center gap-3 bg-brand-primary/5 p-3 rounded-lg border border-brand-primary/10">
-                <Shield className="text-brand-accent shrink-0" size={18} />
-                <div>
-                  <p className="text-xs font-bold text-[#1A1A1A]">Administrator Privileges Active</p>
-                  <p className="text-[10px] text-gray-500">You have read and write permissions across all client files, landlord accounting logs, and platform settings.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Action Button */}
-          <div className="border-t border-border-color/60 pt-6 flex justify-end">
-            <Button
-              type="submit"
-              variant="primary"
-              icon={Save}
-              disabled={loading}
+          {/* Save and Logout Buttons */}
+          <div className="border-t border-border-color/60 pt-6 flex justify-between items-center">
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="px-4 py-2.5 text-sm font-bold text-status-danger hover:bg-status-danger/5 border border-status-danger/20 hover:border-status-danger/30 rounded-xl transition-colors cursor-pointer flex items-center gap-2"
             >
-              {loading ? 'Saving Changes...' : 'Save Profile Details'}
-            </Button>
+              <LogOut size={16} />
+              Log Out
+            </button>
+            
+            {isEditing && (
+              <Button
+                type="submit"
+                variant="primary"
+                icon={Save}
+                disabled={loading}
+              >
+                {loading ? 'Saving Changes...' : 'Save Profile Details'}
+              </Button>
+            )}
           </div>
         </form>
 
         {/* Change Password Form */}
-        <div className="md:col-span-2 md:col-start-2 bg-white border border-border-color rounded-2xl p-6 shadow-sm flex flex-col gap-6">
+        <div className="bg-white border border-border-color rounded-2xl p-6 shadow-sm flex flex-col gap-6">
           <form onSubmit={handlePasswordChange} className="flex flex-col gap-6">
             <div className="flex flex-col gap-4">
               <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 select-none">
@@ -216,7 +255,13 @@ export const Profile = () => {
                   type="password"
                   required
                   value={passwordData.currentPassword}
-                  onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                  error={passwordErrors.currentPassword}
+                  onChange={(e) => {
+                    setPasswordData({ ...passwordData, currentPassword: e.target.value });
+                    if (passwordErrors.currentPassword) {
+                      setPasswordErrors(prev => ({ ...prev, currentPassword: '' }));
+                    }
+                  }}
                 />
                 <Input
                   label="New Password"
@@ -224,7 +269,13 @@ export const Profile = () => {
                   type="password"
                   required
                   value={passwordData.newPassword}
-                  onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                  error={passwordErrors.newPassword}
+                  onChange={(e) => {
+                    setPasswordData({ ...passwordData, newPassword: e.target.value });
+                    if (passwordErrors.newPassword) {
+                      setPasswordErrors(prev => ({ ...prev, newPassword: '' }));
+                    }
+                  }}
                 />
                 <Input
                   label="Confirm Password"
@@ -232,7 +283,13 @@ export const Profile = () => {
                   type="password"
                   required
                   value={passwordData.confirmPassword}
-                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                  error={passwordErrors.confirmPassword}
+                  onChange={(e) => {
+                    setPasswordData({ ...passwordData, confirmPassword: e.target.value });
+                    if (passwordErrors.confirmPassword) {
+                      setPasswordErrors(prev => ({ ...prev, confirmPassword: '' }));
+                    }
+                  }}
                 />
               </div>
             </div>

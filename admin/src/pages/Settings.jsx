@@ -1,18 +1,53 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, Save } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
 import { Input } from '../components/UI/Input';
 import { Button } from '../components/UI/Button';
+import api from '../utilities/api';
 
 export const Settings = () => {
   const { addToast } = useToast();
   const [agencyFee, setAgencyFee] = useState('12.0');
   const [depositSchemeNum, setDepositSchemeNum] = useState('TDS-ROCA-5001');
   const [vatRate, setVatRate] = useState('20.0');
+  const [loading, setLoading] = useState(false);
 
-  const handleSave = (e) => {
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await api.get('/settings');
+        if (response.data?.success && response.data?.data) {
+          const { agencyFee, depositSchemeNum, vatRate } = response.data.data;
+          if (agencyFee !== undefined) setAgencyFee(agencyFee);
+          if (depositSchemeNum !== undefined) setDepositSchemeNum(depositSchemeNum);
+          if (vatRate !== undefined) setVatRate(vatRate);
+        }
+      } catch (err) {
+        console.error('Failed to load settings:', err);
+        addToast('Failed to load settings from server', 'error');
+      }
+    };
+    fetchSettings();
+  }, [addToast]);
+
+  const handleSave = async (e) => {
     e.preventDefault();
-    addToast('System settings saved successfully!', 'success');
+    setLoading(true);
+    try {
+      const response = await api.post('/settings', {
+        agencyFee,
+        vatRate,
+        depositSchemeNum
+      });
+      if (response.data?.success) {
+        addToast('System settings saved successfully!', 'success');
+      }
+    } catch (err) {
+      console.error('Failed to save settings:', err);
+      addToast(err.response?.data?.message || 'Failed to save settings', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -39,6 +74,7 @@ export const Settings = () => {
               required
               value={agencyFee}
               onChange={(e) => setAgencyFee(e.target.value)}
+              disabled={loading}
             />
             <Input
               label="Value Added Tax (VAT) rate (%)"
@@ -46,6 +82,7 @@ export const Settings = () => {
               required
               value={vatRate}
               onChange={(e) => setVatRate(e.target.value)}
+              disabled={loading}
             />
           </div>
         </div>
@@ -63,6 +100,7 @@ export const Settings = () => {
               required
               value={depositSchemeNum}
               onChange={(e) => setDepositSchemeNum(e.target.value)}
+              disabled={loading}
             />
           </div>
         </div>
@@ -73,8 +111,9 @@ export const Settings = () => {
             type="submit"
             variant="primary"
             icon={Save}
+            disabled={loading}
           >
-            Save Settings
+            {loading ? 'Saving...' : 'Save Settings'}
           </Button>
         </div>
 

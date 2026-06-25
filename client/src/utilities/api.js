@@ -5,6 +5,17 @@ const api = axios.create({
   withCredentials: true,
 });
 
+// Request interceptor to specify portal context
+api.interceptors.request.use(
+  (config) => {
+    config.headers['X-Portal-Name'] = 'landlord';
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 // Response interceptor to handle authorization issues and general API errors
 api.interceptors.response.use(
   (response) => response,

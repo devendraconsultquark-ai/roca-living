@@ -6,11 +6,10 @@ import { generateStandaloneInvoiceHTML } from '../templates/statementInvoiceTemp
 import fs from 'fs';
 import path from 'path';
 
-// Helper to resolve landlord by name (check local, fallback to emDb, fallback to default)
+// Helper to resolve landlord by name
 const resolveLandlord = async (name) => {
   if (!name) {
-    const fallback = await db('users').where({ role: 'LANDLORD' }).first();
-    return fallback ? fallback.id : 41; // default fallback
+    throw new ApiError(400, 'Landlord name is required for resolution');
   }
 
   // 1. Local check
@@ -24,21 +23,20 @@ const resolveLandlord = async (name) => {
       // Find matching local landlord by email, or sync/fallback
       const localByEmail = await db('users').where({ email: emLandlord.email, role: 'LANDLORD' }).first();
       if (localByEmail) return localByEmail.id;
+      throw new ApiError(404, `Landlord '${name}' found in emDb but has no synced local user account`);
     }
   } catch (err) {
-    console.error('[InvoiceController] emDb lookup failed:', err.message);
+    if (err instanceof ApiError) throw err;
+    throw new ApiError(500, `Secondary database lookup failed for Landlord '${name}': ${err.message}`);
   }
 
-  // 3. Fallback
-  const firstLandlord = await db('users').where({ role: 'LANDLORD' }).first();
-  return firstLandlord ? firstLandlord.id : 41;
+  throw new ApiError(404, `Landlord '${name}' could not be resolved`);
 };
 
 // Helper to resolve property by address
 const resolveProperty = async (address, landlordId) => {
   if (!address) {
-    const localProp = await db('properties').where({ landlord_id: landlordId }).first() || await db('properties').first();
-    return localProp ? localProp.id : null;
+    throw new ApiError(400, 'Property address is required for resolution');
   }
 
   // 1. Local check
@@ -52,14 +50,14 @@ const resolveProperty = async (address, landlordId) => {
       // fallback matching address
       const localByPostcode = await db('properties').where('postcode', emProp.postcode || '').first();
       if (localByPostcode) return localByPostcode.id;
+      throw new ApiError(404, `Property '${address}' found in emDb but has no matching local property by postcode`);
     }
   } catch (err) {
-    console.error('[InvoiceController] emDb property lookup failed:', err.message);
+    if (err instanceof ApiError) throw err;
+    throw new ApiError(500, `Secondary database lookup failed for Property '${address}': ${err.message}`);
   }
 
-  // 3. Fallback
-  const firstProp = await db('properties').where({ landlord_id: landlordId }).first() || await db('properties').first();
-  return firstProp ? firstProp.id : null;
+  throw new ApiError(404, `Property '${address}' could not be resolved`);
 };
 
 export const generateInvoice = catchAsync(async (req, res, next) => {
