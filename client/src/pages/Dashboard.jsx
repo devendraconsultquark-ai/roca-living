@@ -203,7 +203,7 @@ export const Dashboard = () => {
       subText: '—',
       variant: 'neutral',
       icon: Calendar,
-      onClick: () => navigate('/inspections'),
+      onClick: () => navigate('/compliance/inspections'),
       subTextColor: 'text-gray-400'
     });
   }
@@ -611,7 +611,7 @@ export const Dashboard = () => {
           title="Key Dates"
           headerActions={
             <button 
-              onClick={() => navigate('/inspections')}
+              onClick={() => navigate('/compliance/inspections')}
               className="text-xs-portal font-bold text-status-info hover:underline cursor-pointer"
             >
               View Calendar
