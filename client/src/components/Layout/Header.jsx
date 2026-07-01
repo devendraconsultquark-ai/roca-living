@@ -89,7 +89,7 @@ export default function Header() {
 
             <div className="flex items-center gap-4">
               {user ? (
-                <Link to='/dashboard' className={`flex relative overflow-hidden group bg-primary text-white border border-primary hover:opacity-90 text-base items-center justify-center transition-all duration-300 py-2 px-8 rounded-card shadow-lg shadow-primary/20`}>
+                <Link to='/dashboard' className={`flex relative overflow-hidden group bg-black/80 text-white border border-black hover:opacity-90 text-base items-center justify-center transition-all duration-300 py-2 px-8 rounded-card shadow-lg shadow-black/20`}>
                   <span className="pointer-events-none absolute inset-0 -translate-x-[150%] bg-gradient-to-r from-transparent via-white/30 to-transparent group-hover:translate-x-[150%] transition-transform duration-700 ease-in-out" />
                   <span className="relative z-10 flex" style={{fontSize: '15px', fontWeight: '300'}}>Dashboard</span>
                 </Link>

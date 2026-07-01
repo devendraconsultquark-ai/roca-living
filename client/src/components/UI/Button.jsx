@@ -15,7 +15,7 @@ export const Button = ({
 }) => {
 
   // 1. Base structural styles (padding, radius, transitions)
-  const baseStyles = 'inline-flex items-center justify-center tracking-tight rounded-card cursor-pointer transition-all duration-150 ease-in-out focus:outline-none disabled:cursor-not-allowed disabled:pointer-events-none select-none';
+  const baseStyles = 'inline-flex items-center justify-center tracking-tight rounded-card cursor-pointer transition-all duration-150 ease-in-out focus:outline-none disabled:cursor-not-allowed disabled:pointer-events-none select-none whitespace-nowrap';
 
   // 2. Styles for different variants matching the Design System
   const variantStyles = {
@@ -59,7 +59,7 @@ export const Button = ({
       {/* Icon placed left */}
       {Icon && iconPosition === 'left' && <Icon size={size === 'sm' ? 13 : 15} className="shrink-0 animate-in fade-in" />}
       
-      <span>{children}</span>
+      {children}
       
       {/* Icon placed right */}
       {Icon && iconPosition === 'right' && <Icon size={size === 'sm' ? 13 : 15} className="shrink-0 animate-in fade-in" />}

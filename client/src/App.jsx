@@ -47,7 +47,7 @@ const NotFound = () => (
   <div className="p-12 text-center bg-white rounded-lg border border-border-color">
     <h2 className="text-2xl font-bold text-status-danger mb-2">404 - Page Not Found</h2>
     <p className="text-gray-500 mb-4">The page you are looking for does not exist.</p>
-    <a href="/" className="text-brand-accent hover:underline font-semibold">Return Dashboard</a>
+    <a href="/dashboard" className="text-brand-accent hover:underline font-semibold">Return Dashboard</a>
   </div>
 );
 
