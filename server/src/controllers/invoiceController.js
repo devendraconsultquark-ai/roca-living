@@ -1,4 +1,4 @@
-import db, { emDb } from '../config/db.js';
+import db from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
 import { generatePortraitPDFWithPuppeteer } from '../utils/puppeteerGenerator.js';
@@ -6,62 +6,12 @@ import { generateStandaloneInvoiceHTML } from '../templates/statementInvoiceTemp
 import fs from 'fs';
 import path from 'path';
 
-// Helper to resolve landlord by name
-const resolveLandlord = async (name) => {
-  if (!name) {
-    throw new ApiError(400, 'Landlord name is required for resolution');
-  }
-
-  // 1. Local check
-  let landlord = await db('users').where({ role: 'LANDLORD' }).where('name', 'like', `%${name}%`).first();
-  if (landlord) return landlord.id;
-
-  // 2. Sibling DB check
-  try {
-    const emLandlord = await emDb('users').where({ role: 'LANDLORD' }).where('name', 'like', `%${name}%`).first();
-    if (emLandlord) {
-      // Find matching local landlord by email, or sync/fallback
-      const localByEmail = await db('users').where({ email: emLandlord.email, role: 'LANDLORD' }).first();
-      if (localByEmail) return localByEmail.id;
-      throw new ApiError(404, `Landlord '${name}' found in emDb but has no synced local user account`);
-    }
-  } catch (err) {
-    if (err instanceof ApiError) throw err;
-    throw new ApiError(500, `Secondary database lookup failed for Landlord '${name}': ${err.message}`);
-  }
-
-  throw new ApiError(404, `Landlord '${name}' could not be resolved`);
-};
-
-// Helper to resolve property by address
-const resolveProperty = async (address, landlordId) => {
-  if (!address) {
-    throw new ApiError(400, 'Property address is required for resolution');
-  }
-
-  // 1. Local check
-  let property = await db('properties').where('address_line1', 'like', `%${address}%`).first();
-  if (property) return property.id;
-
-  // 2. Sibling DB check
-  try {
-    const emProp = await emDb('properties').where('name', 'like', `%${address}%`).first();
-    if (emProp) {
-      // fallback matching address
-      const localByPostcode = await db('properties').where('postcode', emProp.postcode || '').first();
-      if (localByPostcode) return localByPostcode.id;
-      throw new ApiError(404, `Property '${address}' found in emDb but has no matching local property by postcode`);
-    }
-  } catch (err) {
-    if (err instanceof ApiError) throw err;
-    throw new ApiError(500, `Secondary database lookup failed for Property '${address}': ${err.message}`);
-  }
-
-  throw new ApiError(404, `Property '${address}' could not be resolved`);
-};
-
 export const generateInvoice = catchAsync(async (req, res, next) => {
   const {
+    // Source tracking — tells us which DB this property came from
+    source = 'local',           // 'local' | 'em'
+    source_property_id = null,  // original property id in the source DB
+
     landlord,
     invoice_number,
     period_start,
@@ -78,10 +28,9 @@ export const generateInvoice = catchAsync(async (req, res, next) => {
   if (!invoice_number) {
     throw new ApiError(400, 'Invoice number is required');
   }
-
-  // Resolve landlord and property
-  const landlordId = await resolveLandlord(landlord?.name);
-  const propertyId = await resolveProperty(property?.address, landlordId);
+  if (!landlord?.name) {
+    throw new ApiError(400, 'Landlord name is required');
+  }
 
   // Check if invoice already exists
   const existing = await db('invoices').where({ invoice_number }).first();
@@ -89,7 +38,18 @@ export const generateInvoice = catchAsync(async (req, res, next) => {
     throw new ApiError(400, `Invoice ${invoice_number} already exists`);
   }
 
-  // Calculate totals
+  // ── No cross-DB resolution. All data comes from the form. ──
+  // For local-source only, try a best-effort landlord_id lookup (not required).
+  let landlordId = null;
+  if (source === 'local' && landlord?.name) {
+    const localUser = await db('users')
+      .where({ role: 'LANDLORD' })
+      .where('name', 'like', `%${landlord.name}%`)
+      .first();
+    if (localUser) landlordId = localUser.id;
+  }
+
+  // Calculate totals from line items
   let totalGross = 0;
   let totalVat = 0;
   let totalDiscount = 0;
@@ -99,7 +59,6 @@ export const generateInvoice = catchAsync(async (req, res, next) => {
     const cost = parseFloat(item.cost) || 0;
     const vatPct = parseFloat(item.vat_percent) || 0;
     const disc = parseFloat(item.discount) || 0;
-
     totalGross += cost;
     totalVat += (cost * vatPct) / 100;
     totalDiscount += disc;
@@ -107,21 +66,15 @@ export const generateInvoice = catchAsync(async (req, res, next) => {
 
   const totalNet = Math.max(0, totalGross + totalVat - totalDiscount);
 
-  // Prepare input for template (including address fallback)
-  let resolvedAddress = property?.address;
-  if (!resolvedAddress && propertyId) {
-    const p = await db('properties').where({ id: propertyId }).first();
-    resolvedAddress = p ? `${p.address_line1}, ${p.city}, ${p.postcode}` : '';
-  }
-
+  // Build template input entirely from form data
   const templateInput = {
-    landlord_name: landlord?.name || 'Landlord',
+    landlord_name: landlord?.name || '',
     landlord_address: landlord?.address || '',
     invoice_number,
     period_start,
     period_end,
     service_level: service_level || 'Fully Managed',
-    property_address: resolvedAddress,
+    property_address: property?.address || '',
     tenant_name,
     tenancy_start_date,
     line_items: itemsList,
@@ -132,7 +85,7 @@ export const generateInvoice = catchAsync(async (req, res, next) => {
     notes
   };
 
-  // Compile PDF
+  // Generate PDF
   const htmlContent = generateStandaloneInvoiceHTML(templateInput);
   const pdfBuffer = await generatePortraitPDFWithPuppeteer(htmlContent);
 
@@ -142,19 +95,16 @@ export const generateInvoice = catchAsync(async (req, res, next) => {
   const absolutePath = path.join(process.cwd(), relativePath);
 
   const dir = path.dirname(absolutePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(absolutePath, pdfBuffer);
 
-  // Run in database transaction
   let invoiceId;
   await db.transaction(async (trx) => {
-    // 1. Insert into documents table
+    // 1. Insert document record
     const [docId] = await trx('documents').insert({
       folder_id: null,
       owner_type: 'landlord',
-      owner_id: landlordId,
+      owner_id: landlordId || null,
       doc_type: 'landlord_invoice',
       filename,
       original_name: `Invoice ${invoice_number}`,
@@ -164,10 +114,14 @@ export const generateInvoice = catchAsync(async (req, res, next) => {
       uploaded_by: req.user.id
     });
 
-    // 2. Insert into invoices table
+    // 2. Insert invoice record
     [invoiceId] = await trx('invoices').insert({
-      landlord_id: landlordId,
-      property_id: propertyId,
+      landlord_id: landlordId || null,
+      landlord_name: landlord?.name || null,
+      landlord_address: landlord?.address || null,
+      source,
+      source_property_id: source_property_id ? String(source_property_id) : null,
+      property_id: null,                         // no local property FK needed
       invoice_number,
       period_start: period_start || null,
       period_end: period_end || null,
@@ -184,7 +138,7 @@ export const generateInvoice = catchAsync(async (req, res, next) => {
       created_at: trx.fn.now()
     });
 
-    // 3. Insert items
+    // 3. Insert line items
     for (const item of itemsList) {
       const cost = parseFloat(item.cost) || 0;
       const vatPct = parseFloat(item.vat_percent) || 0;
@@ -326,11 +280,17 @@ export const downloadInvoicePdf = catchAsync(async (req, res, next) => {
     throw new ApiError(404, 'Associated invoice document record not found');
   }
 
-  const absolutePath = path.resolve(docRecord.file_path);
+  // Resolve absolute path — file_path stored as relative 'uploads/invoices/...'
+  const absolutePath = path.isAbsolute(docRecord.file_path)
+    ? docRecord.file_path
+    : path.join(process.cwd(), docRecord.file_path);
+
   if (!fs.existsSync(absolutePath)) {
-    throw new ApiError(404, 'PDF file not found on disk');
+    throw new ApiError(404, `PDF file not found on disk: ${absolutePath}`);
   }
 
+  const filename = docRecord.filename || path.basename(absolutePath);
   res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.sendFile(absolutePath);
 });

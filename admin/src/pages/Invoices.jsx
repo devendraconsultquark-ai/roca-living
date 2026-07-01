@@ -61,6 +61,10 @@ export const Invoices = () => {
   const [propertyName, setPropertyName] = useState('');
   const [tenantName, setTenantName] = useState('');
   const [tenancyStartDate, setTenancyStartDate] = useState('');
+
+  // Source tracking — which DB did the selected property come from
+  const [propertySource, setPropertySource] = useState('local');   // 'local' | 'em'
+  const [propertySourceId, setPropertySourceId] = useState(null);  // original property_id in source DB
   
   // Line items
   const [lineItems, setLineItems] = useState([
@@ -124,11 +128,14 @@ export const Invoices = () => {
 
   const handlePropertyChange = (val) => {
     setSelectedPropertyId(val);
-    if (!val) {
-      return;
-    }
+    if (!val) return;
     const prop = propertiesList.find(p => `${p.source}_${p.property_id}` === val);
     if (prop) {
+      // Track source DB and original property id
+      setPropertySource(prop.source || 'local');
+      setPropertySourceId(prop.property_id || null);
+
+      // Autofill all fields from whichever DB the property came from
       setLandlordName(prop.landlord_name || '');
       setLandlordAddress(prop.landlord_address || '');
       setLandlordRef(prop.landlord_reference || '');
@@ -181,11 +188,19 @@ export const Invoices = () => {
   const handleDownload = async (id, invoiceNum) => {
     try {
       addToast(`Preparing download for Invoice #${id}...`, 'info');
-      // Stub api call; since backend isn't ready we fall back to a mock file download
-      const response = await api.get(`/invoices/${id}/pdf`, { responseType: 'blob' }).catch(async () => {
-        // Fallback mock pdf generation
-        return { data: new Blob(['Mock Invoice PDF content'], { type: 'application/pdf' }) };
+      const response = await api.get(`/invoices/${id}/pdf`, {
+        responseType: 'blob',
+        skipInterceptorError: true
       });
+      // Check if server returned an error disguised as blob
+      const contentType = response.headers?.['content-type'] || '';
+      if (!contentType.includes('application/pdf')) {
+        const text = await response.data.text();
+        let msg = 'Failed to download invoice PDF';
+        try { msg = JSON.parse(text)?.message || msg; } catch {}
+        addToast(msg, 'error');
+        return;
+      }
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -198,7 +213,17 @@ export const Invoices = () => {
       addToast(`Downloaded Invoice successfully`, 'success');
     } catch (err) {
       console.error(err);
-      addToast('Failed to download invoice PDF', 'error');
+      let msg = 'Failed to download invoice PDF';
+      // err.response.data may be a Blob for blob requests
+      if (err.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          msg = JSON.parse(text)?.message || msg;
+        } catch {}
+      } else {
+        msg = err.response?.data?.message || err.message || msg;
+      }
+      addToast(msg, 'error');
     }
   };
 
@@ -211,8 +236,9 @@ export const Invoices = () => {
 
     setModalLoading(true);
     try {
-      // Mock submit endpoint
       const payload = {
+        source: propertySource,
+        source_property_id: propertySourceId,
         landlord: { name: landlordName, address: landlordAddress, reference: landlordRef },
         invoice_number: invoiceNumber,
         period_start: startDate,
@@ -221,34 +247,27 @@ export const Invoices = () => {
         property: { address: propertyName },
         tenant_name: tenantName,
         tenancy_start_date: tenancyStartDate,
-        line_items: lineItems,
+        line_items: lineItems.map(item => ({
+          description: item.description,
+          cost: item.cost,
+          vat_percent: item.vatPercent,
+          discount: item.discount,
+          net: item.net
+        })),
         total_amount: totalNet,
         notes
       };
 
-      await api.post('/invoices/generate', payload).catch(() => {
-        // Simulate local state push if backend doesn't exist yet
-        const newInvoice = {
-          id: invoices.length + 1,
-          invoice_number: invoiceNumber,
-          landlord: landlordName,
-          property: propertyName || 'Parsons House',
-          period: `${startDate ? new Date(startDate).toLocaleDateString('en-GB') : ''} - ${endDate ? new Date(endDate).toLocaleDateString('en-GB') : ''}`,
-          date: new Date().toLocaleDateString('en-GB'),
-          gross: totalGross,
-          discounts: totalDiscounts,
-          net: totalNet,
-          status: 'Draft'
-        };
-        setInvoices([newInvoice, ...invoices]);
-      });
+      await api.post('/invoices/generate', payload);
 
       addToast(`Invoice ${invoiceNumber} created as Draft`, 'success');
       setShowModal(false);
       resetForm();
+      fetchInvoices();
     } catch (err) {
       console.error(err);
-      addToast('Failed to generate invoice', 'error');
+      const msg = err.response?.data?.message || 'Failed to generate invoice';
+      addToast(msg, 'error');
     } finally {
       setModalLoading(false);
     }

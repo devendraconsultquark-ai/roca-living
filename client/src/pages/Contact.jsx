@@ -43,7 +43,7 @@ export default function Contact() {
     w-full text-sm font-sans bg-white border rounded-[4px] py-[10px] px-3 transition-all duration-150 focus:outline-none
     ${errors.message 
       ? 'border-status-danger text-[#1A1A1A] focus:ring-2 focus:ring-status-danger/20 focus:border-status-danger' 
-      : 'border-border-color text-[#1A1A1A] focus:ring-2 focus:ring-brand-accent/20 focus:border-brand-accent'}
+      : 'border-border-color text-[#1A1A1A] focus:ring-2 focus:ring-brand-primary/10 focus:border-brand-primary'}
   `;
 
   return (

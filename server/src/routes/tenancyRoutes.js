@@ -8,7 +8,8 @@ import {
   getRentPayments,
   getAllTenants,
   updateTenant,
-  deleteTenant
+  deleteTenant,
+  getTenantById
 } from '../controllers/tenancyController.js';
 import { protect } from '../middlewares/protect.js';
 import { restrictTo } from '../middlewares/restrictTo.js';
@@ -20,6 +21,7 @@ tenancyRouter.get('/my', protect('landlord'), restrictTo('LANDLORD'), getMyTenan
 
 // Admin Routes
 tenancyRouter.get('/tenants/all', protect('admin'), restrictTo('ADMIN'), getAllTenants);
+tenancyRouter.get('/tenants/:id', protect('admin'), restrictTo('ADMIN'), getTenantById);
 tenancyRouter.patch('/tenants/:id', protect('admin'), restrictTo('ADMIN'), updateTenant);
 tenancyRouter.delete('/tenants/:id', protect('admin'), restrictTo('ADMIN'), deleteTenant);
 tenancyRouter.post('/', protect('admin'), restrictTo('ADMIN'), createTenancy);

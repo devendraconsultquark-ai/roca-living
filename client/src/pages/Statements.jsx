@@ -1,164 +1,381 @@
 import React, { useState, useEffect } from 'react';
-import { Download } from 'lucide-react';
-import { useToast } from '../components/UI/ToastContext';
-import { DataTable } from '../components/UI/DataTable';
+import { usePropertyContext } from '../context/PropertyContext';
+import { useNavigate } from 'react-router-dom';
+import { 
+  Download, ArrowDown, Wallet, Calendar, ShieldCheck, ChevronRight, Info, Archive, MoreVertical 
+} from 'lucide-react';
+import { PortalCard } from '../components/UI/PortalCard';
+import { PortalMetricCard } from '../components/UI/PortalMetricCard';
 import { Button } from '../components/UI/Button';
-import api from '../utilities/api';
+import { Dropdown } from '../components/UI/Dropdown';
+import { DatePicker } from '../components/UI/DatePicker';
+import { useStatements } from '../hooks/useStatements';
+import { CirclePoundIcon } from '../components/UI/CirclePoundIcon';
+import { Pagination } from '../components/UI/Pagination';
+import { TableEmptyState } from '../components/UI/TableEmptyState';
+import { StatusPill } from '../components/UI/StatusPill';
+import { useToast } from '../components/UI/ToastContext';
 
 export const Statements = () => {
-  const [statements, setStatements] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { selectedProperty } = usePropertyContext();
+  const navigate = useNavigate();
+  const { statements, loading, error, handleDownloadPDF } = useStatements();
+
   const { addToast } = useToast();
 
-  const fetchStatements = async () => {
-    setLoading(true);
-    try {
-      const response = await api.get('/statements/my');
-      const formatted = (response.data.data || []).map((s) => {
-        const totalFees = parseFloat(s.mgmt_fee || 0) + 
-                          parseFloat(s.mgmt_fee_vat || 0) + 
-                          parseFloat(s.roca_letting_fee || 0) + 
-                          parseFloat(s.agent_letting_fee || 0);
+  const [filterPeriod, setFilterPeriod] = useState('All Periods');
+  const [fromDate, setFromDate] = useState('2025-01-01');
+  const [toDate, setToDate] = useState('2026-06-14');
 
-        const periodStartStr = s.period_start ? new Date(s.period_start).toLocaleDateString('en-GB') : '';
-        const periodEndStr = s.period_end ? new Date(s.period_end).toLocaleDateString('en-GB') : '';
+  const [appliedPeriod, setAppliedPeriod] = useState('All Periods');
+  const [appliedFromDate, setAppliedFromDate] = useState('2025-01-01');
+  const [appliedToDate, setAppliedToDate] = useState('2026-06-14');
 
-        return {
-          id: s.id,
-          period: `${periodStartStr} - ${periodEndStr}`,
-          date: s.generated_at ? new Date(s.generated_at).toLocaleDateString('en-GB') : '-',
-          invoiced: parseFloat(s.gross_rent || 0),
-          fees: totalFees,
-          payout: parseFloat(s.net_paid || 0),
-          status: s.status ? s.status.charAt(0).toUpperCase() + s.status.slice(1) : 'Draft'
-        };
-      });
-      setStatements(formatted);
-      setError(null);
-    } catch (err) {
-      console.error(err);
-      const errMsg = err.response?.data?.message || 'Error loading statements';
-      setError(errMsg);
-      addToast(errMsg, 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   useEffect(() => {
-    fetchStatements();
-  }, []);
+    setCurrentPage(1);
+  }, [statements]);
 
-  const handleDownloadPDF = async (id, period) => {
-    addToast(`Requesting statement PDF for ${period}...`, 'info');
-    try {
-      const response = await api.get(`/statements/${id}/pdf`, { responseType: 'blob' });
-      const blob = new Blob([response.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `ROCA_Statement_${period.replace(/\s+/g, '_')}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-      addToast(`Statement PDF downloaded for ${period}`, 'success');
-    } catch (err) {
-      console.error(err);
-      addToast(err.response?.data?.message || `Failed to download statement PDF for ${period}`, 'error');
+  const handlePeriodChange = (val) => {
+    setFilterPeriod(val);
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    if (val === 'Current Year') {
+      setFromDate(`${currentYear}-01-01`);
+      setToDate(`${currentYear}-12-31`);
+    } else if (val === 'Last Year') {
+      setFromDate(`${currentYear - 1}-01-01`);
+      setToDate(`${currentYear - 1}-12-31`);
     }
   };
 
-  const columns = [
-    { header: 'Statement ID', accessor: 'id', sortable: true },
-    { header: 'Billing Period', accessor: 'period', sortable: true },
-    { header: 'Issue Date', accessor: 'date', sortable: true },
-    { 
-      header: 'Rent Invoiced', 
-      accessor: 'invoiced', 
-      align: 'right', 
-      sortable: true,
-      renderCell: (row) => `£${row.invoiced.toFixed(2)}`
-    },
-    { 
-      header: 'Deductions (Fees)', 
-      accessor: 'fees', 
-      align: 'right', 
-      sortable: true,
-      renderCell: (row) => `-£${row.fees.toFixed(2)}`
-    },
-    { 
-      header: 'Net Payout', 
-      accessor: 'payout', 
-      align: 'right', 
-      sortable: true,
-      renderCell: (row) => (
-        <span className="font-bold text-[#1A1A1A]">
-          £{row.payout.toFixed(2)}
-        </span>
-      )
-    },
-    { 
-      header: 'Payout Status', 
-      accessor: 'status',
-      renderCell: (row) => {
-        let style = 'bg-status-warning/10 text-status-warning border-status-warning/20';
-        if (row.status === 'Paid' || row.status === 'Sent') {
-          style = 'bg-status-success/10 text-status-success border-status-success/20';
-        }
-        return (
-          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${style}`}>
-            {row.status}
-          </span>
-        );
+  const handleApplyFilters = () => {
+    setAppliedPeriod(filterPeriod);
+    setAppliedFromDate(fromDate);
+    setAppliedToDate(toDate);
+    setCurrentPage(1);
+  };
+
+  // Filter statements dynamically based on applied dates
+  const filteredStatements = statements.filter((s) => {
+    if (s.rawStartDate && s.rawEndDate) {
+      const start = new Date(s.rawStartDate);
+      const end = new Date(s.rawEndDate);
+      const filterFrom = new Date(appliedFromDate);
+      const filterTo = new Date(appliedToDate);
+      
+      // Filter: check if statement period overlaps or falls within range
+      if (start < filterFrom || end > filterTo) {
+        return false;
       }
-    },
-    {
-      header: 'Statement PDF',
-      accessor: 'id',
-      renderCell: (row) => (
-        <Button 
-          variant="ghost" 
-          size="sm"
-          onClick={() => handleDownloadPDF(row.id, row.period)}
-          icon={Download}
-        >
-          Download PDF
-        </Button>
-      )
     }
-  ];
+    return true;
+  });
+
+  const totalItems = filteredStatements.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+
+  const paginatedStatements = filteredStatements.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  // Compute dynamic stats from filtered statements list
+  const totalIncome = filteredStatements.reduce((sum, s) => sum + (s.invoiced || 0), 0);
+  const totalExpenses = filteredStatements.reduce((sum, s) => sum + (s.fees || 0), 0);
+  const netIncome = filteredStatements.reduce((sum, s) => sum + (s.payout || 0), 0);
+  const lastStatement = filteredStatements[0]?.period || '—';
+
+  if (loading) {
+    return (
+      <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8 animate-pulse">
+        {/* Metric Cards Skeleton */}
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-20 bg-gray-100 rounded-xl" />
+          ))}
+        </div>
+        {/* Main Layout Skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="lg:col-span-9 h-[400px] bg-gray-100/60 rounded-2xl" />
+          <div className="lg:col-span-3 flex flex-col gap-6">
+            <div className="h-[200px] bg-gray-100/60 rounded-2xl" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="py-6 flex flex-col gap-6 max-w-7xl mx-auto px-4">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-[#1A1A1A]">Statements Library</h2>
-        <p className="text-sm text-gray-500 mt-1">Review historical payout amounts, agency deductions, and download tax statements.</p>
+    <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8 font-sans text-brand-primary">
+      
+      {error && (
+        <div className="border border-status-danger bg-status-danger/5 rounded-card p-4 text-center text-status-danger font-semibold">
+          {error}
+        </div>
+      )}
+      
+      {/* Metric Cards Grid (4 Columns) */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 animate-fade-in">
+        <PortalMetricCard 
+          label="Total Income (This Year)" 
+          value={loading ? '...' : `£${totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+          icon={CirclePoundIcon}
+          variant="success"
+          actionText="View Breakdown"
+          onActionClick={() => {}}
+        />
+        <PortalMetricCard 
+          label="Total Expenses (This Year)" 
+          value={loading ? '...' : `£${totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+          icon={ArrowDown}
+          variant="danger"
+          actionText="View Breakdown"
+          onActionClick={() => {}}
+        />
+        <PortalMetricCard 
+          label="Net Income (This Year)" 
+          value={loading ? '...' : `£${netIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+          icon={Wallet}
+          variant="info"
+          actionText="View Breakdown"
+          onActionClick={() => {}}
+        />
+        <PortalMetricCard 
+          label="Last Statement" 
+          value={loading ? '...' : lastStatement}
+          icon={Calendar}
+          variant="warning"
+          actionText="Download Statement"
+          onActionClick={() => {}}
+        />
       </div>
 
-      {/* Table grid container */}
-      <div className="bg-white rounded-2xl border border-border-color p-4 shadow-sm">
-        {loading ? (
-          <div className="space-y-4 py-4">
-            <div className="h-10 bg-gray-100/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+      {/* Main Grid layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-4">
+        
+        {/* Left Side: Table & Filters (9 Columns) */}
+        <div className="lg:col-span-9 flex flex-col gap-5">
+          
+          {/* Calendar Filter Ribbon */}
+          <div className="bg-white border border-card-border rounded-card p-4 shadow-xs flex flex-wrap items-center justify-between gap-4 select-none">
+            <div className="flex flex-wrap items-center gap-6 text-xs-portal font-bold text-brand-primary">
+              
+              <div className="flex items-center gap-2">
+                <span className="text-xs-portal text-gray-500 font-semibold">Statement Period</span>
+                <Dropdown
+                  value={filterPeriod}
+                  onChange={handlePeriodChange}
+                  options={[
+                    { value: 'All Periods', label: 'All Periods' },
+                    { value: 'Current Year', label: 'Current Year' },
+                    { value: 'Last Year', label: 'Last Year' }
+                  ]}
+                  size="sm"
+                  className="min-w-[140px]"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs-portal text-gray-500 font-semibold">From</span>
+                <DatePicker 
+                  value={fromDate}
+                  onChange={setFromDate}
+                  size="sm"
+                  className="w-36"
+                />
+                <span className="text-gray-400 text-xs-portal font-semibold">to</span>
+                <DatePicker 
+                  value={toDate}
+                  onChange={setToDate}
+                  size="sm"
+                  className="w-36"
+                />
+              </div>
+
+            </div>
+
+            <Button 
+              variant="primary" 
+              size="sm" 
+              className="font-bold text-xs-portal h-8 px-5 rounded-md"
+              onClick={handleApplyFilters}
+            >
+              Apply
+            </Button>
           </div>
-        ) : error ? (
-          <div className="border border-status-danger bg-status-danger/5 rounded-xl p-6 text-center text-status-danger font-semibold">
-            {error}
+          
+          {/* Table Container Card */}
+          <div className="bg-white border border-card-border rounded-card p-5 shadow-xs flex flex-col justify-between overflow-hidden min-h-[300px]">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-sm text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-card-border text-2xs text-gray-400 font-bold uppercase tracking-wider">
+                    <th className="py-3 px-2">Statement Period</th>
+                    <th className="py-3 px-2">Income</th>
+                    <th className="py-3 px-2">Expenses</th>
+                    <th className="py-3 px-2">Net Income</th>
+                    <th className="py-3 px-2">Status</th>
+                    <th className="py-3 px-2">Date Generated</th>
+                    <th className="py-3 px-2 text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 text-xs-portal">
+                  {loading || statements.length === 0 ? (
+                    <TableEmptyState
+                      colSpan={7}
+                      loading={loading}
+                      loadingText="Loading rent statements..."
+                      emptyText="No statements generated for this property yet."
+                    />
+                  ) : (
+                    paginatedStatements.map((row, index) => {
+                      const isCurrent = row.status === 'Current' || row.status === 'Active';
+                      return (
+                        <tr key={index} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="py-3 px-2">
+                            <div className="flex flex-col text-left">
+                              <span className="font-bold text-brand-primary leading-tight">{row.period}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-2 font-bold font-mono text-brand-primary">
+                            £{row.invoiced.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="py-3 px-2 font-semibold font-mono text-gray-500">
+                            £{row.fees.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="py-3 px-2 font-extrabold font-mono text-status-success">
+                            £{row.payout.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="py-3 px-2">
+                            <StatusPill status={row.status} size="sm" showIcon={false} />
+                          </td>
+                          <td className="py-3 px-2 font-medium text-gray-400">{row.date}</td>
+                          <td className="py-3 px-2">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                className="!py-1 !px-2.5 text-2xs font-bold text-status-info hover:bg-status-info/5 border border-transparent hover:border-card-border flex items-center gap-1 cursor-pointer"
+                                onClick={() => handleDownloadPDF(row.id, row.period)}
+                              >
+                                <span>Download</span>
+                                <Download size={11} className="shrink-0" />
+                              </Button>
+                              <button className="p-1 hover:text-brand-primary rounded cursor-pointer text-gray-300">
+                                <MoreVertical size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination footer */}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
+
           </div>
-        ) : (
-          <DataTable 
-            columns={columns} 
-            data={statements} 
-            initialPageSize={10}
-          />
-        )}
+
+        </div>
+
+        {/* Right Side: Sidebar Panels (3 Columns) */}
+        <div className="lg:col-span-3 flex flex-col gap-6 select-none animate-fade-in">
+          
+          {/* Statement Summary */}
+          <PortalCard title="Statement Summary" subtitle="(This Year)">
+            <div className="flex flex-col gap-3.5 text-xs-portal font-bold text-gray-500 text-left">
+              <div className="flex justify-between items-center">
+                <span>Total Income</span>
+                <span className="text-brand-primary font-extrabold font-mono">
+                  £{loading ? '...' : totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div className="flex justify-between items-center border-t border-gray-50 pt-3">
+                <span>Total Expenses</span>
+                <span className="text-brand-primary font-extrabold font-mono">
+                  £{loading ? '...' : totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div className="flex justify-between items-center border-t border-gray-50 pt-3 text-xs-portal text-brand-primary">
+                <span>Net Income</span>
+                <span className="text-status-success font-black font-mono">
+                  £{loading ? '...' : netIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+            
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              icon={ChevronRight} 
+              iconPosition="right" 
+              className="w-full mt-4 font-bold bg-white text-xs-portal h-9 border border-card-border"
+              onClick={() => navigate('/financials')}
+            >
+              View Financial Overview
+            </Button>
+          </PortalCard>
+
+          {/* About Your Statements */}
+          <PortalCard>
+            <div className="flex gap-3 text-left">
+              <div className="w-8 h-8 rounded-full bg-status-info-bg text-status-info flex items-center justify-center shrink-0">
+                <Info size={14} />
+              </div>
+              <div className="flex flex-col">
+                <h4 className="text-xs-portal font-bold text-brand-primary uppercase tracking-wider leading-none">About Your Statements</h4>
+                <p className="text-2xs text-gray-400 font-semibold mt-3 leading-relaxed">
+                  Statements are generated monthly, and include all income, expenses, and payments for the selected period.
+                </p>
+                <p className="text-2xs text-gray-400 font-semibold mt-2.5 leading-relaxed">
+                  If you have any questions about your statements, please contact your property manager.
+                </p>
+              </div>
+            </div>
+          </PortalCard>
+
+          {/* Download All Statements */}
+          <PortalCard>
+            <div className="flex flex-col gap-4 text-left">
+              <div className="flex gap-3.5 items-start">
+                <div className="w-8 h-8 rounded-full bg-status-info-bg text-status-info flex items-center justify-center shrink-0">
+                  <Download size={15} />
+                </div>
+                <div className="flex flex-col">
+                  <h4 className="text-xs-portal font-bold text-brand-primary uppercase tracking-wider">Download All Statements</h4>
+                  <p className="text-2xs text-gray-400 font-semibold mt-2.5 leading-normal">
+                    Download all available statements as a single ZIP file.
+                  </p>
+                </div>
+              </div>
+
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                icon={Download} 
+                iconPosition="right"
+                className="w-full font-bold bg-white text-xs-portal h-9 border border-card-border"
+                onClick={() => addToast("Downloading all statements as a ZIP file...", "success")}
+              >
+                Download All
+              </Button>
+            </div>
+          </PortalCard>
+
+        </div>
+
       </div>
+
     </div>
   );
 };

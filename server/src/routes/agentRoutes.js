@@ -3,6 +3,7 @@ import {
   getAllAgents,
   createAgent,
   updateAgent,
+  getAgentById,
   createInstruction,
   addViewing,
   getInstructionViewings,
@@ -18,6 +19,7 @@ agentRouter.use(protect('admin'), restrictTo('ADMIN'));
 
 agentRouter.get('/', getAllAgents);
 agentRouter.post('/', createAgent);
+agentRouter.get('/:id', getAgentById);
 agentRouter.patch('/:id', updateAgent);
 agentRouter.delete('/:id', deleteAgent);
 agentRouter.post('/:id/instructions', createInstruction);

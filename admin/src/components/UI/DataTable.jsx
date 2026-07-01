@@ -9,6 +9,7 @@ export const DataTable = ({
   enableBulkSelect = false,
   onSelectionChange = null,
   initialPageSize = 10,
+  onRowClick = null,
 }) => {
   const [sortField, setSortField] = useState(null);
   const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
@@ -129,7 +130,8 @@ export const DataTable = ({
               paginatedData.map((row, rowIdx) => (
                 <tr 
                   key={row.id || rowIdx} 
-                  className={`transition-colors odd:bg-white even:bg-[#F8F9FA] hover:bg-app-bg/40 ${selectedIds.has(row.id) ? 'bg-[#E8A020]/10' : ''}`}
+                  onClick={(e) => onRowClick && onRowClick(row, e)}
+                  className={`transition-colors odd:bg-white even:bg-[#F8F9FA] hover:bg-app-bg/40 ${selectedIds.has(row.id) ? 'bg-[#E8A020]/10' : ''} ${onRowClick ? 'cursor-pointer' : ''}`}
                 >
                   {enableBulkSelect && (
                     <td className="p-4 text-center">

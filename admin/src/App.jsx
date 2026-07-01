@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AdminLayout } from './components/Layout/AdminLayout';
 import { ToastProvider } from './components/UI/ToastContext';
+import { ConfirmProvider } from './components/UI/ConfirmContext';
 import { LoginPage } from './pages/LoginPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AuthProvider } from './context/AuthContext';
@@ -13,13 +14,18 @@ import { AccountingHub } from './pages/AccountingHub';
 // Extracted Page Imports
 import { Dashboard } from './pages/Dashboard';
 import { Landlords } from './pages/Landlords';
+import { LandlordDetailPage } from './pages/LandlordDetailPage';
 import { Properties } from './pages/Properties';
+import { PropertyDetailPage } from './pages/PropertyDetailPage';
 import { Tenancies } from './pages/Tenancies';
 import { Tenants } from './pages/Tenants';
+import { TenantDetailPage } from './pages/TenantDetailPage';
 import { Agents } from './pages/Agents';
+import { AgentDetailPage } from './pages/AgentDetailPage';
 import { Statements } from './pages/Statements';
 import { Invoices } from './pages/Invoices';
 import { Contractors } from './pages/Contractors';
+import { ContractorDetailPage } from './pages/ContractorDetailPage';
 import { Deposits } from './pages/Deposits';
 import { Utilities } from './pages/Utilities';
 import { Reports } from './pages/Reports';
@@ -40,6 +46,7 @@ const NotFound = () => (
 function App() {
   return (
     <ToastProvider>
+      <ConfirmProvider>
       <BrowserRouter>
         <AuthProvider>
           <Routes>
@@ -56,15 +63,20 @@ function App() {
               <Route path="/onboarding" element={<OnboardingWizard />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/landlords" element={<Landlords />} />
+              <Route path="/landlords/:id" element={<LandlordDetailPage />} />
               <Route path="/properties" element={<Properties />} />
+              <Route path="/properties/:id" element={<PropertyDetailPage />} />
               <Route path="/tenancies" element={<Tenancies />} />
               <Route path="/tenants" element={<Tenants />} />
+              <Route path="/tenants/:id" element={<TenantDetailPage />} />
               <Route path="/agents" element={<Agents />} />
+              <Route path="/agents/:id" element={<AgentDetailPage />} />
               <Route path="/accounting" element={<AccountingHub />} />
               <Route path="/statements" element={<Statements />} />
               <Route path="/invoices" element={<Invoices />} />
               <Route path="/maintenance" element={<MaintenanceBoard />} />
               <Route path="/contractors" element={<Contractors />} />
+              <Route path="/contractors/:id" element={<ContractorDetailPage />} />
               <Route path="/deposits" element={<Deposits />} />
               <Route path="/utilities" element={<Utilities />} />
               <Route path="/documents" element={<DocumentLibrary />} />
@@ -78,6 +90,7 @@ function App() {
           </Routes>
         </AuthProvider>
       </BrowserRouter>
+      </ConfirmProvider>
     </ToastProvider>
   );
 }

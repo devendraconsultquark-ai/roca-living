@@ -141,8 +141,8 @@ export default function Home() {
                     <img className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" src={service.img} alt={service.title} />
                   </div>
                   <div className="p-8 flex flex-col flex-grow items-start">
-                    <h4 className="text-lg lg:text-xl font-[200] leading-tight mb-8 group-hover:text-primary transition-colors">{service.title}</h4>
-                    <div className="mt-auto flex items-center gap-2 text-primary font-light text-xs group-hover:gap-3 transition-all border-b-2 border-primary/0 group-hover:border-primary pb-1">
+                    <h4 className="text-lg lg:text-xl font-[200] leading-tight mb-8 group-hover:text-black transition-colors">{service.title}</h4>
+                    <div className="mt-auto flex items-center gap-2 group-hover:text-black font-light text-xs group-hover:gap-3 transition-all border-b-2 border-primary/0 group-hover:border-black pb-1">
                       Learn More <span className="material-symbols-outlined text-sm">arrow_forward</span>
                     </div>
                   </div>

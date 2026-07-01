@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, Briefcase, X, Edit, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { ShieldAlert, Briefcase, X, Edit, Trash2, Eye } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { StatCard } from '../components/UI/StatCard';
 import { Input } from '../components/UI/Input';
 import { useToast } from '../components/UI/ToastContext';
+import { useConfirm } from '../components/UI/ConfirmContext';
 import api from '../utilities/api';
 
 const formatAgent = (c) => ({
@@ -18,6 +20,7 @@ const formatAgent = (c) => ({
 });
 
 export const Agents = () => {
+  const navigate = useNavigate();
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -45,6 +48,7 @@ export const Agents = () => {
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const { addToast } = useToast();
+  const confirm = useConfirm();
 
   const handleEditClick = (row) => {
     const raw = row.raw;
@@ -84,7 +88,13 @@ export const Agents = () => {
   };
 
   const handleDeleteClick = async (row) => {
-    if (window.confirm(`Are you sure you want to delete letting agent "${row.name}"?`)) {
+    const ok = await confirm({
+      title: 'Delete Letting Agent',
+      message: `Are you sure you want to delete letting agent "${row.name}"? This action cannot be undone.`,
+      variant: 'danger',
+      confirmText: 'Delete Agent',
+    });
+    if (ok) {
       try {
         await api.delete(`/agents/${row.raw.id}`);
         addToast('Letting agent deleted successfully', 'success');
@@ -169,14 +179,21 @@ export const Agents = () => {
       renderCell: (row) => (
         <div className="flex justify-center gap-1">
           <button
-            onClick={() => handleEditClick(row)}
+            onClick={(e) => { e.stopPropagation(); navigate(`/agents/${row.rawId}`); }}
+            className="p-1.5 text-gray-500 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
+            title="View details"
+          >
+            <Eye size={16} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleEditClick(row); }}
             className="p-1.5 text-gray-500 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
             title="Edit agent details"
           >
             <Edit size={16} />
           </button>
           <button
-            onClick={() => handleDeleteClick(row)}
+            onClick={(e) => { e.stopPropagation(); handleDeleteClick(row); }}
             className="p-1.5 text-gray-500 hover:text-status-danger hover:bg-status-danger/5 rounded-lg transition-colors cursor-pointer"
             title="Delete letting agent"
           >
@@ -231,7 +248,11 @@ export const Agents = () => {
             <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
           </div>
         ) : (
-          <DataTable columns={columns} data={formattedAgents} />
+          <DataTable 
+            columns={columns} 
+            data={formattedAgents} 
+            onRowClick={(row) => navigate(`/agents/${row.rawId}`)} 
+          />
         )}
       </div>
 

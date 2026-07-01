@@ -1,361 +1,417 @@
 import React, { useState, useEffect } from 'react';
-import { Wrench, Upload, Check, X, CheckCircle2 } from 'lucide-react';
-import { useToast } from '../components/UI/ToastContext';
-import { Input } from '../components/UI/Input';
-import { Dropdown } from '../components/UI/Dropdown';
+import { usePropertyContext } from '../context/PropertyContext';
+import { useNavigate } from 'react-router-dom';
+import { 
+  Wrench, ShieldCheck, Clock, AlertCircle, Plus, ChevronRight, Info, Settings, MoreVertical 
+} from 'lucide-react';
+import { useMaintenance } from '../hooks/useMaintenance';
+import { PortalMetricCard } from '../components/UI/PortalMetricCard';
 import { Button } from '../components/UI/Button';
-import api from '../utilities/api';
+import { FilterRibbon } from '../components/UI/FilterRibbon';
+import { Pagination } from '../components/UI/Pagination';
+import { TableEmptyState } from '../components/UI/TableEmptyState';
+import { DonutChart } from '../components/UI/DonutChart';
+import { StatusPill } from '../components/UI/StatusPill';
 
 export const Maintenance = () => {
-  const { addToast } = useToast();
+  const { selectedProperty } = usePropertyContext();
+  const navigate = useNavigate();
+  const { tickets, ticketsLoading, error, handleQuoteAction } = useMaintenance();
 
-  // Quotes / tickets awaiting approval
-  const [quotes, setQuotes] = useState([]);
-  const [quotesLoading, setQuotesLoading] = useState(true);
+  // Filter states
+  const [filterProperty, setFilterProperty] = useState('All Properties');
+  const [filterStatus, setFilterStatus] = useState('All Statuses');
+  const [filterPriority, setFilterPriority] = useState('All Priorities');
+  const [filterDue, setFilterDue] = useState('All Time');
 
-  // Properties for the report form dropdown
-  const [myProperties, setMyProperties] = useState([]);
+  // Dynamic statistics calculations
+  const totalCount = tickets.length;
+  const completedCount = tickets.filter(t => t.status === 'complete').length;
+  const completedPct = totalCount ? Math.round((completedCount / totalCount) * 100) : 0;
+  
+  const inProgressCount = tickets.filter(t => ['triaged', 'awaiting_approval', 'in_progress'].includes(t.status)).length;
+  const inProgressPct = totalCount ? Math.round((inProgressCount / totalCount) * 100) : 0;
+  
+  const overdueCount = tickets.filter(t => t.status === 'new').length;
+  const overduePct = totalCount ? Math.round((overdueCount / totalCount) * 100) : 0;
 
-  // Form state
-  const [property, setProperty] = useState('');
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [picture, setPicture] = useState(null);
-  const [dragActive, setDragActive] = useState(false);
-  const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
+  const pendingCount = totalCount - completedCount - inProgressCount - overdueCount;
+  const pendingPct = totalCount ? Math.round((pendingCount / totalCount) * 100) : 0;
 
-  // ─── Fetch my tickets (awaiting approval with quote) ───────────────────────
-  const fetchQuotes = async () => {
-    setQuotesLoading(true);
-    try {
-      const res = await api.get('/maintenance/my');
-      const tickets = res.data.data || [];
-      // Show tickets that are awaiting_approval or newly-raised with a quote
-      const quoteTickets = tickets.filter(
-        t => (t.status === 'awaiting_approval' || t.status === 'new' || t.status === 'triaged')
-          && t.quote_amount !== null
-          && parseFloat(t.quote_amount) > 0
-          && !t.landlord_approved
-      );
-      setQuotes(quoteTickets.map(t => ({
-        id: t.id,
-        property: t.address_line1 ? `${t.address_line1}, ${t.city || ''}`.trim().replace(/,$/, '') : `Property #${t.property_id}`,
-        description: t.description,
-        cost: parseFloat(t.quote_amount),
-        contractor: t.contractor_company || '—',
-        status: 'Pending Approval',
-      })));
-    } catch (err) {
-      addToast(err.response?.data?.message || 'Failed to load maintenance tickets', 'error');
-    } finally {
-      setQuotesLoading(false);
+  // Priority mapping values
+  const getPriorityInfo = (urgency) => {
+    if (urgency === 'emergency') {
+      return { label: 'High', style: 'text-status-danger bg-status-danger-bg border-status-danger/15' };
+    } else {
+      return { label: 'Medium', style: 'text-status-warning bg-status-warning/10 border-status-warning/15' };
     }
   };
 
-  // ─── Fetch landlord properties for form dropdown ──────────────────────────
-  const fetchMyProperties = async () => {
-    try {
-      const res = await api.get('/properties/my');
-      setMyProperties((res.data.data || []).map(p => ({
-        value: p.id,
-        label: `${p.address_line1}, ${p.city}`,
-      })));
-    } catch {
-      // non-blocking
+  // Status label mapping
+  const getStatusInfo = (status) => {
+    switch (status) {
+      case 'complete':
+        return { label: 'Completed', style: 'text-status-success bg-status-success-bg border-status-success/15' };
+      case 'new':
+        return { label: 'Pending', style: 'text-gray-400 bg-gray-100 border-gray-200' };
+      case 'cancelled':
+        return { label: 'Cancelled', style: 'text-status-danger bg-status-danger-bg border-status-danger/15' };
+      default:
+        return { label: 'In Progress', style: 'text-status-info bg-status-info-bg border-status-info/15' };
     }
   };
+
+  const formattedRequests = tickets.map(t => {
+    const priority = getPriorityInfo(t.urgency);
+    const status = getStatusInfo(t.status);
+    
+    return {
+      id: t.id,
+      ref: `Ref: MAI-${String(t.id).padStart(5, '0')}`,
+      item: t.title || 'Maintenance Request',
+      property: t.property_address || '—',
+      category: t.urgency === 'emergency' ? 'Emergency' : 'Routine',
+      priority: priority.label,
+      priorityColor: priority.style,
+      status: status.label,
+      statusColor: status.style,
+      created: t.created_at ? new Date(t.created_at).toLocaleDateString('en-GB') : '—',
+      updated: t.updated_at ? new Date(t.updated_at).toLocaleDateString('en-GB') : '—',
+      action: 'View Details',
+      icon: Wrench,
+      color: 'bg-status-info-bg text-status-info'
+    };
+  });
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   useEffect(() => {
-    fetchQuotes();
-    fetchMyProperties();
-  }, []);
+    setCurrentPage(1);
+  }, [tickets]);
 
-  // ─── Quote actions ────────────────────────────────────────────────────────
-  const handleQuoteAction = async (quoteId, action) => {
-    try {
-      if (action === 'approve') {
-        await api.patch(`/maintenance/${quoteId}/approve`);
-        addToast(`Quote #${quoteId} approved!`, 'success');
-      } else {
-        await api.patch(`/maintenance/${quoteId}/status`, { status: 'cancelled' });
-        addToast(`Quote #${quoteId} declined.`, 'info');
-      }
-      // Update local state
-      setQuotes(prev =>
-        prev.map(q => q.id === quoteId ? { ...q, status: action === 'approve' ? 'Approved' : 'Declined' } : q)
-      );
-    } catch (err) {
-      addToast(err.response?.data?.message || `Failed to ${action} quote`, 'error');
+  const totalItems = formattedRequests.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+
+  const paginatedRequests = formattedRequests.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  const filtersConfig = [
+    {
+      label: 'Filter by Property',
+      value: filterProperty,
+      onChange: setFilterProperty,
+      options: [{ value: 'All Properties', label: 'All Properties' }],
+      width: 'w-44'
+    },
+    {
+      label: 'Filter by Status',
+      value: filterStatus,
+      onChange: setFilterStatus,
+      options: [
+        { value: 'All Statuses', label: 'All Statuses' },
+        { value: 'In Progress', label: 'In Progress' },
+        { value: 'Completed', label: 'Completed' },
+        { value: 'Pending', label: 'Pending' }
+      ],
+      width: 'w-32'
+    },
+    {
+      label: 'Filter by Priority',
+      value: filterPriority,
+      onChange: setFilterPriority,
+      options: [
+        { value: 'All Priorities', label: 'All Priorities' },
+        { value: 'High', label: 'High' },
+        { value: 'Medium', label: 'Medium' }
+      ],
+      width: 'w-32'
+    },
+    {
+      label: 'Created Within',
+      value: filterDue,
+      onChange: setFilterDue,
+      options: [{ value: 'All Time', label: 'All Time' }],
+      width: 'w-32'
     }
+  ];
+
+  const actionConfig = {
+    label: 'New Maintenance Request',
+    icon: Plus,
+    onClick: () => {}
   };
 
-  // ─── Drag-drop handlers ───────────────────────────────────────────────────
-  const handleDrag = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      setPicture({ name: file.name, raw: file });
-      addToast(`Image "${file.name}" added`, 'info');
-    }
-  };
-
-  const handleFileInputChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setPicture({ name: file.name, raw: file });
-      addToast(`Image "${file.name}" added`, 'info');
-    }
-  };
-
-  // ─── Submit new issue ─────────────────────────────────────────────────────
-  const handleSubmitIssue = async (e) => {
-    e.preventDefault();
-    const errs = {};
-    if (!property) errs.property = 'Please select a property';
-    if (!title.trim()) errs.title = 'Please enter a title';
-    if (!description.trim()) errs.description = 'Please describe the issue';
-    if (Object.keys(errs).length > 0) { setErrors(errs); return; }
-
-    setErrors({});
-    setLoading(true);
-
-    try {
-      await api.post('/maintenance', {
-        property_id: property,
-        urgency: 'routine',
-        title: title.trim(),
-        description: description.trim(),
-      });
-      addToast('Maintenance ticket reported successfully!', 'success');
-      setProperty('');
-      setTitle('');
-      setDescription('');
-      setPicture(null);
-      fetchQuotes();
-    } catch (err) {
-      addToast(err.response?.data?.message || 'Failed to submit issue', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (ticketsLoading) {
+    return (
+      <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8 animate-pulse">
+        {/* Metric Cards Skeleton */}
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-20 bg-gray-100 rounded-xl" />
+          ))}
+        </div>
+        {/* Main Grid Skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="lg:col-span-8 flex flex-col gap-6">
+            <div className="h-[250px] bg-gray-100/60 rounded-2xl" />
+            <div className="h-[350px] bg-gray-100/60 rounded-2xl" />
+          </div>
+          <div className="lg:col-span-4 h-[450px] bg-gray-100/60 rounded-2xl" />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="py-6 flex flex-col gap-8 max-w-7xl mx-auto px-4">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-[#1A1A1A]">Maintenance Board</h2>
-        <p className="text-sm text-gray-500 mt-1">Report new issues and approve quotes for repairs.</p>
+    <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8 font-sans text-brand-primary">
+      
+      {error && (
+        <div className="border border-status-danger bg-status-danger/5 rounded-card p-4 text-center text-status-danger font-semibold">
+          {error}
+        </div>
+      )}
+      
+      {/* Metric Cards Grid (4 Columns) */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 animate-fade-in">
+        <PortalMetricCard 
+          label="Total Requests" 
+          value={ticketsLoading ? '...' : totalCount}
+          icon={Wrench}
+          variant="info"
+          actionText="View All"
+          onActionClick={() => {}}
+        />
+        <PortalMetricCard 
+          label="Completed" 
+          value={ticketsLoading ? '...' : `${completedCount} (${completedPct}%)`}
+          icon={ShieldCheck}
+          variant="success"
+          actionText="View Completed"
+          onActionClick={() => {}}
+        />
+        <PortalMetricCard 
+          label="In Progress" 
+          value={ticketsLoading ? '...' : `${inProgressCount} (${inProgressPct}%)`}
+          icon={Clock}
+          variant="warning"
+          actionText="View In Progress"
+          onActionClick={() => {}}
+        />
+        <PortalMetricCard 
+          label="Overdue" 
+          value={ticketsLoading ? '...' : `${overdueCount} (${overduePct}%)`}
+          icon={AlertCircle}
+          variant="danger"
+          actionText="View Overdue"
+          onActionClick={() => {}}
+        />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Main Grid layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        {/* Left Side: Table & Filter Ribbon (9 Columns) */}
+        <div className="lg:col-span-9 flex flex-col gap-5">
+          
+          {/* Ribbon Filters */}
+          <FilterRibbon
+            filters={filtersConfig}
+            action={actionConfig}
+          />
 
-        {/* Left Pane: Report Form */}
-        <div className="lg:col-span-1 bg-white border border-border-color rounded-2xl shadow-sm p-6 flex flex-col gap-5">
-          <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider mb-1 select-none">Report Issue</h3>
-
-          <form onSubmit={handleSubmitIssue} className="flex flex-col gap-5">
-            <Dropdown
-              label="Select Property"
-              id="property"
-              placeholder="Choose property"
-              value={property}
-              error={errors.property}
-              onChange={(val) => setProperty(val)}
-              options={myProperties}
-              searchable
-            />
-
-            <Input
-              label="Title"
-              id="issue-title"
-              required
-              placeholder="e.g. Boiler not heating"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              error={errors.title}
-            />
-
-            <div className="flex flex-col w-full">
-              <label htmlFor="description" className="text-xs font-semibold text-gray-500 mb-1 flex items-center gap-0.5">
-                Issue Description <span className="text-status-danger">*</span>
-              </label>
-              <textarea
-                id="description"
-                rows={4}
-                required
-                placeholder="e.g. Boiler is leaking water from the bottom valve and radiator heat is fluctuating."
-                className={`w-full text-sm font-sans bg-white border border-border-color rounded-lg py-2.5 px-3 transition-all focus:outline-none focus:ring-2 focus:ring-brand-accent/20 focus:border-brand-accent ${
-                  errors.description ? 'border-status-danger focus:ring-status-danger/20 focus:border-status-danger' : ''
-                }`}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-              {errors.description && (
-                <span className="text-xs text-status-danger mt-1 font-semibold" role="alert">
-                  {errors.description}
-                </span>
-              )}
+          {/* Table Container Card */}
+          <div className="bg-white border border-card-border rounded-card p-5 shadow-xs flex flex-col justify-between overflow-hidden min-h-[300px]">
+            <div className="overflow-x-auto w-full">
+              <table className="w-full text-left border-collapse text-xs-portal">
+                <thead>
+                  <tr className="border-b border-card-border text-2xs text-gray-400 font-bold uppercase tracking-wider">
+                    <th className="py-3 px-2">Request</th>
+                    <th className="py-3 px-2">Property</th>
+                    <th className="py-3 px-2">Category</th>
+                    <th className="py-3 px-2">Priority</th>
+                    <th className="py-3 px-2">Status</th>
+                    <th className="py-3 px-2">Created</th>
+                    <th className="py-3 px-2">Updated</th>
+                    <th className="py-3 px-2 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {ticketsLoading || formattedRequests.length === 0 ? (
+                    <TableEmptyState
+                      colSpan={8}
+                      loading={ticketsLoading}
+                      loadingText="Loading requests..."
+                      emptyText="No maintenance requests reported."
+                    />
+                  ) : (
+                    paginatedRequests.map((row, idx) => (
+                      <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="py-3 px-2">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${row.color}`}>
+                              <row.icon size={11} />
+                            </div>
+                             <div className="flex flex-col text-left">
+                              <span className="font-bold text-brand-primary leading-tight truncate max-w-[150px] sm:max-w-xs">{row.item}</span>
+                              <span className="text-2xs text-gray-400 mt-0.5 leading-none">{row.ref}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3 px-2 text-gray-500 font-semibold">{row.property}</td>
+                        <td className="py-3 px-2 font-semibold text-gray-500">{row.category}</td>
+                        <td className="py-3 px-2">
+                          <StatusPill status={row.priority} size="sm" rounded="sm" showIcon={false} />
+                        </td>
+                        <td className="py-3 px-2">
+                          <StatusPill status={row.status} size="sm" rounded="sm" showIcon={false} />
+                        </td>
+                        <td className="py-3 px-2 font-medium text-gray-400 leading-tight">{row.created}</td>
+                        <td className="py-3 px-2 font-medium text-gray-400 leading-tight">{row.updated}</td>
+                        <td className="py-3 px-2">
+                          <div className="flex items-center justify-center gap-1">
+                            <Button variant="secondary" className="!py-0.5 !px-2.5 text-2xs font-bold bg-white">{row.action}</Button>
+                            <button className="p-0.5 text-gray-300 hover:text-brand-primary cursor-pointer"><MoreVertical size={13} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
 
-            {/* Picture Upload Box */}
-            <div className="flex flex-col w-full">
-              <span className="text-xs font-semibold text-gray-500 mb-1 select-none">Upload Picture (Optional)</span>
+            {/* Pagination footer */}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              totalItems={totalItems}
+              pageSize={pageSize}
+              itemLabel="requests"
+            />
 
-              <div
-                onDragEnter={handleDrag}
-                onDragOver={handleDrag}
-                onDragLeave={handleDrag}
-                onDrop={handleDrop}
-                className={`w-full border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center text-center transition-all min-h-[120px] relative ${
-                  dragActive
-                    ? 'border-brand-accent bg-brand-accent/5'
-                    : picture
-                      ? 'border-status-success bg-status-success/5 animate-pulse'
-                      : 'border-border-color hover:border-brand-accent bg-white'
-                }`}
-              >
-                <input
-                  type="file"
-                  id="image-upload"
-                  accept="image/*"
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-                  onChange={handleFileInputChange}
-                />
+          </div>
 
-                {picture ? (
-                  <div className="flex flex-col items-center gap-1.5">
-                    <CheckCircle2 className="text-status-success" size={20} />
-                    <p className="text-xs font-bold text-[#1A1A1A] max-w-[200px] truncate">{picture.name}</p>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); e.preventDefault(); setPicture(null); }}
-                      className="text-[10px] text-status-danger hover:underline font-bold z-30 cursor-pointer"
-                    >
-                      Change image
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-1.5 select-none">
-                    <Upload className="text-brand-accent" size={18} />
-                    <p className="text-[11px] font-bold text-gray-500">
-                      Drag image here or <span className="text-brand-accent hover:underline">browse</span>
-                    </p>
-                  </div>
-                )}
+          {/* Stay on Top of Maintenance banner */}
+          <div className="bg-white border border-card-border rounded-card p-5 shadow-xs flex gap-4 items-center mt-1 select-none text-left">
+            <div className="w-10 h-10 rounded-full bg-status-info-bg text-status-info flex items-center justify-center shrink-0">
+              <Info size={16} />
+            </div>
+            <div className="flex flex-col">
+              <h4 className="text-xs-portal font-bold text-brand-primary uppercase tracking-wider leading-none">Stay on Top of Maintenance</h4>
+              <p className="text-2xs text-gray-400 font-semibold mt-2.5 leading-none">Timely maintenance helps protect your property and keeps your tenants happy.</p>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Right Side: Sidebar Panels (3 Columns) */}
+        <div className="lg:col-span-3 flex flex-col gap-6 select-none">
+          
+          {/* Maintenance Overview (Donut Chart) */}
+          <div className="bg-white border border-card-border rounded-card p-5 shadow-xs flex flex-col gap-4">
+            <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider pb-2 border-b border-gray-50">
+              Maintenance Overview
+            </h3>
+
+            <div className="flex items-center gap-6 mt-2">
+              <DonutChart 
+                segments={[
+                  { value: completedCount, colorClass: 'stroke-status-info' },
+                  { value: inProgressCount, colorClass: 'stroke-status-warning' },
+                  { value: overdueCount, colorClass: 'stroke-status-danger' }
+                ]}
+                total={totalCount}
+              />
+              <div className="flex flex-col gap-1.5 text-2xs font-bold text-gray-500">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-status-info shrink-0" />
+                  <span>Completed</span>
+                  <span className="text-brand-primary font-extrabold ml-1">{completedCount} ({completedPct}%)</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-status-warning shrink-0" />
+                  <span>In Progress</span>
+                  <span className="text-brand-primary font-extrabold ml-1">{inProgressCount} ({inProgressPct}%)</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-gray-300 shrink-0" />
+                  <span>Pending</span>
+                  <span className="text-brand-primary font-extrabold ml-1">{pendingCount} ({pendingPct}%)</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-status-danger shrink-0" />
+                  <span>Overdue</span>
+                  <span className="text-brand-primary font-extrabold ml-1">{overdueCount} ({overduePct}%)</span>
+                </div>
               </div>
             </div>
 
-            <Button
-              type="submit"
-              variant="primary"
-              fullWidth
-              disabled={loading}
-              className="mt-1"
-            >
-              {loading ? 'Submitting...' : 'Report Repair Issue'}
-            </Button>
-          </form>
-        </div>
-
-        {/* Right Pane: Quote Approvals */}
-        <div className="lg:col-span-2 flex flex-col gap-5">
-          <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider mb-1 select-none">Repair Quotes Requiring Approval</h3>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            {quotesLoading ? (
-              <>
-                <div className="h-48 bg-gray-50 rounded-2xl border border-border-color animate-pulse" />
-                <div className="h-48 bg-gray-50 rounded-2xl border border-border-color animate-pulse" />
-              </>
-            ) : (
-              <>
-                {quotes.map(quote => {
-                  const isPending = quote.status === 'Pending Approval';
-                  return (
-                    <div
-                      key={quote.id}
-                      className="bg-white border border-border-color rounded-2xl shadow-sm flex flex-col overflow-hidden hover:shadow-md transition-shadow"
-                    >
-                      <div className="bg-brand-primary/5 p-4 border-b border-border-color flex justify-between items-center select-none">
-                        <span className="text-xs font-bold text-brand-accent">{quote.property}</span>
-                        <span className="text-[10px] text-gray-400 font-semibold">#{quote.id}</span>
-                      </div>
-
-                      <div className="p-4 flex-grow flex flex-col gap-3">
-                        <div>
-                          <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Job Description</p>
-                          <p className="text-xs text-gray-700 font-medium leading-relaxed mt-1">
-                            {quote.description}
-                          </p>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-2 border-t border-border-color/60 pt-3">
-                          <div>
-                            <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Contractor</p>
-                            <p className="text-xs font-bold text-gray-700 mt-0.5">{quote.contractor}</p>
-                          </div>
-                          <div>
-                            <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Estimated Cost</p>
-                            <p className="text-sm font-black text-brand-primary mt-0.5">£{quote.cost.toFixed(2)}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Actions Footer */}
-                      <div className="bg-gray-50 border-t border-border-color px-4 py-3 flex justify-between items-center min-h-[56px]">
-                        {!isPending ? (
-                          <div className="w-full text-center">
-                            <span className={`inline-flex items-center gap-1 text-xs font-bold ${
-                              quote.status === 'Approved' ? 'text-status-success' : 'text-status-danger'
-                            }`}>
-                              {quote.status === 'Approved' ? <Check size={14} /> : <X size={14} />}
-                              Quote {quote.status}
-                            </span>
-                          </div>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => handleQuoteAction(quote.id, 'decline')}
-                              className="px-3.5 py-2 text-xs font-bold text-status-danger hover:bg-status-danger/5 rounded-lg border border-status-danger/20 hover:border-status-danger/30 transition-colors cursor-pointer"
-                            >
-                              Decline
-                            </button>
-                            <button
-                              onClick={() => handleQuoteAction(quote.id, 'approve')}
-                              className="px-3.5 py-2 text-xs font-bold bg-status-success text-white hover:bg-status-success/90 rounded-lg shadow-xs hover:shadow-sm transition-colors cursor-pointer"
-                            >
-                              Approve Quote
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-                {quotes.length === 0 && (
-                  <div className="col-span-2 bg-white border border-border-color rounded-2xl p-8 text-center text-gray-400 font-medium text-xs">
-                    No active quotes require your approval.
-                  </div>
-                )}
-              </>
-            )}
+            <button className="text-xs-portal font-bold text-status-info hover:underline text-left mt-2 flex items-center gap-0.5 cursor-pointer">
+              View Full Report <ChevronRight size={10} />
+            </button>
           </div>
+
+          {/* Top Maintenance Categories */}
+          <div className="bg-white border border-card-border rounded-card p-5 shadow-xs flex flex-col gap-4">
+            <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider pb-2 border-b border-gray-50">
+              Top Maintenance Categories
+            </h3>
+
+            <div className="flex flex-col gap-3 mt-1">
+              <div className="text-xs-portal text-gray-400 font-semibold py-2">No category data available</div>
+            </div>
+
+            <button className="text-xs-portal font-bold text-status-info hover:underline text-left mt-1 flex items-center gap-0.5 cursor-pointer">
+              View All Categories <ChevronRight size={10} />
+            </button>
+          </div>
+
+          {/* Need to Report an Issue? */}
+          <div className="bg-white border border-card-border rounded-card p-5 shadow-xs flex flex-col gap-4">
+            <div className="flex gap-3.5 items-start">
+              <div className="w-8 h-8 rounded-full bg-status-info-bg text-status-info flex items-center justify-center shrink-0">
+                <Wrench size={15} />
+              </div>
+              <div className="flex flex-col text-left">
+                <h4 className="text-xs-portal font-bold text-brand-primary uppercase tracking-wider">Need to Report an Issue?</h4>
+                <p className="text-2xs text-gray-400 font-semibold mt-2.5 leading-relaxed">
+                  Submit a new maintenance request and our team will take care of the rest.
+                </p>
+              </div>
+            </div>
+
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              icon={ChevronRight} 
+              iconPosition="right"
+              className="w-full font-bold bg-white text-xs-portal"
+              onClick={() => {}}
+            >
+              Report an Issue
+            </Button>
+          </div>
+
+          {/* Maintenance Settings Button */}
+          <Button 
+            variant="secondary" 
+            size="sm" 
+            icon={Settings} 
+            iconPosition="left"
+            className="w-full font-bold bg-white text-xs-portal h-9"
+            onClick={() => {}}
+          >
+            Maintenance Settings
+          </Button>
+
         </div>
 
       </div>
+
     </div>
   );
 };

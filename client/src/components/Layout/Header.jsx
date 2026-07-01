@@ -89,17 +89,31 @@ export default function Header() {
 
             <div className="flex items-center gap-4">
               {user ? (
-                <Link to='/dashboard' className={`relative overflow-hidden group bg-primary text-white border border-primary hover:opacity-90 text-base items-center justify-center transition-all duration-300 py-2.5 px-8 rounded shadow-lg shadow-primary/20`}>
+                <Link to='/dashboard' className={`flex relative overflow-hidden group bg-primary text-white border border-primary hover:opacity-90 text-base items-center justify-center transition-all duration-300 py-2 px-8 rounded-card shadow-lg shadow-primary/20`}>
                   <span className="pointer-events-none absolute inset-0 -translate-x-[150%] bg-gradient-to-r from-transparent via-white/30 to-transparent group-hover:translate-x-[150%] transition-transform duration-700 ease-in-out" />
                   <span className="relative z-10 flex" style={{fontSize: '15px', fontWeight: '300'}}>Dashboard</span>
                 </Link>
               ) : (
                 <>
-                  <Link to='/contact' className={`hidden md:flex relative overflow-hidden group bg-black text-white border border-black hover:bg-slate-900 text-base items-center justify-center transition-all duration-300 py-2.5 px-6`}>
+                  <Link 
+                    to='/contact' 
+                    className={`hidden md:flex relative overflow-hidden group text-base items-center justify-center transition-all duration-300 py-2 px-6 rounded-card border ${
+                      isScrolled 
+                        ? 'border-[#1A1A1A] text-[#1A1A1A] hover:bg-gray-50' 
+                        : 'border-white/60 text-white hover:bg-white/10'
+                    }`}
+                  >
                     <span className="pointer-events-none absolute inset-0 -translate-x-[150%] bg-gradient-to-r from-transparent via-white/30 to-transparent group-hover:translate-x-[150%] transition-transform duration-700 ease-in-out" />
                     <span className="relative z-10 flex" style={{fontSize: '15px', fontWeight: '300'}}>Contact</span>
                   </Link>
-                  <Link to='/login' className={`hidden md:flex relative overflow-hidden group bg-black text-white border border-black hover:bg-slate-900 text-base items-center justify-center transition-all duration-300 py-2.5 px-6`}>
+                  <Link 
+                    to='/login' 
+                    className={`hidden md:flex relative overflow-hidden group text-base items-center justify-center transition-all duration-300 py-2 px-6 rounded-card border ${
+                      isScrolled 
+                        ? 'bg-[#1A1A1A] border-[#1A1A1A] text-white hover:bg-[#2D2D2D]' 
+                        : 'bg-white border-white text-black hover:bg-slate-100'
+                    }`}
+                  >
                     <span className="pointer-events-none absolute inset-0 -translate-x-[150%] bg-gradient-to-r from-transparent via-white/30 to-transparent group-hover:translate-x-[150%] transition-transform duration-700 ease-in-out" />
                     <span className="relative z-10 flex" style={{fontSize: '15px', fontWeight: '300'}}>Login</span>
                   </Link>

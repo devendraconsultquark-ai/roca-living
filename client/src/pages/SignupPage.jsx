@@ -1,83 +1,20 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useToast } from '../components/UI/ToastContext';
-import api from '../utilities/api';
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { useSignup } from '../hooks/useSignup';
 import { Input } from '../components/UI/Input';
 import { Button } from '../components/UI/Button';
+import { UserPlus } from 'lucide-react';
 
 export const SignupPage = () => {
-  const [form, setForm] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    password: '',
-    confirmPassword: '',
-    address: '',
-    agreeToTerms: false,
-  });
-  const [error, setError] = useState('');
-  const [fieldErrors, setFieldErrors] = useState({});
-  const [isLoading, setIsLoading] = useState(false);
-
-  const navigate = useNavigate();
-  const { addToast } = useToast();
-
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setForm(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
-  };
-
-  const handleSignup = async (e) => {
-    e.preventDefault();
-    setError('');
-    setFieldErrors({});
-
-    if (!form.agreeToTerms) {
-      addToast('Please agree to the Terms & Conditions.', 'error');
-      return;
-    }
-    if (form.password !== form.confirmPassword) {
-      addToast('Passwords do not match.', 'error');
-      return;
-    }
-    if (form.password.length < 8) {
-      addToast('Password must be at least 8 characters.', 'error');
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      await api.post('/auth/register', {
-        name: form.name,
-        email: form.email,
-        password: form.password,
-        phone: form.phone,
-        address: form.address,
-      });
-
-      addToast('Registration successful! Please sign in.', 'success');
-      navigate('/login');
-    } catch (err) {
-      console.error(err);
-      
-      const errorMessages = err.response?.data?.errors;
-      
-      if (Array.isArray(errorMessages) && errorMessages.length > 0) {
-        const errorsMap = {};
-        errorMessages.forEach((m) => {
-          errorsMap[m.field] = m.message;
-        });
-        setFieldErrors(errorsMap);
-      } else {
-        setError(err.response?.data?.message || 'Registration failed. Please check your inputs.');
-      }
-      setIsLoading(false);
-    }
-  };
+  const {
+    form,
+    error,
+    fieldErrors,
+    isLoading,
+    handleChange,
+    handleSignup,
+    setFieldErrors
+  } = useSignup();
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center py-16 px-4 font-sans text-left">
@@ -94,7 +31,7 @@ export const SignupPage = () => {
               />
             </Link>
             <h1 className="text-2xl font-light text-white mb-1">Create Your Account</h1>
-            <p className="text-slate-400 text-sm">Join the ROCA Living resident portal</p>
+            <p className="text-slate-400 text-sm">Join the ROCA Living landlord partner portal</p>
           </div>
 
           {error && (
@@ -231,10 +168,11 @@ export const SignupPage = () => {
               disabled={isLoading}
               variant="primary"
               fullWidth
+              icon={UserPlus}
+              iconPosition="right"
               className="py-4 px-6 rounded-xl shadow-lg flex items-center justify-center gap-2 text-sm font-bold uppercase tracking-wider transition-all duration-300"
             >
               {isLoading ? "Creating account…" : "Create Account"}
-              <span className="material-symbols-outlined text-lg">person_add</span>
             </Button>
 
             <p className="text-center text-sm text-slate-500 pt-2">

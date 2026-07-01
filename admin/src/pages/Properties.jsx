@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Home, CheckCircle2, AlertTriangle, HelpCircle, Edit, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Home, CheckCircle2, AlertTriangle, HelpCircle, Edit, Trash2, Eye } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { StatCard } from '../components/UI/StatCard';
@@ -7,9 +8,11 @@ import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
 import { StatusPill } from '../components/UI/StatusPill';
 import { useToast } from '../components/UI/ToastContext';
+import { useConfirm } from '../components/UI/ConfirmContext';
 import api from '../utilities/api';
 
 export const Properties = () => {
+  const navigate = useNavigate();
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -46,6 +49,7 @@ export const Properties = () => {
 
   const [formErrors, setFormErrors] = useState({});
   const { addToast } = useToast();
+  const confirm = useConfirm();
 
   const handleEditClick = async (row) => {
     try {
@@ -94,7 +98,13 @@ export const Properties = () => {
   };
 
   const handleDeleteClick = async (row) => {
-    if (window.confirm(`Are you sure you want to delete property "${row.address}"? This will delete all associated tenancies, compliance checklists, rent schedules, and maintenance records.`)) {
+    const ok = await confirm({
+      title: 'Delete Property',
+      message: `Are you sure you want to delete property "${row.address}"? This will permanently delete all associated tenancies, compliance checklists, rent schedules, and maintenance records.`,
+      variant: 'danger',
+      confirmText: 'Delete Property',
+    });
+    if (ok) {
       try {
         await api.delete(`/properties/${row.id}`);
         addToast('Property deleted successfully', 'success');
@@ -238,14 +248,21 @@ export const Properties = () => {
       renderCell: (row) => (
         <div className="flex justify-center gap-1">
           <button
-            onClick={() => handleEditClick(row)}
+            onClick={(e) => { e.stopPropagation(); navigate(`/properties/${row.id}`); }}
+            className="p-1.5 text-gray-500 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
+            title="View property details"
+          >
+            <Eye size={16} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleEditClick(row); }}
             className="p-1.5 text-gray-500 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
             title="Edit property details"
           >
             <Edit size={16} />
           </button>
           <button
-            onClick={() => handleDeleteClick(row)}
+            onClick={(e) => { e.stopPropagation(); handleDeleteClick(row); }}
             className="p-1.5 text-gray-500 hover:text-status-danger hover:bg-status-danger/5 rounded-lg transition-colors cursor-pointer"
             title="Delete property"
           >
@@ -319,7 +336,11 @@ export const Properties = () => {
             {error}
           </div>
         ) : (
-          <DataTable columns={columns} data={properties} />
+          <DataTable 
+            columns={columns} 
+            data={properties} 
+            onRowClick={(row) => navigate(`/properties/${row.id}`)} 
+          />
         )}
       </div>
 

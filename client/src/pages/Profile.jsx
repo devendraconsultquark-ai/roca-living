@@ -1,403 +1,510 @@
-import React from 'react';
-import { User, CreditCard, AlertTriangle, LogOut, Shield, Building } from 'lucide-react';
-import { Input } from '../components/UI/Input';
-import { Button } from '../components/UI/Button';
+import React, { useState } from 'react';
+import { 
+  User, Mail, Phone, Lock, Shield, Bell, Key, Trash, ChevronDown, ChevronRight, Camera, KeyRound, Wrench, FileText, Home, Calendar, MapPin, Eye, EyeOff
+} from 'lucide-react';
 import { useProfile } from '../hooks/useProfile';
+import { Button } from '../components/UI/Button';
+import { PortalCard } from '../components/UI/PortalCard';
+
+const ToggleSwitch = ({ checked, onChange }) => {
+  return (
+    <button 
+      type="button" 
+      onClick={onChange}
+      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+        checked ? 'bg-status-info' : 'bg-gray-200'
+      }`}
+    >
+      <span
+        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+          checked ? 'translate-x-4' : 'translate-x-0'
+        }`}
+      />
+    </button>
+  );
+};
 
 export const Profile = () => {
-  const {
-    loading,
+  const { 
+    profileData, 
+    handleLogout,
     isEditing,
     setIsEditing,
-    profileData,
-    errors,
-    passwordData,
-    passwordLoading,
-    passwordErrors,
     handleChange,
     handleSubmit,
-    handleLogout,
+    handleCancel,
+    errors = {},
+    loading,
+    passwordData,
+    setPasswordData,
+    passwordLoading,
+    passwordErrors = {},
     handlePasswordChange,
-    handleCancel
+    setPasswordErrors
   } = useProfile();
 
+  const [isEditingPassword, setIsEditingPassword] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const handlePasswordInputChange = (field, value) => {
+    setPasswordData(prev => ({ ...prev, [field]: value }));
+    if (passwordErrors[field]) {
+      setPasswordErrors(prev => ({ ...prev, [field]: '' }));
+    }
+    if ((field === 'newPassword' || field === 'confirmPassword') && passwordErrors.confirmPassword) {
+      setPasswordErrors(prev => ({ ...prev, confirmPassword: '' }));
+    }
+  };
+
+  // Switch states
+  const [prefPortal, setPrefPortal] = useState(true);
+  const [prefEmail, setPrefEmail] = useState(true);
+  const [prefSms, setPrefSms] = useState(false);
+  const [prefStatements, setPrefStatements] = useState(true);
+  const [prefMaintenance, setPrefMaintenance] = useState(true);
+
   return (
-    <div className="py-6 flex flex-col gap-6 max-w-4xl mx-auto px-4">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-[#1A1A1A]">My Profile Settings</h2>
-        <p className="text-sm text-gray-500 mt-1">Review contact information and manage bank account details for rental income disbursements.</p>
-      </div>
-
-      {/* Verification / Security Warning Banner */}
-      <div className="bg-status-warning/10 border-l-4 border-status-warning p-4 rounded-r-xl shadow-xs flex gap-3">
-        <AlertTriangle className="text-status-warning shrink-0" size={20} />
-        <div className="text-xs sm:text-sm font-semibold text-status-warning leading-relaxed select-none">
-          Any changes to payment details require manual staff verification before taking effect.
-        </div>
-      </div>
-
-      {/* Contact Details Form Card */}
-      <form onSubmit={handleSubmit} className="bg-white border border-border-color rounded-2xl p-6 md:p-8 shadow-sm flex flex-col gap-6">
-        <div className="flex flex-col gap-4">
-          <div className="flex justify-between items-center w-full">
-            <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 select-none">
-              <User size={16} className="text-brand-accent" />
-              Contact Information
-            </h3>
-            <button
-              type="button"
-              onClick={() => {
-                if (isEditing) {
-                  handleCancel();
-                } else {
-                  setIsEditing(true);
-                }
-              }}
-              className="text-xs font-bold text-brand-accent hover:text-brand-accent/80 border border-brand-accent/30 hover:border-brand-accent/50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
-            >
-              {isEditing ? 'Cancel Edit' : 'Edit'}
-            </button>
-          </div>
-          
-          <div className="border-t border-border-color/60 pt-4 grid grid-cols-1 md:grid-cols-2 gap-5">
-            <Input
-              label="Full Name"
-              id="name"
-              required
-              value={profileData.name}
-              error={errors.name}
-              onChange={handleChange}
-              disabled={!isEditing}
-            />
-            <Input
-              label="Email Address"
-              id="email"
-              type="email"
-              required
-              value={profileData.email}
-              error={errors.email}
-              onChange={handleChange}
-              disabled={!isEditing}
-            />
-            <Input
-              label="Contact Phone"
-              id="phone"
-              required
-              value={profileData.phone}
-              error={errors.phone}
-              onChange={handleChange}
-              disabled={!isEditing}
-            />
-            <Input
-              label="Registered Home Address"
-              id="address"
-              required
-              value={profileData.address}
-              error={errors.address}
-              onChange={handleChange}
-              disabled={!isEditing}
-            />
-          </div>
-        </div>
-
-        {/* Save and Logout Buttons */}
-        <div className="border-t border-border-color/60 pt-6 flex justify-between items-center">
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="px-4 py-2.5 text-sm font-bold text-status-danger hover:bg-status-danger/5 border border-status-danger/20 hover:border-status-danger/30 rounded-xl transition-colors cursor-pointer flex items-center gap-2"
-          >
-            <LogOut size={16} />
-            Log Out
-          </button>
-          
-          {isEditing && (
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={loading}
-            >
-              {loading ? 'Submitting Changes...' : 'Save Profile Changes'}
-            </Button>
-          )}
-        </div>
-      </form>
-
-      {/* Company & HMRC Details Card */}
-      <div className="bg-white border border-border-color rounded-2xl p-6 md:p-8 shadow-sm flex flex-col gap-6">
-        <div className="flex flex-col gap-4">
-          <div>
-            <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 select-none">
-              <Building size={16} className="text-brand-accent" />
-              Company & HMRC Tax Details
-            </h3>
-            <p className="text-[11px] text-gray-500 mt-1">Tax statuses and company registration details are legally verified and cannot be edited directly.</p>
-          </div>
-          <div className="border-t border-border-color/60 pt-4 grid grid-cols-1 md:grid-cols-2 gap-5">
-            <Input
-              label="Company Name (Optional)"
-              id="companyName"
-              placeholder="e.g. Acme Properties Ltd"
-              value={profileData.companyName}
-              onChange={handleChange}
-              disabled={true}
-            />
-            <Input
-              label="HMRC Withholding Tax Rate (%)"
-              id="nrlWithholdPct"
-              type="number"
-              step="0.01"
-              placeholder="e.g. 20.00"
-              value={profileData.nrlWithholdPct}
-              onChange={handleChange}
-              disabled={true}
-            />
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-bold text-gray-500 uppercase select-none">Overseas Landlord Status</label>
-              <div className="flex items-center gap-2 h-10 mt-1 select-none">
-                <input
-                  type="checkbox"
-                  id="isOverseas"
-                  checked={profileData.isOverseas}
-                  onChange={handleChange}
-                  disabled={true}
-                  className="w-4 h-4 text-brand-accent border-gray-300 rounded focus:ring-brand-accent cursor-not-allowed"
-                />
-                <span className="text-sm font-semibold text-gray-700">I am an overseas landlord</span>
+    <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8 font-sans text-brand-primary">
+      
+      {/* 2x2 Layout Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 select-none">
+        
+        {/* Card 1: Account Information */}
+        <PortalCard 
+          title="Account Information" 
+          headerActions={
+            isEditing ? (
+              <div className="flex gap-2">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="text-xs-portal font-bold text-gray-500 hover:underline"
+                  onClick={handleCancel}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="text-xs-portal font-bold text-[#0A58CA] hover:underline"
+                  onClick={handleSubmit}
+                  disabled={loading}
+                >
+                  {loading ? 'Saving...' : 'Save'}
+                </Button>
               </div>
-            </div>
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-bold text-gray-500 uppercase select-none">HMRC Approved</label>
-              <div className="flex items-center gap-2 h-10 mt-1 select-none">
-                <input
-                  type="checkbox"
-                  id="nrlHmrcApproved"
-                  checked={profileData.nrlHmrcApproved}
-                  onChange={handleChange}
-                  disabled={true}
-                  className="w-4 h-4 text-brand-accent border-gray-300 rounded focus:ring-brand-accent cursor-not-allowed"
-                />
-                <span className="text-sm font-semibold text-gray-700">HMRC approved for gross payment</span>
-              </div>
-            </div>
-            <Input
-              label="HMRC Reference Number"
-              id="nrlHmrcRef"
-              placeholder="e.g. NRL123456"
-              value={profileData.nrlHmrcRef}
-              onChange={handleChange}
-              disabled={true}
-            />
-            <Input
-              label="NRL Reference Number"
-              id="nrlNumber"
-              placeholder="e.g. NRL-998877"
-              value={profileData.nrlNumber}
-              disabled={true}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Bank Details Card */}
-      <div className="bg-white border border-border-color rounded-2xl p-6 md:p-8 shadow-sm flex flex-col gap-6">
-        <div className="flex flex-col gap-4">
-          <div>
-            <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 select-none">
-              <CreditCard size={16} className="text-brand-accent" />
-              Disbursement Bank Account Details
-            </h3>
-            <p className="text-[11px] text-gray-500 mt-1">Bank payment details require manual letting agent verification. Please contact support to submit modifications.</p>
-          </div>
-          <div className="border-t border-border-color/60 pt-4 grid grid-cols-1 md:grid-cols-2 gap-5">
-            <Input
-              label="Bank Name"
-              id="bankName"
-              placeholder="e.g. Barclays Bank"
-              value={profileData.bankName}
-              error={errors.bankName}
-              onChange={handleChange}
-              disabled={true}
-            />
-            <Input
-              label="Account Holder Name"
-              id="accountName"
-              placeholder="e.g. John Doe"
-              value={profileData.accountName}
-              error={errors.accountName}
-              onChange={handleChange}
-              disabled={true}
-            />
-            <Input
-              label="Sort Code"
-              id="sortCode"
-              placeholder="e.g. 20-30-40"
-              value={profileData.sortCode}
-              error={errors.sortCode}
-              onChange={handleChange}
-              disabled={true}
-            />
-            <Input
-              label="Account Number"
-              id="accountNumber"
-              placeholder="e.g. 12345678"
-              value={profileData.accountNumber}
-              error={errors.accountNumber}
-              onChange={handleChange}
-              disabled={true}
-            />
-            <Input
-              label="IBAN / BIC (Optional)"
-              id="ibanBic"
-              placeholder="e.g. GB12BARC20304012345678"
-              value={profileData.ibanBic}
-              onChange={handleChange}
-              disabled={true}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Compliance & Account Status Card */}
-      <div className="bg-white border border-border-color rounded-2xl p-6 md:p-8 shadow-sm flex flex-col gap-6">
-        <div className="flex flex-col gap-4">
-          <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 select-none">
-            <Shield size={16} className="text-brand-accent" />
-            Compliance & Account Verification Status
-          </h3>
-          <div className="border-t border-border-color/60 pt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
-            {/* Row 1: KYC Details */}
-            <div className="flex flex-col gap-1.5 bg-gray-50/50 border border-border-color/50 p-4 rounded-xl">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">KYC Status</span>
-              <span className={`text-sm font-bold capitalize select-none ${
-                profileData.kycStatus === 'passed' ? 'text-status-success' :
-                profileData.kycStatus === 'failed' ? 'text-status-danger' :
-                profileData.kycStatus === 'pending' ? 'text-status-warning' : 'text-gray-500'
-              }`}>
-                {profileData.kycStatus.replace('_', ' ')}
+            ) : (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-xs-portal font-bold text-[#0A58CA] hover:underline"
+                onClick={() => setIsEditing(true)}
+              >
+                Edit
+              </Button>
+            )
+          }
+        >
+          {/* Avatar Area */}
+          <div className="flex gap-4 items-center py-2">
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center shrink-0 border border-card-border">
+              <span className="text-[20px] font-black text-brand-primary tracking-wide">
+                {profileData?.name
+                  ? profileData.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+                  : 'L'}
               </span>
             </div>
-            <div className="flex flex-col gap-1.5 bg-gray-50/50 border border-border-color/50 p-4 rounded-xl">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">KYC Provider</span>
-              <span className="text-sm font-bold text-gray-700 select-none">
-                {profileData.kycProvider || 'N/A'}
-              </span>
-            </div>
-            <div className="flex flex-col gap-1.5 bg-gray-50/50 border border-border-color/50 p-4 rounded-xl">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">KYC Reference</span>
-              <span className="text-sm font-bold text-gray-700 select-none truncate" title={profileData.kycRef}>
-                {profileData.kycRef || 'N/A'}
-              </span>
-            </div>
-            <div className="flex flex-col gap-1.5 bg-gray-50/50 border border-border-color/50 p-4 rounded-xl">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">Sanctions Checked</span>
-              <span className={`text-sm font-bold select-none ${
-                profileData.sanctionsChecked ? 'text-status-success' : 'text-status-danger'
-              }`}>
-                {profileData.sanctionsChecked ? 'Yes' : 'No'}
-              </span>
-            </div>
-
-            {/* Row 2: TOB & Ownership Details */}
-            <div className="flex flex-col gap-1.5 bg-gray-50/50 border border-border-color/50 p-4 rounded-xl">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">TOB Status</span>
-              <span className={`text-sm font-bold capitalize select-none ${
-                profileData.tobStatus === 'signed' ? 'text-status-success' : 'text-gray-500'
-              }`}>
-                {profileData.tobStatus.replace('_', ' ')}
-              </span>
-            </div>
-            <div className="flex flex-col gap-1.5 bg-gray-50/50 border border-border-color/50 p-4 rounded-xl">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">TOB Signed At</span>
-              <span className="text-sm font-bold text-gray-700 select-none">
-                {profileData.tobSignedAt || 'N/A'}
-              </span>
-            </div>
-            <div className="flex flex-col gap-1.5 bg-gray-50/50 border border-border-color/50 p-4 rounded-xl">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">Ownership Confirmed</span>
-              <span className={`text-sm font-bold select-none ${
-                profileData.ownershipConfirmed ? 'text-status-success' : 'text-gray-500'
-              }`}>
-                {profileData.ownershipConfirmed ? 'Confirmed' : 'Pending Confirmation'}
-              </span>
-            </div>
-            <div className="flex flex-col gap-1.5 bg-gray-50/50 border border-border-color/50 p-4 rounded-xl">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">Ownership Share</span>
-              <span className="text-sm font-bold text-gray-700 select-none">
-                {profileData.ownershipShare ? `${profileData.ownershipShare}%` : 'N/A'}
-              </span>
+            <div className="flex flex-col items-start gap-1">
+              <span className="text-sm-portal font-black text-brand-primary">{profileData?.name || 'Landlord'}</span>
+              <span className="text-xs-portal text-gray-400 font-bold uppercase tracking-wider">Landlord</span>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Change Password Form */}
-      <div className="bg-white border border-border-color rounded-2xl p-6 md:p-8 shadow-sm flex flex-col gap-6 mt-6">
-        <form onSubmit={handlePasswordChange} className="flex flex-col gap-6">
-          <div className="flex flex-col gap-4">
-            <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 select-none">
-              <Shield size={16} className="text-brand-accent" />
-              Change Password
-            </h3>
+          {/* Details list */}
+          <div className="flex flex-col gap-3.5 mt-2 text-xs-portal">
             
-            <div className="border-t border-border-color/60 pt-4 grid grid-cols-1 sm:grid-cols-3 gap-5">
-              <Input
-                label="Current Password"
-                id="currentPassword"
-                type="password"
-                required
-                value={passwordData.currentPassword}
-                error={passwordErrors.currentPassword}
-                onChange={(e) => {
-                  setPasswordData({ ...passwordData, currentPassword: e.target.value });
-                  if (passwordErrors.currentPassword) {
-                    setPasswordErrors(prev => ({ ...prev, currentPassword: '' }));
-                  }
-                }}
-              />
-              <Input
-                label="New Password"
-                id="newPassword"
-                type="password"
-                required
-                value={passwordData.newPassword}
-                error={passwordErrors.newPassword}
-                onChange={(e) => {
-                  setPasswordData({ ...passwordData, newPassword: e.target.value });
-                  if (passwordErrors.newPassword) {
-                    setPasswordErrors(prev => ({ ...prev, newPassword: '' }));
-                  }
-                }}
-              />
-              <Input
-                label="Confirm Password"
-                id="confirmPassword"
-                type="password"
-                required
-                value={passwordData.confirmPassword}
-                error={passwordErrors.confirmPassword}
-                onChange={(e) => {
-                  setPasswordData({ ...passwordData, confirmPassword: e.target.value });
-                  if (passwordErrors.confirmPassword) {
-                    setPasswordErrors(prev => ({ ...prev, confirmPassword: '' }));
-                  }
-                }}
-              />
+            <div className="flex flex-col gap-1 py-1 border-b border-gray-50/60">
+              <div className="flex items-center gap-3">
+                <User size={13} className="text-gray-400 shrink-0" />
+                <span className="text-gray-500 font-bold w-24 shrink-0">Full Name</span>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    id="name"
+                    value={profileData.name}
+                    onChange={handleChange}
+                    className={`border rounded-[4px] px-2.5 py-1 text-gray-700 font-semibold focus:outline-none text-xs-portal flex-1 ${
+                      errors.name ? 'border-status-danger focus:border-status-danger' : 'border-border-color focus:border-brand-primary'
+                    }`}
+                  />
+                ) : (
+                  <span className="font-semibold text-brand-primary">{profileData?.name || '—'}</span>
+                )}
+              </div>
+              {isEditing && errors.name && (
+                <span className="text-2xs text-status-danger font-bold ml-28 text-left">{errors.name}</span>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1 py-1 border-b border-gray-50/60">
+              <div className="flex items-center gap-3">
+                <Mail size={13} className="text-gray-400 shrink-0" />
+                <span className="text-gray-500 font-bold w-24 shrink-0">Email Address</span>
+                {isEditing ? (
+                  <input
+                    type="email"
+                    id="email"
+                    value={profileData.email}
+                    onChange={handleChange}
+                    className={`border rounded-[4px] px-2.5 py-1 text-gray-700 font-semibold focus:outline-none text-xs-portal flex-1 ${
+                      errors.email ? 'border-status-danger focus:border-status-danger' : 'border-border-color focus:border-brand-primary'
+                    }`}
+                  />
+                ) : (
+                  <span className="font-semibold text-brand-primary">{profileData?.email || '—'}</span>
+                )}
+              </div>
+              {isEditing && errors.email && (
+                <span className="text-2xs text-status-danger font-bold ml-28 text-left">{errors.email}</span>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1 py-1 border-b border-gray-50/60">
+              <div className="flex items-center gap-3">
+                <Phone size={13} className="text-gray-400 shrink-0" />
+                <span className="text-gray-500 font-bold w-24 shrink-0">Phone Number</span>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    id="phone"
+                    value={profileData.phone}
+                    onChange={handleChange}
+                    className={`border rounded-[4px] px-2.5 py-1 text-gray-700 font-semibold focus:outline-none text-xs-portal flex-1 ${
+                      errors.phone ? 'border-status-danger focus:border-status-danger' : 'border-border-color focus:border-brand-primary'
+                    }`}
+                  />
+                ) : (
+                  <span className="font-semibold text-brand-primary">{profileData?.phone || '—'}</span>
+                )}
+              </div>
+              {isEditing && errors.phone && (
+                <span className="text-2xs text-status-danger font-bold ml-28 text-left">{errors.phone}</span>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1 py-1">
+              <div className="flex items-center gap-3">
+                <MapPin size={13} className="text-gray-400 shrink-0" />
+                <span className="text-gray-500 font-bold w-24 shrink-0">Address</span>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    id="address"
+                    value={profileData.address}
+                    onChange={handleChange}
+                    className={`border rounded-[4px] px-2.5 py-1 text-gray-700 font-semibold focus:outline-none text-xs-portal flex-1 ${
+                      errors.address ? 'border-status-danger focus:border-status-danger' : 'border-border-color focus:border-brand-primary'
+                    }`}
+                  />
+                ) : (
+                  <span className="font-semibold text-brand-primary">{profileData?.address || '—'}</span>
+                )}
+              </div>
+              {isEditing && errors.address && (
+                <span className="text-2xs text-status-danger font-bold ml-28 text-left">{errors.address}</span>
+              )}
+            </div>
+
+          </div>
+        </PortalCard>
+
+        {/* Card 2: Notification Preferences */}
+        <PortalCard 
+          title="Notification Preferences" 
+          subtitle="Choose how you'd like to receive updates and alerts."
+        >
+          {/* List of Toggles */}
+          <div className="flex flex-col gap-3.5 mt-2 text-xs-portal">
+            
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-status-info-bg text-status-info flex items-center justify-center shrink-0">
+                  <Bell size={13} />
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-bold text-brand-primary">Portal Notifications</span>
+                  <span className="text-2xs text-gray-400 font-semibold mt-0.5">Receive notifications within the portal</span>
+                </div>
+              </div>
+              <ToggleSwitch checked={prefPortal} onChange={() => setPrefPortal(!prefPortal)} />
+            </div> 
+            
+            <div className="flex items-center justify-between border-t border-gray-50 pt-3">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-status-success-bg text-status-success flex items-center justify-center shrink-0">
+                  <Mail size={13} />
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-bold text-brand-primary">Email Notifications</span>
+                  <span className="text-2xs text-gray-400 font-semibold mt-0.5">Receive important updates via email</span>
+                </div>
+              </div>
+              <ToggleSwitch checked={prefEmail} onChange={() => setPrefEmail(!prefEmail)} />
+            </div>
+ 
+            <div className="flex items-center justify-between border-t border-gray-50 pt-3">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                  <Mail size={13} />
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-bold text-brand-primary">SMS Notifications</span>
+                  <span className="text-2xs text-gray-400 font-semibold mt-0.5">Receive urgent alerts via SMS</span>
+                </div>
+              </div>
+              <ToggleSwitch checked={prefSms} onChange={() => setPrefSms(!prefSms)} />
+            </div>
+ 
+            <div className="flex items-center justify-between border-t border-gray-50 pt-3">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
+                  <FileText size={13} />
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-bold text-brand-primary">Statement Available</span>
+                  <span className="text-2xs text-gray-400 font-semibold mt-0.5">Get notified when new statements are ready</span>
+                </div>
+              </div>
+              <ToggleSwitch checked={prefStatements} onChange={() => setPrefStatements(!prefStatements)} />
+            </div>
+ 
+            <div className="flex items-center justify-between border-t border-gray-50 pt-3">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-status-danger-bg text-status-danger flex items-center justify-center shrink-0">
+                  <Wrench size={13} />
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-bold text-brand-primary">Maintenance Updates</span>
+                  <span className="text-2xs text-gray-400 font-semibold mt-0.5">Receive updates about maintenance requests</span>
+                </div>
+              </div>
+              <ToggleSwitch checked={prefMaintenance} onChange={() => setPrefMaintenance(!prefMaintenance)} />
             </div>
           </div>
 
-          <div className="border-t border-border-color/60 pt-6 flex justify-end">
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={passwordLoading}
+          <button className="text-xs-portal font-bold text-[#1A56DB] hover:underline text-left mt-4 flex items-center gap-0.5 cursor-pointer">
+            Manage Notification Settings <ChevronRight size={10} />
+          </button>
+        </PortalCard>
+
+        {/* Card 3: About You */}
+        <PortalCard 
+          title="About You" 
+          subtitle="Tell us a bit about yourself. This helps us personalise your experience."
+          headerActions={
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="text-xs-portal font-bold text-[#0A58CA] hover:underline"
+              onClick={() => {}}
             >
-              {passwordLoading ? 'Updating Password...' : 'Update Password'}
+              Edit
+            </Button>
+          }
+        >
+          <div className="flex flex-col gap-3.5 mt-2 text-xs-portal">
+            
+            <div className="flex items-center justify-between py-2 border-b border-gray-50/60">
+              <div className="flex items-center gap-3">
+                <User size={13} className="text-gray-400 shrink-0" />
+                <span className="text-gray-500 font-bold w-24 shrink-0">Landlord Type</span>
+                <div className="flex items-center gap-1 font-semibold text-brand-primary">
+                  <span>Individual</span>
+                  <ChevronDown size={11} className="text-gray-400 mt-0.5" />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between py-2 border-b border-gray-50/60">
+              <div className="flex items-center gap-3">
+                <Home size={13} className="text-gray-400 shrink-0" />
+                <span className="text-gray-500 font-bold w-24 shrink-0">Portfolio Size</span>
+                <span className="font-semibold text-brand-primary">1 property</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between py-2">
+              <div className="flex items-center gap-3">
+                <Calendar size={13} className="text-gray-400 shrink-0" />
+                <span className="text-gray-500 font-bold w-24 shrink-0">Joined</span>
+                <span className="font-semibold text-brand-primary">24 April 2024</span>
+              </div>
+            </div>
+
+          </div>
+        </PortalCard>
+
+        {/* Card 4: Account Actions */}
+        <PortalCard 
+          title="Account Actions" 
+          subtitle="Manage your account and security settings."
+        >
+          <div className="flex flex-col gap-3.5 mt-2 text-xs-portal">
+            
+            {isEditingPassword ? (
+              <div className="flex flex-col gap-3.5 p-4 border border-card-border rounded-card bg-gray-50/30 text-left">
+                <h4 className="font-bold text-xs-portal text-brand-primary uppercase tracking-wider">Change Password</h4>
+                
+                <div className="flex flex-col gap-1">
+                  <span className="text-gray-500 font-bold text-2xs">Current Password</span>
+                  <div className="relative w-full">
+                    <input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      value={passwordData.currentPassword}
+                      onChange={(e) => handlePasswordInputChange('currentPassword', e.target.value)}
+                      className={`border rounded-[4px] pl-2.5 pr-10 py-1.5 text-gray-700 font-semibold focus:outline-none text-xs-portal w-full ${
+                        passwordErrors.currentPassword ? 'border-status-danger focus:border-status-danger' : 'border-border-color focus:border-brand-primary'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none cursor-pointer flex items-center justify-center animate-fade-in"
+                    >
+                      {showCurrentPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  </div>
+                  {passwordErrors.currentPassword && (
+                    <span className="text-2xs text-status-danger font-bold text-left">{passwordErrors.currentPassword}</span>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <span className="text-gray-500 font-bold text-2xs">New Password</span>
+                  <div className="relative w-full">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      value={passwordData.newPassword}
+                      onChange={(e) => handlePasswordInputChange('newPassword', e.target.value)}
+                      className={`border rounded-[4px] pl-2.5 pr-10 py-1.5 text-gray-700 font-semibold focus:outline-none text-xs-portal w-full ${
+                        passwordErrors.newPassword ? 'border-status-danger focus:border-status-danger' : 'border-border-color focus:border-brand-primary'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none cursor-pointer flex items-center justify-center animate-fade-in"
+                    >
+                      {showNewPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  </div>
+                  {passwordErrors.newPassword && (
+                    <span className="text-2xs text-status-danger font-bold text-left">{passwordErrors.newPassword}</span>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <span className="text-gray-500 font-bold text-2xs">Confirm Password</span>
+                  <div className="relative w-full">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      value={passwordData.confirmPassword}
+                      onChange={(e) => handlePasswordInputChange('confirmPassword', e.target.value)}
+                      className={`border rounded-[4px] pl-2.5 pr-10 py-1.5 text-gray-700 font-semibold focus:outline-none text-xs-portal w-full ${
+                        passwordErrors.confirmPassword ? 'border-status-danger focus:border-status-danger' : 'border-border-color focus:border-brand-primary'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none cursor-pointer flex items-center justify-center animate-fade-in"
+                    >
+                      {showConfirmPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  </div>
+                  {passwordErrors.confirmPassword && (
+                    <span className="text-2xs text-status-danger font-bold text-left">{passwordErrors.confirmPassword}</span>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-2.5 mt-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs-portal font-bold text-gray-500 hover:underline"
+                    onClick={() => {
+                      setIsEditingPassword(false);
+                      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                      setPasswordErrors({});
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="text-xs-portal font-bold px-4 py-1.5 rounded-md"
+                    onClick={async () => {
+                      const success = await handlePasswordChange();
+                      if (success) {
+                        setIsEditingPassword(false);
+                      }
+                    }}
+                    disabled={passwordLoading}
+                  >
+                    {passwordLoading ? 'Updating...' : 'Update Password'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div 
+                className="flex items-center justify-between p-3 border border-card-border rounded-card hover:bg-gray-50/50 transition-colors cursor-pointer group"
+                onClick={() => setIsEditingPassword(true)}
+              >
+                <div className="flex items-center gap-3.5">
+                  <div className="w-8 h-8 rounded-full bg-status-info-bg text-status-info flex items-center justify-center shrink-0">
+                    <KeyRound size={13} />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-bold text-brand-primary leading-tight">Change Password</span>
+                    <span className="text-2xs text-gray-400 font-semibold mt-0.5">Update your password</span>
+                  </div>
+                </div>
+                <ChevronRight size={13} className="text-gray-300 group-hover:text-status-info transition-colors" />
+              </div>
+            )}
+
+            <div className="flex items-center justify-between p-3 border border-card-border rounded-card hover:bg-red-50/20 transition-colors cursor-pointer group">
+              <div className="flex items-center gap-3.5">
+                <div className="w-8 h-8 rounded-full bg-status-danger-bg text-status-danger flex items-center justify-center shrink-0">
+                  <Trash size={13} />
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-bold text-brand-primary leading-tight">Delete Account</span>
+                  <span className="text-2xs text-gray-400 font-semibold mt-0.5">Permanently delete your account and all data</span>
+                </div>
+              </div>
+              <ChevronRight size={13} className="text-gray-300 group-hover:text-status-danger transition-colors" />
+            </div>
+
+          </div>
+
+          <div className="flex justify-end mt-4">
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              onClick={handleLogout}
+              className="text-xs-portal font-bold bg-white text-status-danger border-status-danger/20 hover:bg-status-danger/5"
+            >
+              Log Out
             </Button>
           </div>
-        </form>
+        </PortalCard>
+
       </div>
+
     </div>
   );
 };

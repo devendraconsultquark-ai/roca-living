@@ -756,3 +756,75 @@ export const deleteTenant = catchAsync(async (req, res, next) => {
   });
 });
 
+export const getTenantById = catchAsync(async (req, res, next) => {
+  const { id } = req.params;
+
+  const tenant = await db('tenants').where('tenants.id', id).first();
+  if (!tenant) {
+    throw new ApiError(404, 'Tenant not found');
+  }
+
+  // Tenancy with property info
+  const tenancy = await db('tenancies')
+    .join('properties', 'tenancies.property_id', 'properties.id')
+    .join('users as landlords', 'properties.landlord_id', 'landlords.id')
+    .select(
+      'tenancies.*',
+      'properties.address_line1',
+      'properties.address_line2',
+      'properties.city',
+      'properties.postcode',
+      'properties.id as property_id',
+      'landlords.name as landlord_name'
+    )
+    .where('tenancies.id', tenant.tenancy_id)
+    .first();
+
+  // Co-tenants in the same tenancy
+  const coTenants = await db('tenants')
+    .where('tenancy_id', tenant.tenancy_id)
+    .whereNot('id', id);
+
+  // Rent payment history (most recent 20)
+  const payments = await db('rent_payments')
+    .where('tenancy_id', tenant.tenancy_id)
+    .orderBy('received_at', 'desc')
+    .limit(20);
+
+  // Compute account balance: sum of scheduled rent minus sum of payments
+  const scheduleSum = await db('rent_schedules')
+    .where('tenancy_id', tenant.tenancy_id)
+    .sum('amount as total')
+    .first();
+  const paymentSum = await db('rent_payments')
+    .where('tenancy_id', tenant.tenancy_id)
+    .sum('amount as total')
+    .first();
+  const balance = parseFloat(paymentSum?.total || 0) - parseFloat(scheduleSum?.total || 0);
+
+  res.json({
+    success: true,
+    data: {
+      ...tenant,
+      right_to_rent_expiry: tenant.right_to_rent_expiry
+        ? new Date(tenant.right_to_rent_expiry).toISOString().split('T')[0]
+        : null,
+      created_at: tenant.created_at ? new Date(tenant.created_at).toISOString() : null,
+      tenancy: tenancy ? {
+        ...tenancy,
+        start_date: tenancy.start_date ? new Date(tenancy.start_date).toISOString().split('T')[0] : null,
+        end_date: tenancy.end_date ? new Date(tenancy.end_date).toISOString().split('T')[0] : null,
+        rent_pcm: tenancy.rent_pcm !== null ? parseFloat(tenancy.rent_pcm).toFixed(2) : null,
+        property_address: `${tenancy.address_line1}${tenancy.address_line2 ? ', ' + tenancy.address_line2 : ''}, ${tenancy.city} ${tenancy.postcode}`,
+      } : null,
+      co_tenants: coTenants,
+      balance: parseFloat(balance.toFixed(2)),
+      payment_history: payments.map(p => ({
+        ...p,
+        amount: parseFloat(p.amount).toFixed(2),
+        received_at: p.received_at ? new Date(p.received_at).toISOString().split('T')[0] : null,
+        created_at: p.created_at ? new Date(p.created_at).toISOString() : null,
+      })),
+    }
+  });
+});

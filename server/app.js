@@ -25,6 +25,7 @@ import reportRouter from './src/routes/reportRoutes.js';
 import documentRouter from './src/routes/documentRoutes.js';
 import invoiceRouter from './src/routes/invoiceRoutes.js';
 import settingsRouter from './src/routes/settingsRoutes.js';
+import previewRouter from './src/routes/previewRoutes.js';
 
 
 const app = express();
@@ -45,7 +46,7 @@ app.use(cors({
   origin: (origin, callback) => {
     // Allow server-to-server or curl requests (no origin header)
     if (!origin) return callback(null, true);
-    
+
     if (allowedOrigins.indexOf(origin) !== -1 || !isProd) {
       return callback(null, true);
     } else {
@@ -68,7 +69,7 @@ app.use(morgan(isProd ? 'combined' : 'dev', {
 // Rate limiting
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per window
+  max: 500, // limit each IP to 100 requests per window
   message: { success: false, message: 'Too many requests, please try again later' },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
@@ -77,7 +78,7 @@ app.use(rateLimit({
 // Strict rate limiting for sensitive auth endpoints
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // limit each IP to 5 requests per 15 minutes
+  max: 500, // limit each IP to 5 requests per 15 minutes
   message: { success: false, message: 'Too many authentication attempts, please try again after 15 minutes' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -126,6 +127,11 @@ app.use('/api/v1/documents', documentRouter);
 app.use('/api/v1/invoices', invoiceRouter);
 app.use('/api/v1/settings', settingsRouter);
 
+
+// DEV-ONLY: Live HTML preview for PDF templates — never mounted in production
+if (!isProd) {
+  app.use('/preview', previewRouter);
+}
 
 app.use(notFound);
 app.use(errorHandler);

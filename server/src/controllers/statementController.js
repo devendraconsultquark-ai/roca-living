@@ -34,7 +34,7 @@ const generateStatementPDF = (statement, landlord, landlordProfile, payments, de
       // Header: Logo Placeholder & ROCA Living Brand
       doc.rect(50, 45, 60, 40).fill('#1f2937');
       doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(12).text('ROCA', 55, 58, { width: 50, align: 'center' });
-      
+
       doc.fillColor('#1f2937').fontSize(20).font('Helvetica-Bold').text('ROCA Living', 125, 45);
       doc.fontSize(9).font('Helvetica').fillColor('#4b5563').text('Lettings & Property Management', 125, 68);
       doc.text('Email: management@rocaliving.co.uk | Tel: 020 7123 4567', 125, 80);
@@ -42,9 +42,9 @@ const generateStatementPDF = (statement, landlord, landlordProfile, payments, de
       // Title & Statement Metadata
       doc.fillColor('#1f2937').fontSize(14).font('Helvetica-Bold').text('LANDLORD STATEMENT', 350, 45, { align: 'right' });
       doc.fontSize(9).font('Helvetica').fillColor('#4b5563')
-         .text(`Statement ID: STMT-${statement.id}`, 350, 62, { align: 'right' })
-         .text(`Period: ${formatDateGB(statement.period_start)} to ${formatDateGB(statement.period_end)}`, 350, 74, { align: 'right' })
-         .text(`Date Issued: ${formatDateGB(new Date())}`, 350, 86, { align: 'right' });
+        .text(`Statement ID: STMT-${statement.id}`, 350, 62, { align: 'right' })
+        .text(`Period: ${formatDateGB(statement.period_start)} to ${formatDateGB(statement.period_end)}`, 350, 74, { align: 'right' })
+        .text(`Date Issued: ${formatDateGB(new Date())}`, 350, 86, { align: 'right' });
 
       // Horizontal Divider
       doc.moveTo(50, 110).lineTo(545, 110).strokeColor('#e5e7eb').stroke();
@@ -53,13 +53,13 @@ const generateStatementPDF = (statement, landlord, landlordProfile, payments, de
       doc.fontSize(10).fillColor('#4b5563').text('Landlord Details:', 50, 130);
       doc.fontSize(11).font('Helvetica-Bold').fillColor('#1f2937').text(landlord.name || '', 50, 145);
       doc.fontSize(9).font('Helvetica').fillColor('#4b5563');
-      
+
       const addressLines = [
         landlord.address || '',
         landlord.email || '',
         landlord.phone || ''
       ].filter(Boolean);
-      
+
       let addressY = 160;
       addressLines.forEach(line => {
         doc.text(line, 50, addressY);
@@ -70,7 +70,7 @@ const generateStatementPDF = (statement, landlord, landlordProfile, payments, de
       // Table 1: Rent Received
       // ----------------------------------------------------
       doc.font('Helvetica-Bold').fontSize(11).fillColor('#1f2937').text('Rent Receipts Collected', 50, 240);
-      
+
       let y = 258;
       // Header row
       doc.rect(50, y, 495, 20).fill('#1f2937');
@@ -81,7 +81,7 @@ const generateStatementPDF = (statement, landlord, landlordProfile, payments, de
 
       y += 20;
       doc.font('Helvetica').fillColor('#374151');
-      
+
       payments.forEach((p, idx) => {
         // Alternating background colors
         if (idx % 2 === 1) {
@@ -105,7 +105,7 @@ const generateStatementPDF = (statement, landlord, landlordProfile, payments, de
       // ----------------------------------------------------
       y += 35;
       doc.font('Helvetica-Bold').fontSize(11).fillColor('#1f2937').text('Fees & Deductions Breakdown', 50, y);
-      
+
       y += 18;
       // Header row
       doc.rect(50, y, 495, 20).fill('#4b5563');
@@ -153,12 +153,12 @@ const generateStatementPDF = (statement, landlord, landlordProfile, payments, de
 
       // Total Deductions Row
       const totalDeductions = parseFloat(statement.mgmt_fee) +
-                              parseFloat(statement.mgmt_fee_vat) +
-                              parseFloat(statement.roca_letting_fee) +
-                              parseFloat(statement.agent_letting_fee) +
-                              parseFloat(statement.nrl_withheld) +
-                              parseFloat(statement.deductions);
-      
+        parseFloat(statement.mgmt_fee_vat) +
+        parseFloat(statement.roca_letting_fee) +
+        parseFloat(statement.agent_letting_fee) +
+        parseFloat(statement.nrl_withheld) +
+        parseFloat(statement.deductions);
+
       doc.rect(50, y, 495, 20).fill('#f3f4f6');
       doc.fillColor('#1f2937').font('Helvetica-Bold');
       doc.text('Total Fees & Deductions', 60, y + 6);
@@ -175,9 +175,9 @@ const generateStatementPDF = (statement, landlord, landlordProfile, payments, de
 
       // Footer
       doc.fillColor('#9ca3af')
-         .fontSize(7.5)
-         .font('Helvetica')
-         .text('ROCA Property Group Ltd, Company No. 04914778. Registered Office: 128 City Road, London, EC1V 2NX', 50, 750, { align: 'center', width: 495 });
+        .fontSize(7.5)
+        .font('Helvetica')
+        .text('ROCA Property Group Ltd, Company No. 04914778. Registered Office: 128 City Road, London, EC1V 2NX', 50, 750, { align: 'center', width: 495 });
 
       doc.end();
 
@@ -212,272 +212,192 @@ const formatStatement = (s) => {
 export const generateStatements = catchAsync(async (req, res, next) => {
   const { statement_number } = req.body;
 
+  const {
+    // Source tracking — tells us which DB this property came from
+    source = 'local',           // 'local' | 'em'
+    source_property_id = null,  // original property id in the source DB\
+    landlord_id,   
+    landlord_name,
+    landlord_address,
+    nrl_number,
+    landlord_reference,
+    property_reference,
+    property_address,
+    tenant_name,
+    tenancy_type,
+    tenancy_start_date,
+    period_start,
+    period_end,
+    rent_received,
+    void_period_credit,
+    exp_invoice_no,
+    exp_amount,
+    setup_rebate,
+    previous_balance,
+    net_paid
+  } = req.body;
+
   if (statement_number) {
-    const {
-      landlord_name,
-      landlord_address,
-      nrl_number,
-      landlord_reference,
-      property_reference,
-      property_address,
-      tenant_name,
-      tenancy_type,
-      tenancy_start_date,
-      period_start,
-      period_end,
-      rent_received,
-      void_period_credit,
-      exp_invoice_no,
-      exp_amount,
-      setup_rebate,
-      previous_balance,
-      total_income,
-      total_expenditure,
-      net_paid
-    } = req.body;
-
-    if (!period_start || !period_end) {
-      throw new ApiError(400, 'Period start and end dates are required');
-    }
-
-    if (!landlord_name) {
-      throw new ApiError(400, 'Landlord name is required for statement generation');
-    }
-    // Resolve landlord ID
-    let landlordId = null;
-    let landlordUser = await db('users').where({ role: 'LANDLORD' }).where('name', 'like', `%${landlord_name}%`).first();
-    if (landlordUser) {
-      landlordId = landlordUser.id;
-    } else {
-      try {
-        const emLandlord = await emDb('users').where({ role: 'LANDLORD' }).where('name', 'like', `%${landlord_name}%`).first();
-        if (emLandlord) {
-          const localByEmail = await db('users').where({ email: emLandlord.email, role: 'LANDLORD' }).first();
-          if (localByEmail) {
-            landlordId = localByEmail.id;
-          } else {
-            throw new ApiError(404, `Landlord '${landlord_name}' found in emDb but has no synced local user account`);
-          }
-        } else {
-          throw new ApiError(404, `Landlord '${landlord_name}' not found locally or in emDb`);
-        }
-      } catch (err) {
-        if (err instanceof ApiError) throw err;
-        throw new ApiError(500, `Secondary database lookup failed for Landlord '${landlord_name}': ${err.message}`);
-      }
-    }
-
-    if (!property_address && !property_reference) {
-      throw new ApiError(400, 'Property address or reference is required for statement generation');
-    }
-    const propSearch = property_address || property_reference;
-    // Resolve property ID
-    let propertyId = null;
-    let resolvedProperty = await db('properties').where('address_line1', 'like', `%${propSearch}%`).first();
-    if (resolvedProperty) {
-      propertyId = resolvedProperty.id;
-    } else {
-      try {
-        const emProp = await emDb('properties').where('name', 'like', `%${propSearch}%`).first();
-        if (emProp) {
-          const localByPostcode = await db('properties').where('postcode', emProp.postcode || '').first();
-          if (localByPostcode) {
-            propertyId = localByPostcode.id;
-          } else {
-            throw new ApiError(404, `Property '${propSearch}' found in emDb but has no matching local property by postcode`);
-          }
-        } else {
-          throw new ApiError(404, `Property '${propSearch}' not found locally or in emDb`);
-        }
-      } catch (err) {
-        if (err instanceof ApiError) throw err;
-        throw new ApiError(500, `Secondary database lookup failed for Property '${propSearch}': ${err.message}`);
-      }
-    }
-
-    // Check if statement already exists
-    const existing = await db('landlord_statements').where({ statement_number }).first();
-    if (existing) {
-      throw new ApiError(400, `Statement ${statement_number} already exists`);
-    }
-
-    const statementInput = {
-      landlord_name,
-      landlord_address,
-      statement_number,
-      nrl_number,
-      landlord_reference,
-      property_reference,
-      property_address,
-      tenant_name,
-      tenancy_type,
-      tenancy_start_date,
-      period_start,
-      period_end,
-      rent_received,
-      void_period_credit,
-      exp_invoice_no,
-      exp_amount,
-      setup_rebate,
-      previous_balance
-    };
-
-    // Construct Page 2 invoice items mimicking spreadsheet values
-    const invoiceInput = {
-      landlord_name,
-      landlord_address,
-      invoice_number: exp_invoice_no ? `INV_${exp_invoice_no}` : `INV_${statement_number}`,
-      period_start,
-      period_end,
-      service_level: 'Fully Managed',
-      property_address,
-      tenant_name,
-      tenancy_start_date,
-      line_items: [
-        { description: "Tenancy sourcing fee (*1st month's rent less 28% discount UKV)", cost: 572.40, vat_percent: 0, discount: 572.40, net: 0 },
-        { description: "Tenant referencing / right to rent checks", cost: 0, vat_percent: 0, discount: 0, net: 0 },
-        { description: "Deposit registration (*UKV 100% discount)", cost: 25.00, vat_percent: 0, discount: 25.00, net: 0 },
-        { description: "Tenancy set up - admin (*UKV 100% discount)", cost: 25.00, vat_percent: 0, discount: 25.00, net: 0 },
-        { description: "Landlord ID / KYC (*UKV 100% discount)", cost: 30.00, vat_percent: 0, discount: 30.00, net: 0 },
-        { description: "Check Out - Inventory", cost: 100.00, vat_percent: 0, discount: 100.00, net: 0 },
-        { description: "Proof of Ownership - on file", cost: 0, vat_percent: 0, discount: 0, net: 0 },
-        { description: "EPC - on file", cost: 0, vat_percent: 0, discount: 0, net: 0 },
-        { description: "EICR - on file", cost: 0, vat_percent: 0, discount: 0, net: 0 },
-        { description: `Management Fee 8% (*discounted 100% UKV) (${formatDateGB(period_start)} – ${formatDateGB(period_end)})`, cost: 63.60, vat_percent: 0, discount: 63.60, net: 0 }
-      ],
-      total_gross: exp_amount || 816.00,
-      total_vat: 0.00,
-      total_discount: exp_amount || 816.00,
-      total_net: 0.00,
-      notes: "UK Vastgoed (UKV) introductory/new tenant discount applied in accordance with the landlord management agreement.\nAll fees are shown excluding VAT as ROCA Living is not VAT registered."
-    };
-
-    // Compile standalone statement PDF (1 Page)
-    const htmlContent = generateStandaloneStatementHTML(statementInput);
-    const pdfBuffer = await generatePortraitPDFWithPuppeteer(htmlContent);
-
-    // Save combined statement PDF
-    const filename = `RL_STMT_${landlordId}_${statement_number}.pdf`;
-    const relativePath = `uploads/statements/${filename}`;
-    const absolutePath = path.join(process.cwd(), relativePath);
-
-    const dir = path.dirname(absolutePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(absolutePath, pdfBuffer);
-
-    let statementId;
-    await db.transaction(async (trx) => {
-      // 1. Insert document record
-      const [docId] = await trx('documents').insert({
-        folder_id: null,
-        owner_type: 'landlord',
-        owner_id: landlordId,
-        doc_type: 'landlord_statement',
-        filename,
-        original_name: `Landlord Statement (${statement_number})`,
-        mime_type: 'application/pdf',
-        file_path: relativePath,
-        file_size_bytes: pdfBuffer.length,
-        uploaded_by: req.user.id
-      });
-
-      // 2. Insert statement record
-      [statementId] = await trx('landlord_statements').insert({
-        landlord_id: landlordId,
-        period_start,
-        period_end,
-        gross_rent: rent_received || 0.00,
-        mgmt_fee: 0.00,
-        mgmt_fee_vat: 0.00,
-        roca_letting_fee: 0.00,
-        agent_letting_fee: 0.00,
-        deductions: exp_amount || 0.00,
-        nrl_withheld: 0.00,
-        net_paid: net_paid || 0.00,
-        document_id: docId,
-        status: 'draft',
-        generated_at: trx.fn.now(),
-        generated_by: req.user.id,
-        statement_number,
-        tenant_name,
-        tenancy_type,
-        tenancy_start_date: tenancy_start_date || null,
-        void_period_credit: void_period_credit || 0.00,
-        exp_invoice_no,
-        exp_amount: exp_amount || 0.00,
-        setup_rebate: setup_rebate || 0.00,
-        previous_balance: previous_balance || 0.00
-      });
-
-      // 3. Insert transaction ledgers
-      const ledgerRows = [
-        { type: 'rent_in', amount: rent_received, desc: `Rent received for Statement ${statement_number}` },
-        { type: 'landlord_payout', amount: net_paid, desc: `Net payout generated for Statement ${statement_number}` }
-      ];
-
-      if (parseFloat(void_period_credit) > 0) {
-        ledgerRows.push({
-          type: 'other',
-          amount: void_period_credit,
-          desc: `Void period rent credit for Statement ${statement_number}`
-        });
-      }
-
-      if (parseFloat(exp_amount) > 0) {
-        ledgerRows.push({
-          type: 'deduction',
-          amount: exp_amount,
-          desc: `Accompanying Invoice ${exp_invoice_no || ''} deductions`
-        });
-      }
-
-      const txRows = ledgerRows.map(row => ({
-        type: row.type,
-        landlord_id: landlordId,
-        statement_id: statementId,
-        amount: parseFloat(row.amount || 0).toFixed(2),
-        vat_amount: 0.00,
-        description: row.desc,
-        transaction_date: trx.fn.now(),
-        reconciled: 1,
-        created_by: req.user.id
-      }));
-
-      await trx('transactions').insert(txRows);
-
-      // 4. Audit Log
-      await trx('audit_log').insert({
-        actor_id: req.user.id,
-        actor_role: req.user.role,
-        action: 'STATEMENT_GENERATED',
-        entity_type: 'landlord_statement',
-        entity_id: statementId,
-        meta: JSON.stringify({ landlord_id: landlordId, net_paid: parseFloat(net_paid || 0).toFixed(2), period_start, period_end, statement_number }),
-        ip_address: req.ip || null
-      });
-    });
-
-    return res.status(201).json({
-      success: true,
-      data: [{
-        statement_id: statementId,
-        landlord_id: landlordId,
-        landlord_name,
-        period_start,
-        period_end,
-        gross_rent: parseFloat(rent_received || 0).toFixed(2),
-        net_paid: parseFloat(net_paid || 0).toFixed(2),
-        status: 'generated'
-      }]
-    });
+  }
+  if (!period_start || !period_end) {
+    throw new ApiError(400, 'Period start and end dates are required');
+  }
+  if (!landlord_name) {
+    throw new ApiError(400, 'Landlord name is required for statement generation');
   }
 
-  const { period_start: pStart, period_end: pEnd, landlord_id: lId } = req.body;
-  const period_start = pStart;
-  const period_end = pEnd;
-  const landlord_id = lId;
+  // Check if statement number already exists
+  const existing = await db('landlord_statements').where({ statement_number }).first();
+  if (existing) {
+    throw new ApiError(400, `Statement ${statement_number} already exists`);
+  }
+
+  // ── No cross-DB resolution. All data comes directly from the form. ──
+  // For local-source properties, try to find the landlord_id in local DB (best-effort, not required).
+  let landlordId = null;
+  if (source === 'local' && landlord_name) {
+    const localUser = await db('users')
+      .where({ role: 'LANDLORD' })
+      .where('name', 'like', `%${landlord_name}%`)
+      .first();
+    if (localUser) landlordId = localUser.id;
+  }
+  // For 'em' source — landlordId stays null. Data is stored as text.
+
+  // Build PDF template input entirely from form data
+  const statementInput = {
+    landlord_name,
+    landlord_address,
+    statement_number,
+    nrl_number,
+    landlord_reference,
+    property_reference,
+    property_address,
+    tenant_name,
+    tenancy_type,
+    tenancy_start_date,
+    period_start,
+    period_end,
+    rent_received,
+    void_period_credit,
+    exp_invoice_no,
+    exp_amount,
+    setup_rebate,
+    previous_balance
+  };
+
+  // Generate PDF
+  const htmlContent = generateStandaloneStatementHTML(statementInput);
+  const pdfBuffer = await generatePortraitPDFWithPuppeteer(htmlContent);
+
+  // Save PDF to disk — use statement_number (no landlord_id dependency)
+  const filename = `RL_STMT_${statement_number}_${Date.now()}.pdf`;
+  const relativePath = `uploads/statements/${filename}`;
+  const absolutePath = path.join(process.cwd(), relativePath);
+
+  const dir = path.dirname(absolutePath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(absolutePath, pdfBuffer);
+
+  let statementId;
+  await db.transaction(async (trx) => {
+    // 1. Insert document record
+    const [docId] = await trx('documents').insert({
+      folder_id: null,
+      owner_type: 'landlord',
+      owner_id: landlordId || req.user.id,  // null for EM-sourced
+      doc_type: 'landlord_statement',
+      filename,
+      original_name: `Landlord Statement (${statement_number})`,
+      mime_type: 'application/pdf',
+      file_path: relativePath,
+      file_size_bytes: pdfBuffer.length,
+      uploaded_by: req.user.id
+    });
+
+    // 2. Insert statement record
+    [statementId] = await trx('landlord_statements').insert({
+      landlord_id: landlordId || null,
+      landlord_name,              // text snapshot (critical for EM-sourced records)
+      landlord_address: landlord_address || null,
+      source,
+      source_property_id: source_property_id ? String(source_property_id) : null,
+      period_start,
+      period_end,
+      gross_rent: parseFloat(rent_received || 0).toFixed(2),
+      mgmt_fee: 0.00,
+      mgmt_fee_vat: 0.00,
+      roca_letting_fee: 0.00,
+      agent_letting_fee: 0.00,
+      deductions: parseFloat(exp_amount || 0).toFixed(2),
+      nrl_withheld: 0.00,
+      net_paid: parseFloat(net_paid || 0).toFixed(2),
+      document_id: docId,
+      status: 'draft',
+      generated_at: trx.fn.now(),
+      generated_by: req.user.id,
+      statement_number,
+      tenant_name: tenant_name || null,
+      tenancy_type: tenancy_type || null,
+      tenancy_start_date: tenancy_start_date || null,
+      void_period_credit: parseFloat(void_period_credit || 0).toFixed(2),
+      exp_invoice_no: exp_invoice_no || null,
+      exp_amount: parseFloat(exp_amount || 0).toFixed(2),
+      setup_rebate: parseFloat(setup_rebate || 0).toFixed(2),
+      previous_balance: parseFloat(previous_balance || 0).toFixed(2)
+    });
+
+    // 3. Transaction ledgers (landlord_id may be null for EM sources)
+    const ledgerRows = [
+      { type: 'rent_in', amount: rent_received, desc: `Rent received for Statement ${statement_number}` },
+      { type: 'landlord_payout', amount: net_paid, desc: `Net payout for Statement ${statement_number}` }
+    ];
+    if (parseFloat(void_period_credit) > 0) {
+      ledgerRows.push({ type: 'other', amount: void_period_credit, desc: `Void period credit — ${statement_number}` });
+    }
+    if (parseFloat(exp_amount) > 0) {
+      ledgerRows.push({ type: 'deduction', amount: exp_amount, desc: `Invoice ${exp_invoice_no || ''} deductions` });
+    }
+
+    const txRows = ledgerRows.map(row => ({
+      type: row.type,
+      landlord_id: landlordId || null,
+      statement_id: statementId,
+      amount: parseFloat(row.amount || 0).toFixed(2),
+      vat_amount: 0.00,
+      description: row.desc,
+      transaction_date: trx.fn.now(),
+      reconciled: 1,
+      created_by: req.user.id
+    }));
+    await trx('transactions').insert(txRows);
+
+    // 4. Audit log
+    await trx('audit_log').insert({
+      actor_id: req.user.id,
+      actor_role: req.user.role,
+      action: 'STATEMENT_GENERATED',
+      entity_type: 'landlord_statement',
+      entity_id: statementId,
+      meta: JSON.stringify({ landlord_id: landlordId, landlord_name, source, net_paid: parseFloat(net_paid || 0).toFixed(2), period_start, period_end, statement_number }),
+      ip_address: req.ip || null
+    });
+  });
+
+  return res.status(201).json({
+    success: true,
+    data: [{
+      statement_id: statementId,
+      landlord_id: landlordId,
+      landlord_name,
+      source,
+      period_start,
+      period_end,
+      gross_rent: parseFloat(rent_received || 0).toFixed(2),
+      net_paid: parseFloat(net_paid || 0).toFixed(2),
+      status: 'generated'
+    }]
+  });
 
   if (!period_start || !period_end) {
     throw new ApiError(400, 'Period start and end dates are required');
@@ -648,7 +568,7 @@ export const generateStatements = catchAsync(async (req, res, next) => {
       const filename = `RL_STMT_${landlordId}_${period_start}.pdf`;
       const relativePath = `uploads/statements/${filename}`;
       const absolutePath = path.join(process.cwd(), relativePath);
-      
+
       const statementData = {
         id: statementId,
         period_start,
@@ -827,12 +747,18 @@ export const downloadStatement = catchAsync(async (req, res, next) => {
     throw new ApiError(404, 'Associated statement document record not found');
   }
 
-  const absolutePath = path.resolve(docRecord.file_path);
+  // Resolve absolute path — file_path stored as relative 'uploads/statements/...'
+  const absolutePath = path.isAbsolute(docRecord.file_path)
+    ? docRecord.file_path
+    : path.join(process.cwd(), docRecord.file_path);
+
   if (!fs.existsSync(absolutePath)) {
-    throw new ApiError(404, 'PDF file not found on disk');
+    throw new ApiError(404, `PDF file not found on disk: ${absolutePath}`);
   }
 
+  const filename = docRecord.filename || path.basename(absolutePath);
   res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.sendFile(absolutePath);
 });
 
@@ -841,11 +767,11 @@ export const getAutofillMetadata = catchAsync(async (req, res, next) => {
   const localProps = await db('properties')
     .leftJoin('users as landlords', 'properties.landlord_id', 'landlords.id')
     .leftJoin('landlord_profiles as profiles', 'landlords.id', 'profiles.user_id')
-    .leftJoin('tenancies', function() {
+    .leftJoin('tenancies', function () {
       this.on('properties.id', '=', 'tenancies.property_id')
         .andOn('tenancies.status', '=', db.raw("'active'"));
     })
-    .leftJoin('tenants', function() {
+    .leftJoin('tenants', function () {
       this.on('tenancies.id', '=', 'tenants.tenancy_id')
         .andOn('tenants.is_lead_tenant', '=', db.raw("1"));
     })
@@ -874,7 +800,7 @@ export const getAutofillMetadata = catchAsync(async (req, res, next) => {
   try {
     emProps = await emDb('properties')
       .leftJoin('users as landlords', 'properties.landlord_id', 'landlords.id')
-      .leftJoin('tenant_leases as leases', function() {
+      .leftJoin('tenant_leases as leases', function () {
         this.on('properties.id', '=', 'leases.property_id')
           .andOn('leases.status', '=', emDb.raw("'active'"));
       })
@@ -959,6 +885,12 @@ export const getAutofillMetadata = catchAsync(async (req, res, next) => {
     const initials = parseInitials(p.landlord_name, p.landlord_initials);
     const rentVal = p.tenancy_rent_pcm || p.property_rent_pcm || 0;
 
+    // Format NRL as "{Initials}:{NRL}" per Excel spec (e.g. "RB:NL945005")
+    const rawNrl = p.landlord_nrl_number || '';
+    const nrlFormatted = rawNrl && initials
+      ? initials.split('/').map(ini => `${ini}:${rawNrl}`).join(' / ')
+      : rawNrl;
+
     allProperties.push({
       source: 'local',
       property_id: p.property_id,
@@ -969,7 +901,7 @@ export const getAutofillMetadata = catchAsync(async (req, res, next) => {
       landlord_name: p.landlord_name || '',
       landlord_address: p.landlord_address || '',
       landlord_initials: initials,
-      nrl_number: p.landlord_nrl_number || '',
+      nrl_number: nrlFormatted,
       landlord_reference: `RL_LR_${blockName}_${aptNumber}`,
       property_reference: `${blockName}-${aptNumber}`,
       tenant_name: p.tenant_name || '',
@@ -1008,6 +940,12 @@ export const getAutofillMetadata = catchAsync(async (req, res, next) => {
     const addr = p.property_address || propName;
     const fullPropAddr = [addr, p.property_city, p.property_postcode].filter(Boolean).join(', ');
 
+    // Format NRL as "{Initials}:{NRL}" per Excel spec
+    const rawNrl = localProfile?.nrl_number || '';
+    const nrlFormatted = rawNrl && initials
+      ? initials.split('/').map(ini => `${ini}:${rawNrl}`).join(' / ')
+      : rawNrl;
+
     allProperties.push({
       source: 'em',
       property_id: p.property_id,
@@ -1018,7 +956,7 @@ export const getAutofillMetadata = catchAsync(async (req, res, next) => {
       landlord_name: p.landlord_name || '',
       landlord_address: p.landlord_address || p.landlord_company_address || '',
       landlord_initials: initials,
-      nrl_number: localProfile?.nrl_number || '',
+      nrl_number: nrlFormatted,
       landlord_reference: `RL_LR_${blockName}_${aptNumber}`,
       property_reference: `${blockName}-${aptNumber}`,
       tenant_name: p.tenant_name || '',

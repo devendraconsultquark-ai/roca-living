@@ -80,16 +80,43 @@ export const formatLongDate = (val) => {
     ];
     const month = monthNames[d.getMonth()];
     const year = d.getFullYear();
-    
+
     let suffix = 'th';
     if (day === 1 || day === 21 || day === 31) suffix = 'st';
     else if (day === 2 || day === 22) suffix = 'nd';
     else if (day === 3 || day === 23) suffix = 'rd';
-    
+
     return `${day}${suffix} ${month} ${year}`;
   } catch {
     return '';
   }
+};
+
+const formatAddress = (address) => {
+  if (!address) return '';
+
+  const parts = address
+    .split(',')
+    .map(p => p.trim())
+    .filter(Boolean);
+
+  const lines = [];
+
+  if (parts.length >= 2) {
+    lines.push(parts.slice(0, 2).join(', '));     // Apartment 3, Parsons House
+  }
+
+  if (parts.length >= 4) {
+    lines.push(parts.slice(2, 4).join(', '));     // Washington, Sunderland
+  } else if (parts.length > 2) {
+    lines.push(parts.slice(2).join(', '));
+  }
+
+  if (parts.length >= 5) {
+    lines.push(parts[4]);                         // NE37 1EZ
+  }
+
+  return lines.map(line => `<div>${line}</div>`).join('');
 };
 
 /**
@@ -100,17 +127,99 @@ export const cleanLine = (line) => {
   return line.replace(/^\s*[•\-\*]\s*/, '').trim();
 };
 
+export const formatPropertyAddress = (address) => {
+  if (!address) return "—";
+
+  const parts = address
+    .split(",")
+    .map(part => part.trim())
+    .filter(Boolean);
+
+  const lines = [];
+
+  if (parts.length >= 2) {
+    lines.push(parts.slice(0, 2).join(", "));
+  }
+
+  if (parts.length >= 4) {
+    lines.push(parts.slice(2, 4).join(", "));
+  } else if (parts.length > 2) {
+    lines.push(parts.slice(2).join(", "));
+  }
+
+  if (parts.length >= 5) {
+    lines.push(parts[4]);
+  }
+
+  return lines.map(line => `<div>${line}</div>`).join("");
+};
+
+export const generateFooterBarHTML = () => `
+<div class="footer">
+
+  <div class="footer-top">
+
+    <div class="footer-col">
+      <div class="footer-circle-icon">
+        <svg class="footer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+        </svg>
+      </div>
+
+      <div class="footer-text-stack">
+        <span class="footer-lbl">Questions?</span>
+        <span class="footer-val">0207 101 9551</span>
+      </div>
+    </div>
+
+    <div class="footer-col">
+      <div class="footer-circle-icon">
+        <svg class="footer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+          <polyline points="22,6 12,13 2,6"/>
+        </svg>
+      </div>
+
+      <div class="footer-text-stack">
+        <span class="footer-lbl">Email</span>
+        <span class="footer-val">admin@rocaliving.co.uk</span>
+      </div>
+    </div>
+
+    <div class="footer-col">
+      <div class="footer-circle-icon">
+        <svg class="footer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+      </div>
+
+      <div class="footer-text-stack">
+        <span class="footer-lbl">ROCA Living</span>
+        <span class="footer-val">Better living. Managed well.</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer-bottom">
+      Roca Property Group Limited trading as ROCA Living.
+      Registered in England & Wales Company No 04914778
+  </div>
+
+</div>
+`;
+
 /**
  * HTML Body for Statement Page
  */
 export const generateStatementHTMLBody = (data) => {
   const landlordName = data.landlord_name || 'Landlord Name';
   const landlordAddress = data.landlord_address || '';
-  const landlordAddressLines = landlordAddress.split(/[\n,]/).map(line => line.trim()).filter(Boolean);
-  
+
   const logoBase64 = getLogoBase64();
-  const logoHtml = logoBase64 
-    ? `<img src="${logoBase64}" alt="ROCA Living" style="height: 52px; display: block;" />`
+  const logoHtml = logoBase64
+    ? `<img src="${logoBase64}" alt="ROCA Living" style="height: 70px; display: block;" />`
     : `<div style="font-size: 26px; font-weight: bold; color: #1a1a1a; letter-spacing: 0.5px;">ROCA <span style="background-color: #ff9f43; color: white; padding: 2px 8px; border-radius: 4px;">Living</span></div>`;
 
   const issueDateStr = formatLongDate(new Date());
@@ -135,14 +244,14 @@ export const generateStatementHTMLBody = (data) => {
           <svg class="contact-icon" viewBox="0 0 24 24" fill="none" stroke="#ff9f43" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
           </svg>
-          <span>Telephone: 0207 101 9551</span>
+          <span><strong>Telephone:</strong> 0207 101 9551</span>
         </div>
         <div class="contact-row">
           <svg class="contact-icon" viewBox="0 0 24 24" fill="none" stroke="#ff9f43" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
             <polyline points="22,6 12,13 2,6"></polyline>
           </svg>
-          <span>Email: admin@rocaliving.co.uk</span>
+          <span><strong>Email:</strong> admin@rocaliving.co.uk</span>
         </div>
         <div class="contact-row">
           <svg class="contact-icon" viewBox="0 0 24 24" fill="none" stroke="#ff9f43" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -150,7 +259,7 @@ export const generateStatementHTMLBody = (data) => {
             <line x1="2" y1="12" x2="22" y2="12"></line>
             <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
           </svg>
-          <span>Website: www.rocaliving.co.uk</span>
+          <span><strong>Website:</strong> rocaliving.co.uk</span>
         </div>
       </div>
     </div>
@@ -166,15 +275,11 @@ export const generateStatementHTMLBody = (data) => {
     <!-- Recipient & Meta info box -->
     <div class="recipient-block">
       <div class="to-details">
-        <div style="font-weight: bold; font-size: 14px; margin-bottom: 4px; color: #1a1a1a;">${landlordName}</div>
-        ${landlordAddressLines.map(line => `<div>${line}</div>`).join('')}
-      </div>
+    <div class="recipient-name">${landlordName}</div>
+    ${formatAddress(landlordAddress)}
+</div>
       
       <div class="details-box">
-        <svg style="color: #ff9f43; width: 24px; height: 24px; flex-shrink: 0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1z"></path>
-          <path d="M16 8h-6m6 4h-6m6 4h-6"></path>
-        </svg>
         <div style="display: flex; flex-direction: column; gap: 6px; flex-grow: 1;">
           <div style="display: flex; flex-direction: column;">
             <span class="details-lbl">Statement No. / NRL Number</span>
@@ -206,8 +311,9 @@ export const generateStatementHTMLBody = (data) => {
           </svg>
         </div>
         <div class="card-content">
-          <span class="card-title">PROPERTY DETAILS</span>
-          <span class="card-text-bold" style="color: #1a1a1a;">${data.property_address || '—'}</span>
+          <span class="card-title">Property Details</span>
+          <span class="card-field-lbl">Property:</span>
+          <span class="card-text-bold" style="color: #1a1a1a; line-height: 1.4; display: block;">${formatPropertyAddress(data.property_address)}</span>
         </div>
       </div>
       
@@ -219,10 +325,13 @@ export const generateStatementHTMLBody = (data) => {
           </svg>
         </div>
         <div class="card-content">
-          <span class="card-title">TENANT DETAILS</span>
-          <span class="card-text-row" style="color: #1a1a1a; font-weight: bold; margin-bottom: 2px;">${data.tenant_name || '—'}</span>
-          <span class="card-text-row"><span class="card-text-bold" style="font-size: 9px; color: #6b7280; text-transform: uppercase;">Tenancy Type:</span> ${data.tenancy_type || 'Assured Periodic Tenancy (APT)'}</span>
-          <span class="card-text-row"><span class="card-text-bold" style="font-size: 9px; color: #6b7280; text-transform: uppercase;">Tenancy Start Date:</span> ${formatDate(data.tenancy_start_date)}</span>
+          <span class="card-title">Tenant Details</span>
+          <span class="card-field-lbl">Tenant Name:</span>
+          <span class="card-text-row" style="color: #1a1a1a; font-weight: bold; margin-bottom: 4px; display: block;">${data.tenant_name || '—'}</span>
+          <span class="card-field-lbl">Tenancy Type:</span>
+          <span class="card-text-row" style="display: block; margin-bottom: 4px;">${data.tenancy_type || 'Assured Periodic Tenancy (APT)'}</span>
+          <span class="card-field-lbl">Tenancy Start Date:</span>
+          <span class="card-text-row" style="display: block;">${formatDate(data.tenancy_start_date)}</span>
         </div>
       </div>
     </div>
@@ -240,7 +349,7 @@ export const generateStatementHTMLBody = (data) => {
       <div class="table-body">
         <div class="property-group-title">${data.property_address || '—'}</div>
         <div class="table-row">
-          <span class="row-desc">Rent received for the period ${formatDate(data.period_start)} to ${formatDate(data.period_end)} – ${data.tenant_name || 'Tenant'}</span>
+          <span class="row-desc">Rent received for the month ${formatDate(data.period_start)} to ${formatDate(data.period_end)} – ${data.tenant_name || 'Tenant'}</span>
           <div class="row-vals">
             <span class="col-amount">${formatCurrency(rentVal)}</span>
             <span class="col-vat">£0.00</span>
@@ -283,9 +392,9 @@ export const generateStatementHTMLBody = (data) => {
         <div class="table-row">
           <span class="row-desc">Invoice No ${data.exp_invoice_no || '—'} (see accompanying invoice & breakdown)</span>
           <div class="row-vals">
-            <span class="col-amount" style="color: #b91c1c;">-${formatCurrency(expAmountVal)}</span>
+            <span class="col-amount" style="color: #000;">-${formatCurrency(expAmountVal)}</span>
             <span class="col-vat">£0.00</span>
-            <span class="col-gross" style="color: #b91c1c;">-${formatCurrency(expAmountVal)}</span>
+            <span class="col-gross" style="color: #000;">-${formatCurrency(expAmountVal)}</span>
           </div>
         </div>` : ''}
         ${setupRebateVal > 0 ? `
@@ -326,56 +435,37 @@ export const generateStatementHTMLBody = (data) => {
             <span>Balance from previous statement</span>
             <span>${formatCurrency(prevBalanceVal)}</span>
           </div>
-          <div class="summary-row">
-            <span>Net income for the period</span>
+          <div class="summary-row summary-row-highlight">
+            <span>Income for the period</span>
             <span>${formatCurrency(totalIncome)}</span>
           </div>
           <div class="summary-row">
             <span>Less expenditure</span>
             <span>${totalExpenditure > 0 ? '-' : ''}${formatCurrency(totalExpenditure)}</span>
           </div>
-        </div>
-        <div class="net-fees-box">
-          <span>NEW BALANCE</span>
-          <span>${formatCurrency(newBalance)}</span>
-        </div>
+          </div>
+          <div class="summary-total">
+            <span>NEW BALANCE</span>
+            <span style="color: #ff9f43;">${formatCurrency(newBalance)}</span>
+          </div>
       </div>
       
-      <div class="payment-card">
-        <div class="payment-title">Payment Amount</div>
+     <div class="payment-section">
+
+    <div class="payment-card">
+        <div class="payment-title">PAYMENT AMOUNT</div>
         <div class="payment-val">${formatCurrency(netIncome)}</div>
-        <div class="payment-desc">The amount shown will be transferred to your designated bank account as agreed.</div>
-      </div>
     </div>
-    
+
+    <div class="payment-desc">
+        The amount shown will be transferred to your designated bank account as agreed.
+    </div>
+
+</div>
+      </div>
     <!-- Footer -->
-    <div class="footer-bar">
-      <div class="footer-col">
-        <div class="footer-circle-icon">?</div>
-        <div class="footer-text-stack">
-          <span class="footer-lbl">Questions?</span>
-          <span class="footer-val">0207 101 9551</span>
-        </div>
-      </div>
-      <div class="footer-col">
-        <div class="footer-circle-icon">@</div>
-        <div class="footer-text-stack">
-          <span class="footer-lbl">Email</span>
-          <span class="footer-val">admin@rocaliving.co.uk</span>
-        </div>
-      </div>
-      <div class="footer-col">
-        <div class="footer-circle-icon">🏠</div>
-        <div class="footer-text-stack">
-          <span class="footer-lbl">ROCA Living</span>
-          <span class="footer-val">Better living. Managed well.</span>
-        </div>
-      </div>
-    </div>
-    
-    <div class="footer-disclaimer">
-      Roca Property Group Limited trading as ROCA Living. Registered in England & Wales Company No 04914778
-    </div>
+    ${generateFooterBarHTML()}
+
   `;
 };
 
@@ -385,23 +475,26 @@ export const generateStatementHTMLBody = (data) => {
 export const generateInvoiceHTMLBody = (data) => {
   const landlordName = data.landlord_name || 'Landlord Name';
   const landlordAddress = data.landlord_address || '';
-  const landlordAddressLines = landlordAddress.split(/[\n,]/).map(line => line.trim()).filter(Boolean);
-  
+  const landlordAddressLines = landlordAddress
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean);
+
   const logoBase64 = getLogoBase64();
-  const logoHtml = logoBase64 
-    ? `<img src="${logoBase64}" alt="ROCA Living" style="height: 52px; display: block;" />`
+  const logoHtml = logoBase64
+    ? `<img src="${logoBase64}" alt="ROCA Living" style="height: 70px; display: block;" />`
     : `<div style="font-size: 26px; font-weight: bold; color: #1a1a1a; letter-spacing: 0.5px;">ROCA <span style="background-color: #ff9f43; color: white; padding: 2px 8px; border-radius: 4px;">Living</span></div>`;
 
   const issueDateStr = formatLongDate(data.period_end || new Date());
-  
+
   const lineItems = data.line_items || [];
-  
+
   // Calculate sums
   let totalGross = parseFloat(data.total_gross) || 0;
   let totalVat = parseFloat(data.total_vat) || 0;
   let totalDiscount = parseFloat(data.total_discount) || 0;
   let totalNet = parseFloat(data.total_net) || 0;
-  
+
   if (lineItems.length > 0 && !data.total_gross) {
     totalGross = 0;
     totalVat = 0;
@@ -415,7 +508,7 @@ export const generateInvoiceHTMLBody = (data) => {
   }
 
   // Format Notes dynamically or fallback
-  const notesHtml = data.notes 
+  const notesHtml = data.notes
     ? `<div class="notes-card">
          <div class="summary-card-header">Notes</div>
          <div class="notes-body">
@@ -443,14 +536,14 @@ export const generateInvoiceHTMLBody = (data) => {
           <svg class="contact-icon" viewBox="0 0 24 24" fill="none" stroke="#ff9f43" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
           </svg>
-          <span>Telephone: 0207 101 9551</span>
+          <span><strong>Telephone:</strong> 0207 101 9551</span>
         </div>
         <div class="contact-row">
           <svg class="contact-icon" viewBox="0 0 24 24" fill="none" stroke="#ff9f43" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
             <polyline points="22,6 12,13 2,6"></polyline>
           </svg>
-          <span>Email: admin@rocaliving.co.uk</span>
+          <span><strong>Email:</strong> admin@rocaliving.co.uk</span>
         </div>
         <div class="contact-row">
           <svg class="contact-icon" viewBox="0 0 24 24" fill="none" stroke="#ff9f43" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -458,7 +551,7 @@ export const generateInvoiceHTMLBody = (data) => {
             <line x1="2" y1="12" x2="22" y2="12"></line>
             <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
           </svg>
-          <span>Website: www.rocaliving.co.uk</span>
+          <span><strong>Website:</strong> rocaliving.co.uk</span>
         </div>
       </div>
     </div>
@@ -474,9 +567,14 @@ export const generateInvoiceHTMLBody = (data) => {
     <!-- Recipient & Meta info box -->
     <div class="recipient-block">
       <div class="to-details">
-        <div style="font-weight: bold; font-size: 14px; margin-bottom: 4px; color: #1a1a1a;">${landlordName}</div>
-        ${landlordAddressLines.map(line => `<div>${line}</div>`).join('')}
-      </div>
+  <div class="recipient-name">
+    ${landlordName}
+  </div>
+
+  <div class="recipient-address">
+    ${formatAddress(landlordAddress)}
+  </div>
+</div>
       
       <div class="details-box">
         <svg style="color: #ff9f43; width: 24px; height: 24px; flex-shrink: 0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -506,8 +604,9 @@ export const generateInvoiceHTMLBody = (data) => {
           </svg>
         </div>
         <div class="card-content">
-          <span class="card-title">PROPERTY:</span>
-          <span class="card-text-bold" style="color: #1a1a1a;">${data.property_address || '—'}</span>
+          <span class="card-title">Property Details</span>
+          <span class="card-field-lbl">Property:</span>
+          <span class="card-text-bold" style="color: #1a1a1a; line-height: 1.4; display: block;">${formatPropertyAddress(data.property_address)}</span>
         </div>
       </div>
       
@@ -519,9 +618,11 @@ export const generateInvoiceHTMLBody = (data) => {
           </svg>
         </div>
         <div class="card-content">
-          <span class="card-title">TENANT:</span>
-          <span class="card-text-row" style="color: #1a1a1a; font-weight: bold; margin-bottom: 2px;">${data.tenant_name || '—'}</span>
-          <span class="card-text-row"><span class="card-text-bold" style="font-size: 9px; color: #6b7280; text-transform: uppercase;">Tenancy Start Date:</span> ${formatDate(data.tenancy_start_date)}</span>
+          <span class="card-title">Tenant Details</span>
+          <span class="card-field-lbl">Tenant Name:</span>
+          <span class="card-text-row" style="color: #1a1a1a; font-weight: bold; margin-bottom: 4px; display: block;">${data.tenant_name || '—'}</span>
+          <span class="card-field-lbl">Tenancy Start Date:</span>
+          <span class="card-text-row" style="display: block;">${formatDate(data.tenancy_start_date)}</span>
         </div>
       </div>
       
@@ -543,22 +644,22 @@ export const generateInvoiceHTMLBody = (data) => {
       <table class="invoice-table">
         <thead>
           <tr>
-            <th class="text-left">Items</th>
-            <th class="text-right" style="width: 80px;">Cost<br/>£</th>
+            <th class="text-left">ITEMS</th>
+            <th class="text-right" style="width: 80px;">COST<br/>£</th>
             <th class="text-right" style="width: 70px;">VAT<br/>£</th>
             <th class="text-right" style="width: 60px;">VAT<br/>%</th>
-            <th class="text-right" style="width: 130px;">Discount<br/>£ (UKV)</th>
-            <th class="text-right" style="width: 90px;">Net<br/>£</th>
+            <th class="text-right" style="width: 130px;">DISCOUNT<br/>£ (UKV)</th>
+            <th class="text-right" style="width: 90px;">NET<br/>£</th>
           </tr>
         </thead>
         <tbody>
           ${lineItems.map(item => {
-            const cost = parseFloat(item.cost || 0);
-            const vatPct = parseFloat(item.vat_percent || 0);
-            const vat = (cost * vatPct) / 100;
-            const discount = parseFloat(item.discount || 0);
-            const net = Math.max(0, cost + vat - discount);
-            return `
+    const cost = parseFloat(item.cost || 0);
+    const vatPct = parseFloat(item.vat_percent || 0);
+    const vat = (cost * vatPct) / 100;
+    const discount = parseFloat(item.discount || 0);
+    const net = Math.max(0, cost + vat - discount);
+    return `
               <tr>
                 <td class="text-left">${item.description || '—'}</td>
                 <td class="text-right">${formatDecimalOnly(cost)}</td>
@@ -568,7 +669,7 @@ export const generateInvoiceHTMLBody = (data) => {
                 <td class="text-right" style="font-weight: bold;">${formatDecimalOnly(net)}</td>
               </tr>
             `;
-          }).join('')}
+  }).join('')}
           <tr class="total-row">
             <td class="text-left">TOTAL</td>
             <td class="text-right">${formatDecimalOnly(totalGross)}</td>
@@ -613,9 +714,8 @@ export const generateInvoiceHTMLBody = (data) => {
     
     ${notesHtml}
     
-    <div class="footer-disclaimer" style="margin-top: 15px;">
-      Roca Property Group Limited trading as ROCA Living. Registered in England & Wales Company No 04914778
-    </div>
+    <!-- Footer -->
+    ${generateFooterBarHTML()}
   `;
 };
 
@@ -623,14 +723,15 @@ export const generateInvoiceHTMLBody = (data) => {
  * Shared Stylesheet for Statement and Invoice Layouts
  */
 const getTemplateStyles = () => `
-  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
-  
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap');
+
   * { box-sizing: border-box; }
   
   body {
     margin: 0;
     padding: 0;
-    font-family: 'Outfit', 'Segoe UI', system-ui, -apple-system, sans-serif;
+   font-family: "Montserrat", sans-serif;
     color: #1f2937;
     background-color: #ffffff;
     font-size: 13px;
@@ -641,7 +742,8 @@ const getTemplateStyles = () => `
   .page {
     width: 210mm;
     height: 297mm;
-    padding: 10mm 15mm;
+    padding: 0mm 8mm;
+    padding-top: 4mm;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -664,10 +766,10 @@ const getTemplateStyles = () => `
   .contact-group {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    font-size: 11px;
+    gap: 3px;
+    font-size: 12px;
     font-weight: 500;
-    color: #4b5563;
+    color: #000;
     align-items: flex-start;
   }
   
@@ -677,17 +779,21 @@ const getTemplateStyles = () => `
     justify-content: flex-start;
     gap: 6px;
   }
+
+  .contact-row span {
+    font-weight: normal;
+  }
   
   .contact-icon {
-    width: 13px;
-    height: 13px;
+    width: 16px;
+    height: 16px;
   }
   
   .divider-line {
-    height: 2px;
+    height: 3px;
     background-color: #ff9f43;
-    margin: 8px -15mm 12px -15mm;
-    width: calc(100% + 30mm);
+    margin: 0px -8mm 10px -8mm;
+    width: calc(100% + 16mm);
   }
   
   /* Title Row */
@@ -700,7 +806,7 @@ const getTemplateStyles = () => `
   
   .doc-title {
     font-size: 24px;
-    font-weight: 700;
+    font-weight: 900;
     color: #1a1a1a;
     letter-spacing: 0.3px;
     margin: 0;
@@ -708,8 +814,8 @@ const getTemplateStyles = () => `
   }
   
   .doc-date {
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 400;
     color: #4b5563;
   }
   
@@ -725,7 +831,7 @@ const getTemplateStyles = () => `
   .to-details {
     flex: 1;
     font-size: 13px;
-    color: #4b5563;
+    color: #000;
     line-height: 1.4;
   }
   
@@ -733,7 +839,7 @@ const getTemplateStyles = () => `
     width: 270px;
     background-color: #FAF5F0;
     border: 1px solid #EAD8C7;
-    border-radius: 6px;
+    border-radius: 3px;
     padding: 10px 12px;
     display: flex;
     align-items: center;
@@ -741,10 +847,9 @@ const getTemplateStyles = () => `
   }
   
   .details-lbl {
-    font-size: 9px;
-    font-weight: 700;
+    font-size: 12px;
+    font-weight: 400;
     color: #6b7280;
-    text-transform: uppercase;
     letter-spacing: 0.3px;
     margin-bottom: 2px;
   }
@@ -766,7 +871,7 @@ const getTemplateStyles = () => `
     flex: 1;
     background-color: #FAF5F0;
     border: 1px solid #EAD8C7;
-    border-radius: 6px;
+    border-radius: 3px;
     padding: 10px 12px;
     display: flex;
     align-items: flex-start;
@@ -794,17 +899,27 @@ const getTemplateStyles = () => `
   }
   
   .card-title {
-    font-size: 9px;
-    font-weight: 700;
-    color: #6b7280;
+    font-size: 12px;
+    font-weight: 900;
+    color: #1a1a1a;
     text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 4px;
+  }
+
+  /* Stacked field label inside a card (e.g. "Property:", "Tenant Name:") */
+  .card-field-lbl {
+    font-size: 12px;
+    font-weight: 400;
+    color: #6b7280;
     letter-spacing: 0.3px;
-    margin-bottom: 3px;
+    margin-top: 4px;
+    display: block;
   }
   
   .card-text-row {
     font-size: 11.5px;
-    color: #4b5563;
+    color: #000;
   }
   
   .card-text-bold {
@@ -821,14 +936,17 @@ const getTemplateStyles = () => `
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding-bottom: 4px;
-    border-bottom: 1.5px solid #ff9f43;
-    margin-bottom: 6px;
+    padding: 5px 8px;
+    background-color: #faf0f8ff;
+    border-top: 1.5px solid #EAD8C7;
+    border-bottom: 1.5px solid #EAD8C7;
+    font-weight: 700;
+    margin-top: 2px;
   }
   
   .section-title {
     font-size: 12px;
-    font-weight: 700;
+    font-weight: 900;
     color: #1a1a1a;
     text-transform: uppercase;
     letter-spacing: 0.3px;
@@ -884,9 +1002,9 @@ const getTemplateStyles = () => `
     justify-content: space-between;
     align-items: center;
     padding: 5px 8px;
-    background-color: #FAF5F0;
-    border-top: 1.5px solid #ff9f43;
-    border-bottom: 1.5px solid #ff9f43;
+    background-color: #faf0f8ff;
+    border-top: 1.5px solid #EAD8C7;
+    border-bottom: 1.5px solid #EAD8C7;
     font-weight: 700;
     margin-top: 2px;
   }
@@ -909,46 +1027,88 @@ const getTemplateStyles = () => `
     gap: 15px;
   }
   
-  .summary-card {
-    flex: 1.2;
-    background-color: #ffffff;
-    border: 1px solid #EAD8C7;
-    border-radius: 6px;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
+  .summary-card{
+    flex:1.5;
+    background:#fff;
+
+    border:1px solid #ead8c7;
+    border-radius:4px;
+
+    overflow:hidden;
+}
   
-  .summary-card-header {
-    background-color: #FAF5F0;
-    padding: 8px 12px;
-    font-size: 11px;
-    font-weight: 700;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    border-bottom: 1px solid #EAD8C7;
-  }
+ .summary-card-header{
+
+    background:#faf5ef;
+
+    border-bottom:1px solid #ead8c7;
+
+    padding:8px 14px;
+
+    font-size:11px;
+
+    font-weight:900;
+
+    letter-spacing:.4px;
+
+    color:#000;
+
+    text-transform:uppercase;
+}
   
-  .summary-card-body {
-    padding: 10px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
+.summary-card-body{
+    padding:10px 14px;
+}
+
+.summary-total{
+    border-top:1px solid #EAD8C7;
+    background:#FAF5EF;
+    padding:12px 14px;
+}
+
+.summary-total span{
+  padding: 0 14px
+}
   
-  .summary-row {
-    display: flex;
-    justify-content: space-between;
-    font-size: 11.5px;
-    color: #1a1a1a;
-  }
-  
-  .summary-row-bold {
-    display: flex;
-    justify-content: space-between;
-    font-weight: 700;
-  }
+.summary-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+
+    padding:6px 0;
+
+    font-size:12px;
+    color:#4b5563;
+
+    border-bottom:1px solid #EAD8C7;
+}
+
+.summary-row:last-child{
+    border-bottom:none;
+}
+
+.summary-row-highlight{
+    font-weight:700;
+    color:#1a1a1a;
+}
+
+.summary-total{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+
+    background:#FAF5EF;
+
+    margin:0 -14px -8px;
+    padding:12px 14px;
+
+    font-size:13px;
+    font-weight:700;
+    text-transform:uppercase;
+}
+.summary-total span:last-child{
+    color:#f59d2a;
+}
   
   .net-fees-box {
     background-color: #1A1A1A;
@@ -961,38 +1121,55 @@ const getTemplateStyles = () => `
     font-size: 14px;
     margin-top: auto;
   }
+
+    .payment-section{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+}
   
-  .payment-card {
-    flex: 1;
-    background-color: #1A1A1A;
-    color: #ffffff;
-    border-radius: 6px;
-    padding: 10px 12px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-  }
+  .payment-card{
+    background:#171717;
+    border-radius:4px;
+    padding:14px 18px;
+
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+
+    min-height:96px;
+}
   
-  .payment-title {
-    font-size: 10px;
-    font-weight: 700;
-    color: #fed7aa;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-  }
+.payment-title{
+    color:#ffffff;
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:.5px;
+    text-transform:uppercase;
+}
   
-  .payment-val {
-    font-size: 24px;
-    font-weight: 700;
-    color: #ff9f43;
-    margin: 4px 0;
-  }
+  .payment-val{
+    margin-top:10px;
+
+    color:#f59d2a;
+    font-size:26px;
+    font-weight:800;
+    line-height:1;
+}
   
-  .payment-desc {
-    font-size: 10.5px;
-    line-height: 1.35;
-    color: #e2e8f0;
-  }
+  .payment-desc{
+    margin-top:12px;
+
+    text-align:center;
+
+    color:#000;
+
+    font-size:11px;
+    line-height:1.45;
+
+    padding:0 18px;
+}
   
   .payment-terms-card {
     flex: 1;
@@ -1049,53 +1226,77 @@ const getTemplateStyles = () => `
   }
   
   /* Footer */
-  .footer-bar {
-    background-color: #1a1a1a;
-    color: #ffffff;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 6px 12px;
-    border-radius: 6px;
-    margin-top: 15px;
-  }
+
+.footer {
+  width: calc(100% + 16mm);
+  margin-left: -8mm;
+  margin-right: -8mm;
+  margin-top: 14px;
+}
+
+.footer-top {
+  background: #151515;
+  display: flex;
+  justify-content: space-evenly;
+  align-items: center;
+  padding: 12px 24px;
+  border-top: 1px solid #2d2d2d;
+  border-bottom: 1px solid #2d2d2d;
+}
+
+.footer-bottom {
+  background: #111111;
+  color: #8d8d8d;
+  font-size: 8px;
+  text-align: center;
+  padding: 7px 16px;
+  border-top: 1px solid #2d2d2d;
+}
   
   .footer-col {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 210px;
+}
   .footer-circle-icon {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background-color: #ff9f43;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #ffffff;
-    font-weight: bold;
-    font-size: 12px;
-  }
+  width: 34px;
+  height: 34px;
+
+  border: 2px solid #d98b3c;
+  border-radius: 50%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  color: #d98b3c;
+
+  flex-shrink: 0;
+}
+
+.footer-icon {
+  width: 16px;
+  height: 16px;
+}
   
-  .footer-text-stack {
-    display: flex;
-    flex-direction: column;
-    line-height: 1.1;
-  }
-  
-  .footer-lbl {
-    font-size: 9px;
-    font-weight: 700;
-    color: #fed7aa;
-    text-transform: uppercase;
-  }
-  
-  .footer-val {
-    font-size: 11px;
-    font-weight: 700;
-  }
+.footer-text-stack {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.footer-lbl {
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.footer-val {
+  color: #cfcfcf;
+  font-size: 10px;
+  font-weight: 500;
+}
   
   .footer-disclaimer {
     font-size: 9px;
@@ -1155,7 +1356,7 @@ export const generateCombinedHTML = (statementData, invoiceData) => {
   const statementHtml = generateStatementHTMLBody(statementData);
   const invoiceHtml = generateInvoiceHTMLBody(invoiceData);
   const styles = getTemplateStyles();
-  
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1182,7 +1383,7 @@ export const generateCombinedHTML = (statementData, invoiceData) => {
 export const generateStandaloneStatementHTML = (statementData) => {
   const statementHtml = generateStatementHTMLBody(statementData);
   const styles = getTemplateStyles();
-  
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1206,7 +1407,7 @@ export const generateStandaloneStatementHTML = (statementData) => {
 export const generateStandaloneInvoiceHTML = (invoiceData) => {
   const invoiceHtml = generateInvoiceHTMLBody(invoiceData);
   const styles = getTemplateStyles();
-  
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>

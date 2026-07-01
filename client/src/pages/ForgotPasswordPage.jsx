@@ -1,36 +1,19 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useToast } from '../components/UI/ToastContext';
-import api from '../utilities/api';
+import React from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { ArrowRight } from 'lucide-react';
+import { useForgotPassword } from '../hooks/useForgotPassword';
 
 export const ForgotPasswordPage = () => {
-  const [email, setEmail] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [error, setError] = useState('');
-  const navigate = useNavigate();
-  const { addToast } = useToast();
-
-  const handleForgotPassword = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccessMessage('');
-    setIsLoading(true);
-
-    try {
-      const response = await api.post('/auth/forgot-password', { email, portal: 'client' });
-      setSuccessMessage(response.data?.message || 'A reset link has been sent if the email is registered.');
-      addToast('Password reset request submitted successfully!', 'success');
-    } catch (err) {
-      console.error(err);
-      setError(err.response?.data?.message || 'Failed to submit request. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const {
+    email,
+    setEmail,
+    isLoading,
+    successMessage,
+    error,
+    handleForgotPassword,
+  } = useForgotPassword();
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center py-16 px-4 font-sans text-left">

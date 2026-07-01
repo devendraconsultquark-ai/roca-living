@@ -2,7 +2,7 @@ import React from 'react';
 
 export const Logo = ({ className = '', invert = false, collapsed = false, useLogoPng = false }) => {
   const logoSrc = `${import.meta.env.BASE_URL}images/${
-    collapsed ? 'short_logo.png' : useLogoPng ? 'logo.png' : 'logo-black.png'
+    collapsed ? 'short_logo.png' : 'logo.png'
   }`;
   return (
     <img 

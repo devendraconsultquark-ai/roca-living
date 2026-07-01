@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Users, UserPlus, Edit, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Users, UserPlus, Edit, Trash2, Eye } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { StatCard } from '../components/UI/StatCard';
 import { Input } from '../components/UI/Input';
 import { StatusPill } from '../components/UI/StatusPill';
 import { useToast } from '../components/UI/ToastContext';
+import { useConfirm } from '../components/UI/ConfirmContext';
 import api from '../utilities/api';
 
 export const Landlords = () => {
+  const navigate = useNavigate();
   const [landlords, setLandlords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -35,6 +38,7 @@ export const Landlords = () => {
 
   const [formErrors, setFormErrors] = useState({});
   const { addToast } = useToast();
+  const confirm = useConfirm();
 
   const fetchLandlords = async (searchVal = '') => {
     setLoading(true);
@@ -126,7 +130,13 @@ export const Landlords = () => {
   };
 
   const handleDeleteClick = async (row) => {
-    if (window.confirm(`Are you sure you want to delete landlord "${row.name}"? This will delete all associated properties, tenancies, compliance checklists, rent schedules, and statements.`)) {
+    const ok = await confirm({
+      title: 'Delete Landlord',
+      message: `Are you sure you want to delete landlord "${row.name}"? This will permanently delete all associated properties, tenancies, compliance checklists, rent schedules, and statements.`,
+      variant: 'danger',
+      confirmText: 'Delete Landlord',
+    });
+    if (ok) {
       try {
         await api.delete(`/landlords/${row.id}`);
         addToast('Landlord deleted successfully', 'success');
@@ -180,14 +190,21 @@ export const Landlords = () => {
       renderCell: (row) => (
         <div className="flex justify-center gap-1">
           <button
-            onClick={() => handleEditClick(row)}
+            onClick={(e) => { e.stopPropagation(); navigate(`/landlords/${row.id}`); }}
+            className="p-1.5 text-gray-500 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
+            title="View details"
+          >
+            <Eye size={16} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleEditClick(row); }}
             className="p-1.5 text-gray-500 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
             title="Edit details"
           >
             <Edit size={16} />
           </button>
           <button
-            onClick={() => handleDeleteClick(row)}
+            onClick={(e) => { e.stopPropagation(); handleDeleteClick(row); }}
             className="p-1.5 text-gray-500 hover:text-status-danger hover:bg-status-danger/5 rounded-lg transition-colors cursor-pointer"
             title="Delete landlord"
           >
@@ -263,7 +280,11 @@ export const Landlords = () => {
             {error}
           </div>
         ) : (
-          <DataTable columns={columns} data={landlords} />
+          <DataTable 
+            columns={columns} 
+            data={landlords} 
+            onRowClick={(row) => navigate(`/landlords/${row.id}`)} 
+          />
         )}
       </div>
 

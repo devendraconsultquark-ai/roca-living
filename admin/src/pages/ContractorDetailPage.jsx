@@ -1,0 +1,207 @@
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { 
+  UserCog, Wrench, AlertTriangle, CheckCircle2, Clock, Mail, Phone, Star, Building2, ShieldCheck, MapPin, Calendar
+} from 'lucide-react';
+import { useToast } from '../components/UI/ToastContext';
+import { useConfirm } from '../components/UI/ConfirmContext';
+import { DataRow, Card, DetailContainer, DetailSkeleton, DetailHeader, DetailTabs, urgencyColor, ticketStatusIcon } from '../components/UI/DetailComponents';
+import api from '../utilities/api';
+
+export const ContractorDetailPage = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { addToast } = useToast();
+  const confirm = useConfirm();
+  
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('overview');
+
+  useEffect(() => {
+    const fetchContractor = async () => {
+      try {
+        const res = await api.get(`/maintenance/contractors/${id}`);
+        setData(res.data.data);
+      } catch (err) {
+        addToast(err.response?.data?.message || 'Failed to load contractor', 'error');
+        navigate('/contractors');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchContractor();
+  }, [id, navigate, addToast]);
+
+  const handleDelete = async () => {
+    const ok = await confirm({
+      title: 'Delete Contractor',
+      message: `Are you sure you want to delete ${data.company_name}? This action cannot be undone.`,
+      variant: 'danger',
+      confirmText: 'Delete Contractor',
+    });
+    
+    if (ok) {
+      try {
+        await api.delete(`/maintenance/contractors/${id}`);
+        addToast('Contractor deleted successfully', 'success');
+        navigate('/contractors');
+      } catch (err) {
+        addToast(err.response?.data?.message || 'Failed to delete contractor', 'error');
+      }
+    }
+  };
+
+  if (loading) {
+    return <DetailSkeleton />;
+  }
+
+  if (!data) return null;
+
+  const tabs = [
+    { id: 'overview', label: 'Overview', icon: UserCog },
+    { id: 'jobs', label: 'Assigned Jobs', icon: Wrench },
+    { id: 'compliance', label: 'Compliance & Insurance', icon: ShieldCheck }
+  ];
+
+  const isInsuranceExpired = data.insurance_expiry && new Date(data.insurance_expiry) < new Date();
+  const totalJobs = data.tickets?.length || 0;
+  const completedJobs = data.tickets?.filter(t => t.status === 'complete').length || 0;
+
+  return (
+    <DetailContainer>
+      <DetailHeader
+        backPath="/contractors"
+        backLabel="Back to Contractors"
+        title={data.company_name}
+        badge={
+          <span className={`px-2.5 py-0.5 text-[11px] font-bold rounded-full border tracking-wide uppercase ${
+            data.status === 'active' ? 'bg-status-success/10 text-status-success border-status-success/20' : 'bg-status-danger/10 text-status-danger border-status-danger/20'
+          }`}>
+            {data.status}
+          </span>
+        }
+        subtitle={`${data.trade} • Added ${new Date(data.created_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`}
+        editLabel="Edit Contractor"
+        onDelete={handleDelete}
+      />
+
+      <DetailTabs tabs={tabs} activeTab={activeTab} setActiveTab={setActiveTab} />
+
+      {/* Tab Content */}
+      <div className="w-full">
+        {activeTab === 'overview' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <Card title="Contractor Summary">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-1">
+                  <div>
+                    <DataRow icon={Building2} label="Company Name" value={data.company_name} />
+                    <DataRow icon={Wrench} label="Trade Specialty" value={data.trade} />
+                    <DataRow icon={Star} label="Rating" value={data.rating ? `${data.rating} ★` : null} />
+                  </div>
+                  <div>
+                    <DataRow icon={Mail} label="Email Address" value={data.email} />
+                    <DataRow icon={Phone} label="Phone Number" value={data.phone} />
+                  </div>
+                </div>
+              </Card>
+            </div>
+            <div className="lg:col-span-1 space-y-6">
+              <Card title="Performance Stats">
+                <div className="grid grid-cols-2 gap-4">
+                  {[
+                    { label: 'Total Jobs', value: totalJobs },
+                    { label: 'Completed', value: completedJobs, color: 'text-status-success' },
+                    { label: 'In Progress', value: data.tickets?.filter(t => t.status === 'in_progress').length || 0, color: 'text-status-warning' },
+                    { label: 'Cancelled', value: data.tickets?.filter(t => t.status === 'cancelled').length || 0, color: 'text-status-danger' },
+                  ].map(stat => (
+                    <div key={stat.label} className="bg-gray-50 border border-gray-100 rounded-xl p-4 flex flex-col justify-center items-center text-center">
+                      <p className={`text-2xl font-bold ${stat.color || 'text-[#1A1A1A]'}`}>{stat.value}</p>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">{stat.label}</p>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'jobs' && (
+          <div className="grid grid-cols-1 gap-6">
+            <Card title={`Assigned Jobs (${totalJobs})`}>
+              {data.tickets?.length > 0 ? (
+                <div className="overflow-x-auto rounded-xl border border-gray-100">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100 bg-gray-50/50">
+                        {['Job', 'Property', 'Urgency', 'Quote', 'Status', 'Date'].map(h => (
+                          <th key={h} className="text-left py-3 px-4 text-[11px] font-bold text-gray-400 uppercase tracking-wide">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.tickets.map(t => (
+                        <tr key={t.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors last:border-0">
+                          <td className="py-3 px-4 font-bold text-[#1A1A1A] max-w-[200px] truncate">{t.title}</td>
+                          <td className="py-3 px-4 text-gray-600 text-xs">{t.property_address}</td>
+                          <td className="py-3 px-4">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider ${urgencyColor[t.urgency] || urgencyColor.routine}`}>
+                              {t.urgency}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 font-semibold text-[#1A1A1A]">{t.quote_amount ? `£${parseFloat(t.quote_amount).toLocaleString('en-GB', { minimumFractionDigits: 2 })}` : '—'}</td>
+                          <td className="py-3 px-4">
+                            <span className="flex items-center gap-1.5 text-[11px] font-bold text-gray-600 border border-gray-200 px-2 py-1 rounded-full uppercase tracking-wider w-fit bg-white">
+                              {ticketStatusIcon[t.status] || <Clock size={13} className="text-gray-400" />}
+                              {t.status?.replace(/_/g, ' ')}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-gray-400 text-xs font-semibold">{t.created_at ? new Date(t.created_at).toLocaleDateString('en-GB') : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center p-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                  <Wrench size={32} className="text-gray-300 mb-3" />
+                  <p className="text-sm font-semibold text-gray-500">No jobs assigned</p>
+                  <p className="text-xs text-gray-400 mt-1">Maintenance jobs will appear here once assigned.</p>
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
+
+        {activeTab === 'compliance' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <Card title="Insurance Details">
+                <div className="flex flex-col gap-6">
+                  <div className="flex items-start gap-4 p-4 bg-gray-50 border border-gray-100 rounded-xl">
+                    <div className={`flex items-center justify-center w-12 h-12 rounded-full shrink-0 ${
+                      isInsuranceExpired ? 'bg-status-danger/10 text-status-danger' : 'bg-status-success/10 text-status-success'
+                    }`}>
+                      {isInsuranceExpired ? <AlertTriangle size={24} /> : <ShieldCheck size={24} />}
+                    </div>
+                    <div>
+                      <h4 className="text-[#1A1A1A] font-bold text-lg">{isInsuranceExpired ? 'Insurance Expired' : 'Insurance Valid'}</h4>
+                      <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                        {data.insurance_expiry ? `Expiry Date: ${new Date(data.insurance_expiry).toLocaleDateString('en-GB')}` : 'No insurance date provided'}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 gap-y-1">
+                    <DataRow icon={Calendar} label="Policy Expiration" value={data.insurance_expiry ? new Date(data.insurance_expiry).toLocaleDateString('en-GB') : '—'} />
+                  </div>
+                </div>
+              </Card>
+            </div>
+          </div>
+        )}
+      </div>
+    </DetailContainer>
+  );
+};

@@ -100,15 +100,56 @@ export const getPropertyById = catchAsync(async (req, res, next) => {
 
   const formattedProperty = formatProperty(property);
 
+  // Active tenancy with tenants and deposit
+  const tenancy = await db('tenancies')
+    .where({ property_id: id, status: 'active' })
+    .orderBy('start_date', 'desc')
+    .first();
+  let tenancyData = null;
+  if (tenancy) {
+    const tenants = await db('tenants').where('tenancy_id', tenancy.id);
+    const deposit = await db('deposits').where('tenancy_id', tenancy.id).first();
+    tenancyData = {
+      id: tenancy.id,
+      status: tenancy.status,
+      start_date: tenancy.start_date ? new Date(tenancy.start_date).toISOString().split('T')[0] : null,
+      end_date: tenancy.end_date ? new Date(tenancy.end_date).toISOString().split('T')[0] : null,
+      rent_pcm: tenancy.rent_pcm !== null ? parseFloat(tenancy.rent_pcm).toFixed(2) : null,
+      tenants,
+      deposit: deposit ? {
+        ...deposit,
+        tenancy_deposit: deposit.tenancy_deposit !== null ? parseFloat(deposit.tenancy_deposit).toFixed(2) : null,
+        holding_deposit: deposit.holding_deposit !== null ? parseFloat(deposit.holding_deposit).toFixed(2) : null,
+        received_at: deposit.received_at ? new Date(deposit.received_at).toISOString().split('T')[0] : null,
+        registered_at: deposit.registered_at ? new Date(deposit.registered_at).toISOString().split('T')[0] : null,
+      } : null
+    };
+  }
+
+  // Recent maintenance tickets (last 5)
+  const maintenanceTickets = await db('maintenance_tickets')
+    .leftJoin('contractors', 'maintenance_tickets.contractor_id', 'contractors.id')
+    .select('maintenance_tickets.*', 'contractors.company_name as contractor_name')
+    .where('maintenance_tickets.property_id', id)
+    .orderBy('maintenance_tickets.created_at', 'desc')
+    .limit(5);
+
   res.json({
     success: true,
     data: {
       ...formattedProperty,
       property_certificates: formattedCerts,
-      compliance_checklist: formattedCompliance
+      compliance_checklist: formattedCompliance,
+      active_tenancy: tenancyData,
+      maintenance_tickets: maintenanceTickets.map(t => ({
+        ...t,
+        created_at: t.created_at ? new Date(t.created_at).toISOString() : null,
+        updated_at: t.updated_at ? new Date(t.updated_at).toISOString() : null,
+      })),
     }
   });
 });
+
 
 export const createProperty = catchAsync(async (req, res, next) => {
   const { landlord_id, address_line1, address_line2, city, postcode, property_type, bedrooms, rent_pcm, mgmt_fee_pct, key_ref } = req.body;

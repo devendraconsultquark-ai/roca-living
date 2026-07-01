@@ -188,8 +188,8 @@ export const Dropdown = ({
 
   // ─── Trigger border styling ───────────────────────────────────────────────────
   const variantMap = {
-    default: `bg-white border ${error ? 'border-status-danger' : open ? 'border-brand-accent ring-2 ring-brand-accent/15' : 'border-border-color hover:border-gray-400'} rounded-lg`,
-    ghost:   `bg-transparent border-0 hover:bg-app-bg rounded-lg`,
+    default: `bg-white border ${error ? 'border-status-danger' : open ? 'border-brand-primary ring-2 ring-brand-primary/10' : 'border-border-color hover:border-gray-400'} rounded-card`,
+    ghost:   `bg-transparent border-0 hover:bg-gray-50 rounded-card`,
   };
 
   return (
@@ -265,13 +265,13 @@ export const Dropdown = ({
           role="listbox"
           aria-multiselectable={multiple}
           className={`
-            absolute z-50 left-0 right-0
-            ${placement === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'}
-            bg-white border border-border-color rounded-xl shadow-lg
-            overflow-hidden flex flex-col
+            absolute z-50 right-0
+            ${placement === 'top' ? 'bottom-full mb-1' : 'top-full mt-1.5'}
+            bg-white border border-card-border shadow-xl
+            p-1 flex flex-col
             ${menuClassName}
           `}
-          style={{ minWidth: '100%' }}
+          style={{ minWidth: '140px' }}
         >
           {/* Search input */}
           {searchable && (
@@ -299,7 +299,7 @@ export const Dropdown = ({
           {/* Options list */}
           <ul
             ref={listRef}
-            className="overflow-y-auto max-h-60 py-1"
+            className="overflow-y-auto max-h-60 flex flex-col gap-0.5"
           >
             {filteredOptions.length === 0 ? (
               <li className="px-3 py-3 text-xs text-gray-400 text-center select-none">
@@ -324,7 +324,7 @@ export const Dropdown = ({
                   return (
                     <React.Fragment key={opt.value ?? idx}>
                       {groupHeader && (
-                        <li className="px-3 py-1 mt-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none">
+                        <li className="px-3 py-1 mt-1 text-xs-portal font-bold text-gray-400 uppercase tracking-wider select-none">
                           {groupHeader}
                         </li>
                       )}
@@ -336,11 +336,11 @@ export const Dropdown = ({
                         onClick={() => !opt.disabled && selectOption(opt.value)}
                         onMouseEnter={() => !opt.disabled && setFocusedIdx(currentEnabledIdx)}
                         className={`
-                          flex items-center gap-2.5 px-3 py-2.5 cursor-pointer transition-colors duration-75 select-none
+                          flex items-center gap-2.5 px-3 py-2 rounded cursor-pointer transition-colors duration-75 select-none
                           ${opt.disabled ? 'opacity-40 cursor-not-allowed' : ''}
-                          ${isFocused && !opt.disabled ? 'bg-brand-accent/8 text-brand-accent' : ''}
-                          ${isSelected && !isFocused ? 'bg-brand-accent/5 text-brand-accent' : ''}
-                          ${!isSelected && !isFocused ? 'text-[#1A1A1A] hover:bg-app-bg' : ''}
+                          ${isSelected ? 'bg-status-info text-white font-semibold' : ''}
+                          ${isFocused && !isSelected && !opt.disabled ? 'bg-gray-50 text-[#1A1A1A]' : ''}
+                          ${!isSelected && !isFocused ? 'text-[#1A1A1A]' : ''}
                         `}
                       >
                         {/* Left icon */}
@@ -353,7 +353,7 @@ export const Dropdown = ({
 
                         {/* Check mark for selected */}
                         {isSelected && (
-                          <Check size={14} className="shrink-0 text-brand-accent" />
+                          <Check size={14} className="shrink-0 text-white" />
                         )}
                       </li>
                     </React.Fragment>

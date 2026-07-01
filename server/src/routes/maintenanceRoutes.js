@@ -8,7 +8,8 @@ import {
   getAllContractors,
   createContractor,
   updateContractor,
-  deleteContractor
+  deleteContractor,
+  getContractorById
 } from '../controllers/maintenanceController.js';
 import { protect } from '../middlewares/protect.js';
 import { restrictTo } from '../middlewares/restrictTo.js';
@@ -29,6 +30,7 @@ maintenanceRouter.patch('/:id/status', protect('admin'), restrictTo('ADMIN'), up
 // Contractor routes (admin)
 maintenanceRouter.get('/contractors', protect('admin'), restrictTo('ADMIN'), getAllContractors);
 maintenanceRouter.post('/contractors', protect('admin'), restrictTo('ADMIN'), createContractor);
+maintenanceRouter.get('/contractors/:id', protect('admin'), restrictTo('ADMIN'), getContractorById);
 maintenanceRouter.patch('/contractors/:id', protect('admin'), restrictTo('ADMIN'), updateContractor);
 maintenanceRouter.delete('/contractors/:id', protect('admin'), restrictTo('ADMIN'), deleteContractor);
 

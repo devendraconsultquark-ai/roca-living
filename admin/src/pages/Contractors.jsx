@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { UserCog, CheckCircle2, AlertTriangle, X, Edit, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { UserCog, CheckCircle2, AlertTriangle, X, Edit, Trash2, Eye } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
 import { useToast } from '../components/UI/ToastContext';
+import { useConfirm } from '../components/UI/ConfirmContext';
 import api from '../utilities/api';
 
 const formatContractor = (c) => ({
@@ -22,6 +24,7 @@ const formatContractor = (c) => ({
 });
 
 export const Contractors = () => {
+  const navigate = useNavigate();
   const [contractors, setContractors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -35,6 +38,7 @@ export const Contractors = () => {
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const { addToast } = useToast();
+  const confirm = useConfirm();
 
   const handleEditClick = (row) => {
     const raw = row.raw;
@@ -72,7 +76,13 @@ export const Contractors = () => {
   };
 
   const handleDeleteClick = async (row) => {
-    if (window.confirm(`Are you sure you want to delete contractor "${row.name}"?`)) {
+    const ok = await confirm({
+      title: 'Delete Contractor',
+      message: `Are you sure you want to delete contractor "${row.name}"? This action cannot be undone.`,
+      variant: 'danger',
+      confirmText: 'Delete Contractor',
+    });
+    if (ok) {
       try {
         await api.delete(`/maintenance/contractors/${row.raw.id}`);
         addToast('Contractor deleted successfully', 'success');
@@ -146,14 +156,21 @@ export const Contractors = () => {
       renderCell: (row) => (
         <div className="flex justify-center gap-1">
           <button
-            onClick={() => handleEditClick(row)}
+            onClick={(e) => { e.stopPropagation(); navigate(`/contractors/${row.raw.id}`); }}
+            className="p-1.5 text-gray-500 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
+            title="View details"
+          >
+            <Eye size={16} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleEditClick(row); }}
             className="p-1.5 text-gray-500 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
             title="Edit contractor details"
           >
             <Edit size={16} />
           </button>
           <button
-            onClick={() => handleDeleteClick(row)}
+            onClick={(e) => { e.stopPropagation(); handleDeleteClick(row); }}
             className="p-1.5 text-gray-500 hover:text-status-danger hover:bg-status-danger/5 rounded-lg transition-colors cursor-pointer"
             title="Delete contractor"
           >
@@ -187,7 +204,11 @@ export const Contractors = () => {
             <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
           </div>
         ) : (
-          <DataTable columns={columns} data={contractors} />
+          <DataTable 
+            columns={columns} 
+            data={contractors} 
+            onRowClick={(row) => navigate(`/contractors/${row.raw.id}`)} 
+          />
         )}
       </div>
 

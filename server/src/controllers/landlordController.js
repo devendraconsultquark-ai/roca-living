@@ -476,6 +476,9 @@ export const deleteLandlord = catchAsync(async (req, res, next) => {
     await trx('transactions').where('landlord_id', id).delete();
     await trx('folders').where({ owner_type: 'landlord', owner_id: id }).delete();
 
+    // Delete agent_instructions for this landlord (viewings cascade automatically via FK)
+    await trx('agent_instructions').where('landlord_id', id).delete();
+
     await trx('users').where({ id, role: 'LANDLORD' }).delete();
 
     await trx('audit_log').insert({

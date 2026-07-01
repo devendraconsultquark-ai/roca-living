@@ -1,48 +1,52 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Home, User, Calendar, CheckCircle2, AlertTriangle, XCircle, 
-  Wrench, Clock, Check
+  Calendar, CheckCircle2, Wrench, Clock, Check, ChevronRight, Wallet, Download, Sparkles, User, AlertCircle
 } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { useDashboard } from '../hooks/useDashboard';
+import { useProperties } from '../hooks/useProperties';
+import { useInspections } from '../hooks/useInspections';
+import { PortalCard } from '../components/UI/PortalCard';
+import { TimelineItem } from '../components/UI/TimelineItem';
 import { Button } from '../components/UI/Button';
-import { StatusPill } from '../components/UI/StatusPill';
-import api from '../utilities/api';
+import { Dropdown } from '../components/UI/Dropdown';
+import { useMaintenance } from '../hooks/useMaintenance';
+import { useTenancy } from '../hooks/useTenancy';
 
 export const Dashboard = () => {
   const navigate = useNavigate();
-  const [latestStatement, setLatestStatement] = useState(null);
-  const [activeTenancy, setActiveTenancy] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  
+  // Real hooks data
+  const {
+    latestStatement,
+    activeTenancy,
+    loading: dashboardLoading,
+    error,
+    rentReceived,
+    netIncome,
+    totalFees,
+    deductions,
+    hasActiveTenancy
+  } = useDashboard();
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      setLoading(true);
-      try {
-        const stmtRes = await api.get('/statements/my');
-        const latest = stmtRes.data.data && stmtRes.data.data.length > 0 ? stmtRes.data.data[0] : null;
-        setLatestStatement(latest);
+  const { properties, loading: propertiesLoading } = useProperties();
+  const { inspections, loading: inspectionsLoading } = useInspections();
+  const { quotes } = useMaintenance();
+  const { tenancies } = useTenancy();
 
-        const tenancyRes = await api.get('/tenancies/my');
-        const active = tenancyRes.data.data && tenancyRes.data.data.length > 0 ? tenancyRes.data.data[0] : null;
-        setActiveTenancy(active);
+  const [selectedPeriod, setSelectedPeriod] = useState('this_month');
 
-        setError(null);
-      } catch (err) {
-        console.error(err);
-        setError(err.response?.data?.message || 'Failed to load dashboard data');
-      } finally {
-        setLoading(false);
-      }
-    };
+  const periodOptions = [
+    { value: 'this_month', label: 'This Month' },
+    { value: 'last_month', label: 'Last Month' },
+    { value: 'ytd', label: 'Year to Date' }
+  ];
 
-    fetchDashboardData();
-  }, []);
+  const loading = dashboardLoading || propertiesLoading || inspectionsLoading;
 
   if (loading) {
     return (
-      <div className="py-6 flex flex-col gap-6 max-w-[1280px] mx-auto px-4 animate-pulse">
+      <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8 animate-pulse">
         <div className="h-8 bg-gray-100 rounded-lg w-1/3" />
         <div className="h-4 bg-gray-50 rounded-lg w-1/4 mt-1" />
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mt-6">
@@ -63,375 +67,637 @@ export const Dashboard = () => {
     );
   }
 
-  // Derive values from statement & tenancy
-  const rentReceived = latestStatement ? parseFloat(latestStatement.gross_rent || 0) : 0.0;
-  const netIncome = latestStatement ? parseFloat(latestStatement.net_paid || 0) : 0.0;
-  const totalFees = latestStatement 
-    ? parseFloat(latestStatement.mgmt_fee || 0) + 
-      parseFloat(latestStatement.mgmt_fee_vat || 0) + 
-      parseFloat(latestStatement.roca_letting_fee || 0) + 
-      parseFloat(latestStatement.agent_letting_fee || 0)
-    : 0.0;
-  const deductions = latestStatement ? parseFloat(latestStatement.deductions || 0) + parseFloat(latestStatement.nrl_withheld || 0) : 0.0;
-  const expenditure = totalFees + deductions;
+  // Derive compliance score dynamically
+  let expiredCertifications = 0;
+  let totalCertificationsTracked = 0;
 
-  const hasActiveTenancy = !!activeTenancy;
-  const occupancyPct = hasActiveTenancy ? '100%' : '0%';
-  const occupancyLabel = hasActiveTenancy ? 'Occupied' : 'Vacant';
-  
-  const outerValue = rentReceived > 0 ? rentReceived : 0.01;
-  const innerValue = hasActiveTenancy ? 100 : 0.01;
+  properties.forEach(p => {
+    if (p.gasCompliance) {
+      totalCertificationsTracked++;
+      if (p.gasCompliance === 'expired') expiredCertifications++;
+    }
+    if (p.eicrCompliance) {
+      totalCertificationsTracked++;
+      if (p.eicrCompliance === 'expired') expiredCertifications++;
+    }
+    if (p.epcCompliance) {
+      totalCertificationsTracked++;
+      if (p.epcCompliance === 'expired') expiredCertifications++;
+    }
+  });
 
-  // Donut Chart data matching state
-  const outerData = [
-    { name: 'Rent Received', value: outerValue, color: '#3A7D44' }
-  ];
-  const innerData = [
-    { name: 'Occupied', value: innerValue, color: '#E8A020' }
-  ];
+  const overallCompliancePct = totalCertificationsTracked 
+    ? Math.round(((totalCertificationsTracked - expiredCertifications) / totalCertificationsTracked) * 100) 
+    : 100;
 
-  // Arrears calculations
-  const rentPcm = activeTenancy ? parseFloat(activeTenancy.rent_pcm || 0) : 0.0;
-  // If rent pcm > rent received on latest statement, show arrears
-  const rentArrears = hasActiveTenancy ? Math.max(0, rentPcm - rentReceived) : 0.0;
-  const daysInArrears = rentArrears > 0 ? 15 : 0;
-  const arrearsStatus = rentArrears > 0 ? 'arrears' : 'compliant';
-  const customArrearsLabel = rentArrears > 0 ? 'Payment Overdue' : 'Up to Date';
+  // Key Dates collection
+  const keyDates = [];
+  if (activeTenancy?.start_date) {
+    keyDates.push({
+      title: 'Tenancy Start',
+      subTitle: new Date(activeTenancy.start_date).toLocaleDateString('en-GB'),
+      rightText: 'Active',
+      icon: Calendar,
+      variant: 'info'
+    });
+  }
+  if (activeTenancy?.end_date) {
+    keyDates.push({
+      title: 'Tenancy Expiry',
+      subTitle: new Date(activeTenancy.end_date).toLocaleDateString('en-GB'),
+      rightText: 'Expires soon',
+      icon: Calendar,
+      variant: 'neutral'
+    });
+  }
+  inspections.filter(i => !i.date || i.date === '—').forEach(i => {
+    if (i.next_inspection_due) {
+      keyDates.push({
+        title: 'Next Inspection',
+        subTitle: new Date(i.next_inspection_due).toLocaleDateString('en-GB'),
+        rightText: 'Scheduled',
+        icon: Calendar,
+        variant: 'neutral'
+      });
+    }
+  });
 
-  // §12.3 Accessibility: disable chart animation when user prefers reduced motion
-  const prefersReducedMotion = typeof window !== 'undefined'
-    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    : false;
+  // Recent activity list derived dynamically
+  const activities = [];
+  if (latestStatement) {
+    activities.push({
+      title: 'Payout Disbursed',
+      subTitle: `£${parseFloat(latestStatement.net_paid).toLocaleString(undefined, { minimumFractionDigits: 2 })} payout processed`,
+      date: latestStatement.period_start ? new Date(latestStatement.period_start).toLocaleDateString('en-GB') : '—',
+      icon: Wallet,
+      variant: 'success'
+    });
+  }
+  inspections.filter(i => i.date && i.date !== '—').slice(0, 2).forEach(i => {
+    activities.push({
+      title: 'Inspection Completed',
+      subTitle: `Routine inspection completed by ${i.inspector}`,
+      date: i.date,
+      icon: Calendar,
+      variant: 'neutral'
+    });
+  });
+
+  // Active alerts list calculated dynamically from real states
+  const alertsList = [];
+
+  // 1. Safety Certificate Expired (Only push if expiredCertifications > 0)
+  if (expiredCertifications > 0) {
+    alertsList.push({
+      title: 'Safety Certificate Expired',
+      detail: `${expiredCertifications} action required safety documents expired`,
+      subText: 'Compliance warning',
+      variant: 'danger',
+      icon: AlertCircle,
+      onClick: () => navigate('/compliance/overview'),
+      subTextColor: 'text-status-danger'
+    });
+  }
+
+  // 2. Inspection Due / Overdue (Always visible)
+  const overdueInspections = inspections.filter(i => {
+    const hasBeenCompleted = i.date && i.date !== '—';
+    if (hasBeenCompleted) return false;
+    if (!i.next_inspection_due) return false;
+    return new Date(i.next_inspection_due) < new Date();
+  });
+
+  const upcomingInspections = inspections.filter(i => {
+    const hasBeenCompleted = i.date && i.date !== '—';
+    return !hasBeenCompleted && i.next_inspection_due;
+  });
+
+  if (overdueInspections.length > 0) {
+    alertsList.push({
+      title: 'Inspection Overdue',
+      detail: `${overdueInspections.length} inspection(s) past due date`,
+      subText: overdueInspections[0].next_inspection_due 
+        ? new Date(overdueInspections[0].next_inspection_due).toLocaleDateString('en-GB') 
+        : '—',
+      variant: 'danger',
+      icon: Calendar,
+      onClick: () => navigate('/compliance/inspections'),
+      subTextColor: 'text-status-danger'
+    });
+  } else if (upcomingInspections.length > 0) {
+    alertsList.push({
+      title: 'Inspection Due',
+      detail: 'Routine inspection is due',
+      subText: upcomingInspections[0].next_inspection_due 
+        ? new Date(upcomingInspections[0].next_inspection_due).toLocaleDateString('en-GB') 
+        : '—',
+      variant: 'warning',
+      icon: Calendar,
+      onClick: () => navigate('/compliance/inspections'),
+      subTextColor: 'text-status-info'
+    });
+  } else {
+    alertsList.push({
+      title: 'Inspection Due',
+      detail: 'No inspections scheduled',
+      subText: '—',
+      variant: 'neutral',
+      icon: Calendar,
+      onClick: () => navigate('/inspections'),
+      subTextColor: 'text-gray-400'
+    });
+  }
+
+  // 3. Maintenance Approval Required (Always visible)
+  if (quotes && quotes.length > 0) {
+    alertsList.push({
+      title: 'Maintenance Approval Required',
+      detail: quotes[0].description || 'Pending maintenance quote',
+      subText: `£${quotes[0].cost.toFixed(2)}`,
+      variant: 'warning',
+      icon: Wrench,
+      onClick: () => navigate('/maintenance'),
+      hasAction: true,
+      actionText: 'Review',
+      subTextColor: 'text-brand-primary font-bold'
+    });
+  } else {
+    alertsList.push({
+      title: 'Maintenance Approval Required',
+      detail: 'No maintenance quotes awaiting approval',
+      subText: '£0.00',
+      variant: 'neutral',
+      icon: Wrench,
+      onClick: () => navigate('/maintenance'),
+      hasAction: false,
+      subTextColor: 'text-gray-400'
+    });
+  }
+
+  // 4. Rent Review Due (Always visible)
+  if (activeTenancy && activeTenancy.start_date) {
+    const startDate = new Date(activeTenancy.start_date);
+    const oneYearAgo = new Date();
+    oneYearAgo.setDate(oneYearAgo.getDate() - 365);
+    
+    if (startDate < oneYearAgo) {
+      const nextReviewDate = new Date(startDate);
+      nextReviewDate.setFullYear(nextReviewDate.getFullYear() + 1);
+      alertsList.push({
+        title: 'Rent Review Due',
+        detail: 'Tenancy active over a year. Rent review recommended.',
+        subText: nextReviewDate.toLocaleDateString('en-GB'),
+        variant: 'warning',
+        icon: Clock,
+        onClick: () => navigate('/properties'),
+        subTextColor: 'text-status-info'
+      });
+    } else {
+      const nextReviewDate = new Date(startDate);
+      nextReviewDate.setFullYear(nextReviewDate.getFullYear() + 1);
+      alertsList.push({
+        title: 'Rent Review Due',
+        detail: 'Rent review is due in 6 months',
+        subText: nextReviewDate.toLocaleDateString('en-GB'),
+        variant: 'neutral',
+        icon: Clock,
+        onClick: () => navigate('/properties'),
+        subTextColor: 'text-status-info'
+      });
+    }
+  } else {
+    alertsList.push({
+      title: 'Rent Review Due',
+      detail: 'Rent review up to date',
+      subText: '—',
+      variant: 'neutral',
+      icon: Clock,
+      onClick: () => navigate('/properties'),
+      subTextColor: 'text-gray-400'
+    });
+  }
+
+  // Count active alerts (excluding 'neutral' status)
+  const activeAlertsCount = alertsList.filter(a => a.variant !== 'neutral').length;
 
   return (
-    <div className="py-6 flex flex-col gap-6 max-w-[1280px] mx-auto px-4 font-sans text-[#1A1A1A]">
+    <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8 font-sans text-brand-primary">
       
-      {/* 1. Welcome Header */}
-      <div>
-        <h2 className="text-xl md:text-2xl font-bold text-[#1A1A1A]">Landlord Partner Dashboard</h2>
-        <p className="text-xs text-gray-500 mt-0.5">Overview of your properties, compliance checklist, and statement payouts.</p>
-      </div>
-
       {error && (
-        <div className="border border-status-danger bg-status-danger/5 rounded-xl p-4 text-center text-status-danger font-semibold">
+        <div className="border border-status-danger bg-status-danger/5 rounded-card p-4 text-center text-status-danger font-semibold">
           {error}
         </div>
       )}
 
-      {/* 3. Main Dashboard Layout (2 Columns: Donut Chart [40%] + Widgets [60%]) */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      {/* 3. Top Section: Property, Compliance & Financials (3 Equal Columns) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
         
-        {/* Left Column (40% width on lg screens) */}
-        <div className="lg:col-span-2 flex flex-col gap-6">
-          {/* Performance Summary Card with Donut Chart */}
-          <div className="bg-white border border-[#DDDDDD] rounded-2xl p-4 flex flex-col gap-4 shadow-xs">
-            <h3 className="font-bold text-[10px] text-[#1A1A1A] uppercase tracking-wider select-none">Performance Summary</h3>
-            
-            {/* PieChart Container */}
-            <div className="w-full flex flex-col items-center justify-center py-4">
-              <div className="w-[180px] h-[180px] relative">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    {/* Outer Ring - Rent Received */}
-                    <Pie
-                      data={outerData}
-                      dataKey="value"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={65}
-                      outerRadius={80}
-                      startAngle={90}
-                      endAngle={-270}
-                      isAnimationActive={!prefersReducedMotion}
-                    >
-                      <Cell fill="#3A7D44" />
-                    </Pie>
-                    {/* Inner Ring - Occupancy */}
-                    <Pie
-                      data={innerData}
-                      dataKey="value"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={45}
-                      outerRadius={58}
-                      startAngle={90}
-                      endAngle={-270}
-                      isAnimationActive={!prefersReducedMotion}
-                    >
-                      <Cell fill="#E8A020" />
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-                
-                {/* Center Percentage Label */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center select-none">
-                  <span className="text-xl font-bold text-[#1A1A1A] leading-none">{occupancyPct}</span>
-                  <span className="text-[10px] text-gray-400 font-semibold mt-0.5">{occupancyLabel}</span>
-                </div>
-              </div>
+        {/* Card 1: Property Performance */}
+        <PortalCard title="Property Performance">
+          <div className="flex gap-4 mt-2">
+            {/* Left: Building Photo */}
+            <div className="w-[140px] h-[155px] rounded-sm overflow-hidden shrink-0 border border-gray-100 shadow-sm bg-gray-50 flex items-center justify-center">
+              <img 
+                src={properties[0]?.image_url || `${import.meta.env.BASE_URL}images/img1.jpg`} 
+                alt="Property" 
+                className="w-full h-full object-cover"
+              />
+            </div>
 
-              {/* Legend Below Chart */}
-              <div className="mt-6 flex flex-col gap-2 w-full max-w-[240px] text-[10px] font-semibold">
+            {/* Right: Tenant & Rent Details */}
+            <div className="flex-1 flex flex-col justify-between min-w-0 py-0.5 select-none text-left">
+              <div>
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#3A7D44] inline-block shrink-0"></span>
-                    <span className="text-gray-500">Rent Received</span>
-                  </div>
-                  <span className="text-gray-800 font-mono">£{rentReceived.toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#C62828] inline-block shrink-0"></span>
-                    <span className="text-gray-500">Expenditure</span>
-                  </div>
-                  <span className="text-gray-800 font-mono">£{expenditure.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* NET INCOME banner */}
-            <div className="border-t border-[#DDDDDD] pt-3 flex justify-between items-center mt-2">
-              <div className="flex flex-col">
-                <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Net Income (This Period)</span>
-                {!latestStatement && (
-                  <span className="text-[9px] text-status-warning font-semibold">No statements generated yet</span>
-                )}
-              </div>
-              <span className="text-lg font-bold text-[#E8A020] font-mono">£{netIncome.toFixed(2)}</span>
-            </div>
-          </div>
-
-          {/* Arrears Summary Card */}
-          <div className="bg-white border border-[#DDDDDD] rounded-2xl p-4 flex flex-col gap-3 shadow-xs">
-            <h3 className="font-bold text-[10px] text-[#1A1A1A] uppercase tracking-wider select-none">Arrears Summary</h3>
-            
-            <div className="flex flex-col gap-2 text-[10px]">
-              <div className="flex justify-between items-center py-1 border-b border-[#DDDDDD]/60">
-                <span className="text-gray-500">Total Rent Due</span>
-                <span className="font-bold font-mono">£{rentPcm.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-[#DDDDDD]/60">
-                <span className="text-gray-500">Total Rent Received</span>
-                <span className="font-bold font-mono text-[#3A7D44]">£{rentReceived.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-[#DDDDDD]/60">
-                <span className="text-gray-500 font-bold">Rent Arrears</span>
-                <span className={`font-bold font-mono ${rentArrears > 0 ? 'text-status-danger' : 'text-gray-400'}`}>£{rentArrears.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-[#DDDDDD]/60">
-                <span className="text-gray-500">Days in Arrears</span>
-                <span className="font-bold font-mono">{daysInArrears} days</span>
-              </div>
-              <div className="flex justify-between items-center py-1 mt-1">
-                <span className="text-gray-500 font-bold">Arrears Status</span>
-                <StatusPill status={arrearsStatus} customLabel={customArrearsLabel} />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column (60% width on lg screens) */}
-        <div className="lg:col-span-3 flex flex-col gap-6">
-          
-          {/* Top Widgets Horizontal Layout Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            {/* Compliance Status Checklist Card */}
-            <div className="bg-white border border-[#DDDDDD] rounded-2xl p-4 flex flex-col gap-3 shadow-xs">
-              <h3 className="font-bold text-[10px] text-[#1A1A1A] uppercase tracking-wider select-none border-b border-[#DDDDDD] pb-2">Compliance Status</h3>
-              
-              <div className="flex flex-col gap-2">
-                {/* EPC */}
-                <div className="flex items-center justify-between text-[10px] py-1 border-b border-[#DDDDDD]/40">
-                  <div className="flex items-center gap-1.5 font-bold">
-                    <CheckCircle2 size={14} className="text-[#2E7D32] shrink-0" />
-                    <span>EPC Rating: C</span>
-                  </div>
-                  <span className="text-[9px] text-gray-400 font-semibold">Valid until 12/08/2029</span>
-                </div>
-                {/* EICR */}
-                <div className="flex items-center justify-between text-[10px] py-1 border-b border-[#DDDDDD]/40">
-                  <div className="flex items-center gap-1.5 font-bold">
-                    <CheckCircle2 size={14} className="text-[#2E7D32] shrink-0" />
-                    <span>EICR Electrical</span>
-                  </div>
-                  <span className="text-[9px] text-gray-400 font-semibold">Valid until 15/05/2031</span>
-                </div>
-                {/* Gas Safety */}
-                <div className="flex items-center justify-between text-[10px] py-1 border-b border-[#DDDDDD]/40">
-                  <div className="flex items-center gap-1.5 font-bold">
-                    <CheckCircle2 size={14} className="text-[#2E7D32] shrink-0" />
-                    <span>Gas Safety Certificate</span>
-                  </div>
-                  <span className="text-[9px] text-gray-400 font-semibold">Valid until 28/05/2027</span>
-                </div>
-                {/* Deposit */}
-                <div className="flex items-center justify-between text-[10px] py-1 border-b border-[#DDDDDD]/40">
-                  <div className="flex items-center gap-1.5 font-bold">
-                    <CheckCircle2 size={14} className="text-[#2E7D32] shrink-0" />
-                    <span>Deposit Protection</span>
-                  </div>
-                  <span className="text-[9px] text-gray-400 font-semibold">
-                    {activeTenancy?.deposit_scheme ? `Registered (${activeTenancy.deposit_scheme})` : 'Registered'}
+                  <span className={`px-2 py-0.5 text-2xs rounded-full select-none ${
+                    hasActiveTenancy ? 'text-status-success bg-status-success-bg' : 'text-gray-400 bg-gray-100'
+                  }`}>
+                    {hasActiveTenancy ? 'Occupied' : 'Vacant'}
                   </span>
                 </div>
-                {/* Right to Rent */}
-                <div className="flex items-center justify-between text-[10px] py-1 border-b border-[#DDDDDD]/40">
-                  <div className="flex items-center gap-1.5 font-bold">
-                    <CheckCircle2 size={14} className="text-[#2E7D32] shrink-0" />
-                    <span>Right to Rent Check</span>
+                
+                {/* Tenant Info */}
+                <div className="mt-3 flex items-center gap-1.5 min-w-0">
+                  <div className="w-6 h-6 rounded-full bg-status-info-bg text-status-info flex items-center justify-center shrink-0">
+                    <User className="w-3.5 h-3.5" />
                   </div>
-                  <span className="text-[9px] text-gray-400 font-semibold">Verified (AST)</span>
-                </div>
-                {/* Landlord ID/KYC */}
-                <div className="flex items-center justify-between text-[10px] py-1">
-                  <div className="flex items-center gap-1.5 font-bold">
-                    <CheckCircle2 size={14} className="text-[#2E7D32] shrink-0" />
-                    <span>Landlord ID & KYC</span>
-                  </div>
-                  <span className="text-[9px] text-gray-400 font-semibold">Verified</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Key Dates Card */}
-            <div className="bg-white border border-[#DDDDDD] rounded-2xl p-4 flex flex-col justify-between gap-3 shadow-xs">
-              <div>
-                <h3 className="font-bold text-[10px] text-[#1A1A1A] uppercase tracking-wider select-none border-b border-[#DDDDDD] pb-2">Key Dates</h3>
-                <div className="flex flex-col gap-2 mt-2">
-                  <div className="flex justify-between items-center text-[10px] py-1">
-                    <div className="flex items-center gap-1.5 font-semibold text-gray-600">
-                      <Calendar size={14} className="text-[#E8A020]" />
-                      <span>Next Inspection</span>
-                    </div>
-                    <span className="font-bold font-mono">18/09/2026</span>
-                  </div>
-                  <div className="flex justify-between items-center text-[10px] py-1">
-                    <div className="flex items-center gap-1.5 font-semibold text-gray-600">
-                      <Calendar size={14} className="text-[#E8A020]" />
-                      <span>Next Rent Review</span>
-                    </div>
-                    <span className="font-bold font-mono">01/01/2027</span>
-                  </div>
-                  <div className="flex justify-between items-center text-[10px] py-1">
-                    <div className="flex items-center gap-1.5 font-semibold text-gray-600">
-                      <Calendar size={14} className="text-[#E8A020]" />
-                      <span>Tenancy Anniversary</span>
-                    </div>
-                    <span className="font-bold font-mono">
-                      {activeTenancy?.start_date ? new Date(activeTenancy.start_date).toLocaleDateString('en-GB') : '12/06/2027'}
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider leading-none">Tenant</span>
+                    <span className="text-sm-portal font-bold text-brand-primary truncate mt-1 leading-none">
+                      {activeTenancy?.lead_tenant_name || '—'}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center text-[10px] py-1">
-                    <div className="flex items-center gap-1.5 font-semibold text-gray-600">
-                      <Calendar size={14} className="text-[#E8A020]" />
-                      <span>Gas Safety Renewal</span>
-                    </div>
-                    <span className="font-bold font-mono text-[#E0A93B]">28/05/2027</span>
-                  </div>
-                  {/* Next EICR Due */}
-                  <div className="flex justify-between items-center text-[10px] py-1">
-                    <div className="flex items-center gap-1.5 font-semibold text-gray-600">
-                      <Calendar size={14} className="text-[#E8A020]" />
-                      <span>Next EICR Due</span>
-                    </div>
-                    <span className="font-bold font-mono">15/05/2031</span>
-                  </div>
-                </div>
-              </div>
-              <Button 
-                variant="primary" 
-                size="sm" 
-                fullWidth
-                onClick={() => navigate('/inspections')}
-              >
-                View All Dates
-              </Button>
-            </div>
-
-          </div>
-
-          {/* Tenancy Summary Card */}
-          <div className="bg-white border border-[#DDDDDD] rounded-2xl p-4 flex flex-col gap-3 shadow-xs">
-            <h3 className="font-bold text-[10px] text-[#1A1A1A] uppercase tracking-wider select-none border-b border-[#DDDDDD] pb-2">Tenancy Summary</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[10px]">
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-between items-center py-1 border-b border-[#DDDDDD]/40">
-                  <span className="text-gray-500">Tenant Name</span>
-                  <span className="font-bold text-gray-800">{activeTenancy?.lead_tenant_name || '-'}</span>
-                </div>
-                <div className="flex justify-between items-center py-1 border-b border-[#DDDDDD]/40">
-                  <span className="text-gray-500">Agreement Type</span>
-                  <span className="font-bold">AST (Fully Managed)</span>
-                </div>
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-500">Tenancy Start Date</span>
-                  <span className="font-bold font-mono">
-                    {activeTenancy?.start_date ? new Date(activeTenancy.start_date).toLocaleDateString('en-GB') : '-'}
-                  </span>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-between items-center py-1 border-b border-[#DDDDDD]/40">
-                  <span className="text-gray-500">Monthly Rent</span>
-                  <span className="font-bold font-mono">
-                    {activeTenancy?.rent_pcm ? `£${parseFloat(activeTenancy.rent_pcm).toFixed(2)}` : '-'}
+              {/* Rent & Deposit Row */}
+              <div className="grid grid-cols-2 gap-2 mt-auto border-t border-gray-50 pt-2">
+                <div className="flex flex-col">
+                  <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider leading-none">Monthly Rent</span>
+                  <span className="text-sm-portal font-bold text-brand-primary mt-1.5 leading-none">
+                    {activeTenancy?.rent_pcm ? `£${parseFloat(activeTenancy.rent_pcm).toFixed(0)}` : '—'}
                   </span>
+                  <span className="text-2xs text-gray-400 mt-1 leading-none">Due 1st Monthly</span>
                 </div>
-                <div className="flex justify-between items-center py-1 border-b border-[#DDDDDD]/40">
-                  <span className="text-gray-500">
-                    {activeTenancy?.deposit_scheme ? `Deposit Held (${activeTenancy.deposit_scheme})` : 'Deposit Held'}
+                <div className="flex flex-col border-l border-gray-100 pl-2">
+                  <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider leading-none">Deposit Held</span>
+                  <span className="text-sm-portal font-bold text-brand-primary mt-1.5 leading-none">
+                    {activeTenancy?.deposit_amount ? `£${parseFloat(activeTenancy.deposit_amount).toFixed(0)}` : '—'}
                   </span>
-                  <span className="font-bold font-mono">
-                    {activeTenancy?.deposit_amount ? `£${parseFloat(activeTenancy.deposit_amount).toFixed(2)}` : '-'}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-gray-500">Next Review Date</span>
-                  <span className="font-bold font-mono">
-                    {activeTenancy?.end_date ? new Date(activeTenancy.end_date).toLocaleDateString('en-GB') : '-'}
-                  </span>
+                  <span className="text-2xs text-gray-400 mt-1 leading-none">{activeTenancy?.deposit_scheme || '—'}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Maintenance Overview Widget */}
-          <div className="bg-white border border-[#DDDDDD] rounded-2xl p-4 flex flex-col gap-3 shadow-xs">
-            <h3 className="font-bold text-[10px] text-[#1A1A1A] uppercase tracking-wider select-none border-b border-[#DDDDDD] pb-2">Maintenance Overview</h3>
-            
-            {/* Metrics Row */}
-            <div className="grid grid-cols-3 gap-4 text-center mt-1">
-              <div className="flex flex-col items-center justify-center p-2 bg-[#F2F2F2]/60 rounded-xl border border-[#DDDDDD]/60">
-                <Wrench size={16} className="text-gray-500 mb-1" />
-                <span className="text-[18px] font-bold text-gray-800 font-mono leading-none">1</span>
-                <span className="text-[9px] font-semibold text-gray-500 mt-1 uppercase">Open Issues</span>
-              </div>
-              <div className="flex flex-col items-center justify-center p-2 bg-[#F2F2F2]/60 rounded-xl border border-[#DDDDDD]/60">
-                <Clock size={16} className="text-gray-500 mb-1" />
-                <span className="text-[18px] font-bold text-gray-800 font-mono leading-none">1</span>
-                <span className="text-[9px] font-semibold text-gray-500 mt-1 uppercase">In Progress</span>
-              </div>
-              <div className="flex flex-col items-center justify-center p-2 bg-[#F2F2F2]/60 rounded-xl border border-[#DDDDDD]/60">
-                <Check size={16} className="text-[#2E7D32] mb-1" />
-                <span className="text-[18px] font-bold text-gray-800 font-mono leading-none">3</span>
-                <span className="text-[9px] font-semibold text-gray-500 mt-1 uppercase">Completed</span>
-              </div>
+          {/* Net Paid This Month banner */}
+          <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between select-none">
+            <div className="flex flex-col text-left">
+              <span className="text-2xs text-gray-900 tracking-wider leading-none">Net Paid This Month</span>
             </div>
+            <span className="text-lg font-bold text-brand-primary font-mono leading-none">
+              {netIncome !== undefined && netIncome !== null ? `£${parseFloat(netIncome).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '£0.00'}
+            </span>
+          </div>
 
-            {/* spend tags */}
-            <div className="flex flex-wrap gap-4 text-[10px] font-semibold text-gray-400 mt-2 select-none justify-center md:justify-start">
-              <span className="flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
-                Spend This Period: <span className="font-mono text-gray-500">£0.00</span>
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
-                Spend YTD: <span className="font-mono text-gray-500">£0.00</span>
-              </span>
+          {/* View Property Footer Action */}
+          <div className="mt-auto pt-4">
+            <Button 
+              variant="light" 
+              size="sm" 
+              fullWidth 
+              onClick={() => navigate('/properties')}
+              icon={ChevronRight}
+              iconPosition="right"
+            >
+              View Property
+            </Button>
+          </div>
+        </PortalCard>
+
+        {/* Card 2: Compliance Overview */}
+        <PortalCard title="Compliance Overview">
+          <div className="flex flex-col gap-2 mt-2 select-none text-left">
+            <div className="flex justify-between items-center py-2 border-b border-gray-50">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className={`w-4 h-4 shrink-0 ${expiredCertifications > 0 ? 'text-status-danger' : 'text-status-success'}`} />
+                <span className="text-sm-portal font-bold text-brand-primary">Property Compliance</span>
+              </div>
+              <span className="text-sm-portal font-bold text-gray-800 font-mono">{overallCompliancePct}%</span>
             </div>
+            <div className="flex justify-between items-center py-2 border-b border-gray-50">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-status-success shrink-0" />
+                <span className="text-sm-portal font-bold text-brand-primary">Tenant Compliance</span>
+              </div>
+              <span className="text-sm-portal font-bold text-gray-800 font-mono">100%</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-gray-50">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-status-success shrink-0" />
+                <span className="text-sm-portal font-bold text-brand-primary">Documentation Compliance</span>
+              </div>
+              <span className="text-sm-portal font-bold text-gray-800 font-mono">100%</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-gray-50">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-status-success shrink-0" />
+                <span className="text-sm-portal font-bold text-brand-primary">Deposit Compliance</span>
+              </div>
+              <span className="text-sm-portal font-bold text-gray-800 font-mono">100%</span>
+            </div>
+          </div>
+
+          {/* Centered big compliance indicator */}
+          <div className="flex flex-col items-center justify-center mt-3 pt-1 text-center select-none">
+            <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider">Overall Compliance</span>
+            <span className={`text-3xl font-extrabold mt-0.5 leading-none ${expiredCertifications > 0 ? 'text-status-danger' : 'text-status-success'}`}>
+              {overallCompliancePct}%
+            </span>
+            <span className={`text-2xs font-bold mt-1 uppercase tracking-wider ${expiredCertifications > 0 ? 'text-status-danger' : 'text-status-success'}`}>
+              {expiredCertifications > 0 ? 'Action Required' : 'Fully Compliant'}
+            </span>
+          </div>
+
+          {/* View Compliance Footer Action */}
+          <div className="mt-auto pt-4">
+            <Button 
+              variant="light" 
+              size="sm" 
+              fullWidth 
+              onClick={() => navigate('/compliance/overview')}
+              icon={ChevronRight}
+              iconPosition="right"
+            >
+              View Compliance
+            </Button>
+          </div>
+        </PortalCard>
+
+        {/* Card 3: Financial Summary */}
+        <PortalCard 
+          title="Financial Summary"
+          headerActions={
+            <Dropdown 
+              options={periodOptions}
+              value={selectedPeriod}
+              onChange={setSelectedPeriod}
+              size="sm"
+              variant="ghost"
+              className="w-[130px] text-gray-500 font-bold"
+            />
+          }
+        >
+          <div className="flex items-start gap-3 mt-2 text-left">
+            {/* Wallet Icon */}
+            <div className="w-9 h-9 rounded-full bg-status-info-bg text-status-info flex items-center justify-center shrink-0">
+              <Wallet className="w-4.5 h-4.5" />
+            </div>
+            <div className="flex-1 flex flex-col text-xs-portal select-none">
+              <div className="flex justify-between items-center py-1">
+                <span className="text-gray-500 font-medium">Rent Received</span>
+                <span className="font-bold text-brand-primary font-mono">
+                  {rentReceived !== undefined && rentReceived !== null ? `£${parseFloat(rentReceived).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '£0.00'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-1">
+                <span className="text-gray-500 font-medium">Deductions</span>
+                <span className="font-bold text-brand-primary font-mono">
+                  {deductions !== undefined && deductions !== null ? `£${parseFloat(deductions).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '£0.00'}
+                </span>
+              </div>
+              
+              <div className="border-t border-gray-100 my-1"></div>
+
+              <div className="flex justify-between items-center py-1.5">
+                <span className="text-gray-500 font-bold">Total Fees Paid</span>
+                <span className="font-bold text-brand-primary font-mono text-sm-portal">
+                  {totalFees !== undefined && totalFees !== null ? `£${parseFloat(totalFees).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '£0.00'}
+                </span>
+              </div>
+
+              <div className="border-t border-gray-100 my-1"></div>
+
+              <div className="flex justify-between items-baseline py-1">
+                <span className="text-gray-500 font-bold">Net Paid</span>
+                <div className="flex flex-col items-end">
+                  <span className="text-base font-extrabold text-brand-primary font-mono">
+                    {netIncome !== undefined && netIncome !== null ? `£${parseFloat(netIncome).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '£0.00'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="mt-auto pt-4 grid grid-cols-2 gap-3">
+            <Button 
+              variant="primary" 
+              size="sm" 
+              onClick={() => navigate('/financials')}
+              icon={ChevronRight}
+              iconPosition="right"
+            >
+              View Financials
+            </Button>
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              icon={Download}
+              iconPosition="right"
+            >
+              Download Statement
+            </Button>
+          </div>
+        </PortalCard>
+
+      </div>
+
+      {/* 4. Alerts & Actions Carousel Section */}
+      <div className="flex flex-col gap-3 mt-4">
+        
+        {/* Section Heading */}
+        <div className="flex justify-between items-center border-b border-gray-100 pb-2 select-none">
+          <div className="flex items-center gap-2">
+            <h3 className="text-base-portal font-bold text-brand-primary tracking-tight">Alerts & Actions</h3>
+            <span className="w-5 h-5 rounded-full bg-status-danger text-white text-xs-portal font-extrabold flex items-center justify-center select-none">
+              {activeAlertsCount}
+            </span>
+          </div>
+          <button 
+            onClick={() => navigate('/compliance/overview')}
+            className="text-xs-portal font-bold text-status-info hover:underline flex items-center cursor-pointer"
+          >
+            View All Alerts <ChevronRight size={12} className="ml-0.5" />
+          </button>
+        </div>
+
+        {/* Dynamic Alert Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {alertsList.map((alert, idx) => (
+            <div key={idx} onClick={alert.onClick} className="bg-white border border-card-border rounded-card p-4 flex items-center justify-between hover:border-gray-300 transition-colors duration-150 shadow-xs text-left select-none cursor-pointer">
+              <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                  alert.variant === 'danger' 
+                    ? 'bg-status-danger-bg text-status-danger' 
+                    : alert.variant === 'warning'
+                      ? 'bg-status-warning/10 text-status-warning'
+                      : 'bg-status-info-bg text-status-info'
+                }`}>
+                  <alert.icon size={18} />
+                </div>
+                <div className="flex flex-col min-w-0 text-left">
+                  <span className="text-sm-portal font-bold text-brand-primary truncate leading-tight">{alert.title}</span>
+                  <span className="text-xs-portal text-gray-400 mt-0.5 truncate leading-none">{alert.detail}</span>
+                  <span className={`text-xs-portal font-bold mt-1.5 leading-none ${alert.subTextColor || 'text-status-info'}`}>{alert.subText}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 ml-2">
+                {alert.hasAction && (
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      alert.onClick();
+                    }}
+                    className="bg-black text-white hover:bg-slate-900 text-2xs font-semibold py-1.5 px-3 rounded transition-colors cursor-pointer shadow-sm"
+                  >
+                    {alert.actionText || 'Review'}
+                  </button>
+                )}
+                <ChevronRight size={16} className="text-gray-300" />
+              </div>
+            </div>
+          ))}
+        </div>
+
+      </div>
+
+      {/* 5. Bottom Row: Recent Activity, Key Dates & Marketing Banner (3 Columns) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
+        
+        {/* Card 1: Recent Activity */}
+        <PortalCard 
+          title="Recent Activity"
+          headerActions={
+            <button 
+              onClick={() => navigate('/statements')}
+              className="text-xs-portal font-bold text-status-info hover:underline cursor-pointer"
+            >
+              View All Activity
+            </button>
+          }
+        >
+          <div className="flex flex-col select-none text-left">
+            {activities.length === 0 ? (
+              <div className="text-xs-portal text-gray-400 font-semibold py-4 text-center">
+                No recent activity logged
+              </div>
+            ) : (
+              activities.map((act, idx) => (
+                <TimelineItem 
+                  key={idx}
+                  title={act.title} 
+                  subTitle={act.subTitle} 
+                  date={act.date} 
+                  icon={act.icon} 
+                  variant={act.variant} 
+                />
+              ))
+            )}
+          </div>
+        </PortalCard>
+
+        {/* Card 2: Key Dates */}
+        <PortalCard 
+          title="Key Dates"
+          headerActions={
+            <button 
+              onClick={() => navigate('/inspections')}
+              className="text-xs-portal font-bold text-status-info hover:underline cursor-pointer"
+            >
+              View Calendar
+            </button>
+          }
+        >
+          <div className="flex flex-col select-none text-left">
+            {keyDates.length === 0 ? (
+              <div className="text-xs-portal text-gray-400 font-semibold py-4 text-center">
+                No upcoming key dates
+              </div>
+            ) : (
+              keyDates.map((kd, idx) => (
+                <TimelineItem 
+                  key={idx}
+                  title={kd.title} 
+                  subTitle={kd.subTitle} 
+                  rightText={kd.rightText} 
+                  icon={kd.icon} 
+                  variant={kd.variant} 
+                />
+              ))
+            )}
+          </div>
+        </PortalCard>
+
+        {/* Card 3: Premium Banner */}
+        <div className="bg-[#0B0E14] border border-gray-800 rounded-card p-6 shadow-premium relative flex flex-col justify-between overflow-hidden select-none">
+          
+          {/* Header row with Premium tag */}
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs-portal font-bold text-[#E5E7EB] uppercase tracking-wider">
+              Investment & Portfolio Reporting
+            </h4>
+            <span className="px-2.5 py-0.5 text-2xs font-extrabold bg-status-info rounded-full text-white select-none">
+              PREMIUM
+            </span>
+          </div>
+
+          {/* Subtext and visual spark icon */}
+          <div className="mt-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-white">
+              <Sparkles className="w-4.5 h-4.5 text-blue-400" />
+            </div>
+            <p className="text-xs-portal text-gray-400 leading-snug text-left">
+              Unlock advanced analytics and tax-ready reporting.
+            </p>
+          </div>
+
+          {/* Feature Checklist */}
+          <div className="mt-4 flex flex-col gap-2 text-left">
+            <div className="flex items-center gap-2">
+              <Check className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <span className="text-xs-portal text-gray-300 font-medium">Performance analytics</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Check className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <span className="text-xs-portal text-gray-300 font-medium">Tax reports & accountant pack</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Check className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <span className="text-xs-portal text-gray-300 font-medium">Yield & ROI analysis</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Check className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <span className="text-xs-portal text-gray-300 font-medium">Void & arrears insights</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Check className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <span className="text-xs-portal text-gray-300 font-medium">Portfolio reporting</span>
+            </div>
+          </div>
+
+          {/* Upgrade Now Button */}
+          <div className="mt-6">
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              fullWidth 
+              className="bg-white hover:bg-gray-100 border-0 text-[#0B0E14]"
+              onClick={() => {}}
+              icon={ChevronRight}
+              iconPosition="right"
+            >
+              Upgrade Now
+            </Button>
           </div>
 
         </div>

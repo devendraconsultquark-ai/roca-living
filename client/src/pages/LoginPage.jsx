@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Input } from '../components/UI/Input';
 import { Button } from '../components/UI/Button';
+import { ArrowRight } from 'lucide-react';
 
 export const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -61,7 +62,7 @@ export const LoginPage = () => {
               />
             </Link>
             <h1 className="text-3xl font-light text-slate-900 mb-1">Welcome Back</h1>
-            <p className="text-slate-500 text-sm">Sign in to manage your tenancy</p>
+            <p className="text-slate-500 text-sm">Sign in to manage your properties & investments</p>
           </div>
 
           {error && (
@@ -116,10 +117,11 @@ export const LoginPage = () => {
               disabled={isLoading}
               variant="primary"
               fullWidth
+              icon={ArrowRight}
+              iconPosition="right"
               className="py-4 px-6 rounded-xl shadow-lg flex items-center justify-center gap-2 text-sm font-bold uppercase tracking-wider transition-all duration-300"
             >
               {isLoading ? "Signing In..." : "Sign In"}
-              <span className="material-symbols-outlined text-lg">arrow_forward</span>
             </Button>
           </form>
 
@@ -142,28 +144,28 @@ export const LoginPage = () => {
             alt="Modern apartment"
             className="absolute inset-0 w-full h-full object-cover opacity-50"
           />
-          <div className="absolute inset-0 bg-gradient-to-tr from-slate-900 via-slate-900/50 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-tr from-black-900 via-black-900/50 to-transparent" />
           <div className="relative z-10 p-14 flex flex-col h-full justify-end text-left">
             <div className="space-y-4">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-accent/20 border border-brand-accent/30 backdrop-blur-sm">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-black/20 border border-brand-accent/30 backdrop-blur-sm">
                 <span className="w-2 h-2 rounded-full bg-brand-accent animate-pulse" />
-                <span className="text-[10px] font-bold text-white uppercase tracking-widest">Resident Exclusive</span>
+                <span className="text-[10px] text-white uppercase tracking-widest">Partner Exclusive</span>
               </div>
-              <h2 className="text-4xl font-light text-white leading-tight font-sans">Your Home,<br />Your Portal.</h2>
+              <h2 className="text-4xl font-light text-white leading-tight font-sans">Your Properties,<br />Your Portal.</h2>
               <p className="text-slate-300 text-sm leading-relaxed max-w-xs font-sans">
-                Manage payments, maintenance requests, documents, and more — all in one place.
+                Manage statements, payouts, property compliance, and maintenance — all in one place.
               </p>
               <div className="grid grid-cols-2 gap-4 pt-4 text-left">
                 {[
-                  { icon: "description", title: "Documents", sub: "Lease & digital records" },
-                  { icon: "payments", title: "Payments", sub: "Instant rent settlements" },
-                  { icon: "engineering", title: "Maintenance", sub: "24/7 request tracking" },
-                  { icon: "forum", title: "Messages", sub: "Contact management" },
+                  { icon: "description", title: "Documents", sub: "Statements & certifications" },
+                  { icon: "payments", title: "Payments", sub: "Rental income & payouts" },
+                  { icon: "engineering", title: "Maintenance", sub: "Approved quotes & repairs" },
+                  { icon: "forum", title: "Messages", sub: "Direct correspondence" },
                 ].map(item => (
                   <div key={item.title} className="flex items-start gap-2">
-                    <span className="material-symbols-outlined text-brand-accent text-xl">{item.icon}</span>
+                    <span className="material-symbols-outlined text-brand-accent/80 text-xl">{item.icon}</span>
                     <div className="text-left">
-                      <p className="text-white text-xs font-bold leading-tight">{item.title}</p>
+                      <p className="text-white text-xs leading-tight">{item.title}</p>
                       <p className="text-slate-400 text-[11px] leading-tight mt-0.5">{item.sub}</p>
                     </div>
                   </div>

@@ -46,6 +46,10 @@ export const Statements = () => {
   const [nrlNumber, setNrlNumber] = useState('');
   const [landlordRef, setLandlordRef] = useState('');
   const [propertyRef, setPropertyRef] = useState('');
+
+  // Source tracking — which DB did the selected property come from
+  const [propertySource, setPropertySource] = useState('local');   // 'local' | 'em'
+  const [propertySourceId, setPropertySourceId] = useState(null);  // original property_id in source DB
   
   const [propertyName, setPropertyName] = useState('');
   const [tenantName, setTenantName] = useState('');
@@ -126,11 +130,14 @@ export const Statements = () => {
 
   const handlePropertyChange = (val) => {
     setSelectedPropertyId(val);
-    if (!val) {
-      return;
-    }
+    if (!val) return;
     const prop = propertiesList.find(p => `${p.source}_${p.property_id}` === val);
     if (prop) {
+      // Track source DB and original property id
+      setPropertySource(prop.source || 'local');
+      setPropertySourceId(prop.property_id || null);
+
+      // Autofill form fields from whichever DB the property came from
       setLandlordName(prop.landlord_name || '');
       setLandlordAddress(prop.landlord_address || '');
       setStatementNumber(prop.statement_number || '');
@@ -161,9 +168,20 @@ export const Statements = () => {
   const handleDownload = async (id, landlord) => {
     try {
       addToast(`Preparing download for Statement #${id}...`, 'info');
-      const response = await api.get(`/statements/${id}/pdf`, { responseType: 'blob' }).catch(() => {
-        return { data: new Blob(['Mock Statement PDF content'], { type: 'application/pdf' }) };
+      const response = await api.get(`/statements/${id}/pdf`, {
+        responseType: 'blob',
+        skipInterceptorError: true
       });
+      // Check if server returned an error disguised as blob (e.g. JSON error in blob form)
+      const contentType = response.headers?.['content-type'] || '';
+      if (!contentType.includes('application/pdf')) {
+        // Try to read error message from blob
+        const text = await response.data.text();
+        let msg = 'Failed to download statement PDF';
+        try { msg = JSON.parse(text)?.message || msg; } catch {}
+        addToast(msg, 'error');
+        return;
+      }
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -176,7 +194,17 @@ export const Statements = () => {
       addToast(`Downloaded Statement successfully`, 'success');
     } catch (err) {
       console.error(err);
-      addToast('Failed to download statement PDF', 'error');
+      let msg = 'Failed to download statement PDF';
+      // err.response.data may be a Blob for blob requests
+      if (err.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          msg = JSON.parse(text)?.message || msg;
+        } catch {}
+      } else {
+        msg = err.response?.data?.message || err.message || msg;
+      }
+      addToast(msg, 'error');
     }
   };
 
@@ -186,10 +214,16 @@ export const Statements = () => {
       addToast('Please fill in required fields', 'warning');
       return;
     }
+    if (!startDate || !endDate) {
+      addToast('Period start and end dates are required', 'warning');
+      return;
+    }
 
     setModalLoading(true);
     try {
       const payload = {
+        source: propertySource,
+        source_property_id: propertySourceId,
         landlord_name: landlordName,
         landlord_address: landlordAddress,
         statement_number: statementNumber,
@@ -208,32 +242,19 @@ export const Statements = () => {
         exp_amount: expAmountVal,
         setup_rebate: setupRebateVal,
         previous_balance: prevBalanceVal,
-        total_income: totalIncome,
-        total_expenditure: totalExpenditure,
         net_paid: netIncome
       };
 
-      await api.post('/statements/generate', payload).catch(() => {
-        // Fallback for frontend-only mode
-        const newStatement = {
-          id: statements.length + 1,
-          landlord: landlordName,
-          period: `${startDate ? new Date(startDate).toLocaleDateString('en-GB') : ''} - ${endDate ? new Date(endDate).toLocaleDateString('en-GB') : ''}`,
-          date: new Date().toLocaleDateString('en-GB'),
-          invoiced: totalIncome,
-          fees: totalExpenditure,
-          payout: netIncome,
-          status: 'Draft'
-        };
-        setStatements([newStatement, ...statements]);
-      });
+      await api.post('/statements/generate', payload);
 
       addToast(`Statement ${statementNumber} created successfully`, 'success');
       setShowModal(false);
       resetForm();
+      fetchStatements();
     } catch (err) {
       console.error(err);
-      addToast('Failed to generate statement', 'error');
+      const msg = err.response?.data?.message || 'Failed to generate statement';
+      addToast(msg, 'error');
     } finally {
       setModalLoading(false);
     }
@@ -243,6 +264,8 @@ export const Statements = () => {
     setStartDate('');
     setEndDate('');
     setSelectedPropertyId('');
+    setPropertySource('local');
+    setPropertySourceId(null);
     setLandlordName('');
     setLandlordAddress('');
     setStatementNumber('');
@@ -388,6 +411,19 @@ export const Statements = () => {
                   Selecting a property will automatically populate landlord, reference, property, and tenant details.
                 </p>
               </div>
+
+              {/* Warning: EM property with no landlord data */}
+              {propertySource === 'em' && !landlordName && (
+                <div className="flex gap-3 items-start bg-amber-50 border border-amber-300 rounded-xl p-4">
+                  <span className="text-amber-500 mt-0.5 shrink-0 text-lg">⚠️</span>
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">Landlord details not found in external database</p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      This EM property has no linked landlord record. Please fill in the <strong>Landlord Name</strong>, <strong>Landlord Address</strong>, and <strong>NRL Number</strong> manually below.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Section 1: Landlord & Reference Details */}
               <div className="border-b pb-4 border-gray-100">

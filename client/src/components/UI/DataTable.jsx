@@ -76,24 +76,24 @@ export const DataTable = ({
 
   // Header styling variants
   const headerClasses = {
-    grey: 'bg-[#000000] text-white border-b border-border-color',
-    'navy-tint': 'bg-[#000000] text-white border-b border-border-color'
+    grey: 'bg-white text-gray-400 border-b border-card-border',
+    'navy-tint': 'bg-white text-gray-400 border-b border-card-border'
   };
 
   return (
-    <div className="w-full bg-white rounded-lg border border-border-color flex flex-col">
-      <div className="overflow-x-auto w-full rounded-t-lg">
+    <div className="w-full bg-white rounded-card border border-card-border flex flex-col overflow-hidden">
+      <div className="overflow-x-auto w-full rounded-t-card">
         <table className="w-full text-sm text-left border-collapse">
           {/* Table Header */}
           <thead className={headerClasses[headerVariant]}>
             <tr>
               {enableBulkSelect && (
-                <th className="p-4 w-12 text-center">
+                <th className="py-3.5 px-3 w-12 text-center">
                   <input 
                     type="checkbox" 
                     onChange={handleSelectAll}
                     checked={paginatedData.length > 0 && selectedIds.size === paginatedData.length}
-                    className="rounded border-border-color text-brand-accent focus:ring-brand-accent/20 cursor-pointer"
+                    className="rounded border-card-border text-brand-primary focus:ring-brand-primary/10 cursor-pointer"
                   />
                 </th>
               )}
@@ -102,13 +102,13 @@ export const DataTable = ({
                 return (
                   <th 
                     key={idx}
-                    className={`p-4 font-bold text-[10px] uppercase tracking-wider ${alignClass} ${col.sortable ? 'cursor-pointer select-none hover:bg-white/10' : ''}`}
+                    className={`py-3.5 px-3 font-bold text-2xs uppercase tracking-wider ${alignClass} ${col.sortable ? 'cursor-pointer select-none hover:bg-gray-50' : ''}`}
                     onClick={() => col.sortable && handleSort(col.accessor)}
                   >
                     <div className={`flex items-center gap-1.5 ${col.align === 'right' ? 'justify-end' : 'justify-start'}`}>
                       {col.header}
                       {col.sortable && sortField === col.accessor && (
-                        sortOrder === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />
+                        sortOrder === 'asc' ? <ChevronUp size={12} className="text-gray-400" /> : <ChevronDown size={12} className="text-gray-400" />
                       )}
                     </div>
                   </th>
@@ -118,10 +118,10 @@ export const DataTable = ({
           </thead>
 
           {/* Table Body */}
-          <tbody className="divide-y divide-border-color">
+          <tbody className="divide-y divide-gray-50 text-xs-portal font-medium text-gray-500">
             {paginatedData.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + (enableBulkSelect ? 1 : 0)} className="p-8 text-center text-status-muted">
+                <td colSpan={columns.length + (enableBulkSelect ? 1 : 0)} className="py-8 text-center text-status-muted font-semibold">
                   No records found.
                 </td>
               </tr>
@@ -129,22 +129,23 @@ export const DataTable = ({
               paginatedData.map((row, rowIdx) => (
                 <tr 
                   key={row.id || rowIdx} 
-                  className={`transition-colors odd:bg-white even:bg-[#F8F9FA] hover:bg-app-bg/40 ${selectedIds.has(row.id) ? 'bg-[#E8A020]/10' : ''}`}
+                  className={`transition-colors bg-white hover:bg-gray-50/50 ${selectedIds.has(row.id) ? 'bg-[#E8A020]/10' : ''}`}
                 >
                   {enableBulkSelect && (
-                    <td className="p-4 text-center">
+                    <td className="py-3 px-3 text-center">
                       <input 
                         type="checkbox" 
                         checked={selectedIds.has(row.id)}
                         onChange={() => handleSelectRow(row.id)}
-                        className="rounded border-border-color text-brand-accent focus:ring-brand-accent/20 cursor-pointer"
+                        className="rounded border-card-border text-brand-primary focus:ring-brand-primary/10 cursor-pointer"
                       />
                     </td>
                   )}
                   {columns.map((col, colIdx) => {
-                    const alignClass = col.align === 'right' ? 'text-right font-medium tabular-nums' : 'text-left';
+                    const alignClass = col.align === 'right' ? 'text-right font-bold font-mono text-brand-primary' : 'text-left';
+                    const cellValClass = col.renderCell ? '' : 'text-gray-500 font-semibold';
                     return (
-                      <td key={colIdx} className={`p-4 ${alignClass}`}>
+                      <td key={colIdx} className={`py-3 px-3 ${alignClass} ${cellValClass}`}>
                         {col.renderCell ? col.renderCell(row) : row[col.accessor]}
                       </td>
                     );
@@ -158,9 +159,9 @@ export const DataTable = ({
 
       {/* Table Pagination Footer */}
       {totalPages > 0 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-border-color bg-white gap-4 rounded-b-lg">
+        <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-card-border bg-white gap-4 rounded-b-card select-none">
           {/* Left Side: Page Size Selector */}
-          <div className="flex items-center gap-2 text-xs text-gray-500">
+          <div className="flex items-center gap-2 text-xs-portal text-gray-400 font-bold">
             <span>Show</span>
             <Dropdown
               size="sm"
@@ -179,17 +180,17 @@ export const DataTable = ({
               ]}
             />
             <span>entries</span>
-            <span className="ml-2">
+            <span className="ml-2 font-semibold">
               (Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, totalItems)} of {totalItems})
             </span>
           </div>
 
           {/* Right Side: Page Controls */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <button
               disabled={currentPage === 1}
               onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-              className="p-1.5 border border-border-color rounded text-gray-500 hover:bg-app-bg disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+              className="w-8 h-8 rounded-card text-brand-primary/50 hover:text-brand-primary hover:bg-gray-50 disabled:opacity-30 disabled:pointer-events-none cursor-pointer flex items-center justify-center transition-colors duration-150"
             >
               <ChevronLeft size={16} />
             </button>
@@ -197,9 +198,9 @@ export const DataTable = ({
               <button
                 key={idx}
                 onClick={() => setCurrentPage(idx + 1)}
-                className={`px-3 py-1 border rounded text-xs font-semibold cursor-pointer ${currentPage === idx + 1 
-                  ? 'bg-brand-accent text-white border-brand-accent' 
-                  : 'border-border-color text-gray-500 hover:bg-app-bg'
+                className={`w-8 h-8 rounded-card text-xs font-semibold cursor-pointer transition-colors duration-150 flex items-center justify-center ${currentPage === idx + 1 
+                  ? 'border border-status-info text-status-info bg-transparent font-bold' 
+                  : 'text-[#4A5568] hover:text-brand-primary hover:bg-gray-50'
                 }`}
               >
                 {idx + 1}
@@ -208,7 +209,7 @@ export const DataTable = ({
             <button
               disabled={currentPage === totalPages}
               onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-              className="p-1.5 border border-border-color rounded text-gray-500 hover:bg-app-bg disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+              className="w-8 h-8 rounded-card text-brand-primary/50 hover:text-brand-primary hover:bg-gray-50 disabled:opacity-30 disabled:pointer-events-none cursor-pointer flex items-center justify-center transition-colors duration-150"
             >
               <ChevronRight size={16} />
             </button>

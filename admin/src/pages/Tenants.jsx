@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Users, CheckCircle2, AlertTriangle, Edit, X, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Users, CheckCircle2, AlertTriangle, Edit, X, Trash2, Eye } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { StatCard } from '../components/UI/StatCard';
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
 import { useToast } from '../components/UI/ToastContext';
+import { useConfirm } from '../components/UI/ConfirmContext';
 import api from '../utilities/api';
 
 export const Tenants = () => {
+  const navigate = useNavigate();
   const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -26,6 +29,7 @@ export const Tenants = () => {
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const { addToast } = useToast();
+  const confirm = useConfirm();
 
   const handleEditClick = (row) => {
     setEditingTenantId(row.rawId);
@@ -60,7 +64,13 @@ export const Tenants = () => {
   };
 
   const handleDeleteClick = async (row) => {
-    if (window.confirm(`Are you sure you want to delete tenant "${row.name}"?`)) {
+    const ok = await confirm({
+      title: 'Delete Tenant',
+      message: `Are you sure you want to delete tenant "${row.name}"? This action cannot be undone.`,
+      variant: 'danger',
+      confirmText: 'Delete Tenant',
+    });
+    if (ok) {
       try {
         await api.delete(`/tenancies/tenants/${row.rawId}`);
         addToast('Tenant deleted successfully', 'success');
@@ -139,14 +149,21 @@ export const Tenants = () => {
       renderCell: (row) => (
         <div className="flex justify-center gap-1">
           <button
-            onClick={() => handleEditClick(row)}
+            onClick={(e) => { e.stopPropagation(); navigate(`/tenants/${row.rawId}`); }}
+            className="p-1.5 text-gray-500 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
+            title="View details"
+          >
+            <Eye size={16} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleEditClick(row); }}
             className="p-1.5 text-gray-500 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
             title="Edit tenant details"
           >
             <Edit size={16} />
           </button>
           <button
-            onClick={() => handleDeleteClick(row)}
+            onClick={(e) => { e.stopPropagation(); handleDeleteClick(row); }}
             className="p-1.5 text-gray-500 hover:text-status-danger hover:bg-status-danger/5 rounded-lg transition-colors cursor-pointer"
             title="Delete tenant"
           >
@@ -208,7 +225,11 @@ export const Tenants = () => {
             {error}
           </div>
         ) : (
-          <DataTable columns={columns} data={tenants} />
+          <DataTable 
+            columns={columns} 
+            data={tenants} 
+            onRowClick={(row) => navigate(`/tenants/${row.rawId}`)} 
+          />
         )}
       </div>
 

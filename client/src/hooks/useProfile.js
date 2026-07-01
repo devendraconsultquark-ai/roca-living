@@ -177,7 +177,9 @@ export const useProfile = () => {
   };
 
   const handlePasswordChange = async (e) => {
-    e.preventDefault();
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+    }
     const errs = {};
 
     if (!passwordData.currentPassword) {
@@ -207,7 +209,7 @@ export const useProfile = () => {
     if (Object.keys(errs).length > 0) {
       setPasswordErrors(errs);
       addToast('Please fix the validation errors before saving', 'warning');
-      return;
+      return false;
     }
 
     setPasswordLoading(true);
@@ -219,6 +221,7 @@ export const useProfile = () => {
       addToast('Password changed successfully!', 'success');
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setPasswordErrors({});
+      return true;
     } catch (err) {
       const errorMessages = err.response?.data?.errors;
       if (Array.isArray(errorMessages) && errorMessages.length > 0) {
@@ -231,6 +234,7 @@ export const useProfile = () => {
       } else {
         addToast(err.response?.data?.message || 'Failed to change password', 'error');
       }
+      return false;
     } finally {
       setPasswordLoading(false);
     }

@@ -150,7 +150,7 @@ export const AdminLayout = () => {
         </header>
 
         {/* Viewport content area */}
-        <main className="flex-grow overflow-y-auto max-w-[1440px] w-full mx-auto">
+        <main className="flex-grow overflow-y-auto w-full">
           <Outlet />
         </main>
       </div>

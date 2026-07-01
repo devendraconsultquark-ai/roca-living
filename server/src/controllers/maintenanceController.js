@@ -461,3 +461,50 @@ export const deleteContractor = catchAsync(async (req, res, next) => {
   });
 });
 
+export const getContractorById = catchAsync(async (req, res, next) => {
+  const { id } = req.params;
+
+  const contractor = await db('contractors').where('id', id).first();
+  if (!contractor) {
+    throw new ApiError(404, 'Contractor not found');
+  }
+
+  // Assigned maintenance tickets
+  const tickets = await db('maintenance_tickets')
+    .join('properties', 'maintenance_tickets.property_id', 'properties.id')
+    .select(
+      'maintenance_tickets.id',
+      'maintenance_tickets.title',
+      'maintenance_tickets.status',
+      'maintenance_tickets.urgency',
+      'maintenance_tickets.quote_amount',
+      'maintenance_tickets.invoice_amount',
+      'maintenance_tickets.created_at',
+      'maintenance_tickets.completed_at',
+      'properties.address_line1',
+      'properties.city',
+      'properties.postcode'
+    )
+    .where('maintenance_tickets.contractor_id', id)
+    .orderBy('maintenance_tickets.created_at', 'desc');
+
+  res.json({
+    success: true,
+    data: {
+      ...contractor,
+      rating: contractor.rating !== null ? parseFloat(contractor.rating).toFixed(2) : null,
+      insurance_expiry: contractor.insurance_expiry
+        ? new Date(contractor.insurance_expiry).toISOString().split('T')[0]
+        : null,
+      created_at: contractor.created_at ? new Date(contractor.created_at).toISOString() : null,
+      tickets: tickets.map(t => ({
+        ...t,
+        property_address: `${t.address_line1}, ${t.city} ${t.postcode}`,
+        quote_amount: t.quote_amount !== null ? parseFloat(t.quote_amount).toFixed(2) : null,
+        invoice_amount: t.invoice_amount !== null ? parseFloat(t.invoice_amount).toFixed(2) : null,
+        created_at: t.created_at ? new Date(t.created_at).toISOString() : null,
+        completed_at: t.completed_at ? new Date(t.completed_at).toISOString() : null,
+      })),
+    }
+  });
+});

@@ -27,7 +27,7 @@ export const Input = React.forwardRef(({
     ? 'border-status-danger text-[#1A1A1A] focus:ring-2 focus:ring-status-danger/20 focus:border-status-danger'
     : disabled
       ? 'border-border-color bg-border-color/10 text-status-muted cursor-not-allowed'
-      : 'border-border-color text-[#1A1A1A] focus:ring-2 focus:ring-brand-accent/20 focus:border-brand-accent';
+      : 'border-border-color text-[#1A1A1A] focus:ring-2 focus:ring-brand-primary/10 focus:border-brand-primary';
 
   const inputType = isPassword ? (showPassword ? 'text' : 'password') : type;
 

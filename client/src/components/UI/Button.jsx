@@ -2,7 +2,7 @@ import React from 'react';
 
 export const Button = ({
   children,
-  variant = 'primary', // primary, secondary, danger, ghost
+  variant = 'primary', // primary (dark), secondary, accent (orange), light (gray), danger, ghost
   size = 'md',        // sm, md, lg
   fullWidth = false,
   icon: Icon = null,
@@ -15,22 +15,25 @@ export const Button = ({
 }) => {
 
   // 1. Base structural styles (padding, radius, transitions)
-  const baseStyles = 'inline-flex items-center justify-center tracking-wide rounded-[6px] cursor-pointer transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 disabled:cursor-not-allowed disabled:pointer-events-none';
+  const baseStyles = 'inline-flex items-center justify-center tracking-tight rounded-card cursor-pointer transition-all duration-150 ease-in-out focus:outline-none disabled:cursor-not-allowed disabled:pointer-events-none select-none';
 
   // 2. Styles for different variants matching the Design System
   const variantStyles = {
-    primary: 'bg-brand-accent text-white hover:bg-brand-accent-hover font-bold',
-    secondary: 'bg-white border border-border-color text-[#1A1A1A] hover:bg-app-bg font-semibold',
-    danger: 'bg-status-danger text-white hover:bg-status-danger/90 font-bold',
-    ghost: 'bg-transparent text-brand-accent hover:bg-brand-accent/5 font-semibold',
-    disabled: 'bg-border-color text-[#888888] border-transparent font-normal'
+    primary: 'bg-[#1A1A1A] text-white hover:bg-[#2D2D2D] border border-transparent font-semibold',
+    dark: 'bg-[#1A1A1A] text-white hover:bg-[#2D2D2D] border border-transparent font-semibold',
+    secondary: 'bg-white border border-card-border text-[#1A1A1A] hover:bg-gray-50 font-semibold',
+    accent: 'bg-brand-accent text-white hover:bg-brand-accent-hover border border-transparent font-semibold',
+    light: 'bg-gray-50 border border-card-border text-[#1A1A1A] hover:bg-gray-100 font-bold',
+    danger: 'bg-status-danger text-white hover:bg-status-danger/90 border border-transparent font-semibold',
+    ghost: 'bg-transparent hover:bg-brand-accent/5 font-semibold',
+    disabled: 'bg-gray-100 text-[#888888] border-transparent font-semibold'
   };
 
-  // 3. Spacing scales — §7.1: CTA Button 14px/700 bold label
+  // 3. Spacing scales - Matches specifications without uppercase constraint
   const sizeStyles = {
-    sm: 'text-[11px] py-1.5 px-3 gap-1.5 uppercase',
-    md: 'text-[14px] py-[10px] px-5 gap-2 uppercase', // Matches spec: 10px vertical / 20px horizontal padding (px-5 = 20px)
-    lg: 'text-[14px] py-3 px-6 gap-2.5'
+    sm: 'text-xs-portal py-1.5 px-3 gap-1.5',
+    md: 'text-sm-portal py-2 px-4 gap-1.5', 
+    lg: 'text-base-portal py-2.5 px-6 gap-2'
   };
 
   // Choose the active style variants (force 'disabled' style if prop is true)
@@ -54,12 +57,12 @@ export const Button = ({
       {...props}
     >
       {/* Icon placed left */}
-      {Icon && iconPosition === 'left' && <Icon size={size === 'sm' ? 14 : 16} className="shrink-0" />}
+      {Icon && iconPosition === 'left' && <Icon size={size === 'sm' ? 13 : 15} className="shrink-0 animate-in fade-in" />}
       
-      {children}
+      <span>{children}</span>
       
       {/* Icon placed right */}
-      {Icon && iconPosition === 'right' && <Icon size={size === 'sm' ? 14 : 16} className="shrink-0" />}
+      {Icon && iconPosition === 'right' && <Icon size={size === 'sm' ? 13 : 15} className="shrink-0 animate-in fade-in" />}
     </button>
   );
 };

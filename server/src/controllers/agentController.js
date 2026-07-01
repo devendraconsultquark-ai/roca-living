@@ -276,3 +276,53 @@ export const deleteAgent = catchAsync(async (req, res, next) => {
   });
 });
 
+export const getAgentById = catchAsync(async (req, res, next) => {
+  const { id } = req.params;
+
+  const agent = await db('letting_agents').where('id', id).first();
+  if (!agent) {
+    throw new ApiError(404, 'Letting agent not found');
+  }
+
+  // Active instructions with property + landlord info
+  const instructions = await db('agent_instructions')
+    .join('properties', 'agent_instructions.property_id', 'properties.id')
+    .join('users as landlords', 'agent_instructions.landlord_id', 'landlords.id')
+    .select(
+      'agent_instructions.*',
+      'properties.address_line1',
+      'properties.address_line2',
+      'properties.city',
+      'properties.postcode',
+      'landlords.name as landlord_name'
+    )
+    .where('agent_instructions.agent_id', id)
+    .orderBy('agent_instructions.instructed_at', 'desc');
+
+  // Viewings count per instruction
+  const instructionIds = instructions.map(i => i.id);
+  let viewingCounts = {};
+  if (instructionIds.length > 0) {
+    const counts = await db('viewings')
+      .whereIn('instruction_id', instructionIds)
+      .select('instruction_id')
+      .count('id as total')
+      .groupBy('instruction_id');
+    counts.forEach(c => { viewingCounts[c.instruction_id] = parseInt(c.total, 10); });
+  }
+
+  res.json({
+    success: true,
+    data: {
+      ...formatAgent(agent),
+      instructions: instructions.map(ins => ({
+        ...ins,
+        property_address: `${ins.address_line1}${ins.address_line2 ? ', ' + ins.address_line2 : ''}, ${ins.city} ${ins.postcode}`,
+        marketing_rent: ins.marketing_rent !== null ? parseFloat(ins.marketing_rent).toFixed(2) : null,
+        agent_fee_amount: ins.agent_fee_amount !== null ? parseFloat(ins.agent_fee_amount).toFixed(2) : null,
+        instructed_at: ins.instructed_at ? new Date(ins.instructed_at).toISOString() : null,
+        viewings_count: viewingCounts[ins.id] || 0,
+      })),
+    }
+  });
+});
