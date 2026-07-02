@@ -400,7 +400,7 @@ export const Properties = () => {
         
         {/* Card 1: Financial Summary */}
         <PortalCard title="financial summary (this month)">
-          <div className="flex flex-col text-xs-portal gap-2.5 mt-2">
+          <div className="flex-grow flex flex-col text-xs-portal gap-2.5 mt-2">
             <div className="flex justify-between items-center border-b border-gray-50 pb-1.5">
               <span className="text-gray-400 font-medium">Monthly Rent Roll</span>
               <span className="font-mono font-bold text-brand-primary">£9,540</span>
@@ -418,7 +418,7 @@ export const Properties = () => {
               <span className="font-mono font-bold text-brand-primary">£775</span>
             </div>
           </div>
-          <div className="mt-4 pt-1 flex items-center">
+          <div className="mt-auto pt-4 flex items-center">
             <button 
               onClick={() => navigate('/statements')}
               className="text-xs-portal font-bold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
@@ -430,7 +430,7 @@ export const Properties = () => {
 
         {/* Card 2: Compliance Summary */}
         <PortalCard title="compliance summary">
-          <div className="flex flex-col text-xs-portal gap-2.5 mt-2">
+          <div className="flex-grow flex flex-col text-xs-portal gap-2.5 mt-2">
             <div className="flex justify-between items-center border-b border-gray-50 pb-1.5">
               <span className="text-gray-400 font-medium">Properties Compliant</span>
               <span className="font-mono font-bold text-brand-primary">11 (92%)</span>
@@ -450,7 +450,7 @@ export const Properties = () => {
               </div>
             </div>
           </div>
-          <div className="mt-4 pt-1 flex items-center">
+          <div className="mt-auto pt-4 flex items-center">
             <button 
               onClick={() => navigate('/compliance/overview')}
               className="text-xs-portal font-bold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
@@ -462,7 +462,7 @@ export const Properties = () => {
 
         {/* Card 3: Tenancy Summary */}
         <PortalCard title="tenancy summary">
-          <div className="flex flex-col text-xs-portal gap-2.5 mt-2">
+          <div className="flex-grow flex flex-col text-xs-portal gap-2.5 mt-2">
             <div className="flex justify-between items-center border-b border-gray-50 pb-1.5">
               <span className="text-gray-400 font-medium">Occupied</span>
               <span className="font-mono font-bold text-brand-primary">11 (92%)</span>
@@ -476,7 +476,7 @@ export const Properties = () => {
               <span className="font-mono font-bold text-brand-primary">18.6 months</span>
             </div>
           </div>
-          <div className="mt-4 pt-1 flex items-center">
+          <div className="mt-auto pt-4 flex items-center">
             <button 
               onClick={() => navigate('/tenancy/overview')}
               className="text-xs-portal font-bold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"

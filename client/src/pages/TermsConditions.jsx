@@ -64,7 +64,7 @@ export default function TermsConditions() {
             </motion.div>
             
             <motion.div className="text-sm" variants={fadeInUp}>
-              References to “Roca Living”, “Roca”, “we”, “us”, or “our” refer to the owner of this website, whose registered office is Suite 2, Second Floor 107 Power Road, Chiswick, London, W4 5PY. The company is registered in England and Wales under company number 04914778. References to “you” refer to the user or visitor of this website.
+              References to “Roca Living”, “Roca”, “we”, “us”, or “our” refer to the owner of this website, whose registered office is 20 Wenlock Road, London, England, N1 7GU. The company is registered in England and Wales under company number 04914778. References to “you” refer to the user or visitor of this website.
             </motion.div>
             
             <motion.div className="content-section" variants={fadeInUp}>

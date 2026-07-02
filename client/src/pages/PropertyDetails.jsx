@@ -278,7 +278,7 @@ export const PropertyDetails = () => {
                 const propDeductions = latestPropStatement ? (parseFloat(latestPropStatement.invoiced) - parseFloat(latestPropStatement.fees) - parseFloat(latestPropStatement.payout)) : 0;
                 
                 return (
-                  <div className="flex flex-col text-xs-portal gap-2.5 mt-2">
+                  <div className="flex-grow flex flex-col text-xs-portal gap-2.5 mt-2">
                     <div className="flex justify-between items-center border-b border-gray-50 pb-1.5">
                       <span className="text-gray-400 font-medium">Rent Received</span>
                       <span className="font-mono font-bold text-brand-primary">
@@ -315,7 +315,7 @@ export const PropertyDetails = () => {
                 );
               })()}
               
-              <div className="mt-4 pt-1 flex items-center">
+              <div className="mt-auto pt-4 flex items-center">
                 <button 
                   onClick={() => setActiveTab('Financials')}
                   className="text-xs-portal font-bold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
@@ -327,7 +327,7 @@ export const PropertyDetails = () => {
 
             {/* Card 2: Compliance Summary */}
             <PortalCard title="compliance summary">
-              <div className="flex flex-col text-xs-portal gap-2.5 mt-2">
+              <div className="flex-grow flex flex-col text-xs-portal gap-2.5 mt-2">
                 <div className="flex justify-between items-center border-b border-gray-50 pb-1.5">
                   <span className="text-gray-400 font-medium">Property Compliance</span>
                   <span className="font-mono font-bold text-brand-primary">{details.compliancePct}%</span>
@@ -360,7 +360,7 @@ export const PropertyDetails = () => {
                 </div>
               </div>
 
-              <div className="mt-4 pt-1 flex items-center">
+              <div className="mt-auto pt-4 flex items-center">
                 <button 
                   onClick={() => setActiveTab('Compliance')}
                   className="text-xs-portal font-bold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
@@ -430,7 +430,7 @@ export const PropertyDetails = () => {
                 })()}
               </div>
 
-              <div className="mt-4 pt-1 flex items-center">
+              <div className="mt-auto pt-4 flex items-center">
                 <button 
                   onClick={() => setActiveTab('Maintenance')}
                   className="text-xs-portal font-bold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
