@@ -94,13 +94,27 @@ export default function Footer() {
             </ul>
           </div>
         </div>
-        <div className="border-t border-gray-200 mt-8">
-          <div className="pt-8 text-sm text-gray-400 text-center">
+        <div className="border-t border-gray-200 mt-8 pt-8">
+          {/* Centered compliance links */}
+          <div className="flex flex-wrap justify-center gap-x-3 gap-y-1.5 text-xs text-gray-500 mb-5 font-semibold select-none">
+            <a href="/Complaints-Procedure.pdf" target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-brand-primary transition-colors">
+              Complaints Procedure
+            </a>
+            <span className="text-gray-300">|</span>
+            <a href="/Landlord-Fees.pdf" target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-brand-primary transition-colors">
+              Landlord Fee's
+            </a>
+            <span className="text-gray-300">|</span>
+            <a href="/Client-Money-Protection.pdf" target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-brand-primary transition-colors">
+              Client Money Protection
+            </a>
+          </div>
+
+          <div className="text-2xs text-gray-400 text-center space-y-2 select-none leading-relaxed">
             <p>
-              Roca Living is a trading style of Roca Property
-              Group Limited. Registered in England &amp; Wales Company No 04914778
+              Roca Living is a trading style of Roca Property Group Limited. Company No 04914778
             </p>
-            <p className="pt-4">© 2026. All rights reserved.</p>
+            <p>© 2026 Roca Living All rights reserved</p>
           </div>
         </div>
       </div>

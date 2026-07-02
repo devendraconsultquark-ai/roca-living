@@ -148,7 +148,7 @@ export const Landlords = () => {
   };
 
   const columns = [
-    { header: 'Landlord ID', accessor: 'id', sortable: true },
+    { header: 'Landlord ID', accessor: 'landlord_reference', sortable: true },
     { header: 'Full Name', accessor: 'name', sortable: true },
     { header: 'Email Address', accessor: 'email', sortable: true },
     { header: 'Contact Phone', accessor: 'phone' },

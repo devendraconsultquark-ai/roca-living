@@ -27,14 +27,14 @@ export const PropertyDropdown = () => {
       return {
         title: 'All Properties',
         subTitle: `${properties.length} Properties`,
-        image: `${import.meta.env.BASE_URL}images/img1.jpg`
+        image: `${import.meta.env.BASE_URL}images/block_img.jpg`
       };
     }
     if (selectedProperty) {
       return {
         title: selectedProperty.address_line1 || 'Apartment 19, Parsons House',
         subTitle: `${selectedProperty.city || 'Washington'}, ${selectedProperty.postcode || 'NE37 1EZ'}`,
-        image: selectedProperty.image_url || (selectedProperty.address_line1?.includes('Random') ? `${import.meta.env.BASE_URL}images/img2.jpg` : `${import.meta.env.BASE_URL}images/img1.jpg`)
+        image: selectedProperty.image_url || (selectedProperty.address_line1?.includes('Random') ? `${import.meta.env.BASE_URL}images/img2.jpg` : `${import.meta.env.BASE_URL}images/block_img.jpg`)
       };
     }
     return {
@@ -59,7 +59,7 @@ export const PropertyDropdown = () => {
           <img 
             src={display.image} 
             alt={display.title} 
-            className="w-11 h-11 rounded-sm object-cover shrink-0 bg-gray-100 animate-fade-in"
+            className="w-11 h-11 rounded-sm object-cover shrink-0 bg-gray-100 animate-fade-in image-render-smooth"
             onError={(e) => {
               e.target.onerror = null;
               e.target.style.display = 'none'; // hide if broken image
@@ -104,9 +104,9 @@ export const PropertyDropdown = () => {
             className={`w-full flex items-center gap-3 px-4 py-2 hover:bg-gray-50 text-left cursor-pointer transition-colors ${selectedProperty === 'all' ? 'bg-gray-50/80 font-bold' : ''}`}
           >
             <img 
-              src={`${import.meta.env.BASE_URL}images/img1.jpg`} 
+              src={`${import.meta.env.BASE_URL}images/block_img.jpg`} 
               alt="All Properties" 
-              className="w-8 h-8 rounded-sm object-cover shrink-0 bg-gray-100"
+              className="w-8 h-8 rounded-sm object-cover shrink-0 bg-gray-100 image-render-smooth"
             />
             <div className="flex flex-col min-w-0">
               <span className="text-xs-portal text-brand-primary leading-tight">All Properties</span>
@@ -122,7 +122,7 @@ export const PropertyDropdown = () => {
           ) : (
             properties.map((property) => {
               const isSelected = selectedProperty !== 'all' && selectedProperty?.id === property.id;
-              const propImage = property.image_url || (property.address_line1?.includes('Random') ? `${import.meta.env.BASE_URL}images/img2.jpg` : `${import.meta.env.BASE_URL}images/img1.jpg`);
+              const propImage = property.image_url || (property.address_line1?.includes('Random') ? `${import.meta.env.BASE_URL}images/img2.jpg` : `${import.meta.env.BASE_URL}images/block_img.jpg`);
               
               return (
                 <button
@@ -140,7 +140,7 @@ export const PropertyDropdown = () => {
                     <img 
                       src={propImage} 
                       alt={property.address_line1} 
-                      className="w-8 h-8 rounded-sm object-cover shrink-0 bg-gray-100"
+                      className="w-8 h-8 rounded-sm object-cover shrink-0 bg-gray-100 image-render-smooth"
                     />
                   ) : (
                     <div className="w-8 h-8 rounded-sm bg-gray-100 text-gray-500 flex items-center justify-center shrink-0">

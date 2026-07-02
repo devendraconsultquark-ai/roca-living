@@ -97,7 +97,7 @@ export default function Contact() {
             <div className="space-y-4 text-gray-600">
               <p className="flex items-center gap-3">
                 <span className="material-icons-outlined text-primary">email</span>
-                hello@rocaem.co.uk
+                Hello@rocaliving.co.uk
               </p>
               <p className="flex items-center gap-3">
                 <span className="material-icons-outlined text-primary">phone</span>
@@ -180,39 +180,39 @@ export default function Contact() {
                     <input
                       className="text-primary focus:ring-primary w-4 h-4 rounded"
                       type="checkbox"
-                      value="Block Management"
-                      checked={formData.enquiryType.includes("Block Management")}
+                      value="Lettings"
+                      checked={formData.enquiryType.includes("Lettings")}
                       onChange={handleChange}
                       name="enquiryType"
                     />
                     <span className="group-hover:text-primary transition-colors">
-                      Block Management
+                      Lettings
                     </span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer group">
                     <input
                       className="text-primary focus:ring-primary w-4 h-4 rounded"
                       type="checkbox"
-                      value="Right to Manage"
-                      checked={formData.enquiryType.includes("Right to Manage")}
+                      value="Portfolio Management"
+                      checked={formData.enquiryType.includes("Portfolio Management")}
                       onChange={handleChange}
                       name="enquiryType"
                     />
                     <span className="group-hover:text-primary transition-colors">
-                      Right to Manage
+                      Portfolio Management
                     </span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer group">
                     <input
                       className="text-primary focus:ring-primary w-4 h-4 rounded"
                       type="checkbox"
-                      value="Specialist Services"
-                      checked={formData.enquiryType.includes("Specialist Services")}
+                      value="Overseas Landlord Services"
+                      checked={formData.enquiryType.includes("Overseas Landlord Services")}
                       onChange={handleChange}
                       name="enquiryType"
                     />
                     <span className="group-hover:text-primary transition-colors">
-                      Specialist Services
+                      Overseas Landlord Services
                     </span>
                   </label>
                 </div>

@@ -15,6 +15,7 @@ export const useProfile = () => {
     email: '',
     phone: '',
     address: '',
+    landlord_reference: '',
 
     // Company / Overseas
     companyName: '',
@@ -50,6 +51,7 @@ export const useProfile = () => {
         email: user.email || '',
         phone: user.phone || '',
         address: user.address || '',
+        landlord_reference: user.landlord_reference || '',
         
         companyName: user.company_name || '',
         isOverseas: !!user.is_overseas,
@@ -93,6 +95,7 @@ export const useProfile = () => {
         email: user.email || '',
         phone: user.phone || '',
         address: user.address || '',
+        landlord_reference: user.landlord_reference || '',
         
         companyName: user.company_name || '',
         isOverseas: !!user.is_overseas,

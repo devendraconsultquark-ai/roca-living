@@ -298,9 +298,9 @@ export const Dashboard = () => {
             {/* Left: Building Photo */}
             <div className="w-[140px] h-[155px] rounded-sm overflow-hidden shrink-0 border border-gray-100 shadow-sm bg-gray-50 flex items-center justify-center">
               <img 
-                src={properties[0]?.image_url || `${import.meta.env.BASE_URL}images/img1.jpg`} 
+                src={properties[0]?.image_url || `${import.meta.env.BASE_URL}images/block_img.jpg`} 
                 alt="Property" 
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover image-render-smooth"
               />
             </div>
 

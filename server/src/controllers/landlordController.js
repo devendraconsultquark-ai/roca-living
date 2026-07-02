@@ -38,6 +38,7 @@ export const getAllLandlords = catchAsync(async (req, res, next) => {
       'users.name',
       'users.email',
       'users.phone',
+      'landlord_profiles.landlord_reference',
       'landlord_profiles.kyc_status',
       'landlord_profiles.tob_status',
       'landlord_profiles.ownership_confirmed',
@@ -88,6 +89,7 @@ export const getLandlordById = catchAsync(async (req, res, next) => {
       'users.address',
       'users.role',
       'landlord_profiles.company_name',
+      'landlord_profiles.landlord_reference',
       'landlord_profiles.is_overseas',
       'landlord_profiles.nrl_hmrc_approved',
       'landlord_profiles.nrl_hmrc_ref',
@@ -170,8 +172,11 @@ export const createLandlord = catchAsync(async (req, res, next) => {
       role: 'LANDLORD'
     });
 
+    const landlord_reference = `REM-LND-${String(userId).padStart(3, '0')}`;
+
     await trx('landlord_profiles').insert({
       user_id: userId,
+      landlord_reference,
       company_name: company_name || null,
       is_overseas: is_overseas ? 1 : 0,
       ownership_share: ownership_share !== undefined ? ownership_share : null,
@@ -416,7 +421,7 @@ export const updateLandlord = catchAsync(async (req, res, next) => {
 
   const updatedLandlord = await db('users')
     .leftJoin('landlord_profiles', 'users.id', 'landlord_profiles.user_id')
-    .select('users.*', 'landlord_profiles.company_name', 'landlord_profiles.is_overseas', 'landlord_profiles.nrl_hmrc_approved', 'landlord_profiles.nrl_hmrc_ref', 'landlord_profiles.nrl_withhold_pct', 'landlord_profiles.kyc_status', 'landlord_profiles.tob_status', 'landlord_profiles.ownership_share')
+    .select('users.*', 'landlord_profiles.company_name', 'landlord_profiles.landlord_reference', 'landlord_profiles.is_overseas', 'landlord_profiles.nrl_hmrc_approved', 'landlord_profiles.nrl_hmrc_ref', 'landlord_profiles.nrl_withhold_pct', 'landlord_profiles.kyc_status', 'landlord_profiles.tob_status', 'landlord_profiles.ownership_share')
     .where('users.id', id)
     .first();
 

@@ -102,7 +102,7 @@ export const LandlordDetailPage = () => {
               <Card title="Landlord Summary">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-1">
                   <div>
-                    <DataRow icon={Hash} label="Reference ID" value={`REM-LND-${data.id.toString().padStart(3, '0')}`} />
+                    <DataRow icon={Hash} label="Reference ID" value={data.landlord_reference || `REM-LND-${data.id.toString().padStart(3, '0')}`} />
                     <DataRow icon={Mail} label="Email Address" value={data.email} />
                     <DataRow icon={Phone} label="Phone Number" value={data.phone} />
                     <DataRow icon={Globe} label="Nationality" value="—" />

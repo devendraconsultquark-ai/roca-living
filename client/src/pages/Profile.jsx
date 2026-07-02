@@ -125,6 +125,16 @@ export const Profile = () => {
           {/* Details list */}
           <div className="flex flex-col gap-3.5 mt-2 text-xs-portal">
             
+            {profileData?.landlord_reference && (
+              <div className="flex flex-col gap-1 py-1 border-b border-gray-50/60">
+                <div className="flex items-center gap-3">
+                  <User size={13} className="text-gray-400 shrink-0" />
+                  <span className="text-gray-500 font-bold w-24 shrink-0">Landlord ID</span>
+                  <span className="font-semibold text-brand-primary">{profileData.landlord_reference}</span>
+                </div>
+              </div>
+            )}
+            
             <div className="flex flex-col gap-1 py-1 border-b border-gray-50/60">
               <div className="flex items-center gap-3">
                 <User size={13} className="text-gray-400 shrink-0" />

@@ -10,6 +10,7 @@ import { runPhase6Migrations } from './src/db/migrations/phase6_forgot_password.
 import { runPhase7Migrations } from './src/db/migrations/phase7_statement_metadata.js';
 import { runPhase8Migrations } from './src/db/migrations/phase8_settings.js';
 import { runPhase9Migrations } from './src/db/migrations/phase9_dual_db_support.js';
+import { runPhase10Migrations } from './src/db/migrations/phase10_landlord_reference.js';
 import { startScheduler } from './src/jobs/scheduler.js';
 import { ensurePuppeteerDependencies } from './src/utils/puppeteerGenerator.js';
 const PORT = process.env.PORT || 9000;
@@ -50,6 +51,9 @@ const startServer = async () => {
 
   await runPhase9Migrations();
   logger.info('Phase 9 migrations complete');
+
+  await runPhase10Migrations();
+  logger.info('Phase 10 migrations complete');
 
   await ensurePuppeteerDependencies();
 

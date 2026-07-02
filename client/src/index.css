@@ -51,6 +51,9 @@
 /* ── TIER 3: TAILWIND REGISTERING ── */
 @theme {
   --font-sans: 'Outfit', 'Inter', system-ui, -apple-system, Arial, sans-serif;
+  --font-weight-bold: 600;
+  --font-weight-black: 600;
+  --font-weight-semibold: 500;
   /* Map the runtime variables to Tailwind color classes */
   --color-sidebar-bg: var(--sidebar-bg);
   --color-sidebar-text: var(--sidebar-text);
@@ -174,5 +177,12 @@ html.public-route li {
   text-transform: capitalize !important;
   font-weight: 500 !important;       /* Change to 600 if you want semibold instead of medium */
   letter-spacing: normal !important; /* Removes the wide tracking of uppercase styles */
+}
+
+/* Optimize image downscaling quality */
+.image-render-smooth {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: high-quality;
+  image-rendering: auto;
 }
 

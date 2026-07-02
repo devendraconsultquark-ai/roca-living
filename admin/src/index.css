@@ -34,6 +34,8 @@
 
   /* Typography */
   --font-sans: 'Inter', system-ui, -apple-system, Arial, sans-serif;
+  --font-weight-bold: 600;
+  --font-weight-black: 600;
 }
 
 /* Base resets & styling defaults */

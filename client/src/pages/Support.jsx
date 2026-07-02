@@ -52,7 +52,7 @@ export const Support = () => {
       {/* 1. How can we help widget */}
       <div className="bg-white border border-card-border rounded-card p-6 shadow-xs flex items-center justify-between gap-6 select-none">
         <div className="flex flex-col text-left gap-1.5 flex-grow">
-          <h3 className="text-sm-portal font-black text-brand-primary">How can we help?</h3>
+          <h3 className="text-sm-portal font-semibold text-brand-primary">How can we help?</h3>
           
           <div className="relative mt-2 max-w-xl">
             <Search size={14} className="absolute left-3.5 top-3 text-gray-400" />
@@ -61,7 +61,7 @@ export const Support = () => {
               placeholder="Search for help topics..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="border border-card-border rounded-card pl-10 pr-4 py-2 w-full text-xs-portal font-bold text-gray-500 bg-white placeholder-gray-400 focus:outline-none focus:border-gray-300 transition-colors"
+              className="border border-card-border rounded-card pl-10 pr-4 py-2 w-full text-xs-portal font-semibold text-gray-800 bg-white placeholder-gray-800 focus:outline-none focus:border-gray-300 transition-colors"
             />
           </div>
 
@@ -86,7 +86,7 @@ export const Support = () => {
 
       {/* 2. Help Topics List */}
       <div className="flex flex-col gap-3 select-none text-left">
-        <h4 className="text-xs-portal font-black text-brand-primary uppercase tracking-wider pl-1">
+        <h4 className="text-xs-portal font-semibold text-brand-primary uppercase tracking-wider pl-1">
           Help Topics
         </h4>
 
@@ -103,7 +103,7 @@ export const Support = () => {
                     <IconComponent size={14} className="shrink-0" />
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-xs-portal font-black text-brand-primary group-hover:text-status-info transition-colors leading-tight">
+                    <span className="text-xs-portal font-semibold text-brand-primary group-hover:text-status-info transition-colors leading-tight">
                       {topic.title}
                     </span>
                     <span className="text-2xs text-gray-400 font-semibold mt-1 leading-none">

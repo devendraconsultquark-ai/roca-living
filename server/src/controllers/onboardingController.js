@@ -113,8 +113,10 @@ export const completeOnboarding = catchAsync(async (req, res, next) => {
         updated_at: trx.fn.now()
       });
     } else {
+      const landlord_reference = `REM-LND-${String(landlordId).padStart(3, '0')}`;
       await trx('landlord_profiles').insert({
         user_id: landlordId,
+        landlord_reference,
         kyc_status: kycDbStatus,
         kyc_ref: passportNumber,
         tob_status: tobDbStatus,

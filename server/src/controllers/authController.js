@@ -150,6 +150,7 @@ const getUserPayload = async (userId, role) => {
             .select(
                 "users.id", "users.name", "users.email", "users.phone", "users.role", "users.address", "users.created_at",
                 "landlord_profiles.company_name",
+                "landlord_profiles.landlord_reference",
                 "landlord_profiles.initials",
                 "landlord_profiles.nrl_number",
                 "landlord_profiles.is_overseas",
