@@ -97,7 +97,7 @@ export default function Contact() {
             <div className="space-y-4 text-gray-600">
               <p className="flex items-center gap-3">
                 <span className="material-icons-outlined text-primary">email</span>
-                Hello@rocaliving.co.uk
+                hello@rocaliving.co.uk
               </p>
               <p className="flex items-center gap-3">
                 <span className="material-icons-outlined text-primary">phone</span>

@@ -265,7 +265,7 @@ export const TenancyLifecycle = () => {
             {/* Footer */}
             <div className="border-t border-gray-50 pt-4 mt-4 flex justify-between items-center select-none text-xs-portal text-gray-400 font-bold">
               <span>Showing 1 to {formattedRenewals.length} of {renewalsCount} renewals</span>
-              <button className="text-xs-portal font-extrabold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer">
+              <button className="text-xs-portal font-bold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer">
                 View All Renewals <ChevronRight size={12} />
               </button>
             </div>

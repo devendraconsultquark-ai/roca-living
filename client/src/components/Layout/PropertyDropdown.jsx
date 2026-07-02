@@ -32,8 +32,8 @@ export const PropertyDropdown = () => {
     }
     if (selectedProperty) {
       return {
-        title: selectedProperty.address_line1 || 'Apartment 19, Parsons House',
-        subTitle: `${selectedProperty.city || 'Washington'}, ${selectedProperty.postcode || 'NE37 1EZ'}`,
+        title: selectedProperty.name || selectedProperty.address_line1 || 'Apartment 19, Parsons House',
+        subTitle: `${selectedProperty.property_reference ? `${selectedProperty.property_reference} • ` : ''}${selectedProperty.city || 'Washington'}, ${selectedProperty.postcode || 'NE37 1EZ'}`,
         image: selectedProperty.image_url || (selectedProperty.address_line1?.includes('Random') ? `${import.meta.env.BASE_URL}images/img2.jpg` : `${import.meta.env.BASE_URL}images/block_img.jpg`)
       };
     }
@@ -148,11 +148,11 @@ export const PropertyDropdown = () => {
                     </div>
                   )}
                   <div className="flex flex-col min-w-0">
-                    <span className="text-xs-portal text-brand-primary truncate leading-tight">
-                      {property.address_line1}
+                    <span className="text-xs-portal font-bold text-brand-primary truncate leading-tight">
+                      {property.name || property.address_line1}
                     </span>
                     <span className="text-2xs text-gray-400 truncate leading-none mt-0.5">
-                      {property.city}, {property.postcode}
+                      {property.property_reference || `Prop #${property.id}`} • {property.city}, {property.postcode}
                     </span>
                   </div>
                 </button>

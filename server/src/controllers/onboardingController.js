@@ -131,6 +131,7 @@ export const completeOnboarding = catchAsync(async (req, res, next) => {
     }
 
     // 3. Create property record with address, rent_pcm=rentPrice, mgmt_fee_pct=managementFee
+    const tempRef = `TEMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const [propertyId] = await trx('properties').insert({
       landlord_id: landlordId,
       address_line1: addressLine1,
@@ -138,8 +139,15 @@ export const completeOnboarding = catchAsync(async (req, res, next) => {
       postcode: postcode,
       status: 'let', // Directly let since tenancy is established
       rent_pcm: parseFloat(rentPrice).toFixed(2),
-      mgmt_fee_pct: parseFloat(managementFee).toFixed(2)
+      mgmt_fee_pct: parseFloat(managementFee).toFixed(2),
+      name: addressLine1,
+      property_reference: tempRef
     });
+
+    const property_reference = `REM-PRP-${String(propertyId).padStart(5, '0')}`;
+    await trx('properties')
+      .where({ id: propertyId })
+      .update({ property_reference });
 
     // 4. Update property_certificates for GAS (gasSafety) and EICR (eicrStatus)
     const certTypes = ['EPC', 'EICR', 'GAS', 'SMOKE_CO', 'HMO', 'PAT'];

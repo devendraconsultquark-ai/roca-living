@@ -75,7 +75,7 @@ export const Properties = () => {
 
   // Table Columns
   const tableColumns = [
-    { header: 'Property Ref', accessor: 'id', sortable: true },
+    { header: 'Property Ref', accessor: 'property_reference', sortable: true },
     { header: 'Property Address', accessor: 'address', sortable: true },
     { header: 'Current Tenant', accessor: 'tenant_name', sortable: true },
     { 
@@ -277,10 +277,10 @@ export const Properties = () => {
                 <div className="flex-grow flex flex-col justify-between min-w-0 py-0.5">
                   <div>
                     <h3 className="text-[15px] font-extrabold text-brand-primary leading-tight tracking-tight">
-                      {p.address_line1}
+                      {p.name || p.address_line1}
                     </h3>
                     <span className="text-xs-portal font-semibold text-gray-400 mt-1 block">
-                      {p.city}, {p.postcode}
+                      {p.property_reference || `Property #${p.id}`} • {p.city}, {p.postcode}
                     </span>
                   </div>                  <div className="grid grid-cols-2 gap-x-6 gap-y-3 mt-4 border-t border-gray-50 pt-3">
                     <div className="flex flex-col">
@@ -421,7 +421,7 @@ export const Properties = () => {
           <div className="mt-4 pt-1 flex items-center">
             <button 
               onClick={() => navigate('/statements')}
-              className="text-xs-portal font-extrabold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
+              className="text-xs-portal font-bold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
             >
               View Financials <ChevronRight size={12} />
             </button>
@@ -453,7 +453,7 @@ export const Properties = () => {
           <div className="mt-4 pt-1 flex items-center">
             <button 
               onClick={() => navigate('/compliance/overview')}
-              className="text-xs-portal font-extrabold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
+              className="text-xs-portal font-bold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
             >
               View Compliance <ChevronRight size={12} />
             </button>
@@ -479,7 +479,7 @@ export const Properties = () => {
           <div className="mt-4 pt-1 flex items-center">
             <button 
               onClick={() => navigate('/tenancy/overview')}
-              className="text-xs-portal font-extrabold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
+              className="text-xs-portal font-bold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
             >
               View Tenancy Lifecycle <ChevronRight size={12} />
             </button>

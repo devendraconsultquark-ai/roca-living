@@ -83,6 +83,7 @@ export const Statements = () => {
 
         return {
           id: s.id,
+          statement_reference: s.statement_reference || `STM-${s.id}`,
           landlord: s.landlord_name || s.landlord || 'Landlord',
           period: s.period || `${periodStartStr} - ${periodEndStr}`,
           date: s.generated_at ? new Date(s.generated_at).toLocaleDateString('en-GB') : (s.date || '-'),
@@ -285,7 +286,7 @@ export const Statements = () => {
   };
 
   const columns = [
-    { header: 'Statement ID', accessor: 'id', sortable: true },
+    { header: 'Statement Reference', accessor: 'statement_reference', sortable: true },
     { header: 'Landlord', accessor: 'landlord', sortable: true },
     { header: 'Billing Period', accessor: 'period', sortable: true },
     { header: 'Issue Date', accessor: 'date', sortable: true },

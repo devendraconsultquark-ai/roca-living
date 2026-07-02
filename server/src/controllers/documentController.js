@@ -33,13 +33,20 @@ export const getFolders = catchAsync(async (req, res, next) => {
   }
 
   const documents = await db('documents').select('*');
+  const properties = await db('properties').select('id', 'property_reference');
+  const landlords = await db('users')
+    .join('landlord_profiles', 'users.id', 'landlord_profiles.user_id')
+    .select('users.id', 'landlord_profiles.landlord_reference');
+
+  const propRefMap = Object.fromEntries(properties.map(p => [p.id, p.property_reference]));
+  const landRefMap = Object.fromEntries(landlords.map(l => [l.id, l.landlord_reference]));
 
   // Format bytes helper
   const formatBytes = (bytes) => {
     if (!bytes) return '0 Bytes';
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    const i = Math.log(bytes) / Math.log(k) ? Math.floor(Math.log(bytes) / Math.log(k)) : 0;
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
@@ -57,7 +64,10 @@ export const getFolders = catchAsync(async (req, res, next) => {
         size: formatBytes(d.file_size_bytes),
         date: d.created_at ? new Date(d.created_at).toISOString().split('T')[0] : '',
         scope: d.owner_type,
-        entityId: d.owner_type === 'landlord' ? `LND-${d.owner_id}` : `PRP-${d.owner_id}`
+        entityId: d.owner_type === 'landlord' 
+          ? (landRefMap[d.owner_id] || `LND-${d.owner_id}`) 
+          : (propRefMap[d.owner_id] || `PRP-${d.owner_id}`),
+        doc_reference: d.doc_reference
       }))
     };
   });
@@ -99,6 +109,7 @@ export const uploadDocument = catchAsync(async (req, res, next) => {
 
   const file_path = `uploads/${req.file.filename}`;
 
+  const tempRef = `TEMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
   const [documentId] = await db('documents').insert({
     folder_id: folder.id,
     owner_type: scope,
@@ -109,8 +120,14 @@ export const uploadDocument = catchAsync(async (req, res, next) => {
     mime_type: req.file.mimetype,
     file_path: file_path,
     file_size_bytes: req.file.size,
-    uploaded_by: req.user.id
+    uploaded_by: req.user.id,
+    doc_reference: tempRef
   });
+
+  const doc_reference = `REM-DOC-${String(documentId).padStart(5, '0')}`;
+  await db('documents')
+    .where({ id: documentId })
+    .update({ doc_reference });
 
   // Write audit log
   await db('audit_log').insert({

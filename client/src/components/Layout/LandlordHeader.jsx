@@ -15,7 +15,7 @@ export const LandlordHeader = ({ setMobileMenuOpen }) => {
     if (path.startsWith('/dashboard')) {
       const title = selectedProperty === 'all' 
         ? 'All Properties Overview' 
-        : (selectedProperty?.address_line1 || 'Apartment 19, Parsons House');
+        : (selectedProperty?.name || selectedProperty?.address_line1 || 'Apartment 19, Parsons House');
       return {
         title,
         subTitle: 'performance overview',
@@ -31,10 +31,10 @@ export const LandlordHeader = ({ setMobileMenuOpen }) => {
       return {
         title: selectedProperty === 'all' 
           ? 'Properties' 
-          : (selectedProperty?.address_line1 || 'Property Details'),
+          : (selectedProperty?.name || selectedProperty?.address_line1 || 'Property Details'),
         subTitle: selectedProperty === 'all'
           ? 'Manage and review your property portfolio.'
-          : `${selectedProperty?.city || 'London'}, ${selectedProperty?.postcode || ''}`,
+          : `${selectedProperty?.property_reference ? `${selectedProperty.property_reference} • ` : ''}${selectedProperty?.city || 'London'}, ${selectedProperty?.postcode || ''}`,
         indicators: []
       };
     }

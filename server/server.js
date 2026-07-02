@@ -11,6 +11,7 @@ import { runPhase7Migrations } from './src/db/migrations/phase7_statement_metada
 import { runPhase8Migrations } from './src/db/migrations/phase8_settings.js';
 import { runPhase9Migrations } from './src/db/migrations/phase9_dual_db_support.js';
 import { runPhase10Migrations } from './src/db/migrations/phase10_landlord_reference.js';
+import { runPhase11Migrations } from './src/db/migrations/phase11_unique_references.js';
 import { startScheduler } from './src/jobs/scheduler.js';
 import { ensurePuppeteerDependencies } from './src/utils/puppeteerGenerator.js';
 const PORT = process.env.PORT || 9000;
@@ -54,6 +55,9 @@ const startServer = async () => {
 
   await runPhase10Migrations();
   logger.info('Phase 10 migrations complete');
+
+  await runPhase11Migrations();
+  logger.info('Phase 11 migrations complete');
 
   await ensurePuppeteerDependencies();
 

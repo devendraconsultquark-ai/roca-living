@@ -28,5 +28,6 @@ export const createPropertySchema = z.object({
   bedrooms: z.coerce.number().int().nonnegative().optional(),
   rent_pcm: z.coerce.number().nonnegative().optional(),
   mgmt_fee_pct: z.coerce.number().min(0).max(100).optional(),
-  key_ref: z.string().optional()
+  key_ref: z.string().optional(),
+  name: z.string().optional()
 });

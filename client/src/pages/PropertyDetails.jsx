@@ -318,7 +318,7 @@ export const PropertyDetails = () => {
               <div className="mt-4 pt-1 flex items-center">
                 <button 
                   onClick={() => setActiveTab('Financials')}
-                  className="text-xs-portal font-extrabold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
+                  className="text-xs-portal font-bold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
                 >
                   View Financials <ChevronRight size={12} />
                 </button>
@@ -363,7 +363,7 @@ export const PropertyDetails = () => {
               <div className="mt-4 pt-1 flex items-center">
                 <button 
                   onClick={() => setActiveTab('Compliance')}
-                  className="text-xs-portal font-extrabold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
+                  className="text-xs-portal font-bold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
                 >
                   View Compliance <ChevronRight size={12} />
                 </button>
@@ -433,7 +433,7 @@ export const PropertyDetails = () => {
               <div className="mt-4 pt-1 flex items-center">
                 <button 
                   onClick={() => setActiveTab('Maintenance')}
-                  className="text-xs-portal font-extrabold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
+                  className="text-xs-portal font-bold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
                 >
                   View Maintenance <ChevronRight size={12} />
                 </button>
@@ -448,7 +448,7 @@ export const PropertyDetails = () => {
               <h3 className="text-base-portal font-bold text-brand-primary tracking-tight">Recent Activity</h3>
               <button 
                 onClick={() => navigate('/statements')}
-                className="text-xs-portal font-extrabold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
+                className="text-xs-portal font-bold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
               >
                 View All Activity <ChevronRight size={12} />
               </button>

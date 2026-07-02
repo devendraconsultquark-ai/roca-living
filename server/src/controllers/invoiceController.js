@@ -101,6 +101,7 @@ export const generateInvoice = catchAsync(async (req, res, next) => {
   let invoiceId;
   await db.transaction(async (trx) => {
     // 1. Insert document record
+    const tempDocRef = `TEMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const [docId] = await trx('documents').insert({
       folder_id: null,
       owner_type: 'landlord',
@@ -111,8 +112,14 @@ export const generateInvoice = catchAsync(async (req, res, next) => {
       mime_type: 'application/pdf',
       file_path: relativePath,
       file_size_bytes: pdfBuffer.length,
-      uploaded_by: req.user.id
+      uploaded_by: req.user.id,
+      doc_reference: tempDocRef
     });
+
+    const doc_reference = `REM-DOC-${String(docId).padStart(5, '0')}`;
+    await trx('documents')
+      .where({ id: docId })
+      .update({ doc_reference });
 
     // 2. Insert invoice record
     [invoiceId] = await trx('invoices').insert({

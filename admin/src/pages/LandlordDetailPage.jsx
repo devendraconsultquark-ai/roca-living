@@ -152,8 +152,8 @@ export const LandlordDetailPage = () => {
                           <Home size={20} />
                         </div>
                         <div>
-                          <h4 className="font-bold text-[#1A1A1A] group-hover:text-brand-accent transition-colors">{p.address_line1}, {p.city}</h4>
-                          <p className="text-xs font-semibold text-gray-500 mt-0.5">{p.postcode} • {p.property_type}</p>
+                          <h4 className="font-bold text-[#1A1A1A] group-hover:text-brand-accent transition-colors">{p.name || p.address_line1}</h4>
+                          <p className="text-xs font-semibold text-gray-500 mt-0.5">{p.property_reference || `Property #${p.id}`} • {p.city}, {p.postcode} • {p.property_type}</p>
                         </div>
                       </div>
                       <StatusPill status={p.status === 'let' ? 'active' : p.status === 'vacant' ? 'pending' : 'draft'} />

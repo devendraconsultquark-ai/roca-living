@@ -272,7 +272,13 @@ export const DocumentLibrary = () => {
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs sm:text-sm font-bold text-[#1A1A1A] truncate">{file.name}</p>
-                        <div className="flex items-center gap-2 text-[10px] text-gray-400 font-semibold mt-1">
+                        <div className="flex flex-wrap items-center gap-2 text-[10px] text-gray-400 font-semibold mt-1">
+                          {file.doc_reference && (
+                            <>
+                              <span className="text-gray-600 font-bold bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">{file.doc_reference}</span>
+                              <span>•</span>
+                            </>
+                          )}
                           <span>Size: {file.size}</span>
                           <span>•</span>
                           <span>Uploaded: {file.date}</span>

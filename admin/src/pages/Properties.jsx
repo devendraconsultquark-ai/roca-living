@@ -29,7 +29,8 @@ export const Properties = () => {
     property_type: 'flat',
     bedrooms: '',
     rent_pcm: '',
-    mgmt_fee_pct: '12.00'
+    mgmt_fee_pct: '12.00',
+    name: ''
   });
 
   // Edit Modal State
@@ -44,7 +45,8 @@ export const Properties = () => {
     bedrooms: '',
     rent_pcm: '',
     mgmt_fee_pct: '12.00',
-    status: 'onboarding'
+    status: 'onboarding',
+    name: ''
   });
 
   const [formErrors, setFormErrors] = useState({});
@@ -65,7 +67,8 @@ export const Properties = () => {
         bedrooms: info.bedrooms !== null ? String(info.bedrooms) : '',
         rent_pcm: info.rent_pcm !== null ? String(info.rent_pcm) : '',
         mgmt_fee_pct: info.mgmt_fee_pct !== null ? String(info.mgmt_fee_pct) : '12.00',
-        status: info.status || 'onboarding'
+        status: info.status || 'onboarding',
+        name: info.name || ''
       });
       setIsEditModalOpen(true);
     } catch (err) {
@@ -169,7 +172,8 @@ export const Properties = () => {
         property_type: 'flat',
         bedrooms: '',
         rent_pcm: '',
-        mgmt_fee_pct: '12.00'
+        mgmt_fee_pct: '12.00',
+        name: ''
       });
       fetchProperties();
     } catch (err) {
@@ -205,8 +209,18 @@ export const Properties = () => {
   };
 
   const columns = [
-    { header: 'Property ID', accessor: 'id', sortable: true },
-    { header: 'Address', accessor: 'address', sortable: true },
+    { header: 'Property Reference', accessor: 'property_reference', sortable: true },
+    { 
+      header: 'Property', 
+      accessor: 'name', 
+      sortable: true,
+      renderCell: (row) => (
+        <div>
+          <div className="font-semibold text-gray-900">{row.name || row.address_line1}</div>
+          <div className="text-xs text-gray-500">{row.address}</div>
+        </div>
+      )
+    },
     { header: 'Associated Landlord', accessor: 'landlord', sortable: true },
     { 
       header: 'Monthly Rent', 
@@ -365,6 +379,14 @@ export const Properties = () => {
                 options={landlordsList.map((l) => ({ value: l.id, label: `${l.name} (${l.email})` }))}
               />
               <Input
+                label="Property Name (Optional)"
+                id="name"
+                placeholder="e.g. Parsons House"
+                value={newProperty.name}
+                onChange={(e) => setNewProperty({ ...newProperty, name: e.target.value })}
+                error={formErrors.name}
+              />
+              <Input
                 label="Address Line 1"
                 id="address_line1"
                 required
@@ -481,6 +503,14 @@ export const Properties = () => {
             <h3 className="text-lg font-bold text-[#1A1A1A] mb-4">Edit Property Details</h3>
             
             <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
+              <Input
+                label="Property Name (Optional)"
+                id="edit_name"
+                placeholder="e.g. Parsons House"
+                value={editingProperty.name}
+                onChange={(e) => setEditingProperty({ ...editingProperty, name: e.target.value })}
+                error={formErrors.name}
+              />
               <Input
                 label="Address Line 1"
                 id="edit_address_line1"

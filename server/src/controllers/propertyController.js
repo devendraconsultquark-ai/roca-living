@@ -16,7 +16,9 @@ const ALLOWED_PROPERTY_FIELDS = [
   'mgmt_fee_pct',
   'key_ref',
   'notes',
-  'status'
+  'status',
+  'name',
+  'property_reference'
 ];
 
 const formatProperty = (p) => {
@@ -152,7 +154,7 @@ export const getPropertyById = catchAsync(async (req, res, next) => {
 
 
 export const createProperty = catchAsync(async (req, res, next) => {
-  const { landlord_id, address_line1, address_line2, city, postcode, property_type, bedrooms, rent_pcm, mgmt_fee_pct, key_ref } = req.body;
+  const { landlord_id, address_line1, address_line2, city, postcode, property_type, bedrooms, rent_pcm, mgmt_fee_pct, key_ref, name } = req.body;
 
   const landlord = await db('users').where({ id: landlord_id, role: 'LANDLORD' }).first();
   if (!landlord) {
@@ -160,6 +162,7 @@ export const createProperty = catchAsync(async (req, res, next) => {
   }
 
   const result = await db.transaction(async (trx) => {
+    const tempRef = `TEMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const [propertyId] = await trx('properties').insert({
       landlord_id,
       address_line1,
@@ -171,8 +174,15 @@ export const createProperty = catchAsync(async (req, res, next) => {
       rent_pcm: rent_pcm !== undefined ? rent_pcm : null,
       mgmt_fee_pct: mgmt_fee_pct !== undefined ? mgmt_fee_pct : 12.00,
       key_ref: key_ref || null,
+      name: name || address_line1,
+      property_reference: tempRef,
       status: 'onboarding'
     });
+
+    const property_reference = `REM-PRP-${String(propertyId).padStart(5, '0')}`;
+    await trx('properties')
+      .where({ id: propertyId })
+      .update({ property_reference });
 
     const certTypes = ['EPC', 'EICR', 'GAS', 'SMOKE_CO', 'HMO', 'PAT'];
     const certRows = certTypes.map((type) => ({

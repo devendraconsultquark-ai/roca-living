@@ -302,6 +302,7 @@ export const generateStatements = catchAsync(async (req, res, next) => {
   let statementId;
   await db.transaction(async (trx) => {
     // 1. Insert document record
+    const tempDocRef = `TEMP-DOC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const [docId] = await trx('documents').insert({
       folder_id: null,
       owner_type: 'landlord',
@@ -312,10 +313,17 @@ export const generateStatements = catchAsync(async (req, res, next) => {
       mime_type: 'application/pdf',
       file_path: relativePath,
       file_size_bytes: pdfBuffer.length,
-      uploaded_by: req.user.id
+      uploaded_by: req.user.id,
+      doc_reference: tempDocRef
     });
 
+    const doc_reference = `REM-DOC-${String(docId).padStart(5, '0')}`;
+    await trx('documents')
+      .where({ id: docId })
+      .update({ doc_reference });
+
     // 2. Insert statement record
+    const tempStmtRef = `TEMP-STM-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     [statementId] = await trx('landlord_statements').insert({
       landlord_id: landlordId || null,
       landlord_name,              // text snapshot (critical for EM-sourced records)
@@ -337,6 +345,7 @@ export const generateStatements = catchAsync(async (req, res, next) => {
       generated_at: trx.fn.now(),
       generated_by: req.user.id,
       statement_number,
+      statement_reference: tempStmtRef,
       tenant_name: tenant_name || null,
       tenancy_type: tenancy_type || null,
       tenancy_start_date: tenancy_start_date || null,
@@ -346,6 +355,11 @@ export const generateStatements = catchAsync(async (req, res, next) => {
       setup_rebate: parseFloat(setup_rebate || 0).toFixed(2),
       previous_balance: parseFloat(previous_balance || 0).toFixed(2)
     });
+
+    const statement_reference = `REM-STM-${String(statementId).padStart(5, '0')}`;
+    await trx('landlord_statements')
+      .where({ id: statementId })
+      .update({ statement_reference });
 
     // 3. Transaction ledgers (landlord_id may be null for EM sources)
     const ledgerRows = [
@@ -547,6 +561,7 @@ export const generateStatements = catchAsync(async (req, res, next) => {
     // Save Statement and PDF in Transaction
     await db.transaction(async (trx) => {
       // 1. Insert into landlord_statements
+      const tempStmtRef = `TEMP-STM-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const [statementId] = await trx('landlord_statements').insert({
         landlord_id: landlordId,
         period_start,
@@ -561,8 +576,14 @@ export const generateStatements = catchAsync(async (req, res, next) => {
         net_paid: netPaidStr,
         status: 'draft',
         generated_at: trx.fn.now(),
-        generated_by: req.user.id
+        generated_by: req.user.id,
+        statement_reference: tempStmtRef
       });
+
+      const statement_reference = `REM-STM-${String(statementId).padStart(5, '0')}`;
+      await trx('landlord_statements')
+        .where({ id: statementId })
+        .update({ statement_reference });
 
       // 2. Generate PDF Document
       const filename = `RL_STMT_${landlordId}_${period_start}.pdf`;
@@ -588,6 +609,7 @@ export const generateStatements = catchAsync(async (req, res, next) => {
 
       // 3. Insert Document Record
       const fileSize = fs.existsSync(absolutePath) ? fs.statSync(absolutePath).size : 0;
+      const tempDocRef = `TEMP-DOC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const [docId] = await trx('documents').insert({
         folder_id: null,
         owner_type: 'landlord',
@@ -598,8 +620,14 @@ export const generateStatements = catchAsync(async (req, res, next) => {
         mime_type: 'application/pdf',
         file_path: relativePath,
         file_size_bytes: fileSize,
-        uploaded_by: req.user.id
+        uploaded_by: req.user.id,
+        doc_reference: tempDocRef
       });
+
+      const doc_reference = `REM-DOC-${String(docId).padStart(5, '0')}`;
+      await trx('documents')
+        .where({ id: docId })
+        .update({ doc_reference });
 
       // 4. Update landlord statement with document reference
       await trx('landlord_statements')

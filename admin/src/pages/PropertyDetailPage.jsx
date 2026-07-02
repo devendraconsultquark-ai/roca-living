@@ -74,9 +74,9 @@ export const PropertyDetailPage = () => {
       <DetailHeader
         backPath="/properties"
         backLabel="Back to Properties"
-        title={data.address_line1}
+        title={data.name || data.address_line1}
         badge={<StatusPill status={data.status === 'let' ? 'active' : data.status === 'vacant' ? 'pending' : 'draft'} />}
-        subtitle={`${data.city} ${data.postcode} • Added ${new Date(data.created_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`}
+        subtitle={`${data.property_reference} • ${address} • Added ${new Date(data.created_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`}
         editLabel="Edit Property"
         onDelete={handleDelete}
       />
