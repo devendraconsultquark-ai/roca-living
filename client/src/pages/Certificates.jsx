@@ -1,92 +1,45 @@
-import React, { useState, useEffect } from "react";
-import { usePropertyContext } from "../context/PropertyContext";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import {
   FileText,
   Calendar,
   AlertCircle,
   ShieldCheck,
-  Download,
   ChevronRight,
-  Info,
   PlusCircle,
   MoreVertical,
 } from "lucide-react";
-import { useProperties } from "../hooks/useProperties";
-import { useDocuments } from "../hooks/useDocuments";
 import { PortalMetricCard } from "../components/UI/PortalMetricCard";
 import { Button } from "../components/UI/Button";
 import { FilterRibbon } from "../components/UI/FilterRibbon";
 import { Pagination } from "../components/UI/Pagination";
 import { TableEmptyState } from "../components/UI/TableEmptyState";
 import { StatusPill } from "../components/UI/StatusPill";
+import { useCertificates } from "../hooks/useCertificates";
 
 export const Certificates = () => {
-  const { selectedProperty } = usePropertyContext();
-  const navigate = useNavigate();
-  const { properties } = useProperties();
-  const { documents, loading, error } = useDocuments();
+  // Certificate derivation, pagination and stats live in the hook; the page
+  // keeps only its filter UI state and renders.
+  const {
+    loading,
+    error,
+    certificatesData,
+    paginatedCertificates,
+    currentPage,
+    setCurrentPage,
+    totalPages,
+    totalItems,
+    pageSize,
+    totalCount,
+    compliantCount,
+    expiredCount,
+    expiringSoonCount,
+  } = useCertificates();
 
   // Filter states
   const [filterProperty, setFilterProperty] = useState("All Properties");
   const [filterType, setFilterType] = useState("All Types");
   const [filterStatus, setFilterStatus] = useState("All Statuses");
   const [filterDue, setFilterDue] = useState("All Time");
-
-  // Sidebar filter states
-  const [sidebarType, setSidebarType] = useState("All Types");
-  const [sidebarStatus, setSidebarStatus] = useState("All Statuses");
-  const [sidebarDue, setSidebarDue] = useState("All Time");
-
-  // Derive certificates from actual document records
-  const certificatesData = [];
-  
-  if (documents) {
-    documents
-      .filter((doc) => doc.category === "Certificates" || doc.category === "Compliance")
-      .forEach((doc) => {
-        const isExpired = doc.status === "Expired";
-        certificatesData.push({
-          item: doc.item || "Certificate",
-          ref: `Ref: ${doc.id}`,
-          type: doc.category || "Safety",
-          property: doc.related?.length > 0 ? doc.related[0] : "—",
-          issued: doc.uploaded || "—",
-          expires: "—", // Backend doesn't support document expiry yet
-          countdown: isExpired ? "Expired" : "Active",
-          countdownColor: isExpired ? "text-status-danger font-bold" : "text-status-muted",
-          status: isExpired ? "Expired" : "Valid",
-          action: "View Certificate",
-          icon: ShieldCheck,
-          color: isExpired ? "bg-red-50 text-red-500" : "bg-status-success-bg text-status-success",
-        });
-      });
-  }
-
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 10;
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [documents]);
-
-  const totalItems = certificatesData.length;
-  const totalPages = Math.ceil(totalItems / pageSize);
-
-  const paginatedCertificates = certificatesData.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize,
-  );
-
-  // Calculate stats dynamically
-  const totalCount = certificatesData.length;
-  const compliantCount = certificatesData.filter(
-    (c) => c.status === "Valid",
-  ).length;
-  const expiredCount = certificatesData.filter(
-    (c) => c.status === "Expired",
-  ).length;
-  const expiringSoonCount = 0; // Not tracked via static API dates
 
   const filtersConfig = [
     {
@@ -231,7 +184,6 @@ export const Certificates = () => {
                     />
                   ) : (
                     paginatedCertificates.map((row, idx) => {
-                      const isCompliant = row.status === "Compliant";
                       return (
                         <tr
                           key={idx}
