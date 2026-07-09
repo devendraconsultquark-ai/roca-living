@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Building,
@@ -11,14 +11,8 @@ import {
   List,
   MoreVertical,
   ChevronRight,
-  CheckCircle2,
-  AlertTriangle,
-  Key,
-  Download,
-  Check,
-  HelpCircle,
 } from "lucide-react";
-import { useProperties } from "../hooks/useProperties";
+import { usePropertiesPage } from "../hooks/usePropertiesPage";
 import { PortalCard } from "../components/UI/PortalCard";
 import { PortalMetricCard } from "../components/UI/PortalMetricCard";
 import { Button } from "../components/UI/Button";
@@ -28,73 +22,27 @@ import { Chip } from "../components/UI/Chip";
 
 export const Properties = () => {
   const navigate = useNavigate();
-  const { properties, loading, error, monthlyGrossYield, complianceWarnings } =
-    useProperties();
 
-  const [activeFilter, setActiveFilter] = useState("All");
-  const [searchQuery, setSearchQuery] = useState("");
+  // Filtering, enrichment and portfolio metrics live in the hook; the page owns
+  // only the presentational view-mode toggle and renders.
+  const {
+    filteredProperties,
+    loading,
+    error,
+    monthlyGrossYield,
+    totalCount,
+    occupiedCount,
+    occupiedPct,
+    vacantCount,
+    vacantPct,
+    compliancePct,
+    activeFilter,
+    setActiveFilter,
+    searchQuery,
+    setSearchQuery,
+  } = usePropertiesPage();
+
   const [viewMode, setViewMode] = useState("card"); // card | table
-
-  // Map image while forwarding joined database attributes
-  const enrichProperty = (p) => {
-    return {
-      ...p,
-      image: `${import.meta.env.BASE_URL}images/img1.jpg`,
-    };
-  };
-
-  const enrichedProperties = properties.map(enrichProperty);
-
-  // Filters logic
-  const filteredProperties = enrichedProperties.filter((p) => {
-    // 1. Search Query filter
-    const matchesSearch = p.address
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
-    if (!matchesSearch) return false;
-
-    // 2. Filter Pills logic
-    switch (activeFilter) {
-      case "Occupied":
-        return p.status === "let";
-      case "Vacant":
-        return p.status === "vacant" || p.status === "onboarding";
-      case "Compliance Issues":
-        return (
-          p.compliance_pct < 100 ||
-          p.gasCompliance === "expired" ||
-          p.epcCompliance === "expired" ||
-          p.eicrCompliance === "expired"
-        );
-      case "Maintenance Issues":
-        return p.maintenance_issues > 0;
-      case "Rent Arrears":
-        return p.status === "let" && p.id === 999; // Mock: no arrears in active database
-      case "Expiring Compliance":
-        return (
-          p.gasCompliance === "expiring_soon" ||
-          p.epcCompliance === "expiring_soon" ||
-          p.eicrCompliance === "expiring_soon"
-        );
-      default:
-        return true;
-    }
-  });
-
-  // Summary Metrics calculations
-  const totalCount = enrichedProperties.length;
-  const occupiedCount = enrichedProperties.filter(
-    (p) => p.status === "let",
-  ).length;
-  const vacantCount = totalCount - occupiedCount;
-  const occupiedPct =
-    totalCount > 0 ? ((occupiedCount / totalCount) * 100).toFixed(1) : "0";
-  const vacantPct =
-    totalCount > 0 ? ((vacantCount / totalCount) * 100).toFixed(1) : "0";
-  const compliancePct =
-    totalCount > 0
-      ? Math.round(((totalCount - complianceWarnings) / totalCount) * 100)
-      : 100;
 
   // Render cert status for the table view fallback
   const renderCertStatus = (statusValue) => {
