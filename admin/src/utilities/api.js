@@ -25,7 +25,8 @@ api.interceptors.response.use(
     if (status === 401) {
       // Redirect to login if not already on a public page (login, forgot-password, reset-password)
       const publicPaths = ['/login', '/forgot-password', '/reset-password'];
-      const isPublicPath = publicPaths.some(path => window.location.pathname.includes(path));
+      const cleanPath = window.location.pathname.replace(/\/+$/, '') || '/';
+      const isPublicPath = publicPaths.some(path => cleanPath === path || cleanPath.endsWith(path));
       if (!isPublicPath) {
         window.location.href = '/login';
       }

@@ -119,7 +119,7 @@ export const PropertyDetailPage = () => {
                   </div>
                   <div className="flex items-center justify-between pb-3 border-b border-gray-50">
                     <span className="text-sm font-medium text-gray-500">Active Tickets</span>
-                    <span className="text-sm font-bold text-[#1A1A1A]">{data.maintenance_tickets?.filter(t => t.status !== 'completed').length || 0}</span>
+                    <span className="text-sm font-bold text-[#1A1A1A]">{data.maintenance_tickets?.filter(t => t.status !== 'complete' && t.status !== 'cancelled').length || 0}</span>
                   </div>
                 </div>
               </Card>

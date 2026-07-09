@@ -21,6 +21,17 @@ const BOARD_TO_API = Object.fromEntries(Object.entries(API_TO_BOARD).map(([k, v]
 
 const COLUMNS = ['New', 'Triaged', 'Awaiting Approval', 'In Progress', 'Complete'];
 
+// Mirrors the server-side state machine (maintenanceController VALID_TRANSITIONS) so the
+// board doesn't offer moves the API will reject with a 400.
+const VALID_TRANSITIONS = {
+  new: ['triaged', 'cancelled'],
+  triaged: ['awaiting_approval', 'in_progress', 'cancelled'],
+  awaiting_approval: ['in_progress', 'cancelled'],
+  in_progress: ['complete', 'cancelled'],
+  complete: [],
+  cancelled: [],
+};
+
 const URGENCY_LABELS = {
   emergency: 'Emergency',
   urgent: 'Urgent',
@@ -174,10 +185,18 @@ export const MaintenanceBoard = () => {
     const ticket = tickets.find(t => t.id === ticketId);
     if (!ticket || ticket.status === newBoardStatus) return;
 
+    const currentApiStatus = BOARD_TO_API[ticket.status];
+    const apiStatus = BOARD_TO_API[newBoardStatus];
+
+    // Block moves the server would reject, with a clear message instead of a generic failure.
+    if (!(VALID_TRANSITIONS[currentApiStatus] || []).includes(apiStatus)) {
+      addToast(`Can't move a "${ticket.status}" ticket to "${newBoardStatus}".`, 'error');
+      return;
+    }
+
     // Optimistic update
     setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: newBoardStatus } : t));
 
-    const apiStatus = BOARD_TO_API[newBoardStatus];
     try {
       await api.patch(`/maintenance/${ticketId}/status`, { status: apiStatus });
       addToast(`Ticket #${ticketId} moved to ${newBoardStatus}`, 'success');
