@@ -1,6 +1,4 @@
-import React, { useState } from "react";
-import { usePropertyContext } from "../context/PropertyContext";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import {
   Wallet,
   ArrowDown,
@@ -9,106 +7,41 @@ import {
   Download,
   Filter,
   MoreVertical,
-  Wrench,
   ChevronRight,
-  FileText,
   CheckCircle2,
 } from "lucide-react";
 import { PortalCard } from "../components/UI/PortalCard";
 import { Button } from "../components/UI/Button";
 import { Dropdown } from "../components/UI/Dropdown";
 import { Tabs } from "../components/UI/Tabs";
-import { useStatements } from "../hooks/useStatements";
-import { useTransactions } from "../hooks/useTransactions";
 import { TableEmptyState } from "../components/UI/TableEmptyState";
 import { Pagination } from "../components/UI/Pagination";
+import { useFinancials } from "../hooks/useFinancials";
 
 export const Financials = () => {
-  const { selectedProperty } = usePropertyContext();
-  const navigate = useNavigate();
+  // All data, derived stats, the transaction view-model and pagination live in
+  // the hook; this component is presentation only.
   const {
-    statements,
-    loading: statementsLoading,
-    error: statementsError,
-  } = useStatements();
-  const { transactions: apiTransactions, loading: transactionsLoading } =
-    useTransactions();
-  const loading = statementsLoading || transactionsLoading;
+    stats,
+    transactions,
+    paginatedTransactions,
+    loading,
+    error,
+    tabs,
+    activeTab,
+    setActiveTab,
+    currentPage,
+    setCurrentPage,
+    totalPages,
+    pageSize,
+  } = useFinancials();
 
-  const [activeTab, setActiveTab] = useState("Overview");
-  const [statementPeriod, setStatementPeriod] = useState("June 2026");
-  const [currentPage, setCurrentPage] = useState(1);
-
-  React.useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedProperty, activeTab]);
-
-  // local filter states for custom dropdowns
+  // Genuinely-local, ephemeral UI state (single-option display selectors) — no
+  // data depends on it yet, so it stays in the component.
+  const [statementPeriod] = useState("June 2026");
   const [summaryFilter, setSummaryFilter] = useState("This Month");
   const [chartFilter, setChartFilter] = useState("This Year");
   const [invoiceFilter, setInvoiceFilter] = useState("This Month");
-
-  // Compute stats dynamically from statements
-  const totalIncome = statements.reduce((sum, s) => sum + (s.invoiced || 0), 0);
-  const totalExpenses = statements.reduce((sum, s) => sum + (s.fees || 0), 0);
-  const netPaid = statements.reduce((sum, s) => sum + (s.payout || 0), 0);
-  const ytdNet = statements.reduce((sum, s) => sum + (s.payout || 0), 0);
-
-  const stats = {
-    totalIncome,
-    totalExpenses,
-    netPaid,
-    ytdNet,
-    heldPayments: 0,
-    unpaidInvoices: 0,
-    pendingTrans: 0,
-  };
-
-  const tabs = [
-    "Overview",
-    "Transactions",
-    "Statements",
-    "Payouts",
-    "Invoices",
-  ];
-
-  // Map real database transactions from hook
-  const transactions =
-    apiTransactions.length > 0
-      ? apiTransactions.map((t) => {
-          const isIncome = t.type === "rent_in";
-          const isPayout = t.type === "landlord_payout";
-          
-          let category = "Other";
-          if (isIncome) category = "Rental Income";
-          else if (isPayout) category = "Payouts";
-          else if (t.type === "deduction" || t.type === "mgmt_fee") category = "Management Fees";
-
-          return {
-            date: t.transaction_date
-              ? new Date(t.transaction_date).toLocaleDateString("en-GB")
-              : "—",
-            desc: t.description || "Transaction",
-            detail: t.statement_id ? `Statement STMT-${t.statement_id}` : "",
-            category,
-            type: isIncome ? "Income" : "Expense",
-            amount: isIncome ? parseFloat(t.amount) : -parseFloat(t.amount),
-            balance: 0.0, // Backend doesn't store running balance currently
-            icon: isPayout ? CheckCircle2 : Wallet,
-            color: isIncome || isPayout
-              ? "text-status-success bg-status-success-bg"
-              : "text-status-info bg-status-info-bg",
-          };
-        })
-      : [];
-
-  // Pagination logic
-  const pageSize = 10;
-  const totalPages = Math.ceil(transactions.length / pageSize);
-  const paginatedTransactions = transactions.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize,
-  );
 
   if (loading) {
     return (
@@ -134,9 +67,9 @@ export const Financials = () => {
 
   return (
     <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8 font-sans text-brand-primary">
-      {statementsError && (
+      {error && (
         <div className="border border-status-danger bg-status-danger/5 rounded-card p-4 text-center text-status-danger font-semibold">
-          {statementsError}
+          {error}
         </div>
       )}
 
@@ -430,6 +363,13 @@ export const Financials = () => {
                       ) : (
                         paginatedTransactions.map((tr, index) => {
                           const isInc = tr.type === "Income";
+                          // Icon + colour are presentation — derived here from
+                          // the row's semantic fields (type / isPayout).
+                          const RowIcon = tr.isPayout ? CheckCircle2 : Wallet;
+                          const rowIconClasses =
+                            isInc || tr.isPayout
+                              ? "text-status-success bg-status-success-bg"
+                              : "text-status-info bg-status-info-bg";
                           return (
                             <tr
                               key={index}
@@ -442,9 +382,9 @@ export const Financials = () => {
                               <td className="py-3 px-2">
                                 <div className="flex items-center gap-2.5 select-none">
                                   <div
-                                    className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${tr.color}`}
+                                    className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${rowIconClasses}`}
                                   >
-                                    <tr.icon size={13} />
+                                    <RowIcon size={13} />
                                   </div>
                                   <div className="flex flex-col text-left">
                                     <span className="font-bold text-brand-primary leading-tight">
