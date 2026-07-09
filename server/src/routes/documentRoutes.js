@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
-import { getFolders, uploadDocument, deleteDocument } from '../controllers/documentController.js';
+import { getFolders, uploadDocument, deleteDocument, getMyDocuments } from '../controllers/documentController.js';
 import { protect } from '../middlewares/protect.js';
 import { restrictTo } from '../middlewares/restrictTo.js';
 
@@ -34,7 +34,7 @@ const allowedExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.c
 
 const fileFilter = (req, file, cb) => {
   const ext = path.extname(file.originalname).toLowerCase();
-  
+
   if (!allowedExtensions.includes(ext) || !allowedMimeTypes.includes(file.mimetype)) {
     return cb(new Error('Only document files (PDF, Word, Excel, CSV, TXT) and images (JPEG, PNG, GIF) are allowed!'), false);
   }
@@ -49,7 +49,10 @@ const upload = multer({
 
 const documentRouter = Router();
 
-// Secure all routes
+// Landlord routes
+documentRouter.get('/my', protect('landlord'), restrictTo('LANDLORD'), getMyDocuments);
+
+// Secure all other routes
 documentRouter.use(protect('admin'), restrictTo('ADMIN'));
 
 documentRouter.get('/folders', getFolders);

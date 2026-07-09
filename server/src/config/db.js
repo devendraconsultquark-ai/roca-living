@@ -11,11 +11,13 @@ export const emDb = knex({
   client: 'mysql2',
   connection: {
     host: process.env.ROCAEM_DB_HOST,
-    port: Number(process.env.ROCAEM_DB_PORT),
+    port: Number(process.env.ROCAEM_DB_PORT) || 3306,
     database: process.env.ROCAEM_DB_NAME,
     user: process.env.ROCAEM_DB_USER,
     password: process.env.ROCAEM_DB_PASSWORD,
-  }
+  },
+  pool: { min: 0, max: Number(process.env.DB_POOL_MAX) || 10 },
+  acquireConnectionTimeout: 30000,
 });
 
 export const verifyDbConnection = async () => {

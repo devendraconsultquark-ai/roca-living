@@ -1,35 +1,7 @@
 import db from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
-
-// Date utility functions immune to timezone shifts
-const addDays = (dateStr, days) => {
-  const parts = dateStr.split('-');
-  const d = new Date(parts[0], parts[1] - 1, parts[2]);
-  d.setDate(d.getDate() + days);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-const addMonths = (dateStr, months) => {
-  const parts = dateStr.split('-');
-  const year = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10) - 1;
-  const day = parseInt(parts[2], 10);
-
-  const targetDate = new Date(year, month + months, 1);
-  const lastDayOfTarget = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0).getDate();
-  const clampedDay = Math.min(day, lastDayOfTarget);
-  targetDate.setDate(clampedDay);
-
-  const targetYear = targetDate.getFullYear();
-  const targetMonthStr = String(targetDate.getMonth() + 1).padStart(2, '0');
-  const targetDayStr = String(targetDate.getDate()).padStart(2, '0');
-
-  return `${targetYear}-${targetMonthStr}-${targetDayStr}`;
-};
+import { addDays, addMonths } from '../utils/dateHelpers.js';
 
 const generateSchedules = (startDateStr, endDateStr, rentPcm) => {
   const schedules = [];
@@ -745,7 +717,7 @@ export const deleteTenant = catchAsync(async (req, res, next) => {
       action: 'TENANT_DELETED',
       entity_type: 'tenant',
       entity_id: id,
-      meta: JSON.stringify({ name: tenant.name, email: tenant.email }),
+      meta: JSON.stringify({ erased: true }), // name/email intentionally NOT retained
       ip_address: req.ip || null
     });
   });

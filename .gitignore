@@ -13,6 +13,10 @@ dist-ssr/
 .env.local
 .env.*.local
 
+# Developer scratch scripts and any leaked reset links (never deploy/commit)
+server/scratch/
+scratch/last_reset_link.txt
+
 # Logs
 logs/
 *.log

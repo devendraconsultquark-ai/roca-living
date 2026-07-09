@@ -2,6 +2,8 @@ import puppeteer from 'puppeteer';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
+import logger from "./logger.js";
+
 const execPromise = promisify(exec);
 
 /**
@@ -12,49 +14,49 @@ export const ensurePuppeteerDependencies = async () => {
     return; // Only run on Linux servers
   }
   
-  console.log('[PuppeteerGenerator] Checking if Puppeteer can launch successfully...');
+  logger.info('[PuppeteerGenerator] Checking if Puppeteer can launch successfully...');
   let browser;
   try {
     browser = await puppeteer.launch({
       headless: 'new',
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
-    console.log('[PuppeteerGenerator] Puppeteer check passed: Browser launched successfully.');
+    logger.info('[PuppeteerGenerator] Puppeteer check passed: Browser launched successfully.');
   } catch (launchError) {
-    console.error('[PuppeteerGenerator] Puppeteer launch test failed:', launchError.message);
-    console.log('[PuppeteerGenerator] Attempting to install missing Chromium dependencies...');
+    logger.error('[PuppeteerGenerator] Puppeteer launch test failed:', launchError.message);
+    logger.info('[PuppeteerGenerator] Attempting to install missing Chromium dependencies...');
     
     try {
-      console.log('[PuppeteerGenerator] Running: npx puppeteer browsers install chrome --install-deps');
+      logger.info('[PuppeteerGenerator] Running: npx puppeteer browsers install chrome --install-deps');
       const { stdout, stderr } = await execPromise('npx puppeteer browsers install chrome --install-deps');
-      console.log('[PuppeteerGenerator] Installation stdout:', stdout);
+      logger.info('[PuppeteerGenerator] Installation stdout:', stdout);
       if (stderr) {
-        console.error('[PuppeteerGenerator] Installation stderr:', stderr);
+        logger.error('[PuppeteerGenerator] Installation stderr:', stderr);
       }
       
-      console.log('[PuppeteerGenerator] Retrying Puppeteer launch after dependency installation...');
+      logger.info('[PuppeteerGenerator] Retrying Puppeteer launch after dependency installation...');
       browser = await puppeteer.launch({
         headless: 'new',
         args: ['--no-sandbox', '--disable-setuid-sandbox']
       });
-      console.log('[PuppeteerGenerator] Puppeteer successfully launched after installation!');
+      logger.info('[PuppeteerGenerator] Puppeteer successfully launched after installation!');
     } catch (installError) {
-      console.error('[PuppeteerGenerator] Failed to install/run Puppeteer dependencies automatically:', installError);
+      logger.error('[PuppeteerGenerator] Failed to install/run Puppeteer dependencies automatically:', installError);
       
       try {
-        console.log('[PuppeteerGenerator] Trying manual apt-get dependency installation fallback...');
+        logger.info('[PuppeteerGenerator] Trying manual apt-get dependency installation fallback...');
         const aptCmd = `apt-get update && apt-get install -y libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 libasound2 libpango-1.0-0 libpangocairo-1.0-0 libnss3 libnspr4`;
         const { stdout, stderr } = await execPromise(aptCmd);
-        console.log('[PuppeteerGenerator] Apt-get stdout:', stdout);
-        if (stderr) console.error('[PuppeteerGenerator] Apt-get stderr:', stderr);
+        logger.info('[PuppeteerGenerator] Apt-get stdout:', stdout);
+        if (stderr) logger.error('[PuppeteerGenerator] Apt-get stderr:', stderr);
         
         browser = await puppeteer.launch({
           headless: 'new',
           args: ['--no-sandbox', '--disable-setuid-sandbox']
         });
-        console.log('[PuppeteerGenerator] Puppeteer successfully launched after fallback apt-get installation!');
+        logger.info('[PuppeteerGenerator] Puppeteer successfully launched after fallback apt-get installation!');
       } catch (fallbackError) {
-        console.error('[PuppeteerGenerator] Fallback apt-get installation also failed:', fallbackError);
+        logger.error('[PuppeteerGenerator] Fallback apt-get installation also failed:', fallbackError);
       }
     }
   } finally {
@@ -76,14 +78,14 @@ const getSharedBrowser = async () => {
     } catch (e) {}
     sharedBrowser = null;
   }
-  console.log('[PuppeteerGenerator] Launching shared headless browser...');
+  logger.info('[PuppeteerGenerator] Launching shared headless browser...');
   sharedBrowser = await puppeteer.launch({
     headless: 'new',
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
   });
 
   sharedBrowser.on('disconnected', () => {
-    console.log('[PuppeteerGenerator] Shared browser disconnected.');
+    logger.info('[PuppeteerGenerator] Shared browser disconnected.');
     sharedBrowser = null;
   });
 
@@ -92,7 +94,7 @@ const getSharedBrowser = async () => {
 
 const closeSharedBrowser = async () => {
   if (sharedBrowser) {
-    console.log('[PuppeteerGenerator] Closing shared browser on shutdown...');
+    logger.info('[PuppeteerGenerator] Closing shared browser on shutdown...');
     try {
       await sharedBrowser.close();
     } catch (e) {}
@@ -116,13 +118,14 @@ export const generatePortraitPDFWithPuppeteer = async (htmlContent) => {
   let page = null;
   try {
     const browser = await getSharedBrowser();
-    console.log('[PuppeteerGenerator] Creating new page from shared browser...');
+    logger.info('[PuppeteerGenerator] Creating new page from shared browser...');
     page = await browser.newPage();
     
-    console.log('[PuppeteerGenerator] Setting page HTML content...');
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    logger.info('[PuppeteerGenerator] Setting page HTML content...');
+    // 'load' is sufficient for self-contained HTML and avoids the 500ms networkidle0 idle wait.
+    await page.setContent(htmlContent, { waitUntil: 'load', timeout: 30000 });
 
-    console.log('[PuppeteerGenerator] Printing Portrait PDF...');
+    logger.info('[PuppeteerGenerator] Printing Portrait PDF...');
     const pdfBuffer = await page.pdf({
       format: 'A4',
       landscape: false,
@@ -137,15 +140,15 @@ export const generatePortraitPDFWithPuppeteer = async (htmlContent) => {
 
     return pdfBuffer;
   } catch (error) {
-    console.error('[PuppeteerGenerator] Portrait compilation failed:', error);
+    logger.error('[PuppeteerGenerator] Portrait compilation failed:', error);
     throw error;
   } finally {
     if (page) {
-      console.log('[PuppeteerGenerator] Closing page...');
+      logger.info('[PuppeteerGenerator] Closing page...');
       try {
         await page.close();
       } catch (err) {
-        console.error('[PuppeteerGenerator] Error closing page:', err.message);
+        logger.error('[PuppeteerGenerator] Error closing page:', err.message);
       }
     }
   }

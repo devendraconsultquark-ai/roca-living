@@ -116,29 +116,65 @@ export const logStatementReminder = () => {
   logger.info('REMINDER: Generate landlord statements for previous month');
 };
 
+// Job 5: Data retention cleanup (daily) — purge stale personal data (GDPR Art. 5(1)(e)).
+export const runRetentionCleanup = async () => {
+  try {
+    logger.info('Running data retention cleanup...');
+    // Clear expired password-reset tokens (single-use, 1h validity) so secrets don't linger.
+    const cleared = await db('users')
+      .whereNotNull('password_reset_expires')
+      .andWhere('password_reset_expires', '<', db.fn.now())
+      .update({ password_reset_token: null, password_reset_expires: null });
+    logger.info(`Data retention cleanup complete. Cleared ${cleared} expired reset token(s).`);
+  } catch (error) {
+    logger.error(`Error in data retention cleanup: ${error.message}`);
+  }
+};
+
+// Prevents a job from overlapping with its own next tick (single-instance overlap guard).
+const running = {};
+const runExclusive = (name, fn) => async () => {
+  if (running[name]) {
+    logger.warn(`Skipping ${name}: previous run still in progress.`);
+    return;
+  }
+  running[name] = true;
+  try {
+    await fn();
+  } catch (err) {
+    logger.error(`Unhandled error in ${name}: ${err.message}`);
+  } finally {
+    running[name] = false;
+  }
+};
+
 // Scheduler setup
 export const startScheduler = () => {
+  // In a multi-instance deployment, set SCHEDULER_ENABLED=false on all but one instance
+  // so cron jobs (audit inserts, status flips) don't run in duplicate.
+  if (process.env.SCHEDULER_ENABLED === 'false') {
+    logger.info('Background jobs scheduler disabled on this instance (SCHEDULER_ENABLED=false).');
+    return;
+  }
+
   logger.info('Initializing background jobs scheduler...');
 
   // Job 1: Deposit Registration Check - Daily at 8:00 AM
-  cron.schedule('0 8 * * *', () => {
-    checkDeposits().catch(err => logger.error(`Unhandled error in checkDeposits: ${err.message}`));
-  });
+  cron.schedule('0 8 * * *', runExclusive('checkDeposits', checkDeposits));
 
   // Job 2: Compliance Certificates Check - Weekly, Mondays at 9:00 AM
-  cron.schedule('0 9 * * 1', () => {
-    checkComplianceCertificates().catch(err => logger.error(`Unhandled error in checkComplianceCertificates: ${err.message}`));
-  });
+  cron.schedule('0 9 * * 1', runExclusive('checkComplianceCertificates', checkComplianceCertificates));
 
   // Job 3: Rent Arrears Check - Daily at 9:00 AM
-  cron.schedule('0 9 * * *', () => {
-    checkRentArrears().catch(err => logger.error(`Unhandled error in checkRentArrears: ${err.message}`));
-  });
+  cron.schedule('0 9 * * *', runExclusive('checkRentArrears', checkRentArrears));
 
   // Job 4: Monthly Statement Reminder - 1st of month at 7:00 AM
   cron.schedule('0 7 1 * *', () => {
     logStatementReminder();
   });
+
+  // Job 5: Data retention cleanup - Daily at 3:00 AM
+  cron.schedule('0 3 * * *', runExclusive('runRetentionCleanup', runRetentionCleanup));
 
   logger.info('Background jobs scheduler initialized successfully.');
 };

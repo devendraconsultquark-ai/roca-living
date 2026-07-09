@@ -26,6 +26,7 @@ import documentRouter from './src/routes/documentRoutes.js';
 import invoiceRouter from './src/routes/invoiceRoutes.js';
 import settingsRouter from './src/routes/settingsRoutes.js';
 import previewRouter from './src/routes/previewRoutes.js';
+import transactionRouter from './src/routes/transactionRoutes.js';
 
 
 const app = express();
@@ -42,16 +43,16 @@ if (isProd && allowedOrigins.length === 0) {
   logger.error("WARNING: ALLOWED_ORIGINS env variable is missing or empty in production!");
 }
 
+// In non-production, allow localhost dev servers (Vite) without reflecting arbitrary origins.
+const devOriginRegex = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 app.use(cors({
   origin: (origin, callback) => {
     // Allow server-to-server or curl requests (no origin header)
     if (!origin) return callback(null, true);
 
-    if (allowedOrigins.indexOf(origin) !== -1 || !isProd) {
-      return callback(null, true);
-    } else {
-      return callback(null, false);
-    }
+    if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
+    if (!isProd && devOriginRegex.test(origin)) return callback(null, true);
+    return callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
@@ -66,19 +67,19 @@ app.use(morgan(isProd ? 'combined' : 'dev', {
   stream: { write: (message) => logger.info(message.trim()) }
 }));
 
-// Rate limiting
+// Rate limiting — global cap per IP across the whole API
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // limit each IP to 100 requests per window
+  max: 300, // requests per IP per window
   message: { success: false, message: 'Too many requests, please try again later' },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 }));
 
-// Strict rate limiting for sensitive auth endpoints
+// Strict rate limiting for sensitive auth endpoints — throttles online password guessing
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // limit each IP to 5 requests per 15 minutes
+  max: 10, // limit each IP to 10 auth attempts per 15 minutes
   message: { success: false, message: 'Too many authentication attempts, please try again after 15 minutes' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -126,6 +127,7 @@ app.use('/api/v1/reports', reportRouter);
 app.use('/api/v1/documents', documentRouter);
 app.use('/api/v1/invoices', invoiceRouter);
 app.use('/api/v1/settings', settingsRouter);
+app.use('/api/v1/transactions', transactionRouter);
 
 
 // DEV-ONLY: Live HTML preview for PDF templates — never mounted in production

@@ -37,6 +37,12 @@ export const createTicket = catchAsync(async (req, res, next) => {
     throw new ApiError(404, 'Property not found');
   }
 
+  // A landlord may only raise tickets against their own properties (prevents IDOR write +
+  // injecting contractor_cost deductions onto another landlord's ledger).
+  if (req.user.role === 'LANDLORD' && property.landlord_id !== req.user.id) {
+    throw new ApiError(403, 'You do not have permission to create a ticket for this property');
+  }
+
   const quoteAmt = quote_amount !== undefined ? parseFloat(quote_amount) : 0;
   const threshold = spend_threshold_auto_approve !== undefined ? parseFloat(spend_threshold_auto_approve) : 250.00;
 
@@ -318,6 +324,47 @@ export const approveQuote = catchAsync(async (req, res, next) => {
       entity_type: 'maintenance_ticket',
       entity_id: id,
       meta: JSON.stringify({ landlord_approved: 1, status: 'in_progress' }),
+      ip_address: req.ip || null
+    });
+  });
+
+  const updatedTicket = await db('maintenance_tickets').where('id', id).first();
+
+  res.json({
+    success: true,
+    data: formatTicket(updatedTicket)
+  });
+});
+
+export const declineQuote = catchAsync(async (req, res, next) => {
+  const { id } = req.params;
+
+  const ticket = await db('maintenance_tickets').where('id', id).first();
+  if (!ticket) {
+    throw new ApiError(404, 'Maintenance ticket not found');
+  }
+
+  const property = await db('properties').where('id', ticket.property_id).first();
+  if (!property || property.landlord_id !== req.user.id) {
+    throw new ApiError(403, 'You do not have permission to decline quotes for this property');
+  }
+
+  await db.transaction(async (trx) => {
+    await trx('maintenance_tickets')
+      .where('id', id)
+      .update({
+        landlord_approved: 0,
+        status: 'cancelled',
+        updated_at: trx.fn.now()
+      });
+
+    await trx('audit_log').insert({
+      actor_id: req.user.id,
+      actor_role: req.user.role,
+      action: 'MAINTENANCE_TICKET_QUOTE_DECLINED',
+      entity_type: 'maintenance_ticket',
+      entity_id: id,
+      meta: JSON.stringify({ landlord_approved: 0, status: 'cancelled' }),
       ip_address: req.ip || null
     });
   });

@@ -3,6 +3,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
 import { generatePortraitPDFWithPuppeteer } from '../utils/puppeteerGenerator.js';
 import { generateStandaloneInvoiceHTML } from '../templates/statementInvoiceTemplate.js';
+import logger from '../utils/logger.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -35,7 +36,7 @@ export const generateInvoice = catchAsync(async (req, res, next) => {
   // Check if invoice already exists
   const existing = await db('invoices').where({ invoice_number }).first();
   if (existing) {
-    throw new ApiError(400, `Invoice ${invoice_number} already exists`);
+    throw new ApiError(409, `Invoice ${invoice_number} already exists`);
   }
 
   // ── No cross-DB resolution. All data comes from the form. ──
@@ -96,7 +97,7 @@ export const generateInvoice = catchAsync(async (req, res, next) => {
 
   const dir = path.dirname(absolutePath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(absolutePath, pdfBuffer);
+  // Write the PDF only after the DB transaction commits (below), so a rollback leaves no orphaned file.
 
   let invoiceId;
   await db.transaction(async (trx) => {
@@ -105,7 +106,7 @@ export const generateInvoice = catchAsync(async (req, res, next) => {
     const [docId] = await trx('documents').insert({
       folder_id: null,
       owner_type: 'landlord',
-      owner_id: landlordId || null,
+      owner_id: landlordId || req.user.id,   // owner_id is NOT NULL; fall back to the admin when no landlord is resolved (matches statement flow)
       doc_type: 'landlord_invoice',
       filename,
       original_name: `Invoice ${invoice_number}`,
@@ -165,7 +166,7 @@ export const generateInvoice = catchAsync(async (req, res, next) => {
     // 4. Create ledgers / transaction entry of type 'deduction'
     await trx('transactions').insert({
       type: 'deduction',
-      property_id: propertyId,
+      property_id: null,                         // no local property FK resolved (matches invoice row)
       landlord_id: landlordId,
       amount: totalNet.toFixed(2),
       vat_amount: totalVat.toFixed(2),
@@ -187,6 +188,9 @@ export const generateInvoice = catchAsync(async (req, res, next) => {
     });
   });
 
+  // Transaction committed — now persist the PDF to disk.
+  fs.writeFileSync(absolutePath, pdfBuffer);
+
   res.status(201).json({
     success: true,
     data: {
@@ -200,11 +204,13 @@ export const generateInvoice = catchAsync(async (req, res, next) => {
 
 export const getInvoices = catchAsync(async (req, res, next) => {
   let query = db('invoices')
-    .join('users', 'invoices.landlord_id', 'users.id')
+    .leftJoin('users', 'invoices.landlord_id', 'users.id')
     .leftJoin('properties', 'invoices.property_id', 'properties.id')
     .select(
       'invoices.*',
-      'users.name as landlord_name',
+      // landlord_id is nullable (standalone / EM-sourced invoices); leftJoin keeps
+      // those rows and we fall back to the denormalised name stored on the invoice.
+      db.raw('COALESCE(users.name, invoices.landlord_name) as landlord_name'),
       'properties.address_line1 as property_address'
     )
     .orderBy('invoices.created_at', 'desc');
@@ -231,12 +237,13 @@ export const getInvoiceById = catchAsync(async (req, res, next) => {
   const { id } = req.params;
 
   const invoice = await db('invoices')
-    .join('users', 'invoices.landlord_id', 'users.id')
+    .leftJoin('users', 'invoices.landlord_id', 'users.id')
     .leftJoin('properties', 'invoices.property_id', 'properties.id')
     .select(
       'invoices.*',
-      'users.name as landlord_name',
-      'users.email as landlord_email',
+      // leftJoin + fallback so standalone / EM-sourced invoices (null landlord_id) resolve.
+      db.raw('COALESCE(users.name, invoices.landlord_name) as landlord_name'),
+      'users.email as landlord_email',   // null for standalone invoices (no linked user) — correct
       'properties.address_line1 as property_address'
     )
     .where('invoices.id', id)
@@ -293,7 +300,8 @@ export const downloadInvoicePdf = catchAsync(async (req, res, next) => {
     : path.join(process.cwd(), docRecord.file_path);
 
   if (!fs.existsSync(absolutePath)) {
-    throw new ApiError(404, `PDF file not found on disk: ${absolutePath}`);
+    logger.warn(`Invoice PDF missing on disk: ${absolutePath}`);
+    throw new ApiError(404, 'Invoice PDF file not found');
   }
 
   const filename = docRecord.filename || path.basename(absolutePath);

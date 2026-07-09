@@ -6,6 +6,8 @@ import crypto from 'crypto';
 import logger from '../utils/logger.js';
 import { deletePropertyInternal } from './propertyController.js';
 import fs from 'fs';
+
+const BCRYPT_COST = parseInt(process.env.BCRYPT_COST || '12', 10);
 import path from 'path';
 
 // Helper to format landlord profile decimals and dates
@@ -160,7 +162,7 @@ export const createLandlord = catchAsync(async (req, res, next) => {
   }
 
   const tempPassword = crypto.randomBytes(8).toString('hex');
-  const hashedPassword = await bcrypt.hash(tempPassword, 10);
+  const hashedPassword = await bcrypt.hash(tempPassword, BCRYPT_COST);
 
   const result = await db.transaction(async (trx) => {
     const [userId] = await trx('users').insert({
@@ -435,6 +437,62 @@ export const updateLandlord = catchAsync(async (req, res, next) => {
   });
 });
 
+// Shared erasure cascade — used by admin deletion and landlord self-erasure (GDPR Art. 17).
+// `actor` = { id, role, ip }. Deliberately stores NO name/email in the audit trail.
+export const eraseLandlordData = async (trx, id, actor) => {
+  const properties = await trx('properties').where('landlord_id', id);
+  for (const prop of properties) {
+    await deletePropertyInternal(trx, prop.id);
+  }
+
+  await trx('compliance_checklist').where({ scope: 'landlord', entity_id: id }).delete();
+
+  const docs = await trx('documents').where({ owner_type: 'landlord', owner_id: id });
+  for (const doc of docs) {
+    const absPath = path.join(process.cwd(), doc.file_path);
+    if (fs.existsSync(absPath)) {
+      try {
+        fs.unlinkSync(absPath);
+      } catch (err) {
+        logger.error(`Failed to delete landlord file at ${absPath}: ${err.message}`);
+      }
+    }
+  }
+  await trx('documents').where({ owner_type: 'landlord', owner_id: id }).delete();
+
+  const statements = await trx('landlord_statements').where('landlord_id', id);
+  const docIds = statements.map(s => s.document_id).filter(Boolean);
+  if (docIds.length > 0) {
+    const statementDocs = await trx('documents').whereIn('id', docIds);
+    for (const doc of statementDocs) {
+      const absPath = path.join(process.cwd(), doc.file_path);
+      if (fs.existsSync(absPath)) {
+        try { fs.unlinkSync(absPath); } catch (err) { logger.error(err); }
+      }
+    }
+    await trx('documents').whereIn('id', docIds).delete();
+  }
+  await trx('landlord_statements').where('landlord_id', id).delete();
+
+  await trx('transactions').where('landlord_id', id).delete();
+  await trx('folders').where({ owner_type: 'landlord', owner_id: id }).delete();
+
+  // Delete agent_instructions for this landlord (viewings cascade automatically via FK)
+  await trx('agent_instructions').where('landlord_id', id).delete();
+
+  await trx('users').where({ id, role: 'LANDLORD' }).delete();
+
+  await trx('audit_log').insert({
+    actor_id: actor.id,
+    actor_role: actor.role,
+    action: 'LANDLORD_DELETED',
+    entity_type: 'landlord',
+    entity_id: id,
+    meta: JSON.stringify({ erased: true }), // name/email intentionally NOT retained
+    ip_address: actor.ip || null
+  });
+};
+
 export const deleteLandlord = catchAsync(async (req, res, next) => {
   const { id } = req.params;
 
@@ -443,59 +501,7 @@ export const deleteLandlord = catchAsync(async (req, res, next) => {
     throw new ApiError(404, 'Landlord not found');
   }
 
-  await db.transaction(async (trx) => {
-    const properties = await trx('properties').where('landlord_id', id);
-    for (const prop of properties) {
-      await deletePropertyInternal(trx, prop.id);
-    }
-
-    await trx('compliance_checklist').where({ scope: 'landlord', entity_id: id }).delete();
-
-    const docs = await trx('documents').where({ owner_type: 'landlord', owner_id: id });
-    for (const doc of docs) {
-      const absPath = path.join(process.cwd(), doc.file_path);
-      if (fs.existsSync(absPath)) {
-        try {
-          fs.unlinkSync(absPath);
-        } catch (err) {
-          logger.error(`Failed to delete landlord file at ${absPath}: ${err.message}`);
-        }
-      }
-    }
-    await trx('documents').where({ owner_type: 'landlord', owner_id: id }).delete();
-
-    const statements = await trx('landlord_statements').where('landlord_id', id);
-    const docIds = statements.map(s => s.document_id).filter(Boolean);
-    if (docIds.length > 0) {
-      const statementDocs = await trx('documents').whereIn('id', docIds);
-      for (const doc of statementDocs) {
-        const absPath = path.join(process.cwd(), doc.file_path);
-        if (fs.existsSync(absPath)) {
-          try { fs.unlinkSync(absPath); } catch (err) { logger.error(err); }
-        }
-      }
-      await trx('documents').whereIn('id', docIds).delete();
-    }
-    await trx('landlord_statements').where('landlord_id', id).delete();
-
-    await trx('transactions').where('landlord_id', id).delete();
-    await trx('folders').where({ owner_type: 'landlord', owner_id: id }).delete();
-
-    // Delete agent_instructions for this landlord (viewings cascade automatically via FK)
-    await trx('agent_instructions').where('landlord_id', id).delete();
-
-    await trx('users').where({ id, role: 'LANDLORD' }).delete();
-
-    await trx('audit_log').insert({
-      actor_id: req.user.id,
-      actor_role: req.user.role,
-      action: 'LANDLORD_DELETED',
-      entity_type: 'landlord',
-      entity_id: id,
-      meta: JSON.stringify({ name: landlord.name, email: landlord.email }),
-      ip_address: req.ip || null
-    });
-  });
+  await db.transaction((trx) => eraseLandlordData(trx, id, { id: req.user.id, role: req.user.role, ip: req.ip }));
 
   res.json({
     success: true,

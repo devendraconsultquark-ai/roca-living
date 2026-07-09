@@ -5,6 +5,7 @@ import {
   getAllTickets,
   getMyTickets,
   approveQuote,
+  declineQuote,
   getAllContractors,
   createContractor,
   updateContractor,
@@ -22,6 +23,7 @@ maintenanceRouter.post('/', protect(), restrictTo('ADMIN', 'LANDLORD'), createTi
 // Landlord routes
 maintenanceRouter.get('/my', protect('landlord'), restrictTo('LANDLORD'), getMyTickets);
 maintenanceRouter.patch('/:id/approve', protect('landlord'), restrictTo('LANDLORD'), approveQuote);
+maintenanceRouter.patch('/:id/decline', protect('landlord'), restrictTo('LANDLORD'), declineQuote);
 
 // Admin routes
 maintenanceRouter.get('/', protect('admin'), restrictTo('ADMIN'), getAllTickets);

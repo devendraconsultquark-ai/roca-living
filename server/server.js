@@ -12,12 +12,17 @@ import { runPhase8Migrations } from './src/db/migrations/phase8_settings.js';
 import { runPhase9Migrations } from './src/db/migrations/phase9_dual_db_support.js';
 import { runPhase10Migrations } from './src/db/migrations/phase10_landlord_reference.js';
 import { runPhase11Migrations } from './src/db/migrations/phase11_unique_references.js';
+import { runPhase12Migrations } from './src/db/migrations/phase12_performance_indexes.js';
 import { startScheduler } from './src/jobs/scheduler.js';
 import { ensurePuppeteerDependencies } from './src/utils/puppeteerGenerator.js';
-const PORT = process.env.PORT || 9000;
+const PORT = Number(process.env.PORT) || 9000;
 
-if (!process.env.JWT_SECRET) {
-  logger.error("FATAL ERROR: JWT_SECRET environment variable is missing!");
+// Validate required environment variables at boot — fail fast with a clear message
+// rather than failing late and opaquely (undefined DB creds, NaN ports, etc.).
+const REQUIRED_ENV = ['JWT_SECRET', 'DB_HOST', 'DB_NAME', 'DB_USER'];
+const missingEnv = REQUIRED_ENV.filter((k) => !process.env[k]);
+if (missingEnv.length > 0) {
+  logger.error(`FATAL ERROR: missing required environment variable(s): ${missingEnv.join(', ')}`);
   process.exit(1);
 }
 
@@ -59,11 +64,13 @@ const startServer = async () => {
   await runPhase11Migrations();
   logger.info('Phase 11 migrations complete');
 
+  await runPhase12Migrations();
+  logger.info('Phase 12 migrations complete');
+
   await ensurePuppeteerDependencies();
 
   const server = app.listen(PORT, () => {
     logger.info(`Server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
-    console.log(`Server is running on http://localhost:${PORT}`);
     startScheduler();
   });
 

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import logger from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,7 +14,7 @@ const getLogoBase64 = () => {
       return `data:image/png;base64,${fs.readFileSync(logoPath).toString('base64')}`;
     }
   } catch (err) {
-    console.error('[Template] Failed to read logo:', err.message);
+    logger.error(`[Template] Failed to read logo: ${err.message}`);
   }
   return null;
 };

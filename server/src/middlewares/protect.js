@@ -21,7 +21,8 @@ export const protect = (portal) => async (req, res, next) => {
 
     let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
+      // Pin the algorithm so a token can't be verified under an unexpected one.
+      decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     } catch (err) {
       throw new ApiError(401, "Session expired, please login again");
     }

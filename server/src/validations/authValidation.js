@@ -38,6 +38,36 @@ export const loginSchema = z.object({
       portal: z.string().optional(),
 })
 
+// All fields optional — this is a partial update of the caller's own profile.
+export const updateProfileSchema = z.object({
+      name: z.string().min(2, "Name must be at least 2 characters").optional(),
+      email: z.string().email("Invalid email format").transform(val => val.toLowerCase()).optional(),
+      phone: z.string()
+            .regex(
+                  /^(?:\+44\s?|0)(?:7\d{3}\s?\d{6}|[1-9]\d{1,4}\s?\d{3,4}\s?\d{3,4})$/,
+                  "Must be a valid UK phone number (e.g., 07123 456789 or 020 7123 4567)"
+            ).optional(),
+      address: z.string().min(5, "Address must be at least 5 characters").optional(),
+
+      // Company / tax details (landlord_profiles)
+      companyName: z.string().max(255, "Company name is too long").optional(),
+      isOverseas: z.boolean().optional(),
+      nrlHmrcApproved: z.boolean().optional(),
+      nrlHmrcRef: z.string().max(100, "HMRC reference is too long").optional(),
+
+      // Bank / payout details (landlord_payment_details). Empty strings are allowed
+      // so a partially-filled form still saves the fields that were entered.
+      bankName: z.string().max(255, "Bank name is too long").optional(),
+      accountName: z.string().max(255, "Account name is too long").optional(),
+      accountNumber: z.string()
+            .regex(/^(\d{6,20})?$/, "Account number must be 6-20 digits")
+            .optional(),
+      sortCode: z.string()
+            .regex(/^(\d{2}-?\d{2}-?\d{2})?$/, "Sort code must be in the format 12-34-56")
+            .optional(),
+      ibanBic: z.string().max(50, "IBAN/BIC is too long").optional(),
+});
+
 export const changePasswordSchema = z.object({
       currentPassword: requiredString("Current password is required"),
       newPassword: requiredString("New password is required")

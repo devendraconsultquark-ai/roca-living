@@ -2,46 +2,10 @@ import db from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
+import { addDays, addMonths, getLastDayOfCurrentMonth } from '../utils/dateHelpers.js';
 
-// Date utility functions immune to timezone shifts
-const addDays = (dateStr, days) => {
-  const parts = dateStr.split('-');
-  const d = new Date(parts[0], parts[1] - 1, parts[2]);
-  d.setDate(d.getDate() + days);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-const addMonths = (dateStr, months) => {
-  const parts = dateStr.split('-');
-  const year = parseInt(parts[0], 10);
-  const month = parseInt(parts[1], 10) - 1;
-  const day = parseInt(parts[2], 10);
-
-  const targetDate = new Date(year, month + months, 1);
-  const lastDayOfTarget = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0).getDate();
-  const clampedDay = Math.min(day, lastDayOfTarget);
-  targetDate.setDate(clampedDay);
-
-  const targetYear = targetDate.getFullYear();
-  const targetMonthStr = String(targetDate.getMonth() + 1).padStart(2, '0');
-  const targetDayStr = String(targetDate.getDate()).padStart(2, '0');
-
-  return `${targetYear}-${targetMonthStr}-${targetDayStr}`;
-};
-
-const getLastDayOfCurrentMonth = () => {
-  const today = new Date();
-  const y = today.getFullYear();
-  const m = today.getMonth(); // 0-indexed
-  const lastDay = new Date(y, m + 1, 0); // Day 0 of next month is the last day of current month
-  const year = lastDay.getFullYear();
-  const month = String(lastDay.getMonth() + 1).padStart(2, '0');
-  const day = String(lastDay.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
+const BCRYPT_COST = parseInt(process.env.BCRYPT_COST || '12', 10);
 
 export const completeOnboarding = catchAsync(async (req, res, next) => {
   const {
@@ -82,7 +46,9 @@ export const completeOnboarding = catchAsync(async (req, res, next) => {
         await trx('users').where('id', landlordId).update({ role: 'LANDLORD' });
       }
     } else {
-      const hashedPassword = await bcrypt.hash('RocaWelcome123!', 10);
+      // Random, un-shared initial password; the landlord sets their own via the password-reset flow.
+      const randomPassword = crypto.randomBytes(24).toString('base64');
+      const hashedPassword = await bcrypt.hash(randomPassword, BCRYPT_COST);
       const [newLandlordId] = await trx('users').insert({
         name: landlordName,
         email: normalizedEmail,

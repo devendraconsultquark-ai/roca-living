@@ -7,6 +7,10 @@ import jwt from "jsonwebtoken";
 import { catchAsync } from "../utils/catchAsync.js";
 import { sendEmail } from "../utils/email.js";
 import { getForgotPasswordEmail, getLoginAlertEmail, getPasswordResetSuccessEmail } from "../utils/emailTemplates.js";
+import { eraseLandlordData } from "./landlordController.js";
+
+// bcrypt work factor — configurable via env so it can be tuned without code changes.
+const BCRYPT_COST = parseInt(process.env.BCRYPT_COST || '12', 10);
 
 
 export const register = catchAsync(async (req, res, next) => {
@@ -19,18 +23,30 @@ export const register = catchAsync(async (req, res, next) => {
     }
 
     // 1. Hash the password before saving to the database
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_COST);
 
-    // 2. Insert with the hashed password
+    // 2. Insert with the hashed password (role set explicitly, not left to the DB default)
     const [newUserId] = await db("users").insert({
         name: name,
         email: email.toLowerCase(),
         password: hashedPassword,
         phone: phone,
-        address: address
+        address: address,
+        role: 'LANDLORD'
     });
 
-    logger.info("User Created successfully");
+    // 3. Audit the account creation, consistent with other user mutations
+    await db("audit_log").insert({
+        actor_id: newUserId,
+        actor_role: 'LANDLORD',
+        action: 'USER_REGISTERED',
+        entity_type: 'user',
+        entity_id: newUserId,
+        meta: JSON.stringify({ email: email.toLowerCase() }),
+        ip_address: req.ip || null
+    });
+
+    logger.info(`User registered: ${newUserId}`);
 
     // 3. Send structured success response
     res.status(201).json({
@@ -207,12 +223,19 @@ export const getMe = catchAsync(async (req, res, next) => {
 });
 
 export const updateProfile = catchAsync(async (req, res, next) => {
-    const { name, email, phone, address } = req.body;
+    const {
+        name, email, phone, address,
+        // landlord_profiles (tax / company)
+        companyName, isOverseas, nrlHmrcApproved, nrlHmrcRef,
+        // landlord_payment_details (bank / payout)
+        bankName, accountName, accountNumber, sortCode, ibanBic,
+    } = req.body;
 
     const user = await db("users").where({ id: req.user.id }).first();
     if (!user) {
         throw new ApiError(404, "User not found");
     }
+    const isLandlord = user.role === 'LANDLORD';
 
     const updates = {};
     if (name !== undefined) updates.name = name;
@@ -229,15 +252,64 @@ export const updateProfile = catchAsync(async (req, res, next) => {
     if (phone !== undefined) updates.phone = phone;
     if (address !== undefined) updates.address = address;
 
+    // Company / tax details, stored in landlord_profiles (landlords only).
+    const profileUpdates = {};
+    if (isLandlord) {
+        if (companyName !== undefined) profileUpdates.company_name = companyName;
+        if (isOverseas !== undefined) profileUpdates.is_overseas = isOverseas ? 1 : 0;
+        if (nrlHmrcApproved !== undefined) profileUpdates.nrl_hmrc_approved = nrlHmrcApproved ? 1 : 0;
+        if (nrlHmrcRef !== undefined) profileUpdates.nrl_hmrc_ref = nrlHmrcRef;
+    }
+
+    // Bank / payout details, stored in landlord_payment_details (landlords only).
+    const paymentUpdates = {};
+    if (isLandlord) {
+        if (bankName !== undefined) paymentUpdates.bank_name = bankName;
+        if (accountName !== undefined) paymentUpdates.account_name = accountName;
+        if (accountNumber !== undefined) paymentUpdates.account_number = accountNumber;
+        if (sortCode !== undefined) paymentUpdates.sort_code = sortCode;
+        if (ibanBic !== undefined) paymentUpdates.iban_bic = ibanBic;
+    }
+
     await db.transaction(async (trx) => {
         if (Object.keys(updates).length > 0) {
             await trx("users").where({ id: req.user.id }).update(updates);
         }
 
+        if (Object.keys(profileUpdates).length > 0) {
+            const existingProfile = await trx("landlord_profiles").where({ user_id: req.user.id }).first();
+            if (existingProfile) {
+                await trx("landlord_profiles").where({ user_id: req.user.id }).update(profileUpdates);
+            } else {
+                await trx("landlord_profiles").insert({ user_id: req.user.id, ...profileUpdates });
+            }
+        }
 
+        if (Object.keys(paymentUpdates).length > 0) {
+            const existingPayment = await trx("landlord_payment_details").where({ user_id: req.user.id }).first();
+            if (existingPayment) {
+                await trx("landlord_payment_details").where({ user_id: req.user.id }).update(paymentUpdates);
+            } else {
+                // Bank columns are NOT NULL, so fall back to '' for any field not supplied.
+                await trx("landlord_payment_details").insert({
+                    user_id: req.user.id,
+                    bank_name: paymentUpdates.bank_name ?? '',
+                    account_name: paymentUpdates.account_name ?? '',
+                    account_number: paymentUpdates.account_number ?? '',
+                    sort_code: paymentUpdates.sort_code ?? '',
+                    iban_bic: paymentUpdates.iban_bic ?? null,
+                });
+            }
+        }
 
-        // Audit log
+        // Audit log. Record which fields changed but NOT sensitive bank values.
         const auditMeta = { ...updates };
+        if (Object.keys(profileUpdates).length > 0) {
+            auditMeta.profile_fields_changed = Object.keys(profileUpdates);
+        }
+        if (Object.keys(paymentUpdates).length > 0) {
+            auditMeta.payment_fields_changed = Object.keys(paymentUpdates);
+        }
         if (user.role === 'LANDLORD') {
             auditMeta.landlord_profile_changes = true;
         }
@@ -278,7 +350,7 @@ export const changePassword = catchAsync(async (req, res, next) => {
         throw new ApiError(400, "Incorrect current password");
     }
 
-    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+    const hashedNewPassword = await bcrypt.hash(newPassword, BCRYPT_COST);
     await db("users").where({ id: req.user.id }).update({ password: hashedNewPassword });
 
     await db("audit_log").insert({
@@ -304,19 +376,18 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
     throw new ApiError(400, "Email is required");
   }
 
+  // Always return the same response regardless of whether the email exists or which
+  // portal it belongs to, so this endpoint cannot be used to enumerate accounts or roles.
+  const genericResponse = () => res.json({
+    success: true,
+    message: "If an account exists for that email, a password reset link has been sent."
+  });
+
   const user = await db("users").where({ email: email.toLowerCase().trim() }).first();
 
-  if (!user) {
-    throw new ApiError(404, "User not found with this email");
-  }
-
-  // Cross-portal safety validation
-  if (portal === 'admin' && user.role !== 'ADMIN') {
-    throw new ApiError(403, "Access denied. This email is not registered as an administrator.");
-  }
-  if ((portal === 'client' || portal === 'landlord') && user.role !== 'LANDLORD') {
-    throw new ApiError(403, "Access denied. This email is not registered as a landlord.");
-  }
+  if (!user) return genericResponse();
+  if (portal === 'admin' && user.role !== 'ADMIN') return genericResponse();
+  if ((portal === 'client' || portal === 'landlord') && user.role !== 'LANDLORD') return genericResponse();
 
   const rawToken = crypto.randomBytes(32).toString('hex');
   const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
@@ -355,21 +426,10 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
     logger.error(`Could not send password reset email to ${user.email}: ${mailErr.message}`);
   }
 
-  logger.info(`[MOCK EMAIL] Password reset requested for ${user.email}. Link: ${resetUrl}`);
-  
-  if (process.env.NODE_ENV !== 'production') {
-    try {
-      const fs = await import('fs');
-      fs.writeFileSync('scratch/last_reset_link.txt', resetUrl);
-    } catch (fsErr) {
-      logger.error(`Failed to write reset link to file: ${fsErr.message}`);
-    }
-  }
+  // Do NOT log the reset link/token (it is a live credential). Log a non-secret event only.
+  logger.info(`Password reset requested for user ${user.id}`);
 
-  res.json({
-    success: true,
-    message: "Reset link sent successfully to your email."
-  });
+  return genericResponse();
 });
 
 export const resetPassword = catchAsync(async (req, res, next) => {
@@ -400,7 +460,7 @@ export const resetPassword = catchAsync(async (req, res, next) => {
     throw new ApiError(400, "Password reset token is invalid or has expired");
   }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+  const hashedPassword = await bcrypt.hash(password, BCRYPT_COST);
 
   await db("users").where({ id: user.id }).update({
     password: hashedPassword,
@@ -437,6 +497,60 @@ export const resetPassword = catchAsync(async (req, res, next) => {
   res.json({
     success: true,
     message: "Password has been reset successfully"
+  });
+});
+
+// GDPR Art. 15/20 — export the caller's personal data as a downloadable JSON file.
+export const exportMyData = catchAsync(async (req, res, next) => {
+  const userId = req.user.id;
+  const profile = await getUserPayload(userId, req.user.role);
+
+  const [properties, statements, invoices, transactions, documents] = await Promise.all([
+    db('properties').where('landlord_id', userId),
+    db('landlord_statements').where('landlord_id', userId),
+    db('invoices').where('landlord_id', userId),
+    db('transactions').where('landlord_id', userId),
+    db('documents').where({ owner_type: 'landlord', owner_id: userId })
+  ]);
+
+  const payload = {
+    exported_at: new Date().toISOString(),
+    profile,
+    properties,
+    statements,
+    invoices,
+    transactions,
+    documents
+  };
+
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', 'attachment; filename="my-roca-living-data.json"');
+  res.status(200).send(JSON.stringify(payload, null, 2));
+});
+
+// GDPR Art. 17 — self-service erasure of the caller's own account and associated data.
+export const deleteMyAccount = catchAsync(async (req, res, next) => {
+  if (req.user.role !== 'LANDLORD') {
+    throw new ApiError(403, 'Only landlord accounts can be deleted through the portal. Please contact support.');
+  }
+
+  const user = await db('users').where({ id: req.user.id, role: 'LANDLORD' }).first();
+  if (!user) {
+    throw new ApiError(404, 'Account not found');
+  }
+
+  await db.transaction((trx) => eraseLandlordData(trx, req.user.id, { id: req.user.id, role: req.user.role, ip: req.ip }));
+
+  res.cookie('jwt_landlord', '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 0
+  });
+
+  res.json({
+    success: true,
+    message: 'Your account and all associated data have been permanently deleted.'
   });
 });
 

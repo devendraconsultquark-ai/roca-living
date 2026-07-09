@@ -4,9 +4,12 @@ const errorHandler = (err, req, res, next) => {
   logger.error(err);
 
   const statusCode = err.statusCode || 500;
+  const isDev = process.env.NODE_ENV === 'development';
 
   let message = err.message;
-  if(!err.isOperational && process.env.NODE_ENV === 'production'){
+  // Mask internal (non-operational) error details unless explicitly in development,
+  // so an unset/misconfigured NODE_ENV defaults to the safe (masked) behaviour.
+  if (!err.isOperational && !isDev) {
     message = "Something went wrong";
   }
 
@@ -14,7 +17,7 @@ const errorHandler = (err, req, res, next) => {
     success: false,
     message,
     ...(err.errors && {errors: err.errors}),
-    ...(process.env.NODE_ENV !== 'production' && {stack: err.stack})
+    ...(isDev && {stack: err.stack}) // only expose stack traces in development
   });
 };
 

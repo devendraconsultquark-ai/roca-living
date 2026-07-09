@@ -4,6 +4,7 @@ import { catchAsync } from '../utils/catchAsync.js';
 import fs from 'fs';
 import path from 'path';
 import logger from '../utils/logger.js';
+import { formatBytes } from '../utils/format.js';
 
 // Ensure uploads folder exists
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -41,14 +42,6 @@ export const getFolders = catchAsync(async (req, res, next) => {
   const propRefMap = Object.fromEntries(properties.map(p => [p.id, p.property_reference]));
   const landRefMap = Object.fromEntries(landlords.map(l => [l.id, l.landlord_reference]));
 
-  // Format bytes helper
-  const formatBytes = (bytes) => {
-    if (!bytes) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.log(bytes) / Math.log(k) ? Math.floor(Math.log(bytes) / Math.log(k)) : 0;
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
 
   const responseData = foldersList.map(folder => {
     // Filter documents in this folder
@@ -64,8 +57,8 @@ export const getFolders = catchAsync(async (req, res, next) => {
         size: formatBytes(d.file_size_bytes),
         date: d.created_at ? new Date(d.created_at).toISOString().split('T')[0] : '',
         scope: d.owner_type,
-        entityId: d.owner_type === 'landlord' 
-          ? (landRefMap[d.owner_id] || `LND-${d.owner_id}`) 
+        entityId: d.owner_type === 'landlord'
+          ? (landRefMap[d.owner_id] || `LND-${d.owner_id}`)
           : (propRefMap[d.owner_id] || `PRP-${d.owner_id}`),
         doc_reference: d.doc_reference
       }))
@@ -89,6 +82,25 @@ export const uploadDocument = catchAsync(async (req, res, next) => {
   }
 
   const parsedOwnerId = parseEntityId(entityId);
+  if (!parsedOwnerId) {
+    await fs.promises.unlink(req.file.path).catch(() => {});
+    throw new ApiError(400, 'A valid Entity ID is required');
+  }
+
+  // documents.owner_id has no FK, so validate the owner entity exists for the given scope.
+  const ownerTables = { landlord: 'users', property: 'properties', tenancy: 'tenancies' };
+  const ownerTable = ownerTables[scope];
+  if (!ownerTable) {
+    await fs.promises.unlink(req.file.path).catch(() => {});
+    throw new ApiError(400, `Unsupported document scope '${scope}'`);
+  }
+  const ownerQuery = db(ownerTable).where({ id: parsedOwnerId });
+  if (scope === 'landlord') ownerQuery.andWhere({ role: 'LANDLORD' });
+  const ownerExists = await ownerQuery.first();
+  if (!ownerExists) {
+    await fs.promises.unlink(req.file.path).catch(() => {});
+    throw new ApiError(404, `No ${scope} found with ID ${parsedOwnerId}`);
+  }
 
   // Determine correct folder
   let folderName = 'Landlord Compliance Documents';
@@ -98,47 +110,51 @@ export const uploadDocument = catchAsync(async (req, res, next) => {
     folderName = 'Tenancy Agreements & Deposits';
   }
 
-  let folder = await db('folders').where('name', folderName).first();
-  if (!folder) {
-    const [fid] = await db('folders').insert({
-      name: folderName,
-      owner_type: 'global'
-    });
-    folder = { id: fid, name: folderName };
-  }
-
   const file_path = `uploads/${req.file.filename}`;
 
-  const tempRef = `TEMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-  const [documentId] = await db('documents').insert({
-    folder_id: folder.id,
-    owner_type: scope,
-    owner_id: parsedOwnerId,
-    doc_type: scope === 'landlord' ? 'kyc_document' : 'property_certificate',
-    filename: req.file.filename,
-    original_name: req.file.originalname,
-    mime_type: req.file.mimetype,
-    file_path: file_path,
-    file_size_bytes: req.file.size,
-    uploaded_by: req.user.id,
-    doc_reference: tempRef
-  });
+  // All writes in one transaction; unlink the already-written upload if it rolls back.
+  let documentId;
+  try {
+    await db.transaction(async (trx) => {
+      let folder = await trx('folders').where('name', folderName).first();
+      if (!folder) {
+        const [fid] = await trx('folders').insert({ name: folderName, owner_type: 'global' });
+        folder = { id: fid, name: folderName };
+      }
 
-  const doc_reference = `REM-DOC-${String(documentId).padStart(5, '0')}`;
-  await db('documents')
-    .where({ id: documentId })
-    .update({ doc_reference });
+      const tempRef = `TEMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      [documentId] = await trx('documents').insert({
+        folder_id: folder.id,
+        owner_type: scope,
+        owner_id: parsedOwnerId,
+        doc_type: scope === 'landlord' ? 'kyc_document' : 'property_certificate',
+        filename: req.file.filename,
+        original_name: req.file.originalname,
+        mime_type: req.file.mimetype,
+        file_path: file_path,
+        file_size_bytes: req.file.size,
+        uploaded_by: req.user.id,
+        doc_reference: tempRef
+      });
 
-  // Write audit log
-  await db('audit_log').insert({
-    actor_id: req.user.id,
-    actor_role: req.user.role,
-    action: 'DOCUMENT_UPLOADED',
-    entity_type: 'document',
-    entity_id: documentId,
-    meta: JSON.stringify({ original_name: req.file.originalname, scope, owner_id: parsedOwnerId }),
-    ip_address: req.ip || null
-  });
+      await trx('documents')
+        .where({ id: documentId })
+        .update({ doc_reference: `REM-DOC-${String(documentId).padStart(5, '0')}` });
+
+      await trx('audit_log').insert({
+        actor_id: req.user.id,
+        actor_role: req.user.role,
+        action: 'DOCUMENT_UPLOADED',
+        entity_type: 'document',
+        entity_id: documentId,
+        meta: JSON.stringify({ original_name: req.file.originalname, scope, owner_id: parsedOwnerId }),
+        ip_address: req.ip || null
+      });
+    });
+  } catch (err) {
+    await fs.promises.unlink(req.file.path).catch(() => {});
+    throw err;
+  }
 
   res.status(201).json({
     success: true,
@@ -185,5 +201,100 @@ export const deleteDocument = catchAsync(async (req, res, next) => {
   res.json({
     success: true,
     message: 'Document deleted successfully'
+  });
+});
+
+export const getMyDocuments = catchAsync(async (req, res, next) => {
+  const landlordId = req.user.id;
+
+  const landlordDocs = await db('documents').where({ owner_type: 'landlord', owner_id: landlordId });
+
+  const propertyIds = await db('properties').where({ landlord_id: landlordId }).pluck('id');
+  let propertyDocs = [];
+  let tenancyDocs = [];
+
+  if (propertyIds.length > 0) {
+    propertyDocs = await db('documents')
+      .where('owner_type', 'property')
+      .whereIn('owner_id', propertyIds);
+
+    const tenancyIds = await db('tenancies').whereIn('property_id', propertyIds).pluck('id');
+    if (tenancyIds.length > 0) {
+      tenancyDocs = await db('documents')
+        .where('owner_type', 'tenancy')
+        .whereIn('owner_id', tenancyIds);
+    }
+  }
+
+  const allDocs = [...landlordDocs, ...propertyDocs, ...tenancyDocs];
+
+  let propMap = {};
+  if (propertyIds.length > 0) {
+    const properties = await db('properties').whereIn('id', propertyIds).select('id', 'property_reference', 'name', 'address_line1');
+    propMap = Object.fromEntries(properties.map(p => [p.id, p]));
+  }
+
+  const landlordProfile = await db('landlord_profiles').where('user_id', landlordId).first();
+  const landlordRef = landlordProfile ? landlordProfile.landlord_reference : `LND-${landlordId}`;
+
+  let tenancyToPropMap = {};
+  if (propertyIds.length > 0) {
+    const tenancies = await db('tenancies').whereIn('property_id', propertyIds).select('id', 'property_id');
+    tenancyToPropMap = Object.fromEntries(tenancies.map(t => [t.id, t.property_id]));
+  }
+
+  const formatBytes = (bytes) => {
+    if (!bytes) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.log(bytes) / Math.log(k) ? Math.floor(Math.log(bytes) / Math.log(k)) : 0;
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const formattedDocs = allDocs.map(d => {
+    let related = '';
+    let category = '';
+
+    if (d.owner_type === 'landlord') {
+      related = `Landlord Profile`;
+    } else if (d.owner_type === 'property') {
+      const p = propMap[d.owner_id];
+      related = p ? (p.name || p.address_line1 || p.property_reference) : `Property ${d.owner_id}`;
+    } else if (d.owner_type === 'tenancy') {
+      const pId = tenancyToPropMap[d.owner_id];
+      const p = propMap[pId];
+      related = p ? `Tenancy at ${p.name || p.address_line1 || p.property_reference}` : `Tenancy ${d.owner_id}`;
+    }
+
+    if (d.doc_type === 'landlord_statement') {
+      category = 'Statements';
+    } else if (d.doc_type === 'landlord_invoice') {
+      category = 'Invoices';
+    } else if (d.doc_type === 'kyc_document') {
+      category = 'Compliance';
+    } else if (d.doc_type === 'property_certificate') {
+      category = 'Certificates';
+    } else if (d.doc_type === 'tenancy_agreement') {
+      category = 'Tenancy';
+    } else {
+      category = 'Other';
+    }
+
+    return {
+      id: d.id,
+      item: d.original_name,
+      category,
+      related,
+      uploaded: d.created_at ? new Date(d.created_at).toISOString().split('T')[0] : '',
+      expires: 'N/A',
+      status: 'Valid',
+      file_path: d.file_path,
+      size: formatBytes(d.file_size_bytes)
+    };
+  });
+
+  res.json({
+    success: true,
+    data: formattedDocs
   });
 });

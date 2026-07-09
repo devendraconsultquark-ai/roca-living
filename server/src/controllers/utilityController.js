@@ -171,3 +171,31 @@ export const updateUtilityStatus = catchAsync(async (req, res, next) => {
     data: formatUtility(updatedRecord)
   });
 });
+
+export const getMyUtilities = catchAsync(async (req, res, next) => {
+  const landlordId = req.user.id;
+
+  const utilities = await db('utilities')
+    .join('properties', 'utilities.property_id', 'properties.id')
+    .leftJoin('tenancies', 'utilities.tenancy_id', 'tenancies.id')
+    .select(
+      'utilities.*',
+      'properties.address_line1',
+      'properties.city',
+      'properties.postcode',
+      'properties.name as property_name'
+    )
+    .where('properties.landlord_id', landlordId)
+    .orderBy('utilities.created_at', 'desc');
+
+  res.json({
+    success: true,
+    data: utilities.map(u => ({
+      ...formatUtility(u),
+      address_line1: u.address_line1,
+      city: u.city,
+      postcode: u.postcode,
+      property_name: u.property_name
+    }))
+  });
+});
