@@ -1,13 +1,8 @@
-import React from "react";
-import { usePropertyContext } from "../context/PropertyContext";
-import { useNavigate } from "react-router-dom";
 import {
   Users,
   ArrowUpRight,
-  CheckCircle2,
   ChevronRight,
   Info,
-  Calendar,
   Settings,
   MoreVertical,
   RefreshCw,
@@ -16,72 +11,29 @@ import {
   FileText,
   Check,
 } from "lucide-react";
-import { useTenancy } from "../hooks/useTenancy";
+import { useTenancyLifecycle } from "../hooks/useTenancyLifecycle";
 import { PortalMetricCard } from "../components/UI/PortalMetricCard";
 import { Button } from "../components/UI/Button";
 import { DonutChart } from "../components/UI/DonutChart";
 import { TableEmptyState } from "../components/UI/TableEmptyState";
 
 export const TenancyLifecycle = () => {
-  const { selectedProperty } = usePropertyContext();
-  const navigate = useNavigate();
-  const { tenancies, loading, error } = useTenancy();
-
-  // Dynamic statistics calculations
-  const totalCount = tenancies.length;
-
-  // Active
-  const activeCount = tenancies.filter((t) => t.status === "active").length;
-  const activePct = totalCount
-    ? Math.round((activeCount / totalCount) * 100)
-    : 0;
-
-  // Pending Move-ins (status is pending or start date is in the future)
-  const pendingMoveInCount = tenancies.filter(
-    (t) =>
-      t.status === "pending" ||
-      (t.start_date && new Date(t.start_date) > new Date()),
-  ).length;
-  const pendingMoveInPct = totalCount
-    ? Math.round((pendingMoveInCount / totalCount) * 100)
-    : 0;
-
-  // Upcoming Renewals (end date approaching within next 90 days)
-  const renewals = tenancies.filter((t) => {
-    if (!t.end_date) return false;
-    const diff = new Date(t.end_date) - new Date();
-    return diff > 0 && diff <= 90 * 24 * 60 * 60 * 1000;
-  });
-  const renewalsCount = renewals.length;
-  const renewalsPct = totalCount
-    ? Math.round((renewalsCount / totalCount) * 100)
-    : 0;
-
-  // Move-outs (end date in current month or status is ended/closed)
-  const moveOutsCount = tenancies.filter(
-    (t) => t.status === "ended" || t.status === "closed",
-  ).length;
-  const moveOutsPct = totalCount
-    ? Math.round((moveOutsCount / totalCount) * 100)
-    : 0;
-
-  // Map approaching renewals to table layout
-  const formattedRenewals = renewals.map((t) => {
-    const diff = new Date(t.end_date) - new Date();
-    const diffDays = Math.ceil(diff / (1000 * 60 * 60 * 24));
-
-    return {
-      tenancy: `TEN-${String(t.id).padStart(5, "0")}`,
-      property: t.address_line1
-        ? `${t.address_line1}, ${t.city}`
-        : `Property #${t.property_id}`,
-      tenant: t.lead_tenant_name || "—",
-      date: t.end_date ? new Date(t.end_date).toLocaleDateString("en-GB") : "—",
-      countdown: `In ${diffDays} Days`,
-      statusColor:
-        "text-status-warning bg-status-warning/10 border-status-warning/15",
-    };
-  });
+  // All statistics and the upcoming-renewals table are derived in the hook;
+  // this component only renders.
+  const {
+    loading,
+    error,
+    totalCount,
+    activeCount,
+    activePct,
+    pendingMoveInCount,
+    pendingMoveInPct,
+    renewalsCount,
+    renewalsPct,
+    moveOutsCount,
+    moveOutsPct,
+    formattedRenewals,
+  } = useTenancyLifecycle();
 
   if (loading) {
     return (
