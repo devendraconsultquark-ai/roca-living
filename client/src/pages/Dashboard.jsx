@@ -1,62 +1,51 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Calendar,
   CheckCircle2,
-  Wrench,
-  Clock,
   Check,
   ChevronRight,
   Wallet,
   Download,
   Sparkles,
   User,
-  AlertCircle,
 } from "lucide-react";
 import { useDashboard } from "../hooks/useDashboard";
-import { useProperties } from "../hooks/useProperties";
-import { useInspections } from "../hooks/useInspections";
 import { PortalCard } from "../components/UI/PortalCard";
 import { TimelineItem } from "../components/UI/TimelineItem";
 import { Button } from "../components/UI/Button";
 import { Dropdown } from "../components/UI/Dropdown";
-import { useMaintenance } from "../hooks/useMaintenance";
-import { useTenancy } from "../hooks/useTenancy";
-import { useDocuments } from "../hooks/useDocuments";
-import { useUtilities } from "../hooks/useUtilities";
 
 export const Dashboard = () => {
   const navigate = useNavigate();
 
-  // Real hooks data
+  // Everything data/derived — financial figures, compliance score, key dates,
+  // the activity feed and the alerts list — lives in the hook; this component
+  // only renders and handles navigation.
   const {
-    latestStatement,
     activeTenancy,
-    loading: dashboardLoading,
+    hasActiveTenancy,
+    properties,
     error,
+    loading,
     rentReceived,
     netIncome,
     totalFees,
     deductions,
-    hasActiveTenancy,
+    expiredCertifications,
+    overallCompliancePct,
+    keyDates,
+    activities,
+    alertsList,
+    activeAlertsCount,
   } = useDashboard();
 
-  const { properties, loading: propertiesLoading } = useProperties();
-  const { inspections, loading: inspectionsLoading } = useInspections();
-  const { quotes } = useMaintenance();
-  const { tenancies } = useTenancy();
-  const { documents } = useDocuments();
-  const { utilities } = useUtilities();
-
+  // Local, ephemeral UI state (the period selector doesn't drive data yet).
   const [selectedPeriod, setSelectedPeriod] = useState("this_month");
-
   const periodOptions = [
     { value: "this_month", label: "This Month" },
     { value: "last_month", label: "Last Month" },
     { value: "ytd", label: "Year to Date" },
   ];
-
-  const loading = dashboardLoading || propertiesLoading || inspectionsLoading;
 
   if (loading) {
     return (
@@ -80,260 +69,6 @@ export const Dashboard = () => {
       </div>
     );
   }
-
-  // Derive compliance score dynamically
-  let expiredCertifications = 0;
-  let totalCertificationsTracked = 0;
-
-  properties.forEach((p) => {
-    if (p.gasCompliance) {
-      totalCertificationsTracked++;
-      if (p.gasCompliance === "expired") expiredCertifications++;
-    }
-    if (p.eicrCompliance) {
-      totalCertificationsTracked++;
-      if (p.eicrCompliance === "expired") expiredCertifications++;
-    }
-    if (p.epcCompliance) {
-      totalCertificationsTracked++;
-      if (p.epcCompliance === "expired") expiredCertifications++;
-    }
-  });
-
-  const overallCompliancePct = totalCertificationsTracked
-    ? Math.round(
-        ((totalCertificationsTracked - expiredCertifications) /
-          totalCertificationsTracked) *
-          100,
-      )
-    : 100;
-
-  // Key Dates collection
-  const keyDates = [];
-  if (activeTenancy?.start_date) {
-    keyDates.push({
-      title: "Tenancy Start",
-      subTitle: new Date(activeTenancy.start_date).toLocaleDateString("en-GB"),
-      rightText: "Active",
-      icon: Calendar,
-      variant: "info",
-    });
-  }
-  if (activeTenancy?.end_date) {
-    keyDates.push({
-      title: "Tenancy Expiry",
-      subTitle: new Date(activeTenancy.end_date).toLocaleDateString("en-GB"),
-      rightText: "Expires soon",
-      icon: Calendar,
-      variant: "neutral",
-    });
-  }
-  inspections
-    .filter((i) => !i.date || i.date === "—")
-    .forEach((i) => {
-      if (i.next_inspection_due) {
-        keyDates.push({
-          title: "Next Inspection",
-          subTitle: new Date(i.next_inspection_due).toLocaleDateString("en-GB"),
-          rightText: "Scheduled",
-          icon: Calendar,
-          variant: "neutral",
-        });
-      }
-    });
-
-  // Recent activity list derived dynamically
-  const activities = [];
-  if (latestStatement) {
-    activities.push({
-      title: "Payout Disbursed",
-      subTitle: `£${parseFloat(latestStatement.net_paid).toLocaleString(undefined, { minimumFractionDigits: 2 })} payout processed`,
-      date: latestStatement.period_start
-        ? new Date(latestStatement.period_start).toLocaleDateString("en-GB")
-        : "—",
-      icon: Wallet,
-      variant: "success",
-    });
-  }
-  inspections
-    .filter((i) => i.date && i.date !== "—")
-    .slice(0, 2)
-    .forEach((i) => {
-      activities.push({
-        title: "Inspection Completed",
-        subTitle: `Routine inspection completed by ${i.inspector}`,
-        date: i.date,
-        icon: Calendar,
-        variant: "neutral",
-      });
-    });
-
-  if (documents) {
-    documents.slice(0, 2).forEach((d) => {
-      activities.push({
-        title: "Document Uploaded",
-        subTitle: d.item,
-        date: d.uploaded,
-        icon: Clock,
-        variant: "info",
-      });
-    });
-  }
-
-  if (utilities) {
-    utilities.slice(0, 2).forEach((u) => {
-      activities.push({
-        title: "Utility Logged",
-        subTitle: `${u.utility_type?.replace("_", " ") || "Utility"} record created for ${u.property_name || "property"}`,
-        date: u.created_at ? new Date(u.created_at).toLocaleDateString("en-GB") : "—",
-        icon: Wrench,
-        variant: "neutral",
-      });
-    });
-  }
-
-  // Active alerts list calculated dynamically from real states
-  const alertsList = [];
-
-  // 1. Safety Certificate Expired (Only push if expiredCertifications > 0)
-  if (expiredCertifications > 0) {
-    alertsList.push({
-      title: "Safety Certificate Expired",
-      detail: `${expiredCertifications} action required safety documents expired`,
-      subText: "Compliance warning",
-      variant: "danger",
-      icon: AlertCircle,
-      onClick: () => navigate("/compliance/overview"),
-      subTextColor: "text-status-danger",
-    });
-  }
-
-  // 2. Inspection Due / Overdue (Always visible)
-  const overdueInspections = inspections.filter((i) => {
-    const hasBeenCompleted = i.date && i.date !== "—";
-    if (hasBeenCompleted) return false;
-    if (!i.next_inspection_due) return false;
-    return new Date(i.next_inspection_due) < new Date();
-  });
-
-  const upcomingInspections = inspections.filter((i) => {
-    const hasBeenCompleted = i.date && i.date !== "—";
-    return !hasBeenCompleted && i.next_inspection_due;
-  });
-
-  if (overdueInspections.length > 0) {
-    alertsList.push({
-      title: "Inspection Overdue",
-      detail: `${overdueInspections.length} inspection(s) past due date`,
-      subText: overdueInspections[0].next_inspection_due
-        ? new Date(
-            overdueInspections[0].next_inspection_due,
-          ).toLocaleDateString("en-GB")
-        : "—",
-      variant: "danger",
-      icon: Calendar,
-      onClick: () => navigate("/compliance/inspections"),
-      subTextColor: "text-status-danger",
-    });
-  } else if (upcomingInspections.length > 0) {
-    alertsList.push({
-      title: "Inspection Due",
-      detail: "Routine inspection is due",
-      subText: upcomingInspections[0].next_inspection_due
-        ? new Date(
-            upcomingInspections[0].next_inspection_due,
-          ).toLocaleDateString("en-GB")
-        : "—",
-      variant: "warning",
-      icon: Calendar,
-      onClick: () => navigate("/compliance/inspections"),
-      subTextColor: "text-status-info",
-    });
-  } else {
-    alertsList.push({
-      title: "Inspection Due",
-      detail: "No inspections scheduled",
-      subText: "—",
-      variant: "neutral",
-      icon: Calendar,
-      onClick: () => navigate("/compliance/inspections"),
-      subTextColor: "text-gray-400",
-    });
-  }
-
-  // 3. Maintenance Approval Required (Always visible)
-  if (quotes && quotes.length > 0) {
-    alertsList.push({
-      title: "Maintenance Approval Required",
-      detail: quotes[0].description || "Pending maintenance quote",
-      subText: `£${quotes[0].cost.toFixed(2)}`,
-      variant: "warning",
-      icon: Wrench,
-      onClick: () => navigate("/maintenance"),
-      hasAction: true,
-      actionText: "Review",
-      subTextColor: "text-brand-primary font-bold",
-    });
-  } else {
-    alertsList.push({
-      title: "Maintenance Approval Required",
-      detail: "No maintenance quotes awaiting approval",
-      subText: "£0.00",
-      variant: "neutral",
-      icon: Wrench,
-      onClick: () => navigate("/maintenance"),
-      hasAction: false,
-      subTextColor: "text-gray-400",
-    });
-  }
-
-  // 4. Rent Review Due (Always visible)
-  if (activeTenancy && activeTenancy.start_date) {
-    const startDate = new Date(activeTenancy.start_date);
-    const oneYearAgo = new Date();
-    oneYearAgo.setDate(oneYearAgo.getDate() - 365);
-
-    if (startDate < oneYearAgo) {
-      const nextReviewDate = new Date(startDate);
-      nextReviewDate.setFullYear(nextReviewDate.getFullYear() + 1);
-      alertsList.push({
-        title: "Rent Review Due",
-        detail: "Tenancy active over a year. Rent review recommended.",
-        subText: nextReviewDate.toLocaleDateString("en-GB"),
-        variant: "warning",
-        icon: Clock,
-        onClick: () => navigate("/properties"),
-        subTextColor: "text-status-info",
-      });
-    } else {
-      const nextReviewDate = new Date(startDate);
-      nextReviewDate.setFullYear(nextReviewDate.getFullYear() + 1);
-      alertsList.push({
-        title: "Rent Review Due",
-        detail: "Rent review is due in 6 months",
-        subText: nextReviewDate.toLocaleDateString("en-GB"),
-        variant: "neutral",
-        icon: Clock,
-        onClick: () => navigate("/properties"),
-        subTextColor: "text-status-info",
-      });
-    }
-  } else {
-    alertsList.push({
-      title: "Rent Review Due",
-      detail: "Rent review up to date",
-      subText: "—",
-      variant: "neutral",
-      icon: Clock,
-      onClick: () => navigate("/properties"),
-      subTextColor: "text-gray-400",
-    });
-  }
-
-  // Count active alerts (excluding 'neutral' status)
-  const activeAlertsCount = alertsList.filter(
-    (a) => a.variant !== "neutral",
-  ).length;
 
   return (
     <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8 font-sans text-brand-primary">
@@ -654,7 +389,7 @@ export const Dashboard = () => {
           {alertsList.map((alert, idx) => (
             <div
               key={idx}
-              onClick={alert.onClick}
+              onClick={() => navigate(alert.route)}
               className="card-bg border border-card-border rounded-card p-4 flex items-center justify-between hover:border-gray-300 transition-colors duration-150 shadow-xs text-left select-none cursor-pointer"
             >
               <div className="flex items-center gap-3.5 min-w-0 flex-1">
@@ -688,7 +423,7 @@ export const Dashboard = () => {
                   <Button
                     onClick={(e) => {
                       e.stopPropagation();
-                      alert.onClick();
+                      navigate(alert.route);
                     }}
                     className="bg-black text-white hover:bg-slate-900 text-2xs font-semibold py-1.5 px-3 rounded transition-colors cursor-pointer shadow-sm"
                   >
