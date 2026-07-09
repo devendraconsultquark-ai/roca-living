@@ -1,75 +1,35 @@
-import React, { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
-  Building,
   User,
-  Wallet,
-  ShieldCheck,
-  Wrench,
-  Calendar,
   ChevronRight,
   Download,
-  ArrowRight,
-  ArrowDown,
-  Sparkles,
-  AlertCircle,
-  FileText,
   CheckCircle2,
-  MessageCircle,
 } from "lucide-react";
-import { usePropertyContext } from "../context/PropertyContext";
 import { PortalCard } from "../components/UI/PortalCard";
 import { Button } from "../components/UI/Button";
-import { LoadingSkeleton } from "../components/UI/LoadingSkeleton";
 import { StatusPill } from "../components/UI/StatusPill";
 import { Tabs } from "../components/UI/Tabs";
 import { usePropertyDetails } from "../hooks/usePropertyDetails";
-import { useInspections } from "../hooks/useInspections";
-import { useStatements } from "../hooks/useStatements";
-import { useDocuments } from "../hooks/useDocuments";
-import { useUtilities } from "../hooks/useUtilities";
-import { Clock } from "lucide-react";
 
 export const PropertyDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { properties, setSelectedProperty } = usePropertyContext();
 
+  // Data fetching, the global-selection sync, all derivations and the activity
+  // feed live in the hook; this component only renders and handles navigation.
   const {
-    inspections,
-    loading: inspectionsLoading,
-    error: inspectionsError,
-  } = useInspections();
-  const {
-    statements,
-    loading: statementsLoading,
-    error: statementsError,
-  } = useStatements();
+    loading: isPageLoading,
+    error,
+    details,
+    hasActiveTenancy,
+    financialSummary,
+    firstOpenTicket,
+    nextInspection,
+    activities,
+  } = usePropertyDetails(id);
 
-  const { documents } = useDocuments();
-  const { utilities } = useUtilities();
-
-  const { property, loading, error: propertyError } = usePropertyDetails(id);
-  const error = propertyError || inspectionsError || statementsError;
   const [activeTab, setActiveTab] = useState("Overview");
-
-  useEffect(() => {
-    if (property) {
-      // Match in context list to get fully formatted object
-      const match =
-        properties.find((item) => String(item.id) === String(id)) || property;
-      setSelectedProperty(match);
-    }
-  }, [id, property, properties, setSelectedProperty]);
-
-  // Clean up selection when leaving details page
-  useEffect(() => {
-    return () => {
-      setSelectedProperty("all");
-    };
-  }, [setSelectedProperty]);
-
-  const isPageLoading = loading || inspectionsLoading || statementsLoading;
 
   if (isPageLoading) {
     return (
@@ -84,60 +44,6 @@ export const PropertyDetails = () => {
       </div>
     );
   }
-
-  const p = property || {};
-  const activeT = p.active_tenancy || null;
-  const propTickets = p.maintenance_tickets || [];
-
-  // Filter statements for this property
-  const propStatements = statements.filter(
-    (s) => String(s.source_property_id) === String(id),
-  );
-
-  // Calculate compliance percentage
-  const certsList = p.property_certificates || [];
-  const trackedCerts = certsList.filter((c) =>
-    ["GAS", "EPC", "EICR"].includes(c.cert_type),
-  );
-  const compliantCount = trackedCerts.filter(
-    (c) => c.status === "compliant",
-  ).length;
-  const compliancePct =
-    trackedCerts.length > 0
-      ? Math.round((compliantCount / trackedCerts.length) * 100)
-      : 100;
-
-  // Open maintenance issues
-  const openIssuesCount = propTickets.filter(
-    (t) => t.status !== "complete" && t.status !== "cancelled",
-  ).length;
-
-  const details = {
-    address: p.address_line1 || "Property Details",
-    subAddress: `${p.city || ""}${p.postcode ? `, ${p.postcode}` : ""}`
-      .trim()
-      .replace(/^,/, ""),
-    image: `${import.meta.env.BASE_URL}images/img1.jpg`,
-    status: p.status || "vacant",
-    rent: activeT?.rent_pcm
-      ? parseFloat(activeT.rent_pcm)
-      : p.rent_pcm
-        ? parseFloat(p.rent_pcm)
-        : 0,
-    deposit: activeT?.deposit_amount ? parseFloat(activeT.deposit_amount) : 0,
-    tenantName: activeT?.lead_tenant_name || "-",
-    startDate: activeT?.start_date
-      ? new Date(activeT.start_date).toLocaleDateString("en-GB")
-      : "—",
-    nextReview: "—", // TODO: backend needs to return next rent review date
-    netPaid:
-      propStatements.length > 0
-        ? propStatements.reduce((sum, s) => sum + (s.payout || 0), 0)
-        : 0, // TODO: backend needs to return net paid payouts history
-    maintenanceIssues: openIssuesCount,
-    compliancePct: compliancePct,
-    tenancy_type: activeT ? "Assured Shorthold Tenancy" : "—",
-  };
 
   const tabs = [
     "Overview",
@@ -195,7 +101,7 @@ export const PropertyDetails = () => {
                         Property Type
                       </span>
                       <span className="text-xs-portal font-bold text-brand-primary mt-1 leading-none">
-                        {p.property_type || "Apartment"}
+                        {details.propertyType}
                       </span>
 
                       <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider leading-none mt-4.5">
@@ -367,25 +273,14 @@ export const PropertyDetails = () => {
             {/* Card 1: Financial Summary */}
             <PortalCard title="financial summary (this month)">
               {(() => {
-                const latestPropStatement =
-                  propStatements.length > 0 ? propStatements[0] : null;
-                const propRentReceived = latestPropStatement
-                  ? latestPropStatement.invoiced
-                  : 0;
-                const propManagementFees = latestPropStatement
-                  ? latestPropStatement.fees
-                  : 0;
-                const propNetPaid = latestPropStatement
-                  ? latestPropStatement.payout
-                  : 0;
-                const propPaidDate = latestPropStatement
-                  ? latestPropStatement.date
-                  : "—";
-                const propDeductions = latestPropStatement
-                  ? parseFloat(latestPropStatement.invoiced) -
-                    parseFloat(latestPropStatement.fees) -
-                    parseFloat(latestPropStatement.payout)
-                  : 0;
+                // Derivation lives in usePropertyDetails; alias its fields here.
+                const {
+                  rentReceived: propRentReceived,
+                  managementFees: propManagementFees,
+                  netPaid: propNetPaid,
+                  paidDate: propPaidDate,
+                  deductions: propDeductions,
+                } = financialSummary;
 
                 return (
                   <div className="flex-grow flex flex-col text-xs-portal gap-2.5 mt-2">
@@ -472,7 +367,7 @@ export const PropertyDetails = () => {
                     Tenant Compliance
                   </span>
                   <span className="font-mono font-bold text-brand-primary">
-                    {activeT ? "100%" : "—"}
+                    {hasActiveTenancy ? "100%" : "—"}
                   </span>
                 </div>
                 <div className="flex justify-between items-center border-b border-card-border pb-1.5">
@@ -488,7 +383,7 @@ export const PropertyDetails = () => {
                     Deposit Compliance
                   </span>
                   <span className="font-mono font-bold text-brand-primary">
-                    {activeT ? "100%" : "—"}
+                    {hasActiveTenancy ? "100%" : "—"}
                   </span>
                 </div>
 
@@ -540,33 +435,22 @@ export const PropertyDetails = () => {
 
                   {details.maintenanceIssues > 0 ? (
                     <div className="flex justify-between items-center mt-2.5 py-2 px-3 bg-surface-light border border-card-border rounded-card select-none">
-                      {(() => {
-                        const firstOpenTicket = propTickets.find(
-                          (t) =>
-                            t.status !== "complete" &&
-                            t.status !== "cancelled",
-                        );
-                        return (
-                          <>
-                            <div className="flex flex-col text-left">
-                              <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider leading-none">
-                                Priority
-                              </span>
-                              <span className="text-xs-portal font-bold text-brand-primary mt-1 leading-none truncate max-w-[150px]">
-                                {firstOpenTicket?.title || "Open Issue"}
-                              </span>
-                            </div>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              className="!py-1 !px-2 text-2xs font-bold card-bg"
-                              onClick={() => navigate("/maintenance")}
-                            >
-                              View Issue
-                            </Button>
-                          </>
-                        );
-                      })()}
+                      <div className="flex flex-col text-left">
+                        <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider leading-none">
+                          Priority
+                        </span>
+                        <span className="text-xs-portal font-bold text-brand-primary mt-1 leading-none truncate max-w-[150px]">
+                          {firstOpenTicket?.title || "Open Issue"}
+                        </span>
+                      </div>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="!py-1 !px-2 text-2xs font-bold card-bg"
+                        onClick={() => navigate("/maintenance")}
+                      >
+                        View Issue
+                      </Button>
                     </div>
                   ) : (
                     <div className="mt-4 text-xs-portal text-status-success font-semibold text-center select-none flex items-center gap-1 justify-center py-2 bg-status-success-bg border border-status-success/15 rounded-card">
@@ -577,32 +461,19 @@ export const PropertyDetails = () => {
 
                 <div className="border-t border-card-border my-1"></div>
 
-                {(() => {
-                  const propInspections = inspections.filter(
-                    (i) =>
-                      String(i.property) === String(details.address) ||
-                      String(i.property).includes(p.address_line1),
-                  );
-                  const nextInspection = propInspections.find(
-                    (i) => i.status !== "Completed",
-                  );
-
-                  return (
-                    <div className="flex justify-between items-baseline py-1">
-                      <div className="flex flex-col text-left">
-                        <span className="text-status-muted font-bold">
-                          Next Inspection
-                        </span>
-                        <span className="text-xs-portal font-bold text-status-info mt-1 leading-none">
-                          {nextInspection ? nextInspection.date : "—"}
-                        </span>
-                      </div>
-                      <span className="text-2xs text-gray-400 font-medium">
-                        {nextInspection ? nextInspection.countdown : ""}
-                      </span>
-                    </div>
-                  );
-                })()}
+                <div className="flex justify-between items-baseline py-1">
+                  <div className="flex flex-col text-left">
+                    <span className="text-status-muted font-bold">
+                      Next Inspection
+                    </span>
+                    <span className="text-xs-portal font-bold text-status-info mt-1 leading-none">
+                      {nextInspection ? nextInspection.date : "—"}
+                    </span>
+                  </div>
+                  <span className="text-2xs text-gray-400 font-medium">
+                    {nextInspection ? nextInspection.countdown : ""}
+                  </span>
+                </div>
               </div>
 
               <div className="mt-auto pt-4 flex items-center">
@@ -632,98 +503,12 @@ export const PropertyDetails = () => {
 
             {/* Horizontal Timeline Grid */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {(() => {
-                const propInspections = inspections.filter(
-                  (i) =>
-                    String(i.property) === String(details.address) ||
-                    String(i.property).includes(p.address_line1),
-                );
-                const activities = [];
-
-                // 1. Statements / payouts
-                propStatements.slice(0, 2).forEach((s) => {
-                  activities.push({
-                    title: "Payout Disbursed",
-                    subTitle: `£${s.payout.toLocaleString(undefined, { minimumFractionDigits: 2 })} payout processed`,
-                    date: s.date,
-                    icon: Wallet,
-                    color: "bg-status-success-bg text-status-success",
-                  });
-                });
-
-                // 2. Completed inspections
-                propInspections
-                  .filter((i) => i.status === "Completed")
-                  .slice(0, 2)
-                  .forEach((i) => {
-                    activities.push({
-                      title: "Inspection Completed",
-                      subTitle: `Routine review completed by ${i.inspector}`,
-                      date: i.date,
-                      icon: Calendar,
-                      color: "bg-purple-50 text-purple-600",
-                    });
-                  });
-
-                // 3. Completed maintenance tickets
-                propTickets
-                  .filter((t) => t.status === "complete")
-                  .slice(0, 2)
-                  .forEach((t) => {
-                    activities.push({
-                      title: "Maintenance Completed",
-                      subTitle: t.title || "Shower repair",
-                      date: t.updated_at
-                        ? new Date(t.updated_at).toLocaleDateString("en-GB")
-                        : "—",
-                      icon: Wrench,
-                      color: "bg-status-success-bg text-status-success",
-                    });
-                  });
-
-                // Sort by date descending
-                activities.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-                if (activities.length === 0) {
-                  return (
-                    <div className="col-span-4 card-bg border border-card-border rounded-card p-6 text-center text-gray-400 font-semibold select-none">
-                      No recent activity logged for this property.
-                    </div>
-                  );
-                }
-
-                // 4. Documents uploaded
-                if (documents) {
-                  const propDocs = documents.filter((d) => 
-                    d.related?.includes(String(details.address)) || 
-                    d.related?.includes(p.address_line1)
-                  );
-                  propDocs.slice(0, 2).forEach((d) => {
-                    activities.push({
-                      title: "Document Uploaded",
-                      subTitle: d.item,
-                      date: d.uploaded,
-                      icon: Clock,
-                      color: "bg-blue-50 text-blue-600",
-                    });
-                  });
-                }
-
-                // 5. Utilities
-                if (utilities) {
-                  const propUtils = utilities.filter((u) => u.property_id === p.id);
-                  propUtils.slice(0, 2).forEach((u) => {
-                    activities.push({
-                      title: "Utility Logged",
-                      subTitle: `${u.utility_type?.replace("_", " ") || "Utility"} logged`,
-                      date: u.created_at ? new Date(u.created_at).toLocaleDateString("en-GB") : "—",
-                      icon: Wrench,
-                      color: "bg-orange-50 text-orange-600",
-                    });
-                  });
-                }
-
-                return activities.slice(0, 4).map((act, index) => (
+              {activities.length === 0 ? (
+                <div className="col-span-4 card-bg border border-card-border rounded-card p-6 text-center text-gray-400 font-semibold select-none">
+                  No recent activity logged for this property.
+                </div>
+              ) : (
+                activities.map((act, index) => (
                   <div
                     key={index}
                     className="card-bg border border-card-border rounded-card p-4 hover:border-gray-300 transition-colors shadow-xs flex items-center justify-between select-none"
@@ -753,8 +538,8 @@ export const PropertyDetails = () => {
                       />
                     </div>
                   </div>
-                ));
-              })()}
+                ))
+              )}
             </div>
           </div>
         </div>
