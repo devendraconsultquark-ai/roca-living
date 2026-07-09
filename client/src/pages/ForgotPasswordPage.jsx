@@ -1,9 +1,9 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { Button } from '../components/UI/Button';
-import { Input } from '../components/UI/Input';
-import { ArrowRight } from 'lucide-react';
-import { useForgotPassword } from '../hooks/useForgotPassword';
+import React from "react";
+import { Link } from "react-router-dom";
+import { Button } from "../components/UI/Button";
+import { Input } from "../components/UI/Input";
+import { ArrowRight } from "lucide-react";
+import { useForgotPassword } from "../hooks/useForgotPassword";
 
 export const ForgotPasswordPage = () => {
   const {
@@ -16,17 +16,19 @@ export const ForgotPasswordPage = () => {
   } = useForgotPassword();
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center py-16 px-4 font-sans text-left">
+    <div className="min-h-screen bg-surface-light flex items-center justify-center py-16 px-4 font-sans text-left">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-[2.5rem] shadow-2xl p-8 sm:p-12">
-          
+        <div className="card-bg rounded-[2.5rem] shadow-2xl p-8 sm:p-12">
           <div className="text-center mb-10">
-            <div className="w-16 h-16 rounded-2xl bg-slate-100 text-slate-800 flex items-center justify-center mx-auto mb-6">
+            <div className="w-16 h-16 rounded-2xl bg-surface-hover text-brand-primary flex items-center justify-center mx-auto mb-6">
               <span className="material-symbols-outlined text-3xl">key</span>
             </div>
-            <h1 className="text-2xl font-light text-slate-900 tracking-tight">Forgot Password?</h1>
-            <p className="text-slate-500 font-semibold text-sm mt-2 leading-relaxed">
-              Enter your email and we'll send you a secure link to reset your password.
+            <h1 className="text-2xl font-light text-brand-primary tracking-tight">
+              Forgot Password?
+            </h1>
+            <p className="text-status-muted font-semibold text-sm mt-2 leading-relaxed">
+              Enter your email and we'll send you a secure link to reset your
+              password.
             </p>
           </div>
 
@@ -67,9 +69,14 @@ export const ForgotPasswordPage = () => {
               {isLoading ? "Sending…" : "Send Reset Link"}
             </Button>
 
-            <p className="text-center text-sm font-semibold text-slate-400 pt-2">
+            <p className="text-center text-sm font-semibold text-gray-400 pt-2">
               Wait, I remember it!{" "}
-              <Link to="/login" className="text-slate-800 font-bold hover:underline">Go back to Sign In</Link>
+              <Link
+                to="/login"
+                className="text-brand-primary font-bold hover:underline"
+              >
+                Go back to Sign In
+              </Link>
             </p>
           </form>
         </div>

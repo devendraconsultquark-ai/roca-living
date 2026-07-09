@@ -1,26 +1,25 @@
-import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
-import { Sidebar } from './Sidebar';
-import { LandlordHeader } from './LandlordHeader';
+import React, { useState } from "react";
+import { Outlet } from "react-router-dom";
+import { Sidebar } from "./Sidebar";
+import { LandlordHeader } from "./LandlordHeader";
+import { Button } from "../UI/Button";
 
 export const LandlordLayout = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="h-screen w-screen flex overflow-hidden bg-app-bg text-[#1A1A1A]">
-      
+    <div className="h-screen w-screen flex overflow-hidden bg-app-bg text-text-primary">
       {/* Sidebar Component (Desktop and Mobile overlay) */}
-      <Sidebar 
-        collapsed={collapsed} 
-        setCollapsed={setCollapsed} 
-        mobileMenuOpen={mobileMenuOpen} 
-        setMobileMenuOpen={setMobileMenuOpen} 
+      <Sidebar
+        collapsed={collapsed}
+        setCollapsed={setCollapsed}
+        mobileMenuOpen={mobileMenuOpen}
+        setMobileMenuOpen={setMobileMenuOpen}
       />
 
       {/* MAIN WORKSPACE CONTAINER */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-        
         {/* Modular Header Component */}
         <LandlordHeader setMobileMenuOpen={setMobileMenuOpen} />
 
@@ -29,7 +28,6 @@ export const LandlordLayout = () => {
           <Outlet />
         </main>
       </div>
-
     </div>
   );
 };

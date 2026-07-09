@@ -1,20 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { usePropertyContext } from '../context/PropertyContext';
-import { useNavigate } from 'react-router-dom';
-import { 
-  Download, ArrowDown, Wallet, Calendar, ShieldCheck, ChevronRight, Info, Archive, MoreVertical 
-} from 'lucide-react';
-import { PortalCard } from '../components/UI/PortalCard';
-import { PortalMetricCard } from '../components/UI/PortalMetricCard';
-import { Button } from '../components/UI/Button';
-import { Dropdown } from '../components/UI/Dropdown';
-import { DatePicker } from '../components/UI/DatePicker';
-import { useStatements } from '../hooks/useStatements';
-import { CirclePoundIcon } from '../components/UI/CirclePoundIcon';
-import { Pagination } from '../components/UI/Pagination';
-import { TableEmptyState } from '../components/UI/TableEmptyState';
-import { StatusPill } from '../components/UI/StatusPill';
-import { useToast } from '../components/UI/ToastContext';
+import React, { useState, useEffect } from "react";
+import { usePropertyContext } from "../context/PropertyContext";
+import { useNavigate } from "react-router-dom";
+import {
+  Download,
+  ArrowDown,
+  Wallet,
+  Calendar,
+  ShieldCheck,
+  ChevronRight,
+  Info,
+  Archive,
+  MoreVertical,
+} from "lucide-react";
+import { PortalCard } from "../components/UI/PortalCard";
+import { PortalMetricCard } from "../components/UI/PortalMetricCard";
+import { Button } from "../components/UI/Button";
+import { Dropdown } from "../components/UI/Dropdown";
+import { DatePicker } from "../components/UI/DatePicker";
+import { useStatements } from "../hooks/useStatements";
+import { CirclePoundIcon } from "../components/UI/CirclePoundIcon";
+import { Pagination } from "../components/UI/Pagination";
+import { TableEmptyState } from "../components/UI/TableEmptyState";
+import { StatusPill } from "../components/UI/StatusPill";
+import { useToast } from "../components/UI/ToastContext";
 
 export const Statements = () => {
   const { selectedProperty } = usePropertyContext();
@@ -23,13 +31,13 @@ export const Statements = () => {
 
   const { addToast } = useToast();
 
-  const [filterPeriod, setFilterPeriod] = useState('All Periods');
-  const [fromDate, setFromDate] = useState('2025-01-01');
-  const [toDate, setToDate] = useState('2026-06-14');
+  const [filterPeriod, setFilterPeriod] = useState("All Periods");
+  const [fromDate, setFromDate] = useState("2025-01-01");
+  const [toDate, setToDate] = useState("2026-06-14");
 
-  const [appliedPeriod, setAppliedPeriod] = useState('All Periods');
-  const [appliedFromDate, setAppliedFromDate] = useState('2025-01-01');
-  const [appliedToDate, setAppliedToDate] = useState('2026-06-14');
+  const [appliedPeriod, setAppliedPeriod] = useState("All Periods");
+  const [appliedFromDate, setAppliedFromDate] = useState("2025-01-01");
+  const [appliedToDate, setAppliedToDate] = useState("2026-06-14");
 
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
@@ -42,10 +50,10 @@ export const Statements = () => {
     setFilterPeriod(val);
     const today = new Date();
     const currentYear = today.getFullYear();
-    if (val === 'Current Year') {
+    if (val === "Current Year") {
       setFromDate(`${currentYear}-01-01`);
       setToDate(`${currentYear}-12-31`);
-    } else if (val === 'Last Year') {
+    } else if (val === "Last Year") {
       setFromDate(`${currentYear - 1}-01-01`);
       setToDate(`${currentYear - 1}-12-31`);
     }
@@ -60,12 +68,16 @@ export const Statements = () => {
 
   // Filter statements dynamically based on applied dates
   const filteredStatements = statements.filter((s) => {
+    if (appliedPeriod === "All Periods") {
+      return true;
+    }
+    
     if (s.rawStartDate && s.rawEndDate) {
       const start = new Date(s.rawStartDate);
       const end = new Date(s.rawEndDate);
       const filterFrom = new Date(appliedFromDate);
       const filterTo = new Date(appliedToDate);
-      
+
       // Filter: check if statement period overlaps or falls within range
       if (start < filterFrom || end > filterTo) {
         return false;
@@ -79,14 +91,23 @@ export const Statements = () => {
 
   const paginatedStatements = filteredStatements.slice(
     (currentPage - 1) * pageSize,
-    currentPage * pageSize
+    currentPage * pageSize,
   );
 
   // Compute dynamic stats from filtered statements list
-  const totalIncome = filteredStatements.reduce((sum, s) => sum + (s.invoiced || 0), 0);
-  const totalExpenses = filteredStatements.reduce((sum, s) => sum + (s.fees || 0), 0);
-  const netIncome = filteredStatements.reduce((sum, s) => sum + (s.payout || 0), 0);
-  const lastStatement = filteredStatements[0]?.period || '—';
+  const totalIncome = filteredStatements.reduce(
+    (sum, s) => sum + (s.invoiced || 0),
+    0,
+  );
+  const totalExpenses = filteredStatements.reduce(
+    (sum, s) => sum + (s.fees || 0),
+    0,
+  );
+  const netIncome = filteredStatements.reduce(
+    (sum, s) => sum + (s.payout || 0),
+    0,
+  );
+  const lastStatement = filteredStatements[0]?.period || "—";
 
   if (loading) {
     return (
@@ -94,14 +115,14 @@ export const Statements = () => {
         {/* Metric Cards Skeleton */}
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-20 bg-gray-100 rounded-xl" />
+            <div key={i} className="h-20 bg-surface-hover rounded-xl" />
           ))}
         </div>
         {/* Main Layout Skeleton */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-9 h-[400px] bg-gray-100/60 rounded-2xl" />
+          <div className="lg:col-span-9 h-[400px] bg-surface-hover/60 rounded-2xl" />
           <div className="lg:col-span-3 flex flex-col gap-6">
-            <div className="h-[200px] bg-gray-100/60 rounded-2xl" />
+            <div className="h-[200px] bg-surface-hover/60 rounded-2xl" />
           </div>
         </div>
       </div>
@@ -110,42 +131,53 @@ export const Statements = () => {
 
   return (
     <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8 font-sans text-brand-primary">
-      
       {error && (
         <div className="border border-status-danger bg-status-danger/5 rounded-card p-4 text-center text-status-danger font-semibold">
           {error}
         </div>
       )}
-      
+
       {/* Metric Cards Grid (4 Columns) */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 animate-fade-in">
-        <PortalMetricCard 
-          label="Total Income (This Year)" 
-          value={loading ? '...' : `£${totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+        <PortalMetricCard
+          label="Total Income (This Year)"
+          value={
+            loading
+              ? "..."
+              : `£${totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+          }
           icon={CirclePoundIcon}
           variant="success"
           actionText="View Breakdown"
           onActionClick={() => {}}
         />
-        <PortalMetricCard 
-          label="Total Expenses (This Year)" 
-          value={loading ? '...' : `£${totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+        <PortalMetricCard
+          label="Total Expenses (This Year)"
+          value={
+            loading
+              ? "..."
+              : `£${totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+          }
           icon={ArrowDown}
           variant="danger"
           actionText="View Breakdown"
           onActionClick={() => {}}
         />
-        <PortalMetricCard 
-          label="Net Income (This Year)" 
-          value={loading ? '...' : `£${netIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+        <PortalMetricCard
+          label="Net Income (This Year)"
+          value={
+            loading
+              ? "..."
+              : `£${netIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+          }
           icon={Wallet}
           variant="info"
           actionText="View Breakdown"
           onActionClick={() => {}}
         />
-        <PortalMetricCard 
-          label="Last Statement" 
-          value={loading ? '...' : lastStatement}
+        <PortalMetricCard
+          label="Last Statement"
+          value={loading ? "..." : lastStatement}
           icon={Calendar}
           variant="warning"
           actionText="Download Statement"
@@ -155,23 +187,22 @@ export const Statements = () => {
 
       {/* Main Grid layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-4">
-        
         {/* Left Side: Table & Filters (9 Columns) */}
         <div className="lg:col-span-9 flex flex-col gap-5">
-          
           {/* Calendar Filter Ribbon */}
-          <div className="bg-white border border-card-border rounded-card p-4 shadow-xs flex flex-wrap items-center justify-between gap-4 select-none">
+          <div className="card-bg border border-card-border rounded-card p-4 shadow-xs flex flex-wrap items-center justify-between gap-4 select-none">
             <div className="flex flex-wrap items-center gap-6 text-xs-portal font-bold text-brand-primary">
-              
               <div className="flex items-center gap-2">
-                <span className="text-xs-portal text-gray-500 font-semibold">Statement Period</span>
+                <span className="text-xs-portal text-status-muted font-semibold">
+                  Statement Period
+                </span>
                 <Dropdown
                   value={filterPeriod}
                   onChange={handlePeriodChange}
                   options={[
-                    { value: 'All Periods', label: 'All Periods' },
-                    { value: 'Current Year', label: 'Current Year' },
-                    { value: 'Last Year', label: 'Last Year' }
+                    { value: "All Periods", label: "All Periods" },
+                    { value: "Current Year", label: "Current Year" },
+                    { value: "Last Year", label: "Last Year" },
                   ]}
                   size="sm"
                   className="min-w-[140px]"
@@ -179,36 +210,39 @@ export const Statements = () => {
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="text-xs-portal text-gray-500 font-semibold">From</span>
-                <DatePicker 
+                <span className="text-xs-portal text-status-muted font-semibold">
+                  From
+                </span>
+                <DatePicker
                   value={fromDate}
                   onChange={setFromDate}
                   size="sm"
                   className="w-36"
                 />
-                <span className="text-gray-400 text-xs-portal font-semibold">to</span>
-                <DatePicker 
+                <span className="text-gray-400 text-xs-portal font-semibold">
+                  to
+                </span>
+                <DatePicker
                   value={toDate}
                   onChange={setToDate}
                   size="sm"
                   className="w-36"
                 />
               </div>
-
             </div>
 
-            <Button 
-              variant="primary" 
-              size="sm" 
+            <Button
+              variant="primary"
+              size="sm"
               className="font-bold text-xs-portal h-8 px-5 rounded-md"
               onClick={handleApplyFilters}
             >
               Apply
             </Button>
           </div>
-          
+
           {/* Table Container Card */}
-          <div className="bg-white border border-card-border rounded-card p-5 shadow-xs flex flex-col justify-between overflow-hidden min-h-[300px]">
+          <div className="card-bg border border-card-border rounded-card p-5 shadow-xs flex flex-col justify-between overflow-hidden min-h-[300px]">
             <div className="overflow-x-auto w-full">
               <table className="w-full text-sm text-left border-collapse">
                 <thead>
@@ -232,41 +266,69 @@ export const Statements = () => {
                     />
                   ) : (
                     paginatedStatements.map((row, index) => {
-                      const isCurrent = row.status === 'Current' || row.status === 'Active';
+                      const isCurrent =
+                        row.status === "Current" || row.status === "Active";
                       return (
-                        <tr key={index} className="hover:bg-gray-50/50 transition-colors">
+                        <tr
+                          key={index}
+                          className="hover:bg-surface-light/50 transition-colors"
+                        >
                           <td className="py-3 px-2">
                             <div className="flex flex-col text-left">
-                              <span className="font-bold text-brand-primary leading-tight">{row.period}</span>
+                              <span className="font-bold text-brand-primary leading-tight">
+                                {row.period}
+                              </span>
                             </div>
                           </td>
                           <td className="py-3 px-2 font-bold font-mono text-brand-primary">
-                            £{row.invoiced.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            £
+                            {row.invoiced.toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                            })}
                           </td>
-                          <td className="py-3 px-2 font-semibold font-mono text-gray-500">
-                            £{row.fees.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          <td className="py-3 px-2 font-semibold font-mono text-status-muted">
+                            £
+                            {row.fees.toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                            })}
                           </td>
                           <td className="py-3 px-2 font-extrabold font-mono text-status-success">
-                            £{row.payout.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            £
+                            {row.payout.toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                            })}
                           </td>
                           <td className="py-3 px-2">
-                            <StatusPill status={row.status} size="sm" showIcon={false} />
+                            <StatusPill
+                              status={row.status}
+                              size="sm"
+                              showIcon={false}
+                            />
                           </td>
-                          <td className="py-3 px-2 font-medium text-gray-400">{row.date}</td>
+                          <td className="py-3 px-2 font-medium text-gray-400">
+                            {row.date}
+                          </td>
                           <td className="py-3 px-2">
                             <div className="flex items-center justify-center gap-1.5">
-                              <Button 
-                                variant="ghost" 
+                              <Button
+                                variant="ghost"
                                 size="sm"
                                 className="!py-1 !px-2.5 text-2xs font-bold text-status-info hover:bg-status-info/5 border border-transparent hover:border-card-border flex items-center gap-1 cursor-pointer"
-                                onClick={() => handleDownloadPDF(row.id, row.period)}
+                                onClick={() =>
+                                  handleDownloadPDF(row.id, row.period)
+                                }
                               >
                                 <span>Download</span>
                                 <Download size={11} className="shrink-0" />
                               </Button>
-                              <button className="p-1 hover:text-brand-primary rounded cursor-pointer text-gray-300">
+                              <Button
+                                variant="icon-only"
+                                size="sm"
+                                className="p-1 hover:text-brand-primary rounded cursor-pointer text-sidebar-text-muted"
+                                p-1
+                              >
                                 <MoreVertical size={14} />
-                              </button>
+                              </Button>
                             </div>
                           </td>
                         </tr>
@@ -283,44 +345,56 @@ export const Statements = () => {
               totalPages={totalPages}
               onPageChange={setCurrentPage}
             />
-
           </div>
-
         </div>
 
         {/* Right Side: Sidebar Panels (3 Columns) */}
         <div className="lg:col-span-3 flex flex-col gap-6 select-none animate-fade-in">
-          
           {/* Statement Summary */}
           <PortalCard title="Statement Summary" subtitle="(This Year)">
-            <div className="flex flex-col gap-3.5 text-xs-portal font-bold text-gray-500 text-left">
+            <div className="flex flex-col gap-3.5 text-xs-portal font-bold text-status-muted text-left">
               <div className="flex justify-between items-center">
                 <span>Total Income</span>
                 <span className="text-brand-primary font-extrabold font-mono">
-                  £{loading ? '...' : totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  £
+                  {loading
+                    ? "..."
+                    : totalIncome.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                      })}
                 </span>
               </div>
-              <div className="flex justify-between items-center border-t border-gray-50 pt-3">
+              <div className="flex justify-between items-center border-t border-card-border pt-3">
                 <span>Total Expenses</span>
                 <span className="text-brand-primary font-extrabold font-mono">
-                  £{loading ? '...' : totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  £
+                  {loading
+                    ? "..."
+                    : totalExpenses.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                      })}
                 </span>
               </div>
-              <div className="flex justify-between items-center border-t border-gray-50 pt-3 text-xs-portal text-brand-primary">
+              <div className="flex justify-between items-center border-t border-card-border pt-3 text-xs-portal text-brand-primary">
                 <span>Net Income</span>
                 <span className="text-status-success font-black font-mono">
-                  £{loading ? '...' : netIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  £
+                  {loading
+                    ? "..."
+                    : netIncome.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                      })}
                 </span>
               </div>
             </div>
-            
-            <Button 
-              variant="secondary" 
-              size="sm" 
-              icon={ChevronRight} 
-              iconPosition="right" 
-              className="w-full mt-4 font-bold bg-white text-xs-portal h-9 border border-card-border"
-              onClick={() => navigate('/financials')}
+
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={ChevronRight}
+              iconPosition="right"
+              className="w-full mt-4 font-bold card-bg text-xs-portal h-9 border border-card-border"
+              onClick={() => navigate("/financials")}
             >
               View Financial Overview
             </Button>
@@ -333,12 +407,16 @@ export const Statements = () => {
                 <Info size={14} />
               </div>
               <div className="flex flex-col">
-                <h4 className="text-xs-portal font-bold text-brand-primary uppercase tracking-wider leading-none">About Your Statements</h4>
+                <h4 className="text-sm-portal font-bold text-brand-primary capitalize tracking-wider leading-none">
+                  About Your Statements
+                </h4>
                 <p className="text-2xs text-gray-400 font-semibold mt-3 leading-relaxed">
-                  Statements are generated monthly, and include all income, expenses, and payments for the selected period.
+                  Statements are generated monthly, and include all income,
+                  expenses, and payments for the selected period.
                 </p>
                 <p className="text-2xs text-gray-400 font-semibold mt-2.5 leading-relaxed">
-                  If you have any questions about your statements, please contact your property manager.
+                  If you have any questions about your statements, please
+                  contact your property manager.
                 </p>
               </div>
             </div>
@@ -352,30 +430,34 @@ export const Statements = () => {
                   <Download size={15} />
                 </div>
                 <div className="flex flex-col">
-                  <h4 className="text-xs-portal font-bold text-brand-primary uppercase tracking-wider">Download All Statements</h4>
+                  <h4 className="text-sm-portal font-bold text-brand-primary capitalize tracking-wider">
+                    Download All Statements
+                  </h4>
                   <p className="text-2xs text-gray-400 font-semibold mt-2.5 leading-normal">
                     Download all available statements as a single ZIP file.
                   </p>
                 </div>
               </div>
 
-              <Button 
-                variant="secondary" 
-                size="sm" 
-                icon={Download} 
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={Download}
                 iconPosition="right"
-                className="w-full font-bold bg-white text-xs-portal h-9 border border-card-border"
-                onClick={() => addToast("Downloading all statements as a ZIP file...", "success")}
+                className="w-full font-bold card-bg text-xs-portal h-9 border border-card-border"
+                onClick={() =>
+                  addToast(
+                    "Downloading all statements as a ZIP file...",
+                    "success",
+                  )
+                }
               >
                 Download All
               </Button>
             </div>
           </PortalCard>
-
         </div>
-
       </div>
-
     </div>
   );
 };

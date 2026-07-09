@@ -86,7 +86,7 @@ export const useMaintenance = () => {
         await api.patch(`/maintenance/${quoteId}/approve`);
         addToast(`Quote #${quoteId} approved!`, 'success');
       } else {
-        await api.patch(`/maintenance/${quoteId}/status`, { status: 'cancelled' });
+        await api.patch(`/maintenance/${quoteId}/decline`);
         addToast(`Quote #${quoteId} declined.`, 'info');
       }
       // Update local state

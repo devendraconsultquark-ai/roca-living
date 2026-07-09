@@ -1,28 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { Input } from '../components/UI/Input';
-import { Button } from '../components/UI/Button';
-import { ArrowRight } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { Input } from "../components/UI/Input";
+import { Button } from "../components/UI/Button";
+import { ArrowRight } from "lucide-react";
 
 export const LoginPage = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { login, isAuthenticated, user } = useAuth();
 
   useEffect(() => {
-    if (isAuthenticated && user?.role === 'LANDLORD') {
-      navigate('/dashboard');
+    if (isAuthenticated && user?.role === "LANDLORD") {
+      navigate("/dashboard");
     }
   }, [isAuthenticated, user, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setFieldErrors({});
     setIsLoading(true);
 
@@ -30,9 +30,9 @@ export const LoginPage = () => {
       await login({ email, password });
     } catch (err) {
       console.error(err);
-      
+
       const errorMessages = err.response?.data?.errors;
-      
+
       if (Array.isArray(errorMessages) && errorMessages.length > 0) {
         const errorsMap = {};
         errorMessages.forEach((m) => {
@@ -40,7 +40,9 @@ export const LoginPage = () => {
         });
         setFieldErrors(errorsMap);
       } else {
-        const errorMessage = err.response?.data?.message || 'Login failed. Please check your credentials.';
+        const errorMessage =
+          err.response?.data?.message ||
+          "Login failed. Please check your credentials.";
         setError(errorMessage);
       }
       setIsLoading(false);
@@ -48,21 +50,24 @@ export const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 py-16 px-4 font-sans">
-      <div className="w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[580px]">
-
+    <div className="min-h-screen flex items-center justify-center bg-surface-light py-16 px-4 font-sans">
+      <div className="w-full max-w-5xl card-bg rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[580px]">
         {/* ── Left – Login Form ─────────────────────────────── */}
         <div className="w-full md:w-1/2 p-8 sm:p-12 flex flex-col justify-center text-left">
           <div className="mb-8">
             <Link to="/">
-              <img 
-                src={`${import.meta.env.BASE_URL}images/logo-black.png`} 
-                alt="ROCA Living" 
-                className="h-8 mb-6 object-contain cursor-pointer" 
+              <img
+                src={`${import.meta.env.BASE_URL}images/logo-black.png`}
+                alt="ROCA Living"
+                className="h-8 mb-6 object-contain cursor-pointer"
               />
             </Link>
-            <h1 className="text-3xl font-light text-slate-900 mb-1">Welcome Back</h1>
-            <p className="text-slate-500 text-sm">Sign in to manage your properties & investments</p>
+            <h1 className="text-3xl font-light text-brand-primary mb-1">
+              Welcome Back
+            </h1>
+            <p className="text-status-muted text-sm">
+              Sign in to manage your properties & investments
+            </p>
           </div>
 
           {error && (
@@ -79,9 +84,10 @@ export const LoginPage = () => {
               type="email"
               value={email}
               error={fieldErrors.email}
-              onChange={e => {
+              onChange={(e) => {
                 setEmail(e.target.value);
-                if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: '' }));
+                if (fieldErrors.email)
+                  setFieldErrors((prev) => ({ ...prev, email: "" }));
               }}
               placeholder="name@example.com"
               required
@@ -90,11 +96,14 @@ export const LoginPage = () => {
             {/* Password */}
             <div className="flex flex-col w-full">
               <div className="flex justify-between items-end mb-1">
-                <label className="text-xs font-semibold text-gray-500 flex items-center gap-0.5">
+                <label className="text-xs font-semibold text-status-muted flex items-center gap-0.5">
                   Password
                   <span className="text-status-danger">*</span>
                 </label>
-                <Link to="/forgot-password" className="text-xs text-brand-accent font-semibold hover:underline">
+                <Link
+                  to="/forgot-password"
+                  className="text-xs text-brand-accent font-semibold hover:underline"
+                >
                   Forgot password?
                 </Link>
               </div>
@@ -103,9 +112,10 @@ export const LoginPage = () => {
                 type="password"
                 value={password}
                 error={fieldErrors.password}
-                onChange={e => {
+                onChange={(e) => {
                   setPassword(e.target.value);
-                  if (fieldErrors.password) setFieldErrors(prev => ({ ...prev, password: '' }));
+                  if (fieldErrors.password)
+                    setFieldErrors((prev) => ({ ...prev, password: "" }));
                 }}
                 placeholder="••••••••"
                 required
@@ -125,15 +135,22 @@ export const LoginPage = () => {
             </Button>
           </form>
 
-          <p className="mt-8 text-center text-sm text-slate-500">
+          <p className="mt-8 text-center text-sm text-status-muted">
             Don't have an account?{" "}
-            <Link to="/signup" className="text-brand-accent font-bold hover:underline">Create Account</Link>
+            <Link
+              to="/signup"
+              className="text-brand-accent font-bold hover:underline"
+            >
+              Create Account
+            </Link>
           </p>
 
           <div className="mt-8 flex items-center gap-3">
-            <div className="h-px flex-1 bg-slate-100" />
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Secure Access</span>
-            <div className="h-px flex-1 bg-slate-100" />
+            <div className="h-px flex-1 bg-surface-hover" />
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest">
+              Secure Access
+            </span>
+            <div className="h-px flex-1 bg-surface-hover" />
           </div>
         </div>
 
@@ -149,24 +166,53 @@ export const LoginPage = () => {
             <div className="space-y-4">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-black/20 border border-brand-accent/30 backdrop-blur-sm">
                 <span className="w-2 h-2 rounded-full bg-brand-accent animate-pulse" />
-                <span className="text-[10px] text-white uppercase tracking-widest">Partner Exclusive</span>
+                <span className="text-2xs text-white uppercase tracking-widest">
+                  Partner Exclusive
+                </span>
               </div>
-              <h2 className="text-4xl font-light text-white leading-tight font-sans">Your Properties,<br />Your Portal.</h2>
-              <p className="text-slate-300 text-sm leading-relaxed max-w-xs font-sans">
-                Manage statements, payouts, property compliance, and maintenance — all in one place.
+              <h2 className="text-4xl font-light text-white leading-tight font-sans">
+                Your Properties,
+                <br />
+                Your Portal.
+              </h2>
+              <p className="text-sidebar-text-muted text-sm leading-relaxed max-w-xs font-sans">
+                Manage statements, payouts, property compliance, and maintenance
+                — all in one place.
               </p>
               <div className="grid grid-cols-2 gap-4 pt-4 text-left">
                 {[
-                  { icon: "description", title: "Documents", sub: "Statements & certifications" },
-                  { icon: "payments", title: "Payments", sub: "Rental income & payouts" },
-                  { icon: "engineering", title: "Maintenance", sub: "Approved quotes & repairs" },
-                  { icon: "forum", title: "Messages", sub: "Direct correspondence" },
-                ].map(item => (
+                  {
+                    icon: "description",
+                    title: "Documents",
+                    sub: "Statements & certifications",
+                  },
+                  {
+                    icon: "payments",
+                    title: "Payments",
+                    sub: "Rental income & payouts",
+                  },
+                  {
+                    icon: "engineering",
+                    title: "Maintenance",
+                    sub: "Approved quotes & repairs",
+                  },
+                  {
+                    icon: "forum",
+                    title: "Messages",
+                    sub: "Direct correspondence",
+                  },
+                ].map((item) => (
                   <div key={item.title} className="flex items-start gap-2">
-                    <span className="material-symbols-outlined text-brand-accent/80 text-xl">{item.icon}</span>
+                    <span className="material-symbols-outlined text-brand-accent/80 text-xl">
+                      {item.icon}
+                    </span>
                     <div className="text-left">
-                      <p className="text-white text-xs leading-tight">{item.title}</p>
-                      <p className="text-slate-400 text-[11px] leading-tight mt-0.5">{item.sub}</p>
+                      <p className="text-white text-xs leading-tight">
+                        {item.title}
+                      </p>
+                      <p className="text-gray-400 text-2xs leading-tight mt-0.5">
+                        {item.sub}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -174,7 +220,6 @@ export const LoginPage = () => {
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );

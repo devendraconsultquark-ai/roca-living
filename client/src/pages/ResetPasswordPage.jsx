@@ -1,8 +1,8 @@
-import React from 'react';
-import { Input } from '../components/UI/Input';
-import { Button } from '../components/UI/Button';
-import { Logo } from '../components/UI/Logo';
-import { useResetPassword } from '../hooks/useResetPassword';
+import React from "react";
+import { Input } from "../components/UI/Input";
+import { Button } from "../components/UI/Button";
+import { Logo } from "../components/UI/Logo";
+import { useResetPassword } from "../hooks/useResetPassword";
 
 export const ResetPasswordPage = () => {
   const {
@@ -15,12 +15,12 @@ export const ResetPasswordPage = () => {
     successMessage,
     error,
     handleResetPassword,
-    navigate
+    navigate,
   } = useResetPassword();
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-app-bg px-4 py-12">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-border-color overflow-hidden">
+      <div className="w-full max-w-md card-bg rounded-2xl shadow-xl border border-border-color overflow-hidden">
         {/* Navy Header using brand-primary */}
         <div className="bg-brand-primary/80 text-white p-8 text-center flex flex-col items-center gap-2">
           <Logo useLogoPng={true} />
@@ -28,10 +28,15 @@ export const ResetPasswordPage = () => {
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleResetPassword} className="p-8 flex flex-col gap-5">
-          <h3 className="text-lg font-bold text-[#1A1A1A]">Reset Password</h3>
-          
-          <p className="text-xs text-gray-500 leading-relaxed">
+        <form
+          onSubmit={handleResetPassword}
+          className="p-8 flex flex-col gap-5"
+        >
+          <h3 className="text-lg font-bold text-text-primary">
+            Reset Password
+          </h3>
+
+          <p className="text-xs text-status-muted leading-relaxed">
             Please enter your new password below.
           </p>
 
@@ -82,12 +87,12 @@ export const ResetPasswordPage = () => {
             disabled={isLoading || !!successMessage || !token}
             className="mt-2"
           >
-            {isLoading ? 'Resetting...' : 'Reset Password'}
+            {isLoading ? "Resetting..." : "Reset Password"}
           </Button>
 
           <div className="text-center mt-2 flex flex-col gap-2">
             <span
-              onClick={() => navigate('/login')}
+              onClick={() => navigate("/login")}
               className="text-xs text-brand-accent hover:underline font-bold cursor-pointer"
             >
               Back to Sign In

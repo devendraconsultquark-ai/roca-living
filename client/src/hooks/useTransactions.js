@@ -10,13 +10,12 @@ export const useTransactions = () => {
     const fetchTransactions = async () => {
       setLoading(true);
       try {
-        // TODO: backend needs to support /transactions/my endpoint
-        const res = await api.get('/transactions/my', { skipInterceptorError: true });
+        const res = await api.get('/transactions/my');
         setTransactions(res.data?.data || []);
         setError(null);
       } catch (err) {
-        console.warn('Transactions API not available yet on the backend:', err.message);
-        setError(err.response?.data?.message || 'Transactions endpoint not available');
+        console.error('Error fetching transactions:', err);
+        setError(err.response?.data?.message || 'Error loading transactions');
         setTransactions([]);
       } finally {
         setLoading(false);

@@ -1,6 +1,6 @@
-import React from 'react';
-import { AlertTriangle } from 'lucide-react';
-import { Button } from './UI/Button';
+import React from "react";
+import { AlertTriangle } from "lucide-react";
+import { Button } from "./UI/Button";
 
 export class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -19,19 +19,20 @@ export class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans text-left">
-          <div className="w-full max-w-md bg-white rounded-2xl border border-border-color p-8 shadow-xl flex flex-col gap-6">
+        <div className="min-h-screen bg-surface-light flex items-center justify-center p-6 font-sans text-left">
+          <div className="w-full max-w-md card-bg rounded-2xl border border-border-color p-8 shadow-xl flex flex-col gap-6">
             <div className="flex items-center gap-3 text-status-danger border-b border-border-color pb-4">
               <AlertTriangle size={24} />
               <h1 className="text-lg font-bold">Something went wrong</h1>
             </div>
-            
-            <p className="text-sm text-gray-600 leading-relaxed">
-              An unexpected application error occurred. You can try refreshing the page or navigating back to safety.
+
+            <p className="text-sm text-status-muted leading-relaxed">
+              An unexpected application error occurred. You can try refreshing
+              the page or navigating back to safety.
             </p>
 
             {this.state.error?.message && (
-              <div className="p-3 bg-gray-50 border border-border-color/60 rounded-lg font-mono text-[10px] text-gray-500 overflow-x-auto whitespace-pre">
+              <div className="p-3 bg-surface-light border border-border-color/60 rounded-lg font-mono text-2xs text-status-muted overflow-x-auto whitespace-pre">
                 {this.state.error.message}
               </div>
             )}
@@ -40,7 +41,7 @@ export class ErrorBoundary extends React.Component {
               <Button
                 variant="ghost"
                 onClick={() => {
-                  window.location.href = '/';
+                  window.location.href = "/";
                 }}
               >
                 Go to Homepage

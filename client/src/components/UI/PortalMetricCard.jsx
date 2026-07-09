@@ -1,41 +1,43 @@
-import React from 'react';
+import React from "react";
 
-export const PortalMetricCard = ({ 
-  label, 
-  value, 
-  subText, 
-  icon: Icon, 
-  variant = 'primary',
+export const PortalMetricCard = ({
+  label,
+  value,
+  subText,
+  icon: Icon,
+  variant = "primary",
   actionText,
   actionIcon: ActionIcon = null,
   onActionClick,
-  className = '' 
+  className = "",
 }) => {
-  
   const getVariantStyles = () => {
     switch (variant) {
-      case 'success':
-        return 'bg-status-success-bg text-status-success';
-      case 'warning':
-        return 'bg-status-warning/10 text-status-warning';
-      case 'danger':
-        return 'bg-status-danger-bg text-status-danger';
-      case 'info':
-        return 'bg-status-info-bg text-status-info';
-      case 'purple':
-        return 'bg-purple-50 text-purple-600';
-      case 'primary':
+      case "success":
+        return "bg-status-success-bg text-status-success";
+      case "warning":
+        return "bg-status-warning/10 text-status-warning";
+      case "danger":
+        return "bg-status-danger-bg text-status-danger";
+      case "info":
+        return "bg-status-info-bg text-status-info";
+      case "purple":
+        return "bg-purple-50 text-purple-600";
+      case "primary":
       default:
-        return 'bg-gray-100 text-gray-900';
+        return "bg-surface-hover text-brand-primary";
     }
   };
 
   return (
-    <div className={`bg-white border border-card-border rounded-card shadow-premium p-5 flex items-center gap-4 select-none ${className}`}>
-      
+    <div
+      className={`card-bg border border-card-border rounded-card shadow-premium p-5 flex items-center gap-4 select-none ${className}`}
+    >
       {/* Icon Circle */}
       {Icon && (
-        <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${getVariantStyles()}`}>
+        <div
+          className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${getVariantStyles()}`}
+        >
           <Icon size={20} />
         </div>
       )}
@@ -48,10 +50,10 @@ export const PortalMetricCard = ({
         <span className="text-lg font-bold text-brand-primary mt-2 leading-none">
           {value}
         </span>
-        
+
         {/* Render interactive action link if provided */}
         {actionText ? (
-          <button 
+          <button
             onClick={onActionClick}
             className="text-xs-portal font-semibold text-status-info hover:underline flex items-center gap-1 cursor-pointer mt-2 leading-none w-max"
           >
@@ -66,7 +68,6 @@ export const PortalMetricCard = ({
           )
         )}
       </div>
-
     </div>
   );
 };

@@ -1,0 +1,34 @@
+#!/bin/sh
+#
+# Design-system ratchet (changed-files only).
+# Blocks a commit if a staged client .js/.jsx file introduces an off-token
+# colour or font-size. Enforces ONLY the design-system rules (not general lint),
+# so pre-existing unused-var / hook debt can never block your commit.
+#
+# One-time activation per clone:
+#     git config core.hooksPath .githooks
+#
+# To bypass in an emergency: git commit --no-verify   (please don't make a habit)
+
+staged=$(git diff --cached --name-only --diff-filter=ACM -- client | grep -E '\.jsx?$')
+[ -z "$staged" ] && exit 0
+
+# Strip the leading "client/" so paths are relative to the client package,
+# where eslint + its config live.
+files=""
+for f in $staged; do
+  files="$files ${f#client/}"
+done
+
+( cd client && npx eslint --no-config-lookup --config eslint.designsystem.config.js $files )
+status=$?
+
+if [ $status -ne 0 ]; then
+  echo ""
+  echo "✗ Design-system check failed. Use a token class from src/index.css @theme"
+  echo "  (e.g. bg-brand-primary, text-status-info, text-sm) instead of a raw hex"
+  echo "  or arbitrary text-[..] size. Fix the errors above, then re-commit."
+  exit 1
+fi
+
+exit 0

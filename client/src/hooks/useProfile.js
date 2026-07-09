@@ -179,6 +179,37 @@ export const useProfile = () => {
     logout();
   };
 
+  const handleExportData = async () => {
+    try {
+      const response = await api.get('/auth/export', { responseType: 'blob', skipInterceptorError: true });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/json' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'my-roca-living-data.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      addToast('Your data export has been downloaded.', 'success');
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to export data', 'error');
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    const confirmed = window.confirm(
+      'This permanently deletes your account and ALL associated data (properties, statements, documents, transactions). This cannot be undone. Continue?'
+    );
+    if (!confirmed) return;
+    try {
+      await api.delete('/auth/account', { skipInterceptorError: true });
+      addToast('Your account has been permanently deleted.', 'success');
+      logout();
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to delete account', 'error');
+    }
+  };
+
   const handlePasswordChange = async (e) => {
     if (e && typeof e.preventDefault === 'function') {
       e.preventDefault();
@@ -258,6 +289,8 @@ export const useProfile = () => {
     handleChange,
     handleSubmit,
     handleLogout,
-    handlePasswordChange
+    handlePasswordChange,
+    handleExportData,
+    handleDeleteAccount
   };
 };

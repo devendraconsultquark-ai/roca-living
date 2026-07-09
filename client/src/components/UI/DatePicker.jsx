@@ -1,5 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useState, useRef, useEffect } from "react";
+import {
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 
 export const DatePicker = ({
   label,
@@ -8,10 +12,10 @@ export const DatePicker = ({
   onChange, // Passes YYYY-MM-DD string
   required = false,
   disabled = false,
-  placeholder = 'Select date…',
+  placeholder = "Select date…",
   error = null,
-  className = '',
-  size = 'md', // sm | md
+  className = "",
+  size = "md", // sm | md
   ...props
 }) => {
   const [open, setOpen] = useState(false);
@@ -23,8 +27,12 @@ export const DatePicker = ({
 
   // Calendar navigation state (default to current month/year)
   const today = new Date();
-  const [navMonth, setNavMonth] = useState(isValidDate ? parsedDate.getMonth() : today.getMonth());
-  const [navYear, setNavYear] = useState(isValidDate ? parsedDate.getFullYear() : today.getFullYear());
+  const [navMonth, setNavMonth] = useState(
+    isValidDate ? parsedDate.getMonth() : today.getMonth(),
+  );
+  const [navYear, setNavYear] = useState(
+    isValidDate ? parsedDate.getFullYear() : today.getFullYear(),
+  );
 
   // Synchronize navigation view with value updates
   useEffect(() => {
@@ -41,8 +49,8 @@ export const DatePicker = ({
         setOpen(false);
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
   const handlePrevMonth = (e) => {
@@ -69,8 +77,8 @@ export const DatePicker = ({
     const selectedDate = new Date(navYear, navMonth, day);
     // Format to YYYY-MM-DD with local timezone safety
     const offset = selectedDate.getTimezoneOffset();
-    const localDate = new Date(selectedDate.getTime() - (offset * 60 * 1000));
-    const ymd = localDate.toISOString().split('T')[0];
+    const localDate = new Date(selectedDate.getTime() - offset * 60 * 1000);
+    const ymd = localDate.toISOString().split("T")[0];
     onChange?.(ymd);
     setOpen(false);
   };
@@ -78,15 +86,15 @@ export const DatePicker = ({
   const handleToday = (e) => {
     e.stopPropagation();
     const offset = today.getTimezoneOffset();
-    const localDate = new Date(today.getTime() - (offset * 60 * 1000));
-    const ymd = localDate.toISOString().split('T')[0];
+    const localDate = new Date(today.getTime() - offset * 60 * 1000);
+    const ymd = localDate.toISOString().split("T")[0];
     onChange?.(ymd);
     setOpen(false);
   };
 
   const handleClear = (e) => {
     e.stopPropagation();
-    onChange?.('');
+    onChange?.("");
     setOpen(false);
   };
 
@@ -95,8 +103,18 @@ export const DatePicker = ({
   const firstDayIndex = new Date(navYear, navMonth, 1).getDay(); // Day of week index (0 = Sun, 6 = Sat)
 
   const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
   ];
 
   // Render grid of days
@@ -107,12 +125,14 @@ export const DatePicker = ({
   }
   // Fill active month days
   for (let d = 1; d <= daysInMonth; d++) {
-    const isSelected = isValidDate && 
-      parsedDate.getDate() === d && 
-      parsedDate.getMonth() === navMonth && 
+    const isSelected =
+      isValidDate &&
+      parsedDate.getDate() === d &&
+      parsedDate.getMonth() === navMonth &&
       parsedDate.getFullYear() === navYear;
 
-    const isCurrentToday = today.getDate() === d &&
+    const isCurrentToday =
+      today.getDate() === d &&
       today.getMonth() === navMonth &&
       today.getFullYear() === navYear;
 
@@ -122,31 +142,32 @@ export const DatePicker = ({
         type="button"
         onClick={() => handleSelectDay(d)}
         className={`h-8 w-8 text-xs font-semibold rounded-[4px] flex items-center justify-center cursor-pointer transition-colors duration-100
-          ${isSelected 
-            ? 'bg-brand-accent text-white border border-brand-accent shadow-sm' 
-            : isCurrentToday 
-              ? 'border border-brand-accent text-brand-accent bg-brand-accent/5' 
-              : 'text-gray-700 hover:bg-gray-100'
+          ${
+            isSelected
+              ? "bg-brand-accent text-white border border-brand-accent shadow-sm"
+              : isCurrentToday
+                ? "border border-brand-accent text-brand-accent bg-brand-accent/5"
+                : "text-brand-primary hover:bg-surface-hover"
           }
         `}
       >
         {d}
-      </button>
+      </button>,
     );
   }
 
   // Format display text (DD/MM/YYYY)
-  const displayValue = isValidDate 
-    ? `${String(parsedDate.getDate()).padStart(2, '0')}/${String(parsedDate.getMonth() + 1).padStart(2, '0')}/${parsedDate.getFullYear()}` 
-    : '';
+  const displayValue = isValidDate
+    ? `${String(parsedDate.getDate()).padStart(2, "0")}/${String(parsedDate.getMonth() + 1).padStart(2, "0")}/${parsedDate.getFullYear()}`
+    : "";
 
   return (
     <div ref={wrapperRef} className={`flex flex-col relative ${className}`}>
       {/* Label */}
       {label && (
-        <label 
-          htmlFor={id} 
-          className="text-xs font-semibold text-gray-500 mb-1 flex items-center gap-0.5"
+        <label
+          htmlFor={id}
+          className="text-xs font-semibold text-status-muted mb-1 flex items-center gap-0.5"
         >
           {label}
           {required && <span className="text-status-danger">*</span>}
@@ -164,15 +185,16 @@ export const DatePicker = ({
           onClick={() => !disabled && setOpen(!open)}
           placeholder={placeholder}
           className={`
-            w-full text-sm font-sans bg-white border rounded-[4px] pl-3 pr-10 cursor-pointer transition-all duration-150 focus:outline-none
-            ${size === 'sm' ? 'h-8 py-1' : 'py-[10px]'}
-            ${error 
-              ? 'border-status-danger text-[#1A1A1A] focus:ring-2 focus:ring-status-danger/20' 
-              : disabled 
-                ? 'border-border-color bg-border-color/10 text-status-muted cursor-not-allowed' 
-                : open 
-                  ? 'border-brand-accent ring-2 ring-brand-accent/15 text-[#1A1A1A]' 
-                  : 'border-border-color text-[#1A1A1A] hover:border-gray-400'
+            w-full text-sm font-sans card-bg border rounded-[4px] pl-3 pr-10 cursor-pointer transition-all duration-150 focus:outline-none
+            ${size === "sm" ? "h-8 py-1" : "py-[10px]"}
+            ${
+              error
+                ? "border-status-danger text-text-primary focus:ring-2 focus:ring-status-danger/20"
+                : disabled
+                  ? "border-border-color bg-border-color/10 text-status-muted cursor-not-allowed"
+                  : open
+                    ? "border-brand-accent ring-2 ring-brand-accent/15 text-text-primary"
+                    : "border-border-color text-text-primary hover:border-gray-400"
             }
           `}
           {...props}
@@ -186,37 +208,39 @@ export const DatePicker = ({
 
       {/* Error Message */}
       {error && (
-        <span className="text-xs text-status-danger mt-1 font-semibold">{error}</span>
+        <span className="text-xs text-status-danger mt-1 font-semibold">
+          {error}
+        </span>
       )}
 
       {/* Calendar Overlay Pop-up */}
       {open && (
-        <div className="absolute z-50 mt-1.5 top-full left-0 bg-white border border-card-border rounded-xl shadow-xl p-4 w-72 flex flex-col gap-3 select-none">
+        <div className="absolute z-50 mt-1.5 top-full left-0 card-bg border border-card-border rounded-xl shadow-xl p-4 w-72 flex flex-col gap-3 select-none">
           {/* Header Month / Year control */}
-          <div className="flex items-center justify-between border-b pb-2 border-gray-100">
+          <div className="flex items-center justify-between border-b pb-2 border-card-border">
             <button
               type="button"
               onClick={handlePrevMonth}
-              className="p-1 hover:bg-gray-100 rounded text-gray-500 transition-colors cursor-pointer"
+              className="p-1 hover:bg-surface-hover rounded text-status-muted transition-colors cursor-pointer"
             >
               <ChevronLeft size={16} />
             </button>
-            
-            <span className="font-bold text-sm text-[#1A1A1A]">
+
+            <span className="font-bold text-sm text-text-primary">
               {monthNames[navMonth]} {navYear}
             </span>
 
             <button
               type="button"
               onClick={handleNextMonth}
-              className="p-1 hover:bg-gray-100 rounded text-gray-500 transition-colors cursor-pointer"
+              className="p-1 hover:bg-surface-hover rounded text-status-muted transition-colors cursor-pointer"
             >
               <ChevronRight size={16} />
             </button>
           </div>
 
           {/* Weekday headers */}
-          <div className="grid grid-cols-7 text-center text-[10px] font-bold text-gray-400">
+          <div className="grid grid-cols-7 text-center text-2xs font-bold text-gray-400">
             <div>Su</div>
             <div>Mo</div>
             <div>Tu</div>
@@ -232,11 +256,11 @@ export const DatePicker = ({
           </div>
 
           {/* Footer Controls */}
-          <div className="flex justify-between border-t pt-2 border-gray-100 mt-1">
+          <div className="flex justify-between border-t pt-2 border-card-border mt-1">
             <button
               type="button"
               onClick={handleClear}
-              className="text-xs font-bold text-gray-400 hover:text-[#1A1A1A] cursor-pointer"
+              className="text-xs font-bold text-gray-400 hover:text-text-primary cursor-pointer"
             >
               Clear
             </button>

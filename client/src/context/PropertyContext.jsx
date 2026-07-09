@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import api from '../utilities/api';
-import { useToast } from '../components/UI/ToastContext';
+import React, { createContext, useContext, useState, useEffect } from "react";
+import api from "../utilities/api";
+import { useToast } from "../components/UI/ToastContext";
 
-import { formatProperty } from '../utilities/formatProperty';
+import { formatProperty } from "../utilities/formatProperty";
 
 const PropertyContext = createContext();
 
@@ -17,9 +17,9 @@ export const PropertyProvider = ({ children }) => {
     setLoading(true);
     try {
       const [propRes, tenancyRes, maintenanceRes] = await Promise.all([
-        api.get('/properties/my'),
-        api.get('/tenancies/my').catch(() => ({ data: { data: [] } })),
-        api.get('/maintenance/my').catch(() => ({ data: { data: [] } }))
+        api.get("/properties/my"),
+        api.get("/tenancies/my").catch(() => ({ data: { data: [] } })),
+        api.get("/maintenance/my").catch(() => ({ data: { data: [] } })),
       ]);
 
       const propertiesList = propRes.data.data || [];
@@ -29,15 +29,16 @@ export const PropertyProvider = ({ children }) => {
       // Create maps
       const tenancyMap = {};
       tenanciesList.forEach((t) => {
-        if (t.status === 'active') {
+        if (t.status === "active") {
           tenancyMap[t.property_id] = t;
         }
       });
 
       const openTicketsCountMap = {};
       maintenanceTickets.forEach((t) => {
-        if (t.status !== 'completed' && t.status !== 'cancelled') {
-          openTicketsCountMap[t.property_id] = (openTicketsCountMap[t.property_id] || 0) + 1;
+        if (t.status !== "complete" && t.status !== "cancelled") {
+          openTicketsCountMap[t.property_id] =
+            (openTicketsCountMap[t.property_id] || 0) + 1;
         }
       });
 
@@ -47,12 +48,12 @@ export const PropertyProvider = ({ children }) => {
 
       setProperties(formatted);
       // Default selected property is 'all'
-      setSelectedProperty('all');
+      setSelectedProperty("all");
       setError(null);
     } catch (err) {
-      const errMsg = err.response?.data?.message || 'Error loading properties';
+      const errMsg = err.response?.data?.message || "Error loading properties";
       setError(errMsg);
-      addToast(errMsg, 'error');
+      addToast(errMsg, "error");
     } finally {
       setLoading(false);
     }
@@ -63,14 +64,16 @@ export const PropertyProvider = ({ children }) => {
   }, []);
 
   return (
-    <PropertyContext.Provider value={{
-      properties,
-      selectedProperty,
-      setSelectedProperty,
-      loading,
-      error,
-      refetch: fetchProperties
-    }}>
+    <PropertyContext.Provider
+      value={{
+        properties,
+        selectedProperty,
+        setSelectedProperty,
+        loading,
+        error,
+        refetch: fetchProperties,
+      }}
+    >
       {children}
     </PropertyContext.Provider>
   );

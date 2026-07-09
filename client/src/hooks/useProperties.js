@@ -34,7 +34,7 @@ export const useProperties = () => {
       // Create open tickets count mapping
       const openTicketsCountMap = {};
       maintenanceTickets.forEach((t) => {
-        if (t.status !== 'completed' && t.status !== 'cancelled') {
+        if (t.status !== 'complete' && t.status !== 'cancelled') {
           openTicketsCountMap[t.property_id] = (openTicketsCountMap[t.property_id] || 0) + 1;
         }
       });
