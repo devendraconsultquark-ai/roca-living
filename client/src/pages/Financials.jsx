@@ -16,6 +16,7 @@ import { Dropdown } from "../components/UI/Dropdown";
 import { Tabs } from "../components/UI/Tabs";
 import { TableEmptyState } from "../components/UI/TableEmptyState";
 import { Pagination } from "../components/UI/Pagination";
+import { Skeleton } from "../components/UI/Skeleton";
 import { useFinancials } from "../hooks/useFinancials";
 
 export const Financials = () => {
@@ -45,21 +46,21 @@ export const Financials = () => {
 
   if (loading) {
     return (
-      <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8 animate-pulse">
+      <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8">
         {/* Tab placeholder */}
-        <div className="h-8 bg-surface-hover rounded-lg w-1/3" />
+        <Skeleton radius="bar" className="h-8 w-1/3" />
         {/* First Row Skeleton */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-7 flex flex-col gap-6">
-            <div className="h-[180px] bg-surface-hover/60 rounded-2xl" />
-            <div className="h-[180px] bg-surface-hover/60 rounded-2xl" />
+            <Skeleton className="h-[180px]" />
+            <Skeleton className="h-[180px]" />
           </div>
-          <div className="lg:col-span-5 h-[380px] bg-surface-hover/60 rounded-2xl" />
+          <Skeleton className="lg:col-span-5 h-[380px]" />
         </div>
         {/* Second Row Skeleton */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-8 h-[300px] bg-surface-hover/60 rounded-2xl" />
-          <div className="lg:col-span-4 h-[300px] bg-surface-hover/60 rounded-2xl" />
+          <Skeleton className="lg:col-span-8 h-[300px]" />
+          <Skeleton className="lg:col-span-4 h-[300px]" />
         </div>
       </div>
     );

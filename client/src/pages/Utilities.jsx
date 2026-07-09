@@ -3,6 +3,7 @@ import { usePropertyContext } from "../context/PropertyContext";
 import { PortalCard } from "../components/UI/PortalCard";
 import { TableEmptyState } from "../components/UI/TableEmptyState";
 import { Pagination } from "../components/UI/Pagination";
+import { Skeleton } from "../components/UI/Skeleton";
 import { useUtilities } from "../hooks/useUtilities";
 import { Key, Wrench, Settings } from "lucide-react";
 
@@ -32,8 +33,8 @@ export const Utilities = () => {
 
   if (loading) {
     return (
-      <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8 animate-pulse">
-        <div className="h-[400px] bg-surface-hover/60 rounded-2xl" />
+      <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8">
+        <Skeleton className="h-[400px]" />
       </div>
     );
   }

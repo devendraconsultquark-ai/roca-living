@@ -1,7 +1,9 @@
-import React from "react";
+import { Skeleton } from "./Skeleton";
 
 /**
- * Shared Loading Skeleton screen using Tailwind's pulse animation.
+ * Shared list-shaped loading screen, composed from the <Skeleton> atom so its
+ * tint / radius / pulse match every page's loading state. Used as the app's
+ * route-level Suspense fallback.
  * @param {object} props
  * @param {number} props.lines - Number of rows to display (default: 4)
  * @param {string} props.className - Custom outer classes
@@ -12,13 +14,10 @@ export const LoadingSkeleton = ({ lines = 4, className = "" }) => {
   return (
     <div className={`space-y-4 py-4 w-full ${className}`}>
       {/* Header bar placeholder */}
-      <div className="h-10 bg-surface-hover rounded-lg animate-pulse w-full" />
+      <Skeleton radius="bar" className="h-10 w-full" />
       {/* List item row placeholders */}
       {rows.map((_, idx) => (
-        <div
-          key={idx}
-          className="h-16 bg-surface-light/80 rounded-lg animate-pulse w-full"
-        />
+        <Skeleton key={idx} radius="bar" className="h-16 w-full" />
       ))}
     </div>
   );

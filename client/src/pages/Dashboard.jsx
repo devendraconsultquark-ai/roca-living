@@ -14,6 +14,7 @@ import { PortalCard } from "../components/UI/PortalCard";
 import { TimelineItem } from "../components/UI/TimelineItem";
 import { Button } from "../components/UI/Button";
 import { Dropdown } from "../components/UI/Dropdown";
+import { Skeleton } from "../components/UI/Skeleton";
 
 export const Dashboard = () => {
   const navigate = useNavigate();
@@ -49,21 +50,21 @@ export const Dashboard = () => {
 
   if (loading) {
     return (
-      <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8 animate-pulse">
-        <div className="h-8 bg-surface-hover rounded-lg w-1/3" />
-        <div className="h-4 bg-surface-light rounded-lg w-1/4 mt-1" />
+      <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8">
+        <Skeleton radius="bar" className="h-8 w-1/3" />
+        <Skeleton radius="bar" className="h-4 w-1/4 mt-1" />
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mt-6">
           <div className="lg:col-span-2 flex flex-col gap-6">
-            <div className="h-[320px] bg-surface-hover/60 rounded-2xl" />
-            <div className="h-[200px] bg-surface-hover/60 rounded-2xl" />
+            <Skeleton className="h-[320px]" />
+            <Skeleton className="h-[200px]" />
           </div>
           <div className="lg:col-span-3 flex flex-col gap-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="h-[220px] bg-surface-hover/60 rounded-2xl" />
-              <div className="h-[220px] bg-surface-hover/60 rounded-2xl" />
+              <Skeleton className="h-[220px]" />
+              <Skeleton className="h-[220px]" />
             </div>
-            <div className="h-[140px] bg-surface-hover/60 rounded-2xl" />
-            <div className="h-[140px] bg-surface-hover/60 rounded-2xl" />
+            <Skeleton className="h-[140px]" />
+            <Skeleton className="h-[140px]" />
           </div>
         </div>
       </div>

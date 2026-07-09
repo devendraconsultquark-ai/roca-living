@@ -16,6 +16,7 @@ import { PortalMetricCard } from "../components/UI/PortalMetricCard";
 import { Button } from "../components/UI/Button";
 import { DonutChart } from "../components/UI/DonutChart";
 import { TableEmptyState } from "../components/UI/TableEmptyState";
+import { Skeleton } from "../components/UI/Skeleton";
 
 export const TenancyLifecycle = () => {
   // All statistics and the upcoming-renewals table are derived in the hook;
@@ -37,20 +38,20 @@ export const TenancyLifecycle = () => {
 
   if (loading) {
     return (
-      <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8 animate-pulse">
+      <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8">
         {/* Metric Cards Skeleton */}
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-20 bg-surface-hover rounded-xl" />
+            <Skeleton key={i} radius="card" className="h-20" />
           ))}
         </div>
         {/* Main Grid Skeleton */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-8 flex flex-col gap-6">
-            <div className="h-[250px] bg-surface-hover/60 rounded-2xl" />
-            <div className="h-[350px] bg-surface-hover/60 rounded-2xl" />
+            <Skeleton className="h-[250px]" />
+            <Skeleton className="h-[350px]" />
           </div>
-          <div className="lg:col-span-4 h-[450px] bg-surface-hover/60 rounded-2xl" />
+          <Skeleton className="lg:col-span-4 h-[450px]" />
         </div>
       </div>
     );

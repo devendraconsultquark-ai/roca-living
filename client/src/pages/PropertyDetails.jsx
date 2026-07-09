@@ -10,6 +10,7 @@ import { PortalCard } from "../components/UI/PortalCard";
 import { Button } from "../components/UI/Button";
 import { StatusPill } from "../components/UI/StatusPill";
 import { Tabs } from "../components/UI/Tabs";
+import { Skeleton } from "../components/UI/Skeleton";
 import { usePropertyDetails } from "../hooks/usePropertyDetails";
 
 export const PropertyDetails = () => {
@@ -33,13 +34,13 @@ export const PropertyDetails = () => {
 
   if (isPageLoading) {
     return (
-      <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8 animate-pulse">
-        <div className="h-8 bg-surface-hover rounded-lg w-1/3" />
-        <div className="h-4 bg-surface-light rounded-lg w-1/4 mt-1" />
-        <div className="h-10 bg-surface-hover rounded-lg mt-4" />
+      <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8">
+        <Skeleton radius="bar" className="h-8 w-1/3" />
+        <Skeleton radius="bar" className="h-4 w-1/4 mt-1" />
+        <Skeleton radius="bar" className="h-10 mt-4" />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-          <div className="h-[300px] bg-surface-hover/60 rounded-card" />
-          <div className="h-[300px] bg-surface-hover/60 rounded-card" />
+          <Skeleton radius="bar" className="h-[300px]" />
+          <Skeleton radius="bar" className="h-[300px]" />
         </div>
       </div>
     );

@@ -19,6 +19,7 @@ import { Button } from "../components/UI/Button";
 import { DataTable } from "../components/UI/DataTable";
 import { StatusPill } from "../components/UI/StatusPill";
 import { Chip } from "../components/UI/Chip";
+import { Skeleton } from "../components/UI/Skeleton";
 
 export const Properties = () => {
   const navigate = useNavigate();
@@ -96,18 +97,18 @@ export const Properties = () => {
 
   if (loading) {
     return (
-      <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8 animate-pulse">
-        <div className="h-8 bg-surface-hover rounded-lg w-1/4" />
-        <div className="h-4 bg-surface-light rounded-lg w-1/3" />
+      <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8">
+        <Skeleton radius="bar" className="h-8 w-1/4" />
+        <Skeleton radius="bar" className="h-4 w-1/3" />
         <div className="grid grid-cols-1 md:grid-cols-5 gap-5 mt-6">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-20 bg-surface-hover rounded-xl" />
+            <Skeleton key={i} radius="card" className="h-20" />
           ))}
         </div>
-        <div className="h-10 bg-surface-hover rounded-lg mt-6" />
+        <Skeleton radius="bar" className="h-10 mt-6" />
         <div className="flex flex-col gap-4 mt-4">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-32 bg-surface-hover/60 rounded-xl" />
+            <Skeleton key={i} radius="card" className="h-32" />
           ))}
         </div>
       </div>

@@ -31,6 +31,7 @@
   --card-border: var(--primitive-grey-200);
   --surface-light: #F8F9FA;
   --surface-hover: #F3F4F6;
+  --skeleton: #EBEDF0;   /* single canonical loading-placeholder fill */
   --brand-primary: var(--primitive-pure-black);
   --interactive-ink: var(--primitive-ink);
   --interactive-ink-hover: var(--primitive-ink-hover);
@@ -75,6 +76,7 @@
   --color-card-border: var(--card-border);
   --color-surface-light: var(--surface-light);
   --color-surface-hover: var(--surface-hover);
+  --color-skeleton: var(--skeleton);
   --color-brand-primary: var(--brand-primary);
   --color-ink: var(--interactive-ink);
   --color-ink-hover: var(--interactive-ink-hover);

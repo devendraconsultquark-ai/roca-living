@@ -14,6 +14,7 @@ import { FilterRibbon } from "../components/UI/FilterRibbon";
 import { Pagination } from "../components/UI/Pagination";
 import { TableEmptyState } from "../components/UI/TableEmptyState";
 import { StatusPill } from "../components/UI/StatusPill";
+import { Skeleton } from "../components/UI/Skeleton";
 import { useCertificates } from "../hooks/useCertificates";
 
 export const Certificates = () => {
@@ -89,19 +90,19 @@ export const Certificates = () => {
 
   if (loading) {
     return (
-      <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8 animate-pulse">
+      <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8">
         {/* Metric Cards Skeleton */}
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-20 bg-surface-hover rounded-xl" />
+            <Skeleton key={i} radius="card" className="h-20" />
           ))}
         </div>
         {/* Main layout skeleton */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-9 h-[400px] bg-surface-hover/60 rounded-2xl" />
+          <Skeleton className="lg:col-span-9 h-[400px]" />
           <div className="lg:col-span-3 flex flex-col gap-6">
-            <div className="h-[200px] bg-surface-hover/60 rounded-2xl" />
-            <div className="h-[150px] bg-surface-hover/60 rounded-2xl" />
+            <Skeleton className="h-[200px]" />
+            <Skeleton className="h-[150px]" />
           </div>
         </div>
       </div>

@@ -267,7 +267,7 @@ export const Sidebar = ({
           className={`p-4 border-t border-sidebar-accent ${collapsed ? "flex justify-center" : "flex items-center justify-between"} shrink-0`}
         >
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full card-bg text-black flex items-center justify-center text-sm shrink-0 uppercase">
+            <div className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center text-sm shrink-0 uppercase">
               {user?.name
                 ? user.name
                     .split(" ")

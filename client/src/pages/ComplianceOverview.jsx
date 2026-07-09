@@ -15,6 +15,7 @@ import { FilterRibbon } from "../components/UI/FilterRibbon";
 import { RadialGauge } from "../components/UI/RadialGauge";
 import { TableEmptyState } from "../components/UI/TableEmptyState";
 import { StatusPill } from "../components/UI/StatusPill";
+import { Skeleton } from "../components/UI/Skeleton";
 import { useComplianceOverview } from "../hooks/useComplianceOverview";
 
 export const ComplianceOverview = () => {
@@ -77,26 +78,26 @@ export const ComplianceOverview = () => {
 
   if (loading) {
     return (
-      <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8 animate-pulse">
+      <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8">
         {/* Metric Cards Skeleton */}
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-20 bg-surface-hover rounded-xl" />
+            <Skeleton key={i} radius="card" className="h-20" />
           ))}
         </div>
         {/* Filter Bar Skeleton */}
-        <div className="h-10 bg-surface-hover rounded-lg" />
+        <Skeleton radius="bar" className="h-10" />
         {/* Main Grid Skeleton */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="flex flex-col gap-6">
-            <div className="h-[80px] bg-surface-hover/60 rounded-2xl" />
-            <div className="h-[280px] bg-surface-hover/60 rounded-2xl" />
-            <div className="h-[280px] bg-surface-hover/60 rounded-2xl" />
+            <Skeleton className="h-[80px]" />
+            <Skeleton className="h-[280px]" />
+            <Skeleton className="h-[280px]" />
           </div>
           <div className="flex flex-col gap-6">
-            <div className="h-[80px] bg-surface-hover/60 rounded-2xl" />
-            <div className="h-[280px] bg-surface-hover/60 rounded-2xl" />
-            <div className="h-[280px] bg-surface-hover/60 rounded-2xl" />
+            <Skeleton className="h-[80px]" />
+            <Skeleton className="h-[280px]" />
+            <Skeleton className="h-[280px]" />
           </div>
         </div>
       </div>
