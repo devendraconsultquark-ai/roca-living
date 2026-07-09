@@ -1,6 +1,4 @@
-import React, { useState } from "react";
-import { usePropertyContext } from "../context/PropertyContext";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import {
   ShieldCheck,
   AlertCircle,
@@ -9,41 +7,28 @@ import {
   ChevronRight,
   User,
   Building,
-  FileText,
-  Wrench,
-  Wallet,
-  Flame,
-  Droplet,
-  Key,
-  Download,
-  Info,
-  Headphones,
-  Check,
-  HelpCircle,
   MoreVertical,
 } from "lucide-react";
-import { useProperties } from "../hooks/useProperties";
-import { useTenancy } from "../hooks/useTenancy";
-import { useDocuments } from "../hooks/useDocuments";
 import { PortalMetricCard } from "../components/UI/PortalMetricCard";
 import { Button } from "../components/UI/Button";
 import { FilterRibbon } from "../components/UI/FilterRibbon";
 import { RadialGauge } from "../components/UI/RadialGauge";
 import { TableEmptyState } from "../components/UI/TableEmptyState";
 import { StatusPill } from "../components/UI/StatusPill";
+import { useComplianceOverview } from "../hooks/useComplianceOverview";
 
 export const ComplianceOverview = () => {
-  const { selectedProperty } = usePropertyContext();
-  const navigate = useNavigate();
-
-  // Real data hooks
+  // All data + derivations (certificate lists, compliance stats, tenant
+  // compliance rows) live in the hook; this component only renders.
   const {
-    properties,
-    loading: propertiesLoading,
-    error: propertiesError,
-  } = useProperties();
-  const { tenancies, loading: tenancyLoading } = useTenancy();
-  const { documents, loading: documentsLoading } = useDocuments();
+    loading,
+    error,
+    stats,
+    moveInCompliance,
+    ongoingTenantCompliance,
+    essentialCertificates,
+    propertyManagement,
+  } = useComplianceOverview();
 
   // Filter states
   const [filterProperty, setFilterProperty] = useState("All Properties");
@@ -51,87 +36,6 @@ export const ComplianceOverview = () => {
   const [filterStatus, setFilterStatus] = useState("All Statuses");
   const [filterDue, setFilterDue] = useState("All Time");
 
-  // Dynamic values computation
-  const loading = propertiesLoading || tenancyLoading || documentsLoading;
-
-  let expiredCertifications = 0;
-  let totalCertificationsTracked = 0;
-
-  const essentialCertificates = [];
-  const propertyManagement = [];
-
-  if (documents) {
-    documents
-      .filter((doc) => doc.category === "Compliance" || doc.category === "Certificates")
-      .forEach((doc) => {
-        totalCertificationsTracked++;
-        const isExpired = doc.status === "Expired";
-        if (isExpired) expiredCertifications++;
-
-        const certData = {
-          item: doc.item || "Certificate",
-          status: isExpired ? "Expired" : "Valid",
-          nextDue: "—",
-          subtext: isExpired ? "Action required" : "Active",
-          subtextColor: isExpired ? "text-status-danger" : "text-gray-400",
-          action: "View Certificate",
-          icon: doc.item?.includes("EPC") ? FileText : ShieldCheck,
-          color: isExpired
-            ? "bg-red-50 text-red-500"
-            : "bg-status-success-bg text-status-success",
-          property: doc.related?.length > 0 ? doc.related[0] : "—",
-        };
-
-        if (doc.item?.includes("EPC")) {
-          propertyManagement.push(certData);
-        } else {
-          essentialCertificates.push(certData);
-        }
-      });
-  }
-
-  const overallCompliancePct = totalCertificationsTracked
-    ? Math.round(
-        ((totalCertificationsTracked - expiredCertifications) /
-          totalCertificationsTracked) *
-          100,
-      )
-    : 100;
-
-  const stats = {
-    overall: overallCompliancePct,
-    actionRequired: expiredCertifications,
-    expiringSoon: 0,
-    upToDate: totalCertificationsTracked - expiredCertifications,
-    tenantCompliance: 100,
-    landlordCompliance: overallCompliancePct,
-  };
-
-  // Move-in compliance dynamically constructed from active tenancies
-  const moveInCompliance = tenancies.map((t, idx) => ({
-    item: `Right to Rent: ${t.lead_tenant_name}`,
-    detail: t.address_line1 ? `${t.address_line1}, ${t.city}` : "—",
-    status: t.status === "active" ? "Compliant" : "Pending",
-    completed: t.start_date
-      ? new Date(t.start_date).toLocaleDateString("en-GB")
-      : "—",
-    action: "View Details",
-    icon: User,
-    color: "bg-status-info-bg text-status-info",
-  }));
-
-  // Ongoing tenant compliance mapping
-  const ongoingTenantCompliance = tenancies.map((t, idx) => ({
-    item: `Rent Schedule: ${t.lead_tenant_name}`,
-    detail: `Monthly rent: £${parseFloat(t.rent_pcm).toLocaleString()}`,
-    status: t.status === "active" ? "Compliant" : "Overdue",
-    nextDue: t.end_date
-      ? new Date(t.end_date).toLocaleDateString("en-GB")
-      : "—",
-    action: "View Tenancy",
-    icon: Wallet,
-    color: "bg-status-success-bg text-status-success",
-  }));
 
   const filtersConfig = [
     {
@@ -201,9 +105,9 @@ export const ComplianceOverview = () => {
 
   return (
     <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8 font-sans text-brand-primary">
-      {propertiesError && (
+      {error && (
         <div className="border border-status-danger bg-status-danger/5 rounded-card p-4 text-center text-status-danger font-semibold">
-          {propertiesError}
+          {error}
         </div>
       )}
 
@@ -493,7 +397,6 @@ export const ComplianceOverview = () => {
                         />
                       ) : (
                         essentialCertificates.map((row, idx) => {
-                          const isExpired = row.status === "Expired";
                           return (
                             <tr key={idx} className="hover:bg-surface-light/50">
                               <td className="py-2.5 px-1">
@@ -581,7 +484,6 @@ export const ComplianceOverview = () => {
                         />
                       ) : (
                         propertyManagement.map((row, idx) => {
-                          const isExpired = row.status === "Expired";
                           return (
                             <tr key={idx} className="hover:bg-surface-light/50">
                               <td className="py-2.5 px-1">
