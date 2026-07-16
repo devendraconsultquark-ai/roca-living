@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserCog, CheckCircle2, AlertTriangle, X, Edit, Trash2, Eye } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
@@ -29,12 +29,12 @@ export const Contractors = () => {
   const [contractors, setContractors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [form, setForm] = useState({ company_name: '', trade: '', email: '', phone: '', insurance_expiry: '' });
-  
+  const [form, setForm] = useState({ company_name: '', contact_name: '', trade: '', email: '', phone: '', insurance_expiry: '', rating: '', preferred: 'no' });
+
   // Edit Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingContractorId, setEditingContractorId] = useState(null);
-  const [editForm, setEditForm] = useState({ company_name: '', trade: '', email: '', phone: '', insurance_expiry: '', status: 'active' });
+  const [editForm, setEditForm] = useState({ company_name: '', contact_name: '', trade: '', email: '', phone: '', insurance_expiry: '', rating: '', preferred: 'no', status: 'active' });
 
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -46,10 +46,13 @@ export const Contractors = () => {
     setEditingContractorId(raw.id);
     setEditForm({
       company_name: raw.company_name || '',
+      contact_name: raw.contact_name || '',
       trade: raw.trade || '',
       email: raw.email || '',
       phone: raw.phone || '',
       insurance_expiry: raw.insurance_expiry ? raw.insurance_expiry.split('T')[0] : '',
+      rating: raw.rating != null ? String(raw.rating) : '',
+      preferred: raw.preferred ? 'yes' : 'no',
       status: raw.status || 'active'
     });
     setIsEditModalOpen(true);
@@ -65,7 +68,10 @@ export const Contractors = () => {
     setFormErrors({});
     setSubmitting(true);
     try {
-      await api.patch(`/maintenance/contractors/${editingContractorId}`, editForm);
+      await api.patch(`/maintenance/contractors/${editingContractorId}`, {
+        ...editForm,
+        preferred: editForm.preferred === 'yes'
+      });
       addToast('Contractor updated successfully!', 'success');
       setIsEditModalOpen(false);
       fetchContractors();
@@ -119,10 +125,19 @@ export const Contractors = () => {
     setFormErrors({});
     setSubmitting(true);
     try {
-      await api.post('/maintenance/contractors', form);
+      await api.post('/maintenance/contractors', {
+        company_name: form.company_name,
+        contact_name: form.contact_name || undefined,
+        trade: form.trade,
+        email: form.email,
+        phone: form.phone,
+        insurance_expiry: form.insurance_expiry,
+        rating: form.rating !== '' ? parseFloat(form.rating) : undefined,
+        preferred: form.preferred === 'yes'
+      });
       addToast('Contractor added successfully!', 'success');
       setIsModalOpen(false);
-      setForm({ company_name: '', trade: '', email: '', phone: '', insurance_expiry: '' });
+      setForm({ company_name: '', contact_name: '', trade: '', email: '', phone: '', insurance_expiry: '', rating: '', preferred: 'no' });
       fetchContractors();
     } catch (err) {
       addToast(err.response?.data?.message || 'Failed to add contractor', 'error');
@@ -221,43 +236,73 @@ export const Contractors = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              <Input
-                label="Company Name"
-                id="c-company"
-                required
-                value={form.company_name}
-                onChange={(e) => setForm(f => ({ ...f, company_name: e.target.value }))}
-                error={formErrors.company_name}
-              />
-              <Input
-                label="Trade Specialty"
-                id="c-trade"
-                required
-                placeholder="e.g. Plumbing & Leaks"
-                value={form.trade}
-                onChange={(e) => setForm(f => ({ ...f, trade: e.target.value }))}
-                error={formErrors.trade}
-              />
-              <Input
-                label="Email Address"
-                id="c-email"
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
-              />
-              <Input
-                label="Phone Number"
-                id="c-phone"
-                value={form.phone}
-                onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))}
-              />
-              <Input
-                label="Insurance Expiry Date"
-                id="c-insurance"
-                type="date"
-                value={form.insurance_expiry}
-                onChange={(e) => setForm(f => ({ ...f, insurance_expiry: e.target.value }))}
-              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Company Name"
+                  id="c-company"
+                  required
+                  value={form.company_name}
+                  onChange={(e) => setForm(f => ({ ...f, company_name: e.target.value }))}
+                  error={formErrors.company_name}
+                />
+                <Input
+                  label="Contact Name"
+                  id="c-contact"
+                  placeholder="e.g. Dave Miller"
+                  value={form.contact_name}
+                  onChange={(e) => setForm(f => ({ ...f, contact_name: e.target.value }))}
+                />
+                <Input
+                  label="Trade Specialty"
+                  id="c-trade"
+                  required
+                  placeholder="e.g. Plumbing & Leaks"
+                  value={form.trade}
+                  onChange={(e) => setForm(f => ({ ...f, trade: e.target.value }))}
+                  error={formErrors.trade}
+                />
+                <Input
+                  label="Email Address"
+                  id="c-email"
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
+                />
+                <Input
+                  label="Phone Number"
+                  id="c-phone"
+                  value={form.phone}
+                  onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))}
+                />
+                <Input
+                  label="Insurance Expiry Date"
+                  id="c-insurance"
+                  type="date"
+                  value={form.insurance_expiry}
+                  onChange={(e) => setForm(f => ({ ...f, insurance_expiry: e.target.value }))}
+                />
+                <Input
+                  label="Rating (0-5)"
+                  id="c-rating"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="5"
+                  placeholder="e.g. 4.5"
+                  value={form.rating}
+                  onChange={(e) => setForm(f => ({ ...f, rating: e.target.value }))}
+                />
+                <Dropdown
+                  label="Preferred Contractor"
+                  id="c-preferred"
+                  options={[
+                    { value: 'no', label: 'No' },
+                    { value: 'yes', label: 'Yes' }
+                  ]}
+                  value={form.preferred}
+                  onChange={(val) => setForm(f => ({ ...f, preferred: val }))}
+                />
+              </div>
 
               <div className="flex gap-3 justify-end mt-1">
                 <Button type="button" variant="ghost" onClick={() => { setIsModalOpen(false); setFormErrors({}); }}>
@@ -284,54 +329,84 @@ export const Contractors = () => {
             </div>
 
             <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
-              <Input
-                label="Company Name"
-                id="edit-c-company"
-                required
-                value={editForm.company_name}
-                onChange={(e) => setEditForm(f => ({ ...f, company_name: e.target.value }))}
-                error={formErrors.company_name}
-              />
-              <Input
-                label="Trade Specialty"
-                id="edit-c-trade"
-                required
-                placeholder="e.g. Plumbing & Leaks"
-                value={editForm.trade}
-                onChange={(e) => setEditForm(f => ({ ...f, trade: e.target.value }))}
-                error={formErrors.trade}
-              />
-              <Input
-                label="Email Address"
-                id="edit-c-email"
-                type="email"
-                value={editForm.email}
-                onChange={(e) => setEditForm(f => ({ ...f, email: e.target.value }))}
-              />
-              <Input
-                label="Phone Number"
-                id="edit-c-phone"
-                value={editForm.phone}
-                onChange={(e) => setEditForm(f => ({ ...f, phone: e.target.value }))}
-              />
-              <Input
-                label="Insurance Expiry Date"
-                id="edit-c-insurance"
-                type="date"
-                value={editForm.insurance_expiry}
-                onChange={(e) => setEditForm(f => ({ ...f, insurance_expiry: e.target.value }))}
-              />
-              <Dropdown
-                label="Contractor Status"
-                id="edit-c-status"
-                placeholder="Select status"
-                value={editForm.status}
-                onChange={(val) => setEditForm(f => ({ ...f, status: val }))}
-                options={[
-                  { value: 'active', label: 'Active' },
-                  { value: 'suspended', label: 'Suspended / Inactive' }
-                ]}
-              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Company Name"
+                  id="edit-c-company"
+                  required
+                  value={editForm.company_name}
+                  onChange={(e) => setEditForm(f => ({ ...f, company_name: e.target.value }))}
+                  error={formErrors.company_name}
+                />
+                <Input
+                  label="Contact Name"
+                  id="edit-c-contact"
+                  placeholder="e.g. Dave Miller"
+                  value={editForm.contact_name}
+                  onChange={(e) => setEditForm(f => ({ ...f, contact_name: e.target.value }))}
+                />
+                <Input
+                  label="Trade Specialty"
+                  id="edit-c-trade"
+                  required
+                  placeholder="e.g. Plumbing & Leaks"
+                  value={editForm.trade}
+                  onChange={(e) => setEditForm(f => ({ ...f, trade: e.target.value }))}
+                  error={formErrors.trade}
+                />
+                <Input
+                  label="Email Address"
+                  id="edit-c-email"
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm(f => ({ ...f, email: e.target.value }))}
+                />
+                <Input
+                  label="Phone Number"
+                  id="edit-c-phone"
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm(f => ({ ...f, phone: e.target.value }))}
+                />
+                <Input
+                  label="Insurance Expiry Date"
+                  id="edit-c-insurance"
+                  type="date"
+                  value={editForm.insurance_expiry}
+                  onChange={(e) => setEditForm(f => ({ ...f, insurance_expiry: e.target.value }))}
+                />
+                <Input
+                  label="Rating (0-5)"
+                  id="edit-c-rating"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="5"
+                  placeholder="e.g. 4.5"
+                  value={editForm.rating}
+                  onChange={(e) => setEditForm(f => ({ ...f, rating: e.target.value }))}
+                />
+                <Dropdown
+                  label="Preferred Contractor"
+                  id="edit-c-preferred"
+                  options={[
+                    { value: 'no', label: 'No' },
+                    { value: 'yes', label: 'Yes' }
+                  ]}
+                  value={editForm.preferred}
+                  onChange={(val) => setEditForm(f => ({ ...f, preferred: val }))}
+                />
+                <Dropdown
+                  label="Contractor Status"
+                  id="edit-c-status"
+                  placeholder="Select status"
+                  value={editForm.status}
+                  onChange={(val) => setEditForm(f => ({ ...f, status: val }))}
+                  options={[
+                    { value: 'active', label: 'Active' },
+                    { value: 'suspended', label: 'Suspended / Inactive' }
+                  ]}
+                />
+              </div>
 
               <div className="flex gap-3 justify-end mt-1">
                 <Button type="button" variant="ghost" onClick={() => { setIsEditModalOpen(false); setFormErrors({}); }}>

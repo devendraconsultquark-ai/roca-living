@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Folder, FolderOpen, FileText, Upload, Trash2, CheckCircle2, ChevronRight, ChevronDown, Download } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
 import { Input } from '../components/UI/Input';
@@ -404,14 +404,15 @@ export const DocumentLibrary = () => {
                   options={[
                     { value: 'landlord', label: 'Landlord Level' },
                     { value: 'property', label: 'Property Level' },
+                    { value: 'tenancy', label: 'Tenancy Level' },
                   ]}
                 />
-                
+
                 <Input
                   label="Linked Entity ID"
                   id="entityId"
                   required
-                  placeholder="e.g. LND-9018 or PRP-1020"
+                  placeholder="e.g. LND-9018, PRP-1020 or tenancy ID"
                   value={entityId}
                   error={formErrors.entityId}
                   onChange={(e) => {

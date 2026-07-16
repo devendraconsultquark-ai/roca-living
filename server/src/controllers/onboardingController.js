@@ -11,15 +11,16 @@ const BCRYPT_COST = parseInt(process.env.BCRYPT_COST || '12', 10);
 export const completeOnboarding = catchAsync(async (req, res, next) => {
   const {
     // Step 1
-    landlordName, landlordEmail, landlordPhone, tobStatus,
+    landlordName, landlordEmail, landlordPhone, landlordAddress, tobStatus,
     // Step 2
     passportNumber, kycStatus, ownershipShare,
     // Step 3
-    addressLine1, city, postcode, gasSafety, eicrStatus,
+    addressLine1, addressLine2, city, postcode, propertyType, bedrooms,
+    blockName, apartmentNumber, keyRef, gasSafety, eicrStatus,
     // Step 4
     serviceLevel, managementFee, marketingPrice,
     // Step 5
-    tenantName, tenantEmail, rentPrice, startDate, depositSchemeId,
+    tenantName, tenantEmail, rentPrice, startDate, depositAmount, depositSchemeId,
     // Step 6
     utilityProvider, councilTaxBand, moveInChecklist
   } = req.body;
@@ -55,6 +56,7 @@ export const completeOnboarding = catchAsync(async (req, res, next) => {
         email: normalizedEmail,
         password: hashedPassword,
         phone: landlordPhone,
+        address: landlordAddress || null,
         role: 'LANDLORD'
       });
       landlordId = newLandlordId;
@@ -103,8 +105,14 @@ export const completeOnboarding = catchAsync(async (req, res, next) => {
     const [propertyId] = await trx('properties').insert({
       landlord_id: landlordId,
       address_line1: addressLine1,
+      address_line2: addressLine2 || null,
       city: city,
       postcode: postcode,
+      property_type: propertyType || null,
+      bedrooms: bedrooms !== undefined && bedrooms !== null && bedrooms !== '' ? parseInt(bedrooms, 10) : null,
+      block_name: blockName || null,
+      apartment_number: apartmentNumber || null,
+      key_ref: keyRef || null,
       status: 'onboarding',
       rent_pcm: parseFloat(rentPrice).toFixed(2),
       mgmt_fee_pct: parseFloat(managementFee).toFixed(2),
@@ -193,8 +201,11 @@ export const completeOnboarding = catchAsync(async (req, res, next) => {
       right_to_rent_status: 'pending'
     });
 
-    // 9. Create deposit with amount = rentPrice × 5/52 × 5
-    const calculatedDeposit = parseFloat((rentPrice * 12 / 52) * 5).toFixed(2);
+    // 9. Create deposit — use the wizard's explicit amount when given, else
+    //    default to the 5-week formula (rent × 12 / 52 × 5).
+    const calculatedDeposit = depositAmount !== undefined && depositAmount !== null && depositAmount !== ''
+      ? parseFloat(depositAmount).toFixed(2)
+      : parseFloat((rentPrice * 12 / 52) * 5).toFixed(2);
     const registerDue = addDays(startDate, 30);
     await trx('deposits').insert({
       tenancy_id: tenancyId,
@@ -256,30 +267,34 @@ export const completeOnboarding = catchAsync(async (req, res, next) => {
     // 13. Build the property compliance checklist from what the wizard ACTUALLY
     //     confirmed. Items with no wizard input stay pending — marking them
     //     complete here would fake compliance the admin never verified.
+    // gasSafety 'N/A' means the property has no gas supply — the item is
+    // recorded as not applicable so it never blocks the let-gate.
     const checklistItems = [
-      { item_code: 'GAS_CERT', item_label: 'Gas Safety Certificate', complete: gasSafety === 'Compliant' },
+      { item_code: 'GAS_CERT', item_label: 'Gas Safety Certificate', complete: gasSafety === 'Compliant', notApplicable: gasSafety === 'N/A' },
       { item_code: 'EICR_CERT', item_label: 'Electrical Installation Condition Report', complete: eicrStatus === 'Compliant' },
       { item_code: 'EPC_CERT', item_label: 'Energy Performance Certificate', complete: false },
       { item_code: 'SMOKE_CO', item_label: 'Smoke & Carbon Monoxide Alarms', complete: moveInChecklist === 'Completed' },
-      { item_code: 'KEYS_RECEIVED', item_label: 'Physical Key References Received', complete: false }
+      { item_code: 'KEYS_RECEIVED', item_label: 'Physical Key References Received', complete: !!keyRef }
     ];
     const checklistRows = checklistItems.map((item) => ({
       scope: 'property',
       entity_id: propertyId,
       item_code: item.item_code,
       item_label: item.item_label,
-      applicable: 1,
-      status: item.complete ? 'complete' : 'pending',
-      verified_at: item.complete ? trx.fn.now() : null,
-      verified_by: item.complete ? req.user.id : null,
-      notes: item.complete ? 'Confirmed during onboarding wizard' : null
+      applicable: item.notApplicable ? 0 : 1,
+      status: item.notApplicable ? 'not_applicable' : (item.complete ? 'complete' : 'pending'),
+      verified_at: item.complete && !item.notApplicable ? trx.fn.now() : null,
+      verified_by: item.complete && !item.notApplicable ? req.user.id : null,
+      notes: item.notApplicable
+        ? 'No gas supply at property (onboarding wizard)'
+        : (item.complete ? 'Confirmed during onboarding wizard' : null)
     }));
     await trx('compliance_checklist').insert(checklistRows);
 
-    // Same gate as updateProperty: 'let' only when every checklist item is
-    // satisfied; otherwise the property stays 'onboarding' with the active
-    // tenancy visible so the outstanding items get chased.
-    const allComplete = checklistItems.every((item) => item.complete);
+    // Same gate as updateProperty: 'let' only when every applicable checklist
+    // item is satisfied; otherwise the property stays 'onboarding' with the
+    // active tenancy visible so the outstanding items get chased.
+    const allComplete = checklistItems.every((item) => item.complete || item.notApplicable);
     if (allComplete) {
       await trx('properties').where('id', propertyId).update({ status: 'let' });
     }
@@ -291,7 +306,7 @@ export const completeOnboarding = catchAsync(async (req, res, next) => {
       action: 'ONBOARDING_COMPLETED',
       entity_type: 'property',
       entity_id: propertyId,
-      meta: JSON.stringify({ landlord_id: landlordId, property_id: propertyId, tenancy_id: tenancyId }),
+      meta: JSON.stringify({ landlord_id: landlordId, property_id: propertyId, tenancy_id: tenancyId, service_level: serviceLevel }),
       ip_address: req.ip || null
     });
 

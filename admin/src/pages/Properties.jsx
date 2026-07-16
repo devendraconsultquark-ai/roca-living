@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Home, CheckCircle2, AlertTriangle, HelpCircle, Edit, Trash2, Eye } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
@@ -31,6 +31,10 @@ export const Properties = () => {
     bedrooms: '',
     rent_pcm: '',
     mgmt_fee_pct: '12.00',
+    block_name: '',
+    apartment_number: '',
+    key_ref: '',
+    notes: '',
     name: ''
   });
 
@@ -46,6 +50,10 @@ export const Properties = () => {
     bedrooms: '',
     rent_pcm: '',
     mgmt_fee_pct: '12.00',
+    block_name: '',
+    apartment_number: '',
+    key_ref: '',
+    notes: '',
     status: 'onboarding',
     name: ''
   });
@@ -68,6 +76,10 @@ export const Properties = () => {
         bedrooms: info.bedrooms !== null ? String(info.bedrooms) : '',
         rent_pcm: info.rent_pcm !== null ? String(info.rent_pcm) : '',
         mgmt_fee_pct: info.mgmt_fee_pct !== null ? String(info.mgmt_fee_pct) : '12.00',
+        block_name: info.block_name || '',
+        apartment_number: info.apartment_number || '',
+        key_ref: info.key_ref || '',
+        notes: info.notes || '',
         status: info.status || 'onboarding',
         name: info.name || ''
       });
@@ -174,6 +186,10 @@ export const Properties = () => {
         bedrooms: '',
         rent_pcm: '',
         mgmt_fee_pct: '12.00',
+        block_name: '',
+        apartment_number: '',
+        key_ref: '',
+        notes: '',
         name: ''
       });
       fetchProperties();
@@ -465,11 +481,47 @@ export const Properties = () => {
                   error={formErrors.mgmt_fee_pct}
                 />
               </div>
-              
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="Block Name (statements)"
+                  id="block_name"
+                  placeholder="e.g. PH"
+                  value={newProperty.block_name}
+                  onChange={(e) => setNewProperty({ ...newProperty, block_name: e.target.value })}
+                  error={formErrors.block_name}
+                />
+                <Input
+                  label="Apartment Number"
+                  id="apartment_number"
+                  placeholder="e.g. 12"
+                  value={newProperty.apartment_number}
+                  onChange={(e) => setNewProperty({ ...newProperty, apartment_number: e.target.value })}
+                  error={formErrors.apartment_number}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="Key Reference"
+                  id="key_ref"
+                  placeholder="e.g. KEY-PH-012"
+                  value={newProperty.key_ref}
+                  onChange={(e) => setNewProperty({ ...newProperty, key_ref: e.target.value })}
+                  error={formErrors.key_ref}
+                />
+                <Input
+                  label="Notes"
+                  id="notes"
+                  placeholder="Internal notes"
+                  value={newProperty.notes}
+                  onChange={(e) => setNewProperty({ ...newProperty, notes: e.target.value })}
+                  error={formErrors.notes}
+                />
+              </div>
+
               <div className="flex gap-3 justify-end mt-2">
-                <Button 
-                  type="button" 
-                  variant="ghost" 
+                <Button
+                  type="button"
+                  variant="ghost"
                   onClick={() => {
                     setIsModalOpen(false);
                     setFormErrors({});
@@ -482,7 +534,12 @@ export const Properties = () => {
                       property_type: 'flat',
                       bedrooms: '',
                       rent_pcm: '',
-                      mgmt_fee_pct: '12.00'
+                      mgmt_fee_pct: '12.00',
+                      block_name: '',
+                      apartment_number: '',
+                      key_ref: '',
+                      notes: '',
+                      name: ''
                     });
                   }}
                 >
@@ -588,6 +645,42 @@ export const Properties = () => {
                   value={editingProperty.mgmt_fee_pct}
                   onChange={(e) => setEditingProperty({ ...editingProperty, mgmt_fee_pct: e.target.value })}
                   error={formErrors.mgmt_fee_pct}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="Block Name (statements)"
+                  id="edit_block_name"
+                  placeholder="e.g. PH"
+                  value={editingProperty.block_name}
+                  onChange={(e) => setEditingProperty({ ...editingProperty, block_name: e.target.value })}
+                  error={formErrors.block_name}
+                />
+                <Input
+                  label="Apartment Number"
+                  id="edit_apartment_number"
+                  placeholder="e.g. 12"
+                  value={editingProperty.apartment_number}
+                  onChange={(e) => setEditingProperty({ ...editingProperty, apartment_number: e.target.value })}
+                  error={formErrors.apartment_number}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="Key Reference"
+                  id="edit_key_ref"
+                  placeholder="e.g. KEY-PH-012"
+                  value={editingProperty.key_ref}
+                  onChange={(e) => setEditingProperty({ ...editingProperty, key_ref: e.target.value })}
+                  error={formErrors.key_ref}
+                />
+                <Input
+                  label="Notes"
+                  id="edit_notes"
+                  placeholder="Internal notes"
+                  value={editingProperty.notes}
+                  onChange={(e) => setEditingProperty({ ...editingProperty, notes: e.target.value })}
+                  error={formErrors.notes}
                 />
               </div>
 

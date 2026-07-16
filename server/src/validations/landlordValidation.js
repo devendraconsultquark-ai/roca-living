@@ -18,8 +18,12 @@ export const createLandlordSchema = z.object({
   address: z.string().optional().default(''),
   company_name: z.string().optional(),
   is_overseas: z.boolean().optional(),
-  ownership_share: z.number().optional(),
-  tob_status: z.string().optional()
+  ownership_share: z.number().min(0).max(100).optional(),
+  tob_status: z.enum(['not_sent', 'sent', 'signed']).optional(),
+  nrl_hmrc_approved: z.boolean().optional(),
+  nrl_hmrc_ref: z.string().max(100).optional(),
+  nrl_withhold_pct: z.number().min(0).max(100).optional(),
+  initials: z.string().max(20).optional()
 });
 
 // Columns bank_name/account_name/account_number/sort_code are NOT NULL in

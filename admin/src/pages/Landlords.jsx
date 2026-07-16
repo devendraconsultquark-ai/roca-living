@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, UserPlus, Edit, Trash2, Eye } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { StatCard } from '../components/UI/StatCard';
 import { Input } from '../components/UI/Input';
+import { Dropdown } from '../components/UI/Dropdown';
 import { StatusPill } from '../components/UI/StatusPill';
 import { Skeleton } from '../components/UI/Skeleton';
 import { useToast } from '../components/UI/ToastContext';
@@ -19,23 +20,27 @@ export const Landlords = () => {
   const [search, setSearch] = useState('');
   
   // Modal & Form State
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newLandlord, setNewLandlord] = useState({
+  const emptyLandlord = {
     name: '',
     email: '',
     phone: '',
-    address: ''
-  });
-  
+    address: '',
+    company_name: '',
+    initials: '',
+    is_overseas: 'no',
+    nrl_hmrc_ref: '',
+    nrl_hmrc_approved: 'no',
+    nrl_withhold_pct: '',
+    ownership_share: '',
+    tob_status: 'not_sent'
+  };
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newLandlord, setNewLandlord] = useState(emptyLandlord);
+
   // Edit Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingLandlordId, setEditingLandlordId] = useState(null);
-  const [editingLandlord, setEditingLandlord] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    address: ''
-  });
+  const [editingLandlord, setEditingLandlord] = useState(emptyLandlord);
 
   const [formErrors, setFormErrors] = useState({});
   const { addToast } = useToast();
@@ -69,10 +74,23 @@ export const Landlords = () => {
     setFormErrors({});
 
     try {
-      await api.post('/landlords', newLandlord);
+      await api.post('/landlords', {
+        name: newLandlord.name,
+        email: newLandlord.email,
+        phone: newLandlord.phone,
+        address: newLandlord.address,
+        company_name: newLandlord.company_name || undefined,
+        initials: newLandlord.initials || undefined,
+        is_overseas: newLandlord.is_overseas === 'yes',
+        nrl_hmrc_ref: newLandlord.nrl_hmrc_ref || undefined,
+        nrl_hmrc_approved: newLandlord.nrl_hmrc_approved === 'yes',
+        nrl_withhold_pct: newLandlord.nrl_withhold_pct !== '' ? parseFloat(newLandlord.nrl_withhold_pct) : undefined,
+        ownership_share: newLandlord.ownership_share !== '' ? parseFloat(newLandlord.ownership_share) : undefined,
+        tob_status: newLandlord.tob_status
+      });
       addToast('Landlord registered successfully!', 'success');
       setIsModalOpen(false);
-      setNewLandlord({ name: '', email: '', phone: '', address: '' });
+      setNewLandlord(emptyLandlord);
       fetchLandlords(search);
     } catch (err) {
       console.error(err);
@@ -99,8 +117,14 @@ export const Landlords = () => {
         email: info.email || '',
         phone: info.phone || '',
         address: info.address || '',
+        company_name: info.company_name || '',
         initials: info.initials || '',
-        nrl_hmrc_ref: info.nrl_hmrc_ref || ''
+        is_overseas: info.is_overseas ? 'yes' : 'no',
+        nrl_hmrc_ref: info.nrl_hmrc_ref || '',
+        nrl_hmrc_approved: info.nrl_hmrc_approved ? 'yes' : 'no',
+        nrl_withhold_pct: info.nrl_withhold_pct != null ? String(info.nrl_withhold_pct) : '',
+        ownership_share: info.ownership_share != null ? String(info.ownership_share) : '',
+        tob_status: info.tob_status || 'not_sent'
       });
       setIsEditModalOpen(true);
     } catch (err) {
@@ -113,7 +137,20 @@ export const Landlords = () => {
     setFormErrors({});
 
     try {
-      await api.patch(`/landlords/${editingLandlordId}`, editingLandlord);
+      await api.patch(`/landlords/${editingLandlordId}`, {
+        name: editingLandlord.name,
+        email: editingLandlord.email,
+        phone: editingLandlord.phone,
+        address: editingLandlord.address,
+        company_name: editingLandlord.company_name,
+        initials: editingLandlord.initials,
+        is_overseas: editingLandlord.is_overseas === 'yes',
+        nrl_hmrc_ref: editingLandlord.nrl_hmrc_ref,
+        nrl_hmrc_approved: editingLandlord.nrl_hmrc_approved === 'yes',
+        nrl_withhold_pct: editingLandlord.nrl_withhold_pct,
+        ownership_share: editingLandlord.ownership_share,
+        tob_status: editingLandlord.tob_status
+      });
       addToast('Landlord details updated successfully!', 'success');
       setIsEditModalOpen(false);
       fetchLandlords(search);
@@ -289,51 +326,131 @@ export const Landlords = () => {
       {/* Register Landlord Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-xl mx-4 border border-card-border max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-brand-primary mb-4">Register Landlord</h3>
-            
+
             <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-4">
-              <Input
-                label="Full Name"
-                id="name"
-                required
-                value={newLandlord.name}
-                onChange={(e) => setNewLandlord({ ...newLandlord, name: e.target.value })}
-                error={formErrors.name}
-              />
-              <Input
-                label="Email Address"
-                id="email"
-                type="email"
-                required
-                value={newLandlord.email}
-                onChange={(e) => setNewLandlord({ ...newLandlord, email: e.target.value })}
-                error={formErrors.email}
-              />
-              <Input
-                label="Contact Phone"
-                id="phone"
-                required
-                value={newLandlord.phone}
-                onChange={(e) => setNewLandlord({ ...newLandlord, phone: e.target.value })}
-                error={formErrors.phone}
-              />
-              <Input
-                label="Address"
-                id="address"
-                value={newLandlord.address}
-                onChange={(e) => setNewLandlord({ ...newLandlord, address: e.target.value })}
-                error={formErrors.address}
-              />
-              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Full Name"
+                  id="name"
+                  required
+                  value={newLandlord.name}
+                  onChange={(e) => setNewLandlord({ ...newLandlord, name: e.target.value })}
+                  error={formErrors.name}
+                />
+                <Input
+                  label="Email Address"
+                  id="email"
+                  type="email"
+                  required
+                  value={newLandlord.email}
+                  onChange={(e) => setNewLandlord({ ...newLandlord, email: e.target.value })}
+                  error={formErrors.email}
+                />
+                <Input
+                  label="Contact Phone"
+                  id="phone"
+                  required
+                  value={newLandlord.phone}
+                  onChange={(e) => setNewLandlord({ ...newLandlord, phone: e.target.value })}
+                  error={formErrors.phone}
+                />
+                <Input
+                  label="Address"
+                  id="address"
+                  value={newLandlord.address}
+                  onChange={(e) => setNewLandlord({ ...newLandlord, address: e.target.value })}
+                  error={formErrors.address}
+                />
+                <Input
+                  label="Company Name (optional)"
+                  id="company_name"
+                  value={newLandlord.company_name}
+                  onChange={(e) => setNewLandlord({ ...newLandlord, company_name: e.target.value })}
+                  error={formErrors.company_name}
+                />
+                <Input
+                  label="Initials (statements)"
+                  id="initials"
+                  placeholder="e.g. RB/GH"
+                  value={newLandlord.initials}
+                  onChange={(e) => setNewLandlord({ ...newLandlord, initials: e.target.value })}
+                  error={formErrors.initials}
+                />
+                <Dropdown
+                  label="Residency"
+                  id="is_overseas"
+                  options={[
+                    { value: 'no', label: 'UK Resident' },
+                    { value: 'yes', label: 'Overseas (NRL)' }
+                  ]}
+                  value={newLandlord.is_overseas}
+                  onChange={(val) => setNewLandlord({ ...newLandlord, is_overseas: val })}
+                />
+                <Input
+                  label="NRL Withholding (%)"
+                  id="nrl_withhold_pct"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  placeholder="20.00"
+                  value={newLandlord.nrl_withhold_pct}
+                  onChange={(e) => setNewLandlord({ ...newLandlord, nrl_withhold_pct: e.target.value })}
+                  error={formErrors.nrl_withhold_pct}
+                />
+                <Input
+                  label="NRL Number (HMRC)"
+                  id="nrl_hmrc_ref"
+                  placeholder="e.g. NL945005"
+                  value={newLandlord.nrl_hmrc_ref}
+                  onChange={(e) => setNewLandlord({ ...newLandlord, nrl_hmrc_ref: e.target.value })}
+                  error={formErrors.nrl_hmrc_ref}
+                />
+                <Dropdown
+                  label="NRL HMRC Approved"
+                  id="nrl_hmrc_approved"
+                  options={[
+                    { value: 'no', label: 'No' },
+                    { value: 'yes', label: 'Yes' }
+                  ]}
+                  value={newLandlord.nrl_hmrc_approved}
+                  onChange={(val) => setNewLandlord({ ...newLandlord, nrl_hmrc_approved: val })}
+                />
+                <Input
+                  label="Ownership Share (%)"
+                  id="ownership_share"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  placeholder="100.00"
+                  value={newLandlord.ownership_share}
+                  onChange={(e) => setNewLandlord({ ...newLandlord, ownership_share: e.target.value })}
+                  error={formErrors.ownership_share}
+                />
+                <Dropdown
+                  label="Terms of Business"
+                  id="tob_status"
+                  options={[
+                    { value: 'not_sent', label: 'Not Sent' },
+                    { value: 'sent', label: 'Sent' },
+                    { value: 'signed', label: 'Signed' }
+                  ]}
+                  value={newLandlord.tob_status}
+                  onChange={(val) => setNewLandlord({ ...newLandlord, tob_status: val })}
+                />
+              </div>
+
               <div className="flex gap-3 justify-end mt-2">
-                <Button 
-                  type="button" 
-                  variant="ghost" 
+                <Button
+                  type="button"
+                  variant="ghost"
                   onClick={() => {
                     setIsModalOpen(false);
                     setFormErrors({});
-                    setNewLandlord({ name: '', email: '', phone: '', address: '' });
+                    setNewLandlord(emptyLandlord);
                   }}
                 >
                   Cancel
@@ -350,43 +467,50 @@ export const Landlords = () => {
       {/* Edit Landlord Modal */}
       {isEditModalOpen && (
         <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-xl mx-4 border border-card-border max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-brand-primary mb-4">Edit Landlord Details</h3>
-            
+
             <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
-              <Input
-                label="Full Name"
-                id="edit_name"
-                required
-                value={editingLandlord.name}
-                onChange={(e) => setEditingLandlord({ ...editingLandlord, name: e.target.value })}
-                error={formErrors.name}
-              />
-              <Input
-                label="Email Address"
-                id="edit_email"
-                type="email"
-                required
-                value={editingLandlord.email}
-                onChange={(e) => setEditingLandlord({ ...editingLandlord, email: e.target.value })}
-                error={formErrors.email}
-              />
-              <Input
-                label="Contact Phone"
-                id="edit_phone"
-                required
-                value={editingLandlord.phone}
-                onChange={(e) => setEditingLandlord({ ...editingLandlord, phone: e.target.value })}
-                error={formErrors.phone}
-              />
-              <Input
-                label="Address"
-                id="edit_address"
-                value={editingLandlord.address}
-                onChange={(e) => setEditingLandlord({ ...editingLandlord, address: e.target.value })}
-                error={formErrors.address}
-              />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Full Name"
+                  id="edit_name"
+                  required
+                  value={editingLandlord.name}
+                  onChange={(e) => setEditingLandlord({ ...editingLandlord, name: e.target.value })}
+                  error={formErrors.name}
+                />
+                <Input
+                  label="Email Address"
+                  id="edit_email"
+                  type="email"
+                  required
+                  value={editingLandlord.email}
+                  onChange={(e) => setEditingLandlord({ ...editingLandlord, email: e.target.value })}
+                  error={formErrors.email}
+                />
+                <Input
+                  label="Contact Phone"
+                  id="edit_phone"
+                  required
+                  value={editingLandlord.phone}
+                  onChange={(e) => setEditingLandlord({ ...editingLandlord, phone: e.target.value })}
+                  error={formErrors.phone}
+                />
+                <Input
+                  label="Address"
+                  id="edit_address"
+                  value={editingLandlord.address}
+                  onChange={(e) => setEditingLandlord({ ...editingLandlord, address: e.target.value })}
+                  error={formErrors.address}
+                />
+                <Input
+                  label="Company Name (optional)"
+                  id="edit_company_name"
+                  value={editingLandlord.company_name}
+                  onChange={(e) => setEditingLandlord({ ...editingLandlord, company_name: e.target.value })}
+                  error={formErrors.company_name}
+                />
                 <Input
                   label="Initials (statements)"
                   id="edit_initials"
@@ -395,6 +519,28 @@ export const Landlords = () => {
                   onChange={(e) => setEditingLandlord({ ...editingLandlord, initials: e.target.value })}
                   error={formErrors.initials}
                 />
+                <Dropdown
+                  label="Residency"
+                  id="edit_is_overseas"
+                  options={[
+                    { value: 'no', label: 'UK Resident' },
+                    { value: 'yes', label: 'Overseas (NRL)' }
+                  ]}
+                  value={editingLandlord.is_overseas}
+                  onChange={(val) => setEditingLandlord({ ...editingLandlord, is_overseas: val })}
+                />
+                <Input
+                  label="NRL Withholding (%)"
+                  id="edit_nrl_withhold_pct"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  placeholder="20.00"
+                  value={editingLandlord.nrl_withhold_pct}
+                  onChange={(e) => setEditingLandlord({ ...editingLandlord, nrl_withhold_pct: e.target.value })}
+                  error={formErrors.nrl_withhold_pct}
+                />
                 <Input
                   label="NRL Number (HMRC)"
                   id="edit_nrl_hmrc_ref"
@@ -402,6 +548,39 @@ export const Landlords = () => {
                   value={editingLandlord.nrl_hmrc_ref}
                   onChange={(e) => setEditingLandlord({ ...editingLandlord, nrl_hmrc_ref: e.target.value })}
                   error={formErrors.nrl_hmrc_ref}
+                />
+                <Dropdown
+                  label="NRL HMRC Approved"
+                  id="edit_nrl_hmrc_approved"
+                  options={[
+                    { value: 'no', label: 'No' },
+                    { value: 'yes', label: 'Yes' }
+                  ]}
+                  value={editingLandlord.nrl_hmrc_approved}
+                  onChange={(val) => setEditingLandlord({ ...editingLandlord, nrl_hmrc_approved: val })}
+                />
+                <Input
+                  label="Ownership Share (%)"
+                  id="edit_ownership_share"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  placeholder="100.00"
+                  value={editingLandlord.ownership_share}
+                  onChange={(e) => setEditingLandlord({ ...editingLandlord, ownership_share: e.target.value })}
+                  error={formErrors.ownership_share}
+                />
+                <Dropdown
+                  label="Terms of Business"
+                  id="edit_tob_status"
+                  options={[
+                    { value: 'not_sent', label: 'Not Sent' },
+                    { value: 'sent', label: 'Sent' },
+                    { value: 'signed', label: 'Signed' }
+                  ]}
+                  value={editingLandlord.tob_status}
+                  onChange={(val) => setEditingLandlord({ ...editingLandlord, tob_status: val })}
                 />
               </div>
 

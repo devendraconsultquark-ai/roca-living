@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Droplet, CheckCircle2, Clock, X } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
@@ -46,7 +46,11 @@ export const Utilities = () => {
     utility_type: '',
     direction: '',
     supplier: '',
+    account_ref: '',
     handover_date: '',
+    meter_reading_in: '',
+    meter_reading_out: '',
+    notes: '',
   });
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -116,11 +120,15 @@ export const Utilities = () => {
         utility_type: form.utility_type,
         direction: form.direction,
         supplier: form.supplier || undefined,
+        account_ref: form.account_ref || undefined,
         handover_date: form.handover_date || undefined,
+        meter_reading_in: form.meter_reading_in || undefined,
+        meter_reading_out: form.meter_reading_out || undefined,
+        notes: form.notes || undefined,
       });
       addToast('Utility handover triggered!', 'success');
       setIsModalOpen(false);
-      setForm({ property_id: '', tenancy_id: '', utility_type: '', direction: '', supplier: '', handover_date: '' });
+      setForm({ property_id: '', tenancy_id: '', utility_type: '', direction: '', supplier: '', account_ref: '', handover_date: '', meter_reading_in: '', meter_reading_out: '', notes: '' });
       fetchUtilities();
     } catch (err) {
       addToast(err.response?.data?.message || 'Failed to create utility handover', 'error');
@@ -255,13 +263,22 @@ export const Utilities = () => {
                 {formErrors.direction && <span className="text-xs text-status-danger font-semibold">{formErrors.direction}</span>}
               </div>
 
-              <Input
-                label="Supplier / Provider"
-                id="u-supplier"
-                placeholder="e.g. British Gas"
-                value={form.supplier}
-                onChange={(e) => setForm(f => ({ ...f, supplier: e.target.value }))}
-              />
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="Supplier / Provider"
+                  id="u-supplier"
+                  placeholder="e.g. British Gas"
+                  value={form.supplier}
+                  onChange={(e) => setForm(f => ({ ...f, supplier: e.target.value }))}
+                />
+                <Input
+                  label="Account Reference"
+                  id="u-account-ref"
+                  placeholder="e.g. BG-4471-9920"
+                  value={form.account_ref}
+                  onChange={(e) => setForm(f => ({ ...f, account_ref: e.target.value }))}
+                />
+              </div>
 
               <Input
                 label="Handover Date"
@@ -269,6 +286,31 @@ export const Utilities = () => {
                 type="date"
                 value={form.handover_date}
                 onChange={(e) => setForm(f => ({ ...f, handover_date: e.target.value }))}
+              />
+
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="Meter Reading (In)"
+                  id="u-meter-in"
+                  placeholder="e.g. 04521.8"
+                  value={form.meter_reading_in}
+                  onChange={(e) => setForm(f => ({ ...f, meter_reading_in: e.target.value }))}
+                />
+                <Input
+                  label="Meter Reading (Out)"
+                  id="u-meter-out"
+                  placeholder="e.g. 04619.2"
+                  value={form.meter_reading_out}
+                  onChange={(e) => setForm(f => ({ ...f, meter_reading_out: e.target.value }))}
+                />
+              </div>
+
+              <Input
+                label="Notes"
+                id="u-notes"
+                placeholder="Internal notes"
+                value={form.notes}
+                onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))}
               />
 
               <div className="flex gap-3 justify-end mt-1">

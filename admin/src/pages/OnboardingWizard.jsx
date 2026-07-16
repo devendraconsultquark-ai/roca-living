@@ -29,11 +29,12 @@ export const OnboardingWizard = () => {
 
 
   // Centralized onboarding form data
-  const [formData, setFormData] = useState({
+  const emptyFormData = {
     // Step 1: Landlord & ToB
     landlordName: '',
     landlordEmail: '',
     landlordPhone: '',
+    landlordAddress: '',
     tobStatus: '',
 
     // Step 2: KYC & Ownership
@@ -43,8 +44,14 @@ export const OnboardingWizard = () => {
 
     // Step 3: Property & Compliance
     addressLine1: '',
+    addressLine2: '',
     city: '',
     postcode: '',
+    propertyType: '',
+    bedrooms: '',
+    blockName: '',
+    apartmentNumber: '',
+    keyRef: '',
     gasSafety: '',
     eicrStatus: '',
 
@@ -55,15 +62,18 @@ export const OnboardingWizard = () => {
 
     // Step 5: Tenancy & Deposit
     tenantName: '',
+    tenantEmail: '',
     rentPrice: '',
     startDate: '',
+    depositAmount: '',
     depositSchemeId: '',
 
     // Step 6: Utilities & Move-in
     utilityProvider: '',
     councilTaxBand: '',
     moveInChecklist: '',
-  });
+  };
+  const [formData, setFormData] = useState(emptyFormData);
 
   const handleChange = (e) => {
     const { id, value } = e.target;
@@ -108,6 +118,12 @@ export const OnboardingWizard = () => {
       if (!formData.addressLine1.trim()) stepErrors.addressLine1 = 'Address is required';
       if (!formData.city.trim()) stepErrors.city = 'Town / City is required';
       if (!formData.postcode.trim()) stepErrors.postcode = 'Postcode is required';
+      if (formData.bedrooms.trim()) {
+        const num = Number(formData.bedrooms);
+        if (isNaN(num) || num < 0 || !Number.isInteger(num)) {
+          stepErrors.bedrooms = 'Must be a whole number of bedrooms';
+        }
+      }
       if (!formData.gasSafety) stepErrors.gasSafety = 'Gas safety status is required';
       if (!formData.eicrStatus) stepErrors.eicrStatus = 'EICR status is required';
     }
@@ -134,12 +150,21 @@ export const OnboardingWizard = () => {
 
     if (step === 5) {
       if (!formData.tenantName.trim()) stepErrors.tenantName = 'Tenant Name is required';
+      if (formData.tenantEmail.trim() && !/\S+@\S+\.\S+/.test(formData.tenantEmail)) {
+        stepErrors.tenantEmail = 'Please enter a valid email address';
+      }
       if (!formData.rentPrice.trim()) {
         stepErrors.rentPrice = 'Monthly Rent is required';
       } else {
         const num = Number(formData.rentPrice);
         if (isNaN(num) || num <= 0) {
           stepErrors.rentPrice = 'Must be a positive rent amount';
+        }
+      }
+      if (formData.depositAmount.trim()) {
+        const num = Number(formData.depositAmount);
+        if (isNaN(num) || num < 0) {
+          stepErrors.depositAmount = 'Must be a valid deposit amount';
         }
       }
       if (!formData.startDate) stepErrors.startDate = 'Tenancy Start Date is required';
@@ -186,30 +211,7 @@ export const OnboardingWizard = () => {
   };
 
   const handleReset = () => {
-    setFormData({
-      landlordName: '',
-      landlordEmail: '',
-      landlordPhone: '',
-      tobStatus: '',
-      passportNumber: '',
-      kycStatus: '',
-      ownershipShare: '',
-      addressLine1: '',
-      city: '',
-      postcode: '',
-      gasSafety: '',
-      eicrStatus: '',
-      serviceLevel: '',
-      managementFee: '',
-      marketingPrice: '',
-      tenantName: '',
-      rentPrice: '',
-      startDate: '',
-      depositSchemeId: '',
-      utilityProvider: '',
-      councilTaxBand: '',
-      moveInChecklist: '',
-    });
+    setFormData(emptyFormData);
     setErrors({});
     setIsSuccess(false);
     setCurrentStep(1);
@@ -372,6 +374,14 @@ export const OnboardingWizard = () => {
                     error={errors.landlordPhone}
                     onChange={handleChange}
                   />
+                  <Input
+                    label="Landlord Home Address"
+                    id="landlordAddress"
+                    placeholder="e.g. 4 Belgrave Road, London SW1V 1QB"
+                    value={formData.landlordAddress}
+                    error={errors.landlordAddress}
+                    onChange={handleChange}
+                  />
                   <Dropdown
                     label="Terms of Business (ToB)"
                     id="tobStatus"
@@ -435,7 +445,14 @@ export const OnboardingWizard = () => {
                     value={formData.addressLine1}
                     error={errors.addressLine1}
                     onChange={handleChange}
-                    className="md:col-span-2"
+                  />
+                  <Input
+                    label="Address Line 2"
+                    id="addressLine2"
+                    placeholder="e.g. Westferry Road"
+                    value={formData.addressLine2}
+                    error={errors.addressLine2}
+                    onChange={handleChange}
                   />
                   <Input
                     label="Town / City"
@@ -453,6 +470,54 @@ export const OnboardingWizard = () => {
                     placeholder="e.g. EC1A 1BB"
                     value={formData.postcode}
                     error={errors.postcode}
+                    onChange={handleChange}
+                  />
+                  <Dropdown
+                    label="Property Type"
+                    id="propertyType"
+                    placeholder="Select type"
+                    value={formData.propertyType}
+                    error={errors.propertyType}
+                    onChange={handleDropdownChange('propertyType')}
+                    options={[
+                      { value: 'flat', label: 'Flat / Apartment' },
+                      { value: 'house', label: 'House' },
+                      { value: 'HMO', label: 'HMO (House in Multiple Occupation)' },
+                    ]}
+                  />
+                  <Input
+                    label="Bedrooms"
+                    id="bedrooms"
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="e.g. 2"
+                    value={formData.bedrooms}
+                    error={errors.bedrooms}
+                    onChange={handleChange}
+                  />
+                  <Input
+                    label="Block Name (statement numbering)"
+                    id="blockName"
+                    placeholder="e.g. PH (Parsons House)"
+                    value={formData.blockName}
+                    error={errors.blockName}
+                    onChange={handleChange}
+                  />
+                  <Input
+                    label="Apartment Number"
+                    id="apartmentNumber"
+                    placeholder="e.g. 12"
+                    value={formData.apartmentNumber}
+                    error={errors.apartmentNumber}
+                    onChange={handleChange}
+                  />
+                  <Input
+                    label="Key Reference"
+                    id="keyRef"
+                    placeholder="e.g. KEY-PH-012"
+                    value={formData.keyRef}
+                    error={errors.keyRef}
                     onChange={handleChange}
                   />
                   <Dropdown
@@ -533,6 +598,15 @@ export const OnboardingWizard = () => {
                     onChange={handleChange}
                   />
                   <Input
+                    label="Tenant Email Address"
+                    id="tenantEmail"
+                    type="email"
+                    placeholder="e.g. jane.smith@example.com"
+                    value={formData.tenantEmail}
+                    error={errors.tenantEmail}
+                    onChange={handleChange}
+                  />
+                  <Input
                     label="Agreed Monthly Rent (£)"
                     id="rentPrice"
                     type="number"
@@ -552,6 +626,17 @@ export const OnboardingWizard = () => {
                       setFormData(prev => ({ ...prev, startDate: val }));
                       if (errors.startDate) setErrors(prev => ({ ...prev, startDate: '' }));
                     }}
+                  />
+                  <Input
+                    label="Tenancy Deposit (£)"
+                    id="depositAmount"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder={formData.rentPrice ? `Blank = 5-week default (£${((Number(formData.rentPrice) * 12) / 52 * 5).toFixed(2)})` : 'Blank = 5-week default'}
+                    value={formData.depositAmount}
+                    error={errors.depositAmount}
+                    onChange={handleChange}
                   />
                   <Input
                     label="Deposit Scheme (TDS) Certificate ID"

@@ -38,9 +38,11 @@ export const Inspections = () => {
   const [inspections, setInspections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [properties, setProperties] = useState([]);
+  const [tenancies, setTenancies] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const emptyForm = {
     property_id: '',
+    tenancy_id: '',
     inspected_by: '',
     inspected_at: '',
     next_inspection_due: '',
@@ -84,6 +86,24 @@ export const Inspections = () => {
     fetchProperties();
   }, []);
 
+  const fetchTenanciesForProperty = async (propertyId) => {
+    if (!propertyId) { setTenancies([]); return; }
+    try {
+      const res = await api.get(`/tenancies?property_id=${propertyId}`);
+      setTenancies((res.data.data || []).map(t => ({
+        value: t.id,
+        label: `Tenancy #${t.id} — ${t.start_date ? new Date(t.start_date).toLocaleDateString('en-GB') : ''}`,
+      })));
+    } catch {
+      setTenancies([]);
+    }
+  };
+
+  const handlePropertyChange = (val) => {
+    setForm(f => ({ ...f, property_id: val, tenancy_id: '' }));
+    fetchTenanciesForProperty(val);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const errs = {};
@@ -96,6 +116,7 @@ export const Inspections = () => {
     try {
       await api.post('/inspections', {
         property_id: form.property_id,
+        tenancy_id: form.tenancy_id || undefined,
         inspected_by: form.inspected_by || undefined,
         inspected_at: form.inspected_at,
         next_inspection_due: form.next_inspection_due || undefined,
@@ -197,10 +218,22 @@ export const Inspections = () => {
                   placeholder="Select property..."
                   options={properties}
                   value={form.property_id}
-                  onChange={(val) => setForm(f => ({ ...f, property_id: val }))}
+                  onChange={handlePropertyChange}
                   searchable
                 />
                 {formErrors.property_id && <span className="text-xs text-status-danger font-semibold">{formErrors.property_id}</span>}
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-status-muted uppercase tracking-wide">Tenancy (Optional)</label>
+                <Dropdown
+                  id="i-tenancy"
+                  placeholder="Select tenancy..."
+                  options={tenancies}
+                  value={form.tenancy_id}
+                  onChange={(val) => setForm(f => ({ ...f, tenancy_id: val }))}
+                  disabled={!form.property_id}
+                />
               </div>
 
               <Input

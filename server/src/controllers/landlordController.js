@@ -200,7 +200,10 @@ export const getMyChecklist = catchAsync(async (req, res, next) => {
 });
 
 export const createLandlord = catchAsync(async (req, res, next) => {
-  const { name, email, phone, address, company_name, is_overseas, ownership_share, tob_status } = req.body;
+  const {
+    name, email, phone, address, company_name, is_overseas, ownership_share, tob_status,
+    nrl_hmrc_approved, nrl_hmrc_ref, nrl_withhold_pct, initials
+  } = req.body;
 
   const existingUser = await db('users').where({ email: email.toLowerCase() }).first();
   if (existingUser) {
@@ -224,7 +227,11 @@ export const createLandlord = catchAsync(async (req, res, next) => {
       company_name: company_name || null,
       is_overseas: is_overseas ? 1 : 0,
       ownership_share: ownership_share !== undefined ? ownership_share : null,
-      tob_status: tob_status || 'not_sent'
+      tob_status: tob_status || 'not_sent',
+      ...(nrl_hmrc_approved !== undefined ? { nrl_hmrc_approved: nrl_hmrc_approved ? 1 : 0 } : {}),
+      ...(nrl_hmrc_ref ? { nrl_hmrc_ref } : {}),
+      ...(nrl_withhold_pct !== undefined ? { nrl_withhold_pct } : {}),
+      ...(initials ? { initials } : {})
     });
 
     await trx('audit_log').insert({

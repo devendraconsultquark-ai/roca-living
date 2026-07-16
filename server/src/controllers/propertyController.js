@@ -16,6 +16,8 @@ const ALLOWED_PROPERTY_FIELDS = [
   'mgmt_fee_pct',
   'key_ref',
   'notes',
+  'block_name',
+  'apartment_number',
   'status',
   'name',
   'property_reference'
@@ -163,7 +165,7 @@ export const getPropertyById = catchAsync(async (req, res, next) => {
 
 
 export const createProperty = catchAsync(async (req, res, next) => {
-  const { landlord_id, address_line1, address_line2, city, postcode, property_type, bedrooms, rent_pcm, mgmt_fee_pct, key_ref, name } = req.body;
+  const { landlord_id, address_line1, address_line2, city, postcode, property_type, bedrooms, rent_pcm, mgmt_fee_pct, key_ref, notes, block_name, apartment_number, name } = req.body;
 
   const landlord = await db('users').where({ id: landlord_id, role: 'LANDLORD' }).first();
   if (!landlord) {
@@ -183,6 +185,9 @@ export const createProperty = catchAsync(async (req, res, next) => {
       rent_pcm: rent_pcm !== undefined ? rent_pcm : null,
       mgmt_fee_pct: mgmt_fee_pct !== undefined ? mgmt_fee_pct : 12.00,
       key_ref: key_ref || null,
+      notes: notes || null,
+      block_name: block_name || null,
+      apartment_number: apartment_number || null,
       name: name || address_line1,
       property_reference: tempRef,
       status: 'onboarding'
