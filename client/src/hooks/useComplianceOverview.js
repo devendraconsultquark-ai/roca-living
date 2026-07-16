@@ -1,51 +1,66 @@
-import { useMemo } from 'react';
-import { ShieldCheck, FileText, User, Wallet } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ShieldCheck, FileText, User, Wallet, UserCheck } from 'lucide-react';
 import { useProperties } from './useProperties';
 import { useTenancy } from './useTenancy';
-import { useDocuments } from './useDocuments';
+import { useCertificates } from './useCertificates';
+import { usePropertyContext } from '../context/PropertyContext';
+import { filterByProperty } from '../utilities/propertyFilter';
+import api from '../utilities/api';
 
 // ── Pure derivation helpers (unit-testable without React) ───────────────────
 
 const gb = (d) => new Date(d).toLocaleDateString('en-GB');
 
-const buildCertificates = (documents) => {
-  let expiredCertifications = 0;
-  let totalCertificationsTracked = 0;
+// Rows come from useCertificates (real property_certificates statuses/expiry),
+// mapped into this page's table shape. EPC sits under "Property & Management".
+const splitCertificates = (certificatesData) => {
   const essentialCertificates = [];
   const propertyManagement = [];
 
-  if (documents) {
-    documents
-      .filter((doc) => doc.category === 'Compliance' || doc.category === 'Certificates')
-      .forEach((doc) => {
-        totalCertificationsTracked++;
-        const isExpired = doc.status === 'Expired';
-        if (isExpired) expiredCertifications++;
+  certificatesData.forEach((cert) => {
+    const isExpired = cert.status === 'Expired';
+    const certData = {
+      item: cert.item,
+      status: cert.status,
+      nextDue: cert.expires,
+      subtext: cert.countdown,
+      subtextColor: cert.countdownColor,
+      action: 'View Certificate',
+      icon: cert.type === 'EPC' ? FileText : ShieldCheck,
+      color: isExpired ? 'bg-red-50 text-red-500' : cert.color,
+      property: cert.property,
+    };
+    if (cert.type === 'EPC') {
+      propertyManagement.push(certData);
+    } else {
+      essentialCertificates.push(certData);
+    }
+  });
 
-        const certData = {
-          item: doc.item || 'Certificate',
-          status: isExpired ? 'Expired' : 'Valid',
-          nextDue: '—',
-          subtext: isExpired ? 'Action required' : 'Active',
-          subtextColor: isExpired ? 'text-status-danger' : 'text-gray-400',
-          action: 'View Certificate',
-          icon: doc.item?.includes('EPC') ? FileText : ShieldCheck,
-          color: isExpired
-            ? 'bg-red-50 text-red-500'
-            : 'bg-status-success-bg text-status-success',
-          property: doc.related?.length > 0 ? doc.related[0] : '—',
-        };
-
-        if (doc.item?.includes('EPC')) {
-          propertyManagement.push(certData);
-        } else {
-          essentialCertificates.push(certData);
-        }
-      });
-  }
-
-  return { expiredCertifications, totalCertificationsTracked, essentialCertificates, propertyManagement };
+  return { essentialCertificates, propertyManagement };
 };
+
+const CHECKLIST_STATUS_LABELS = {
+  complete: 'Complete',
+  pending: 'Pending',
+  not_applicable: 'N/A',
+};
+
+const buildLandlordChecklist = (items) =>
+  (items || []).map((item) => ({
+    item: item.item_label,
+    detail: 'Account requirement',
+    status: CHECKLIST_STATUS_LABELS[item.status] || item.status,
+    completed: item.verified_at ? gb(item.verified_at) : '—',
+    action: 'View Details',
+    icon: UserCheck,
+    color:
+      item.status === 'complete'
+        ? 'bg-status-success-bg text-status-success'
+        : 'bg-status-warning/10 text-status-warning',
+    rawStatus: item.status,
+    applicable: item.applicable !== 0,
+  }));
 
 const buildMoveInCompliance = (tenancies) =>
   tenancies.map((t) => ({
@@ -73,47 +88,110 @@ const buildOngoingTenantCompliance = (tenancies) =>
 
 export const useComplianceOverview = () => {
   // properties is fetched only to gate loading / surface its error (the page
-  // derives compliance from documents + tenancies, not the property list).
+  // derives compliance from certificates + tenancies + the landlord checklist).
   const { loading: propertiesLoading, error } = useProperties();
   const { tenancies, loading: tenancyLoading } = useTenancy();
-  const { documents, loading: documentsLoading } = useDocuments();
+  const { certificatesData, loading: certificatesLoading } = useCertificates();
+  const { selectedProperty } = usePropertyContext();
 
-  const loading = propertiesLoading || tenancyLoading || documentsLoading;
+  // Landlord-scope compliance checklist (KYC / ToB / ownership / bank details).
+  const [checklistItems, setChecklistItems] = useState([]);
+  const [checklistLoading, setChecklistLoading] = useState(true);
 
-  const {
-    expiredCertifications,
-    totalCertificationsTracked,
-    essentialCertificates,
-    propertyManagement,
-  } = useMemo(() => buildCertificates(documents), [documents]);
+  useEffect(() => {
+    const fetchChecklist = async () => {
+      setChecklistLoading(true);
+      try {
+        const res = await api.get('/landlords/my/checklist');
+        setChecklistItems(res.data.data?.landlord || []);
+      } catch (err) {
+        console.error(err);
+        setChecklistItems([]);
+      } finally {
+        setChecklistLoading(false);
+      }
+    };
+    fetchChecklist();
+  }, []);
 
-  const overallCompliancePct = totalCertificationsTracked
+  const loading =
+    propertiesLoading || tenancyLoading || certificatesLoading || checklistLoading;
+
+  // Scope tenancies to the globally-selected property (certificates arrive
+  // already scoped by useCertificates).
+  const scopedTenancies = useMemo(
+    () => filterByProperty(tenancies, selectedProperty),
+    [tenancies, selectedProperty],
+  );
+
+  const { essentialCertificates, propertyManagement } = useMemo(
+    () => splitCertificates(certificatesData),
+    [certificatesData],
+  );
+
+  const landlordChecklist = useMemo(
+    () => buildLandlordChecklist(checklistItems),
+    [checklistItems],
+  );
+
+  const moveInCompliance = useMemo(
+    () => buildMoveInCompliance(scopedTenancies),
+    [scopedTenancies],
+  );
+  const ongoingTenantCompliance = useMemo(
+    () => buildOngoingTenantCompliance(scopedTenancies),
+    [scopedTenancies],
+  );
+
+  // Certificates that exist (uploaded) are "tracked"; the compliance figure is
+  // the share of tracked certificates that are not expired.
+  const trackedCerts = certificatesData.filter((c) => c.status !== 'Not Uploaded');
+  const expiredCertifications = certificatesData.filter((c) => c.status === 'Expired').length;
+  const expiringSoonCount = certificatesData.filter((c) => c.status === 'Expiring Soon').length;
+
+  const certCompliancePct = trackedCerts.length
+    ? Math.round(((trackedCerts.length - expiredCertifications) / trackedCerts.length) * 100)
+    : 100;
+
+  // Tenant compliance: share of tenant rows currently marked Compliant.
+  const tenantRows = [...moveInCompliance, ...ongoingTenantCompliance];
+  const tenantCompliancePct = tenantRows.length
     ? Math.round(
-        ((totalCertificationsTracked - expiredCertifications) /
-          totalCertificationsTracked) *
+        (tenantRows.filter((r) => r.status === 'Compliant').length / tenantRows.length) * 100,
+      )
+    : 100;
+
+  // Landlord compliance: applicable checklist items completed + tracked
+  // certificates not expired, as one combined percentage.
+  const applicableChecklist = landlordChecklist.filter(
+    (i) => i.applicable && i.rawStatus !== 'not_applicable',
+  );
+  const checklistComplete = applicableChecklist.filter((i) => i.rawStatus === 'complete').length;
+  const landlordDenominator = applicableChecklist.length + trackedCerts.length;
+  const landlordCompliancePct = landlordDenominator
+    ? Math.round(
+        ((checklistComplete + (trackedCerts.length - expiredCertifications)) /
+          landlordDenominator) *
           100,
       )
     : 100;
 
-  const stats = {
-    overall: overallCompliancePct,
-    actionRequired: expiredCertifications,
-    expiringSoon: 0,
-    upToDate: totalCertificationsTracked - expiredCertifications,
-    tenantCompliance: 100,
-    landlordCompliance: overallCompliancePct,
-  };
+  const pendingChecklistCount = applicableChecklist.length - checklistComplete;
 
-  const moveInCompliance = useMemo(() => buildMoveInCompliance(tenancies), [tenancies]);
-  const ongoingTenantCompliance = useMemo(
-    () => buildOngoingTenantCompliance(tenancies),
-    [tenancies],
-  );
+  const stats = {
+    overall: certCompliancePct,
+    actionRequired: expiredCertifications + pendingChecklistCount,
+    expiringSoon: expiringSoonCount,
+    upToDate: certificatesData.filter((c) => c.status === 'Valid').length,
+    tenantCompliance: tenantCompliancePct,
+    landlordCompliance: landlordCompliancePct,
+  };
 
   return {
     loading,
     error,
     stats,
+    landlordChecklist,
     moveInCompliance,
     ongoingTenantCompliance,
     essentialCertificates,

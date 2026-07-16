@@ -1,36 +1,40 @@
-import React, { useState, useEffect } from "react";
+import { useState } from "react";
 import { usePropertyContext } from "../context/PropertyContext";
-import { useNavigate } from "react-router-dom";
 import {
   FileText,
   ShieldCheck,
   Clock,
   AlertCircle,
-  Plus,
   ChevronRight,
-  HardDrive,
-  MoreVertical,
+  Download,
 } from "lucide-react";
 import { PortalMetricCard } from "../components/UI/PortalMetricCard";
 import { FilterRibbon } from "../components/UI/FilterRibbon";
 import { Pagination } from "../components/UI/Pagination";
 import { TableEmptyState } from "../components/UI/TableEmptyState";
-import { PortalCard } from "../components/UI/PortalCard";
 import { Button } from "../components/UI/Button";
 
 import { useDocuments } from "../hooks/useDocuments";
+import { useToast } from "../components/UI/ToastContext";
 
 export const Documents = () => {
   const { selectedProperty } = usePropertyContext();
-  const navigate = useNavigate();
-  const { documents, loading } = useDocuments();
+  const { documents, loading, handleDownload } = useDocuments();
+  const { addToast } = useToast();
+  const comingSoon = () => addToast("This feature is coming soon.", "info");
 
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterType, setFilterType] = useState("All Types");
   const [filterCategory, setFilterCategory] = useState("All Categories");
   const [filterRelated, setFilterRelated] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All Statuses");
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setFilterCategory("All Categories");
+    setFilterRelated("All");
+    setFilterStatus("All Statuses");
+  };
 
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
@@ -54,20 +58,30 @@ export const Documents = () => {
   }
 
   if (filterCategory && filterCategory !== "All Categories") {
-    documentsData = documentsData.filter(doc => doc.category === filterCategory);
-  }
-  
-  if (filterType && filterType !== "All Types") {
-    documentsData = documentsData.filter(doc => doc.category === filterType); // We use category as type here
-  }
-  
-  if (filterStatus && filterStatus !== "All Statuses") {
-    documentsData = documentsData.filter(doc => doc.status === filterStatus);
+    documentsData = documentsData.filter((doc) => doc.category === filterCategory);
   }
 
-  useEffect(() => {
+  if (filterRelated && filterRelated !== "All") {
+    documentsData = documentsData.filter((doc) =>
+      (doc.related || []).includes(filterRelated),
+    );
+  }
+
+  if (filterStatus && filterStatus !== "All Statuses") {
+    documentsData = documentsData.filter((doc) => doc.status === filterStatus);
+  }
+
+  // Reset to page 1 when the data or the active filters change (render-time
+  // pattern). This also fixes a prior bug where a fresh documentsData array
+  // reset the page on every render, making pagination impossible.
+  const resetKey = `${searchQuery}|${filterCategory}|${filterRelated}|${filterStatus}|${
+    selectedProperty?.property_reference || selectedProperty?.name || "all"
+  }`;
+  const [prevResetKey, setPrevResetKey] = useState(resetKey);
+  if (prevResetKey !== resetKey) {
+    setPrevResetKey(resetKey);
     setCurrentPage(1);
-  }, [documentsData]);
+  }
 
   const totalItems = documentsData.length;
   const totalPages = Math.ceil(totalItems / pageSize);
@@ -93,33 +107,49 @@ export const Documents = () => {
     Compliance: documentsData.filter(d => d.category === 'Compliance').length,
   };
 
+  // Filter options built from the real data so every dropdown value maps to
+  // at least one document (derived from the full set, not the filtered view).
+  const categoryOptions = [
+    { value: "All Categories", label: "All Categories" },
+    ...[...new Set((documents || []).map((d) => d.category).filter(Boolean))]
+      .sort()
+      .map((c) => ({ value: c, label: c })),
+  ];
+  const relatedOptions = [
+    { value: "All", label: "All" },
+    ...[
+      ...new Set((documents || []).flatMap((d) => d.related || []).filter(Boolean)),
+    ]
+      .sort()
+      .map((r) => ({ value: r, label: r })),
+  ];
+  const statusOptions = [
+    { value: "All Statuses", label: "All Statuses" },
+    ...[...new Set((documents || []).map((d) => d.status).filter(Boolean))]
+      .sort()
+      .map((s) => ({ value: s, label: s })),
+  ];
+
   const filtersConfig = [
-    {
-      label: "Document Type",
-      value: filterType,
-      onChange: setFilterType,
-      options: [{ value: "All Types", label: "All Types" }],
-      width: "w-32",
-    },
     {
       label: "Category",
       value: filterCategory,
       onChange: setFilterCategory,
-      options: [{ value: "All Categories", label: "All Categories" }],
+      options: categoryOptions,
       width: "w-36",
     },
     {
       label: "Related To",
       value: filterRelated,
       onChange: setFilterRelated,
-      options: [{ value: "All", label: "All" }],
+      options: relatedOptions,
       width: "w-32",
     },
     {
       label: "Status",
       value: filterStatus,
       onChange: setFilterStatus,
-      options: [{ value: "All Statuses", label: "All Statuses" }],
+      options: statusOptions,
       width: "w-32",
     },
   ];
@@ -140,7 +170,7 @@ export const Documents = () => {
           icon={FileText}
           variant="info"
           actionText="View All Documents"
-          onActionClick={() => {}}
+          onActionClick={clearFilters}
         />
         <PortalMetricCard
           label="Up to Date"
@@ -148,7 +178,7 @@ export const Documents = () => {
           icon={ShieldCheck}
           variant="success"
           actionText="View Up to Date"
-          onActionClick={() => {}}
+          onActionClick={() => setFilterStatus("Valid")}
         />
         <PortalMetricCard
           label="Expiring Soon"
@@ -156,7 +186,7 @@ export const Documents = () => {
           icon={Clock}
           variant="warning"
           actionText="View Expiring Soon"
-          onActionClick={() => {}}
+          onActionClick={comingSoon}
         />
         <PortalMetricCard
           label="Expired"
@@ -164,7 +194,7 @@ export const Documents = () => {
           icon={AlertCircle}
           variant="danger"
           actionText="View Expired"
-          onActionClick={() => {}}
+          onActionClick={() => setFilterStatus("Expired")}
         />
       </div>
 
@@ -198,7 +228,7 @@ export const Documents = () => {
                     <TableEmptyState
                       colSpan={7}
                       loading={loading}
-                      emptyText="No documents stored."
+                      emptyText="No documents match the selected filters."
                       className="py-8 text-center text-gray-400 font-semibold"
                     />
                   ) : (
@@ -218,9 +248,10 @@ export const Documents = () => {
                             variant="icon-only"
                             size="sm"
                             className="p-1 hover:text-brand-primary rounded cursor-pointer"
-                            p-1
+                            onClick={() => handleDownload(row)}
+                            title="Download document"
                           >
-                            <MoreVertical size={13} />
+                            <Download size={13} />
                           </Button>
                         </td>
                       </tr>
@@ -274,12 +305,11 @@ export const Documents = () => {
             <Button
               variant="link"
               className="text-xs-portal font-bold text-status-info hover:underline text-left mt-1 flex items-center gap-0.5 cursor-pointer"
+              onClick={comingSoon}
             >
               View All Categories <ChevronRight size={10} />
             </Button>
           </div>
-
-          <PortalCard title=" Document Categories" />
 
           {/* Recent Uploads */}
           <div className="card-bg border border-card-border rounded-card p-5 shadow-xs flex flex-col gap-4">

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   FileText,
   Calendar,
@@ -16,10 +15,11 @@ import { TableEmptyState } from "../components/UI/TableEmptyState";
 import { StatusPill } from "../components/UI/StatusPill";
 import { Skeleton } from "../components/UI/Skeleton";
 import { useCertificates } from "../hooks/useCertificates";
+import { useToast } from "../components/UI/ToastContext";
 
 export const Certificates = () => {
-  // Certificate derivation, pagination and stats live in the hook; the page
-  // keeps only its filter UI state and renders.
+  // Certificate derivation, filtering, pagination and stats all live in the
+  // hook; the page wires the (real-data) filter options and renders.
   const {
     loading,
     error,
@@ -34,50 +34,41 @@ export const Certificates = () => {
     compliantCount,
     expiredCount,
     expiringSoonCount,
+    filterProperty,
+    setFilterProperty,
+    filterType,
+    setFilterType,
+    filterStatus,
+    setFilterStatus,
+    propertyOptions,
+    typeOptions,
+    statusOptions,
+    clearFilters,
   } = useCertificates();
 
-  // Filter states
-  const [filterProperty, setFilterProperty] = useState("All Properties");
-  const [filterType, setFilterType] = useState("All Types");
-  const [filterStatus, setFilterStatus] = useState("All Statuses");
-  const [filterDue, setFilterDue] = useState("All Time");
+  const { addToast } = useToast();
+  const comingSoon = () => addToast("This feature is coming soon.", "info");
 
   const filtersConfig = [
     {
       label: "Filter by Property",
       value: filterProperty,
       onChange: setFilterProperty,
-      options: [{ value: "All Properties", label: "All Properties" }],
+      options: propertyOptions,
       width: "w-44",
     },
     {
       label: "Filter by Type",
       value: filterType,
       onChange: setFilterType,
-      options: [
-        { value: "All Types", label: "All Types" },
-        { value: "Gas Safety", label: "Gas Safety" },
-        { value: "EPC", label: "EPC" },
-        { value: "Electrical Safety", label: "Electrical Safety" },
-      ],
+      options: typeOptions,
       width: "w-32",
     },
     {
       label: "Filter by Status",
       value: filterStatus,
       onChange: setFilterStatus,
-      options: [
-        { value: "All Statuses", label: "All Statuses" },
-        { value: "Valid", label: "Valid" },
-        { value: "Expired", label: "Expired" },
-      ],
-      width: "w-32",
-    },
-    {
-      label: "Due Within",
-      value: filterDue,
-      onChange: setFilterDue,
-      options: [{ value: "All Time", label: "All Time" }],
+      options: statusOptions,
       width: "w-32",
     },
   ];
@@ -85,7 +76,7 @@ export const Certificates = () => {
   const actionConfig = {
     label: "Request Certificate",
     icon: PlusCircle,
-    onClick: () => {},
+    onClick: comingSoon,
   };
 
   if (loading) {
@@ -125,7 +116,7 @@ export const Certificates = () => {
           icon={FileText}
           variant="info"
           actionText="View All"
-          onActionClick={() => {}}
+          onActionClick={clearFilters}
         />
         <PortalMetricCard
           label="Compliant"
@@ -133,7 +124,7 @@ export const Certificates = () => {
           icon={ShieldCheck}
           variant="success"
           actionText="View Compliant"
-          onActionClick={() => {}}
+          onActionClick={() => setFilterStatus("Valid")}
         />
         <PortalMetricCard
           label="Expiring Soon"
@@ -141,7 +132,7 @@ export const Certificates = () => {
           icon={Calendar}
           variant="warning"
           actionText="View Expiring"
-          onActionClick={() => {}}
+          onActionClick={comingSoon}
         />
         <PortalMetricCard
           label="Expired"
@@ -149,7 +140,7 @@ export const Certificates = () => {
           icon={AlertCircle}
           variant="danger"
           actionText="View Expired"
-          onActionClick={() => {}}
+          onActionClick={() => setFilterStatus("Expired")}
         />
       </div>
 
@@ -176,12 +167,12 @@ export const Certificates = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {loading || certificatesData.length === 0 ? (
+                  {paginatedCertificates.length === 0 ? (
                     <TableEmptyState
                       colSpan={7}
                       loading={loading}
                       loadingText="Loading certificates..."
-                      emptyText="No property compliance certificates found."
+                      emptyText="No certificates match the selected filters."
                     />
                   ) : (
                     paginatedCertificates.map((row, idx) => {
@@ -238,6 +229,7 @@ export const Certificates = () => {
                               <Button
                                 variant="secondary"
                                 className="!py-0.5 !px-2.5 text-2xs font-bold card-bg"
+                                onClick={comingSoon}
                               >
                                 {row.action}
                               </Button>
@@ -245,6 +237,7 @@ export const Certificates = () => {
                                 variant="icon-only"
                                 size="sm"
                                 className="p-0.5 text-sidebar-text-muted hover:text-brand-primary cursor-pointer"
+                                onClick={comingSoon}
                               >
                                 <MoreVertical size={13} />
                               </Button>
@@ -344,7 +337,7 @@ export const Certificates = () => {
               icon={ChevronRight}
               iconPosition="right"
               className="w-full font-bold card-bg text-xs-portal"
-              onClick={() => {}}
+              onClick={comingSoon}
             >
               Request Inspection
             </Button>

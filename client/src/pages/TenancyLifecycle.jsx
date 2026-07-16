@@ -17,6 +17,7 @@ import { Button } from "../components/UI/Button";
 import { DonutChart } from "../components/UI/DonutChart";
 import { TableEmptyState } from "../components/UI/TableEmptyState";
 import { Skeleton } from "../components/UI/Skeleton";
+import { useToast } from "../components/UI/ToastContext";
 
 export const TenancyLifecycle = () => {
   // All statistics and the upcoming-renewals table are derived in the hook;
@@ -34,7 +35,11 @@ export const TenancyLifecycle = () => {
     moveOutsCount,
     moveOutsPct,
     formattedRenewals,
+    deposits,
   } = useTenancyLifecycle();
+
+  const { addToast } = useToast();
+  const comingSoon = () => addToast("This feature is coming soon.", "info");
 
   if (loading) {
     return (
@@ -73,7 +78,7 @@ export const TenancyLifecycle = () => {
           icon={Users}
           variant="info"
           actionText="View Tenancies"
-          onActionClick={() => {}}
+          onActionClick={comingSoon}
         />
         <PortalMetricCard
           label="Move Ins (This Month)"
@@ -81,7 +86,7 @@ export const TenancyLifecycle = () => {
           icon={ArrowUpRight}
           variant="success"
           actionText="View Move Ins"
-          onActionClick={() => {}}
+          onActionClick={comingSoon}
         />
         <PortalMetricCard
           label="Upcoming Renewals"
@@ -89,7 +94,7 @@ export const TenancyLifecycle = () => {
           icon={RefreshCw}
           variant="warning"
           actionText="View Renewals"
-          onActionClick={() => {}}
+          onActionClick={comingSoon}
         />
         <PortalMetricCard
           label="Move Outs (This Month)"
@@ -97,7 +102,7 @@ export const TenancyLifecycle = () => {
           icon={LogOut}
           variant="danger"
           actionText="View Move Outs"
-          onActionClick={() => {}}
+          onActionClick={comingSoon}
         />
       </div>
 
@@ -213,6 +218,7 @@ export const TenancyLifecycle = () => {
               <Button
                 variant="link"
                 className="text-xs-portal font-bold text-status-info hover:underline cursor-pointer"
+                onClick={comingSoon}
               >
                 View All Renewals
               </Button>
@@ -268,6 +274,7 @@ export const TenancyLifecycle = () => {
                             <Button
                               variant="secondary"
                               className="!py-0.5 !px-2.5 text-2xs font-bold card-bg"
+                              onClick={comingSoon}
                             >
                               Review Renewal
                             </Button>
@@ -275,6 +282,7 @@ export const TenancyLifecycle = () => {
                               variant="icon-only"
                               size="sm"
                               className="p-0.5 text-sidebar-text-muted hover:text-brand-primary cursor-pointer"
+                              onClick={comingSoon}
                             >
                               <MoreVertical size={13} />
                             </Button>
@@ -296,6 +304,7 @@ export const TenancyLifecycle = () => {
               <Button
                 variant="link"
                 className="text-xs-portal font-bold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
+                onClick={comingSoon}
               >
                 View All Renewals <ChevronRight size={12} />
               </Button>
@@ -374,9 +383,51 @@ export const TenancyLifecycle = () => {
             <Button
               variant="link"
               className="text-xs-portal font-bold text-status-info hover:underline text-left mt-2 flex items-center gap-0.5 cursor-pointer"
+              onClick={comingSoon}
             >
               View Full Report <ChevronRight size={10} />
             </Button>
+          </div>
+
+          {/* Deposit Protection */}
+          <div className="card-bg border border-card-border rounded-card p-5 shadow-xs flex flex-col gap-4">
+            <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider pb-2 border-b border-card-border">
+              Deposit Protection
+            </h3>
+
+            <div className="flex flex-col gap-3 mt-1">
+              {deposits.length === 0 ? (
+                <div className="text-xs-portal text-gray-400 font-semibold py-2">
+                  No deposits held for your tenancies.
+                </div>
+              ) : (
+                deposits.map((dep, idx) => (
+                  <div
+                    key={idx}
+                    className="flex flex-col gap-1.5 border border-card-border rounded-card p-3"
+                  >
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-xs-portal font-bold text-brand-primary leading-tight">
+                        {dep.property}
+                      </span>
+                      <span className="text-xs-portal font-extrabold font-mono text-brand-primary shrink-0">
+                        £{dep.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center gap-2">
+                      <span className="text-2xs text-gray-400 font-semibold leading-none">
+                        {dep.scheme} • {dep.statusDate}
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 text-2xs font-bold rounded-sm border select-none inline-block ${dep.statusColor}`}
+                      >
+                        {dep.statusLabel}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
           {/* Tasks & Actions */}
@@ -388,6 +439,7 @@ export const TenancyLifecycle = () => {
               <Button
                 variant="link"
                 className="text-xs-portal font-bold text-status-info hover:underline cursor-pointer"
+                onClick={comingSoon}
               >
                 View All Tasks
               </Button>
@@ -407,7 +459,7 @@ export const TenancyLifecycle = () => {
             icon={Settings}
             iconPosition="left"
             className="w-full font-bold card-bg text-xs-portal h-9"
-            onClick={() => {}}
+            onClick={comingSoon}
           >
             Tenancy Lifecycle Settings
           </Button>

@@ -31,6 +31,8 @@ export const useProfile = () => {
     sortCode: '',
     accountNumber: '',
     ibanBic: '',
+    bankChangePending: false,
+    bankVerifiedAt: null,
 
     // Read-only Status / Verification
     kycStatus: 'not_started',
@@ -65,6 +67,8 @@ export const useProfile = () => {
         sortCode: user.sort_code || '',
         accountNumber: user.account_number || '',
         ibanBic: user.iban_bic || '',
+        bankChangePending: !!user.change_pending,
+        bankVerifiedAt: user.verified_at || null,
 
         kycStatus: user.kyc_status || 'not_started',
         kycProvider: user.kyc_provider || 'HIPLA',
@@ -109,6 +113,8 @@ export const useProfile = () => {
         sortCode: user.sort_code || '',
         accountNumber: user.account_number || '',
         ibanBic: user.iban_bic || '',
+        bankChangePending: !!user.change_pending,
+        bankVerifiedAt: user.verified_at || null,
 
         kycStatus: user.kyc_status || 'not_started',
         kycProvider: user.kyc_provider || 'HIPLA',
@@ -153,6 +159,11 @@ export const useProfile = () => {
     try {
       const response = await api.patch('/auth/profile', profileData, { skipInterceptorError: true });
       addToast('Profile updated successfully!', 'success');
+      // Bank-detail changes are held for admin verification before payouts use them.
+      const wasPending = !!user?.change_pending;
+      if (response.data.data?.change_pending && !wasPending) {
+        addToast('Your new bank details are pending verification by our team.', 'info');
+      }
       setIsEditing(false);
       if (updateUser) {
         updateUser(response.data.data);

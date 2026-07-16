@@ -57,7 +57,6 @@ export const FilterRibbon = ({
           size="sm"
           icon={action.icon}
           iconPosition={action.iconPosition || "left"}
-          className="font-bold text-xs-portal h-8.5 px-4"
           onClick={action.onClick}
         >
           {action.label}

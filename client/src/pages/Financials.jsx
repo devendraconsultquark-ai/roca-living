@@ -18,14 +18,20 @@ import { TableEmptyState } from "../components/UI/TableEmptyState";
 import { Pagination } from "../components/UI/Pagination";
 import { Skeleton } from "../components/UI/Skeleton";
 import { useFinancials } from "../hooks/useFinancials";
+import { useToast } from "../components/UI/ToastContext";
 
 export const Financials = () => {
   // All data, derived stats, the transaction view-model and pagination live in
   // the hook; this component is presentation only.
   const {
     stats,
+    invoiceStats,
+    invoiceRows,
+    handleDownloadInvoicePDF,
     transactions,
     paginatedTransactions,
+    chartData,
+    chartMax,
     loading,
     error,
     tabs,
@@ -37,12 +43,15 @@ export const Financials = () => {
     pageSize,
   } = useFinancials();
 
+  const { addToast } = useToast();
+  const comingSoon = () => addToast("This feature is coming soon.", "info");
+
   // Genuinely-local, ephemeral UI state (single-option display selectors) — no
   // data depends on it yet, so it stays in the component.
   const [statementPeriod] = useState("June 2026");
-  const [summaryFilter, setSummaryFilter] = useState("This Month");
-  const [chartFilter, setChartFilter] = useState("This Year");
-  const [invoiceFilter, setInvoiceFilter] = useState("This Month");
+  const [summaryFilter, setSummaryFilter] = useState("All Time");
+  const [chartFilter, setChartFilter] = useState("Last 6 Months");
+  const [invoiceFilter, setInvoiceFilter] = useState("All Time");
 
   if (loading) {
     return (
@@ -92,7 +101,7 @@ export const Financials = () => {
                     className="w-28"
                     value={summaryFilter}
                     onChange={setSummaryFilter}
-                    options={[{ value: "This Month", label: "This Month" }]}
+                    options={[{ value: "All Time", label: "All Time" }]}
                   />
                 }
               >
@@ -112,6 +121,7 @@ export const Financials = () => {
                     <Button
                       variant="link"
                       className="text-2xs font-bold text-status-info hover:underline text-left mt-2.5"
+                      onClick={comingSoon}
                     >
                       View Breakdown
                     </Button>
@@ -132,6 +142,7 @@ export const Financials = () => {
                     <Button
                       variant="link"
                       className="text-2xs font-bold text-status-info hover:underline text-left mt-2.5"
+                      onClick={comingSoon}
                     >
                       View Breakdown
                     </Button>
@@ -166,6 +177,7 @@ export const Financials = () => {
                     <Button
                       variant="link"
                       className="text-2xs font-bold text-status-info hover:underline text-left mt-2.5"
+                      onClick={comingSoon}
                     >
                       View Year to Date
                     </Button>
@@ -197,21 +209,21 @@ export const Financials = () => {
 
                   <div className="flex flex-col gap-3 min-w-[200px] border-t sm:border-t-0 sm:border-l border-card-border pt-4 sm:pt-0 sm:pl-6 text-xs-portal font-bold text-status-muted justify-center">
                     <div className="flex justify-between items-center">
-                      <span>Held Payments</span>
-                      <span className="text-text-primary font-extrabold font-mono">
-                        £0.00
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center border-t border-card-border pt-2.5">
                       <span>Unpaid Invoices</span>
                       <span className="text-text-primary font-extrabold font-mono">
-                        £0.00
+                        £
+                        {stats.unpaidInvoices.toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                        })}
                       </span>
                     </div>
                     <div className="flex justify-between items-center border-t border-card-border pt-2.5">
                       <span>Pending Payouts</span>
                       <span className="text-text-primary font-extrabold font-mono">
-                        £0.00
+                        £
+                        {stats.pendingPayouts.toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                        })}
                       </span>
                     </div>
                   </div>
@@ -230,7 +242,7 @@ export const Financials = () => {
                     className="w-28"
                     value={chartFilter}
                     onChange={setChartFilter}
-                    options={[{ value: "This Year", label: "This Year" }]}
+                    options={[{ value: "Last 6 Months", label: "Last 6 Months" }]}
                   />
                 }
               >
@@ -250,9 +262,9 @@ export const Financials = () => {
                 <div className="flex mt-auto items-stretch relative">
                   {/* Y-Axis Labels */}
                   <div className="flex flex-col justify-between text-2xs text-gray-400 font-bold h-36 pb-4 pr-2 select-none text-right w-10">
-                    <span>£1,500</span>
-                    <span>£1,000</span>
-                    <span>£500</span>
+                    <span>£{chartMax.toLocaleString()}</span>
+                    <span>£{Math.round((chartMax * 2) / 3).toLocaleString()}</span>
+                    <span>£{Math.round(chartMax / 3).toLocaleString()}</span>
                     <span>£0</span>
                   </div>
 
@@ -268,14 +280,7 @@ export const Financials = () => {
 
                     {/* Bars flex row */}
                     <div className="absolute inset-x-0 -top-2 bottom-0 flex items-stretch justify-between px-2 z-10">
-                      {[
-                        { month: "Jan", income: 1045, expenses: 250 },
-                        { month: "Feb", income: 1120, expenses: 200 },
-                        { month: "Mar", income: 1120, expenses: 250 },
-                        { month: "Apr", income: 1250, expenses: 200 },
-                        { month: "May", income: 1200, expenses: 200 },
-                        { month: "Jun", income: 1200, expenses: 150 },
-                      ].map((item, idx) => (
+                      {chartData.map((item, idx) => (
                         <div
                           key={idx}
                           className="flex flex-col items-center flex-1 h-full justify-between group"
@@ -286,17 +291,17 @@ export const Financials = () => {
                             <div
                               className="w-2.5 bg-status-info rounded-t-xs hover:opacity-95 transition-opacity"
                               style={{
-                                height: `${(item.income / 1500) * 100}%`,
+                                height: `${(item.income / chartMax) * 100}%`,
                               }}
-                              title={`Income: £${item.income}`}
+                              title={`Income: £${item.income.toFixed(2)}`}
                             />
                             {/* Expenses Bar */}
                             <div
                               className="w-2.5 bg-gray-300 rounded-t-xs hover:opacity-95 transition-opacity"
                               style={{
-                                height: `${(item.expenses / 1500) * 100}%`,
+                                height: `${(item.expenses / chartMax) * 100}%`,
                               }}
-                              title={`Expenses: £${item.expenses}`}
+                              title={`Expenses: £${item.expenses.toFixed(2)}`}
                             />
                           </div>
                           {/* X-Axis Label */}
@@ -324,7 +329,7 @@ export const Financials = () => {
                       variant="icon-only"
                       size="sm"
                       className="flex items-center gap-1 cursor-pointer hover:underline"
-                      p-1
+                      onClick={comingSoon}
                     >
                       <Filter size={11} /> Filters
                     </Button>
@@ -332,7 +337,7 @@ export const Financials = () => {
                       variant="icon-only"
                       size="sm"
                       className="flex items-center gap-1 cursor-pointer hover:underline"
-                      p-1
+                      onClick={comingSoon}
                     >
                       <Download size={11} /> Download
                     </Button>
@@ -441,7 +446,7 @@ export const Financials = () => {
                                   variant="icon-only"
                                   size="sm"
                                   className="p-1 hover:text-brand-primary rounded cursor-pointer"
-                                  p-1
+                                  onClick={comingSoon}
                                 >
                                   <MoreVertical size={14} />
                                 </Button>
@@ -489,6 +494,7 @@ export const Financials = () => {
                     icon={Download}
                     iconPosition="right"
                     className="w-full"
+                    onClick={comingSoon}
                   >
                     Download Statement
                   </Button>
@@ -504,7 +510,7 @@ export const Financials = () => {
                     className="w-28"
                     value={invoiceFilter}
                     onChange={setInvoiceFilter}
-                    options={[{ value: "This Month", label: "This Month" }]}
+                    options={[{ value: "All Time", label: "All Time" }]}
                   />
                 }
               >
@@ -513,16 +519,22 @@ export const Financials = () => {
                     <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider">
                       Outstanding Invoices
                     </span>
-                    <span className="text-sm-portal font-extrabold text-status-success font-mono mt-1 leading-none">
-                      £0.00
+                    <span className="text-sm-portal font-extrabold text-status-warning font-mono mt-1 leading-none">
+                      £
+                      {invoiceStats.outstanding.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                      })}
                     </span>
                   </div>
                   <div className="flex flex-col border-l border-card-border pl-4">
                     <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider">
-                      Overdue
+                      Voided
                     </span>
-                    <span className="text-sm-portal font-extrabold text-status-danger font-mono mt-1 leading-none">
-                      £0.00
+                    <span className="text-sm-portal font-extrabold text-status-muted font-mono mt-1 leading-none">
+                      £
+                      {invoiceStats.voided.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                      })}
                     </span>
                   </div>
                   <div className="flex flex-col">
@@ -530,7 +542,10 @@ export const Financials = () => {
                       Paid Invoices
                     </span>
                     <span className="text-sm-portal font-extrabold text-status-success font-mono mt-1 leading-none">
-                      £0.00
+                      £
+                      {invoiceStats.paid.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                      })}
                     </span>
                   </div>
                   <div className="flex flex-col border-l border-card-border pl-4">
@@ -538,19 +553,103 @@ export const Financials = () => {
                       Total Invoices
                     </span>
                     <span className="text-sm-portal font-bold text-gray-400 font-mono mt-1 leading-none">
-                      0
+                      {invoiceStats.count}
                     </span>
                   </div>
                 </div>
 
                 <div className="mt-4 pt-1 flex justify-center">
-                  <Button className="w-full flex items-center justify-between border border-card-border hover:border-gray-300 rounded-card py-2 px-4 text-xs-portal font-bold text-text-primary cursor-pointer card-bg">
+                  <Button
+                    onClick={() => setActiveTab("Invoices")}
+                    className="w-full flex items-center justify-between border border-card-border hover:border-gray-300 rounded-card py-2 px-4 text-xs-portal font-bold text-text-primary cursor-pointer card-bg"
+                  >
                     <span>View Invoices</span>
                     <ChevronRight size={12} />
                   </Button>
                 </div>
               </PortalCard>
             </div>
+          </div>
+        </div>
+      ) : activeTab === "Invoices" ? (
+        <div className="card-bg border border-card-border rounded-card p-5 shadow-xs animate-fade-in">
+          <div className="flex justify-between items-center pb-3 border-b border-card-border select-none">
+            <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider">
+              My Invoices
+            </h3>
+          </div>
+
+          <div className="overflow-x-auto w-full mt-3">
+            <table className="w-full text-left border-collapse text-xs-portal">
+              <thead>
+                <tr className="border-b border-card-border text-2xs text-gray-400 font-bold uppercase tracking-wider">
+                  <th className="py-3 px-2">Invoice</th>
+                  <th className="py-3 px-2">Property</th>
+                  <th className="py-3 px-2">Period</th>
+                  <th className="py-3 px-2">Issued</th>
+                  <th className="py-3 px-2 text-right">Net Amount</th>
+                  <th className="py-3 px-2">Status</th>
+                  <th className="py-3 px-2 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {invoiceRows.length === 0 ? (
+                  <TableEmptyState
+                    colSpan={7}
+                    loading={loading}
+                    loadingText="Loading invoices..."
+                    emptyText="No invoices have been issued yet."
+                  />
+                ) : (
+                  invoiceRows.map((inv) => (
+                    <tr
+                      key={inv.id}
+                      className="hover:bg-surface-light/50 transition-colors"
+                    >
+                      <td className="py-3 px-2 font-bold text-brand-primary">
+                        {inv.number}
+                      </td>
+                      <td className="py-3 px-2 font-semibold text-status-muted">
+                        {inv.property}
+                      </td>
+                      <td className="py-3 px-2 font-semibold text-status-muted">
+                        {inv.period}
+                      </td>
+                      <td className="py-3 px-2 font-semibold text-brand-primary">
+                        {inv.date}
+                      </td>
+                      <td className="py-3 px-2 text-right font-extrabold font-mono text-brand-primary">
+                        £{inv.net.toFixed(2)}
+                      </td>
+                      <td className="py-3 px-2">
+                        <span
+                          className={`px-2 py-0.5 text-2xs font-bold rounded-sm border select-none inline-block ${
+                            inv.status === "Paid"
+                              ? "text-status-success bg-status-success-bg border-status-success/15"
+                              : inv.status === "Voided"
+                                ? "text-status-muted bg-surface-light border-card-border"
+                                : "text-status-warning bg-status-warning/10 border-status-warning/15"
+                          }`}
+                        >
+                          {inv.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-2">
+                        <div className="flex items-center justify-center">
+                          <Button
+                            variant="secondary"
+                            className="!py-0.5 !px-2.5 text-2xs font-bold card-bg flex items-center gap-1"
+                            onClick={() => handleDownloadInvoicePDF(inv.raw)}
+                          >
+                            <Download size={10} /> PDF
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       ) : (

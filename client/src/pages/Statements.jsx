@@ -1,15 +1,12 @@
-import React, { useState, useEffect } from "react";
-import { usePropertyContext } from "../context/PropertyContext";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Download,
   ArrowDown,
   Wallet,
   Calendar,
-  ShieldCheck,
   ChevronRight,
   Info,
-  Archive,
   MoreVertical,
 } from "lucide-react";
 import { PortalCard } from "../components/UI/PortalCard";
@@ -24,13 +21,19 @@ import { Skeleton } from "../components/UI/Skeleton";
 import { TableEmptyState } from "../components/UI/TableEmptyState";
 import { StatusPill } from "../components/UI/StatusPill";
 import { useToast } from "../components/UI/ToastContext";
+import { usePropertyContext } from "../context/PropertyContext";
+import { filterByProperty } from "../utilities/propertyFilter";
 
 export const Statements = () => {
-  const { selectedProperty } = usePropertyContext();
   const navigate = useNavigate();
   const { statements, loading, error, handleDownloadPDF } = useStatements();
 
   const { addToast } = useToast();
+  const comingSoon = () => addToast("This feature is coming soon.", "info");
+
+  const { selectedProperty } = usePropertyContext();
+  // Scope to the globally-selected property (no-op when "All Properties").
+  const scopedStatements = filterByProperty(statements, selectedProperty);
 
   const [filterPeriod, setFilterPeriod] = useState("All Periods");
   const [fromDate, setFromDate] = useState("2025-01-01");
@@ -43,9 +46,31 @@ export const Statements = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
-  useEffect(() => {
+  // Reset to page 1 when the data or the applied filters change (render-time
+  // pattern — avoids setState-in-effect).
+  const [prevStmtReset, setPrevStmtReset] = useState({
+    statements,
+    selectedProperty,
+    appliedPeriod,
+    appliedFromDate,
+    appliedToDate,
+  });
+  if (
+    prevStmtReset.statements !== statements ||
+    prevStmtReset.selectedProperty !== selectedProperty ||
+    prevStmtReset.appliedPeriod !== appliedPeriod ||
+    prevStmtReset.appliedFromDate !== appliedFromDate ||
+    prevStmtReset.appliedToDate !== appliedToDate
+  ) {
+    setPrevStmtReset({
+      statements,
+      selectedProperty,
+      appliedPeriod,
+      appliedFromDate,
+      appliedToDate,
+    });
     setCurrentPage(1);
-  }, [statements]);
+  }
 
   const handlePeriodChange = (val) => {
     setFilterPeriod(val);
@@ -68,7 +93,7 @@ export const Statements = () => {
   };
 
   // Filter statements dynamically based on applied dates
-  const filteredStatements = statements.filter((s) => {
+  const filteredStatements = scopedStatements.filter((s) => {
     if (appliedPeriod === "All Periods") {
       return true;
     }
@@ -150,7 +175,7 @@ export const Statements = () => {
           icon={CirclePoundIcon}
           variant="success"
           actionText="View Breakdown"
-          onActionClick={() => {}}
+          onActionClick={comingSoon}
         />
         <PortalMetricCard
           label="Total Expenses (This Year)"
@@ -162,7 +187,7 @@ export const Statements = () => {
           icon={ArrowDown}
           variant="danger"
           actionText="View Breakdown"
-          onActionClick={() => {}}
+          onActionClick={comingSoon}
         />
         <PortalMetricCard
           label="Net Income (This Year)"
@@ -174,7 +199,7 @@ export const Statements = () => {
           icon={Wallet}
           variant="info"
           actionText="View Breakdown"
-          onActionClick={() => {}}
+          onActionClick={comingSoon}
         />
         <PortalMetricCard
           label="Last Statement"
@@ -182,7 +207,7 @@ export const Statements = () => {
           icon={Calendar}
           variant="warning"
           actionText="Download Statement"
-          onActionClick={() => {}}
+          onActionClick={comingSoon}
         />
       </div>
 
@@ -267,8 +292,6 @@ export const Statements = () => {
                     />
                   ) : (
                     paginatedStatements.map((row, index) => {
-                      const isCurrent =
-                        row.status === "Current" || row.status === "Active";
                       return (
                         <tr
                           key={index}
@@ -326,7 +349,7 @@ export const Statements = () => {
                                 variant="icon-only"
                                 size="sm"
                                 className="p-1 hover:text-brand-primary rounded cursor-pointer text-sidebar-text-muted"
-                                p-1
+                                onClick={comingSoon}
                               >
                                 <MoreVertical size={14} />
                               </Button>

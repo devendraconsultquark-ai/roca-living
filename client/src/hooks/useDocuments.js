@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '../components/UI/ToastContext';
 import api from '../utilities/api';
+import { downloadBlob } from '../utilities/download';
 
 export const useDocuments = () => {
   const [documents, setDocuments] = useState([]);
@@ -27,10 +28,29 @@ export const useDocuments = () => {
     fetchMyDocuments();
   }, []);
 
+  const handleDownload = async (doc) => {
+    try {
+      const res = await api.get(`/documents/${doc.id}/download`, {
+        responseType: 'blob',
+        skipInterceptorError: true
+      });
+      downloadBlob(res.data, doc.item || `document-${doc.id}`, res.headers?.['content-type']);
+    } catch (err) {
+      let msg = 'Failed to download document';
+      if (err.response?.data instanceof Blob) {
+        try { msg = JSON.parse(await err.response.data.text())?.message || msg; } catch { /* keep default */ }
+      } else {
+        msg = err.response?.data?.message || msg;
+      }
+      addToast(msg, 'error');
+    }
+  };
+
   return {
     documents,
     loading,
     error,
-    fetchMyDocuments
+    fetchMyDocuments,
+    handleDownload
   };
 };

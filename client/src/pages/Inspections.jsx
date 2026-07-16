@@ -1,6 +1,4 @@
-import React, { useState, useEffect } from "react";
-import { usePropertyContext } from "../context/PropertyContext";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import {
   ClipboardList,
   ShieldCheck,
@@ -8,7 +6,6 @@ import {
   AlertCircle,
   Plus,
   ChevronRight,
-  Info,
   MoreVertical,
 } from "lucide-react";
 import { useInspections } from "../hooks/useInspections";
@@ -19,23 +16,35 @@ import { Pagination } from "../components/UI/Pagination";
 import { TableEmptyState } from "../components/UI/TableEmptyState";
 import { StatusPill } from "../components/UI/StatusPill";
 import { Skeleton } from "../components/UI/Skeleton";
+import { useToast } from "../components/UI/ToastContext";
+import { usePropertyContext } from "../context/PropertyContext";
+import { filterByProperty } from "../utilities/propertyFilter";
 
 export const Inspections = () => {
-  const { selectedProperty } = usePropertyContext();
-  const navigate = useNavigate();
   const { inspections, loading, error } = useInspections();
+  const { addToast } = useToast();
+  const comingSoon = () => addToast("This feature is coming soon.", "info");
+
+  const { selectedProperty } = usePropertyContext();
+  // Scope to the globally-selected property (no-op when "All Properties").
+  const scopedInspections = filterByProperty(inspections, selectedProperty);
 
   // Filter states
   const [filterProperty, setFilterProperty] = useState("All Properties");
   const [filterType, setFilterType] = useState("All Types");
   const [filterStatus, setFilterStatus] = useState("All Statuses");
-  const [filterDue, setFilterDue] = useState("All Time");
+
+  const clearFilters = () => {
+    setFilterProperty("All Properties");
+    setFilterType("All Types");
+    setFilterStatus("All Statuses");
+  };
 
   // Compute stats dynamically from real inspections data
-  const totalCount = inspections.length;
+  const totalCount = scopedInspections.length;
 
   // A completed inspection is one where inspected_at or rating has been input
-  const completedCount = inspections.filter(
+  const completedCount = scopedInspections.filter(
     (i) => i.date && i.date !== "—",
   ).length;
   const completedPct = totalCount
@@ -43,7 +52,7 @@ export const Inspections = () => {
     : 0;
 
   // Scheduled inspections have a next_due in the future and aren't completed
-  const scheduledCount = inspections.filter((i) => {
+  const scheduledCount = scopedInspections.filter((i) => {
     if (!i.next_inspection_due) return false;
     const isFuture = new Date(i.next_inspection_due) >= new Date();
     // If not completed yet or has an upcoming target
@@ -54,7 +63,7 @@ export const Inspections = () => {
     : 0;
 
   // Overdue inspections have a next_due in the past
-  const overdueCount = inspections.filter((i) => {
+  const overdueCount = scopedInspections.filter((i) => {
     if (!i.next_inspection_due) return false;
     const isPast = new Date(i.next_inspection_due) < new Date();
     return isPast;
@@ -83,7 +92,7 @@ export const Inspections = () => {
   };
 
   // Convert raw hook list to table presentation array
-  const formattedInspections = inspections.map((i, idx) => {
+  const formattedInspections = scopedInspections.map((i) => {
     const countdownInfo = getCountdown(i.next_inspection_due);
     const hasBeenCompleted = i.date && i.date !== "—";
     const isOverdue = countdownInfo?.isOverdue;
@@ -120,22 +129,77 @@ export const Inspections = () => {
     };
   });
 
+  // Filter options derived from the real data — every option maps to a row.
+  const propertyOptions = [
+    { value: "All Properties", label: "All Properties" },
+    ...[
+      ...new Set(
+        formattedInspections.map((i) => i.property).filter((p) => p && p !== "—"),
+      ),
+    ]
+      .sort()
+      .map((p) => ({ value: p, label: p })),
+  ];
+  const typeOptions = [
+    { value: "All Types", label: "All Types" },
+    ...[...new Set(formattedInspections.map((i) => i.type).filter(Boolean))]
+      .sort()
+      .map((t) => ({ value: t, label: t })),
+  ];
+  const statusOptions = [
+    { value: "All Statuses", label: "All Statuses" },
+    ...[...new Set(formattedInspections.map((i) => i.status).filter(Boolean))]
+      .sort()
+      .map((s) => ({ value: s, label: s })),
+  ];
+
+  const filteredInspections = formattedInspections.filter((i) => {
+    if (filterProperty !== "All Properties" && i.property !== filterProperty)
+      return false;
+    if (filterType !== "All Types" && i.type !== filterType) return false;
+    if (filterStatus !== "All Statuses" && i.status !== filterStatus)
+      return false;
+    return true;
+  });
+
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
-  useEffect(() => {
+  // Reset to page 1 when the data or the active filters change (render-time
+  // pattern — avoids setState-in-effect).
+  const [prevReset, setPrevReset] = useState({
+    inspections,
+    selectedProperty,
+    filterProperty,
+    filterType,
+    filterStatus,
+  });
+  if (
+    prevReset.inspections !== inspections ||
+    prevReset.selectedProperty !== selectedProperty ||
+    prevReset.filterProperty !== filterProperty ||
+    prevReset.filterType !== filterType ||
+    prevReset.filterStatus !== filterStatus
+  ) {
+    setPrevReset({
+      inspections,
+      selectedProperty,
+      filterProperty,
+      filterType,
+      filterStatus,
+    });
     setCurrentPage(1);
-  }, [inspections]);
+  }
 
-  const totalItems = formattedInspections.length;
+  const totalItems = filteredInspections.length;
   const totalPages = Math.ceil(totalItems / pageSize);
 
-  const paginatedInspections = formattedInspections.slice(
+  const paginatedInspections = filteredInspections.slice(
     (currentPage - 1) * pageSize,
     currentPage * pageSize,
   );
 
-  // Sidebar collections
+  // Sidebar collections (from the full list, independent of the table filters)
   const upcomingList = formattedInspections.filter(
     (i) => i.status === "Scheduled",
   );
@@ -148,36 +212,21 @@ export const Inspections = () => {
       label: "Filter by Property",
       value: filterProperty,
       onChange: setFilterProperty,
-      options: [{ value: "All Properties", label: "All Properties" }],
+      options: propertyOptions,
       width: "w-44",
     },
     {
       label: "Filter by Inspection Type",
       value: filterType,
       onChange: setFilterType,
-      options: [
-        { value: "All Types", label: "All Types" },
-        { value: "Routine", label: "Routine" },
-      ],
+      options: typeOptions,
       width: "w-32",
     },
     {
       label: "Filter by Status",
       value: filterStatus,
       onChange: setFilterStatus,
-      options: [
-        { value: "All Statuses", label: "All Statuses" },
-        { value: "Scheduled", label: "Scheduled" },
-        { value: "Completed", label: "Completed" },
-        { value: "Overdue", label: "Overdue" },
-      ],
-      width: "w-32",
-    },
-    {
-      label: "Due Within",
-      value: filterDue,
-      onChange: setFilterDue,
-      options: [{ value: "All Time", label: "All Time" }],
+      options: statusOptions,
       width: "w-32",
     },
   ];
@@ -185,7 +234,7 @@ export const Inspections = () => {
   const actionConfig = {
     label: "Schedule Inspection",
     icon: Plus,
-    onClick: () => {},
+    onClick: comingSoon,
   };
 
   if (loading) {
@@ -225,7 +274,7 @@ export const Inspections = () => {
           icon={ClipboardList}
           variant="info"
           actionText="View All"
-          onActionClick={() => {}}
+          onActionClick={clearFilters}
         />
         <PortalMetricCard
           label="Completed"
@@ -233,7 +282,7 @@ export const Inspections = () => {
           icon={ShieldCheck}
           variant="success"
           actionText="View Completed"
-          onActionClick={() => {}}
+          onActionClick={() => setFilterStatus("Completed")}
         />
         <PortalMetricCard
           label="Scheduled"
@@ -241,7 +290,7 @@ export const Inspections = () => {
           icon={Calendar}
           variant="warning"
           actionText="View Scheduled"
-          onActionClick={() => {}}
+          onActionClick={() => setFilterStatus("Scheduled")}
         />
         <PortalMetricCard
           label="Overdue"
@@ -249,7 +298,7 @@ export const Inspections = () => {
           icon={AlertCircle}
           variant="danger"
           actionText="View Overdue"
-          onActionClick={() => {}}
+          onActionClick={() => setFilterStatus("Overdue")}
         />
       </div>
 
@@ -276,17 +325,15 @@ export const Inspections = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {loading || formattedInspections.length === 0 ? (
+                  {paginatedInspections.length === 0 ? (
                     <TableEmptyState
                       colSpan={7}
                       loading={loading}
                       loadingText="Loading inspections..."
-                      emptyText="No inspections scheduled or completed."
+                      emptyText="No inspections match the selected filters."
                     />
                   ) : (
                     paginatedInspections.map((row, idx) => {
-                      const isScheduled = row.status === "Scheduled";
-                      const isCompleted = row.status === "Completed";
                       return (
                         <tr
                           key={idx}
@@ -344,6 +391,7 @@ export const Inspections = () => {
                               <Button
                                 variant="secondary"
                                 className="!py-0.5 !px-2.5 text-2xs font-bold card-bg"
+                                onClick={comingSoon}
                               >
                                 {row.action}
                               </Button>
@@ -351,6 +399,7 @@ export const Inspections = () => {
                                 variant="icon-only"
                                 size="sm"
                                 className="p-0.5 text-sidebar-text-muted hover:text-brand-primary cursor-pointer"
+                                onClick={comingSoon}
                               >
                                 <MoreVertical size={13} />
                               </Button>
@@ -387,6 +436,7 @@ export const Inspections = () => {
               <Button
                 variant="link"
                 className="text-xs-portal font-bold text-status-info hover:underline cursor-pointer"
+                onClick={comingSoon}
               >
                 View Calendar
               </Button>
@@ -438,7 +488,7 @@ export const Inspections = () => {
               variant="secondary"
               size="sm"
               className="w-full font-bold card-bg text-xs-portal mt-1"
-              onClick={() => {}}
+              onClick={comingSoon}
             >
               View All Scheduled
             </Button>
@@ -453,6 +503,7 @@ export const Inspections = () => {
               <Button
                 variant="link"
                 className="text-xs-portal font-bold text-status-info hover:underline cursor-pointer"
+                onClick={comingSoon}
               >
                 View All
               </Button>
@@ -524,7 +575,7 @@ export const Inspections = () => {
               icon={ChevronRight}
               iconPosition="right"
               className="w-full font-bold card-bg text-xs-portal"
-              onClick={() => {}}
+              onClick={comingSoon}
             >
               Schedule Inspection
             </Button>

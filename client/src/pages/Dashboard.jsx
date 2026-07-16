@@ -15,9 +15,12 @@ import { TimelineItem } from "../components/UI/TimelineItem";
 import { Button } from "../components/UI/Button";
 import { Dropdown } from "../components/UI/Dropdown";
 import { Skeleton } from "../components/UI/Skeleton";
+import { useToast } from "../components/UI/ToastContext";
 
 export const Dashboard = () => {
   const navigate = useNavigate();
+  const { addToast } = useToast();
+  const comingSoon = () => addToast("This feature is coming soon.", "info");
 
   // Everything data/derived — financial figures, compliance score, key dates,
   // the activity feed and the alerts list — lives in the hook; this component
@@ -30,7 +33,7 @@ export const Dashboard = () => {
     loading,
     rentReceived,
     netIncome,
-    totalFees,
+    expenditure,
     deductions,
     expiredCertifications,
     overallCompliancePct,
@@ -101,11 +104,10 @@ export const Dashboard = () => {
               <div>
                 <div className="flex items-center justify-between">
                   <span
-                    className={`px-2 py-0.5 text-2xs rounded-full select-none ${
-                      hasActiveTenancy
-                        ? "text-status-success bg-status-success-bg"
-                        : "text-gray-400 bg-surface-hover"
-                    }`}
+                    className={`px-2 py-0.5 text-2xs rounded-full select-none ${hasActiveTenancy
+                      ? "text-status-success bg-status-success-bg"
+                      : "text-gray-400 bg-surface-hover"
+                      }`}
                   >
                     {hasActiveTenancy ? "Occupied" : "Vacant"}
                   </span>
@@ -318,11 +320,11 @@ export const Dashboard = () => {
 
               <div className="flex justify-between items-center py-1.5">
                 <span className="text-status-muted font-bold">
-                  Total Fees Paid
+                  Total Expenditure
                 </span>
                 <span className="font-bold text-brand-primary font-mono text-sm-portal">
-                  {totalFees !== undefined && totalFees !== null
-                    ? `£${parseFloat(totalFees).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                  {expenditure !== undefined && expenditure !== null
+                    ? `£${parseFloat(expenditure).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
                     : "£0.00"}
                 </span>
               </div>
@@ -378,10 +380,13 @@ export const Dashboard = () => {
             </span>
           </div>
           <Button
+            variant="primary"
+            size="sm"
+            icon={ChevronRight}
+            iconPosition="right"
             onClick={() => navigate("/compliance/overview")}
-            className="text-xs-portal font-bold text-status-info hover:underline flex items-center cursor-pointer"
           >
-            View All Alerts <ChevronRight size={12} className="ml-0.5" />
+            View All Alerts
           </Button>
         </div>
 
@@ -395,13 +400,12 @@ export const Dashboard = () => {
             >
               <div className="flex items-center gap-3.5 min-w-0 flex-1">
                 <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                    alert.variant === "danger"
-                      ? "bg-status-danger-bg text-status-danger"
-                      : alert.variant === "warning"
-                        ? "bg-status-warning/10 text-status-warning"
-                        : "bg-status-info-bg text-status-info"
-                  }`}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${alert.variant === "danger"
+                    ? "bg-status-danger-bg text-status-danger"
+                    : alert.variant === "warning"
+                      ? "bg-status-warning/10 text-status-warning"
+                      : "bg-status-info-bg text-status-info"
+                    }`}
                 >
                   <alert.icon size={18} />
                 </div>
@@ -445,8 +449,11 @@ export const Dashboard = () => {
           title="Recent Activity"
           headerActions={
             <Button
+              variant="primary"
+              size="sm"
+              iconPosition="right"
+              icon={ChevronRight}
               onClick={() => navigate("/statements")}
-              className="text-xs-portal font-bold text-status-info hover:underline cursor-pointer"
             >
               View All Activity
             </Button>
@@ -477,8 +484,11 @@ export const Dashboard = () => {
           title="Key Dates"
           headerActions={
             <Button
+              variant="primary"
+              size="sm"
+              icon={ChevronRight}
+              iconPosition="right"
               onClick={() => navigate("/compliance/inspections")}
-              className="text-xs-portal font-bold text-status-info hover:underline cursor-pointer"
             >
               View Calendar
             </Button>
@@ -566,7 +576,7 @@ export const Dashboard = () => {
               variant="light"
               size="sm"
               fullWidth
-              onClick={() => {}}
+              onClick={comingSoon}
               icon={ChevronRight}
               iconPosition="right"
             >

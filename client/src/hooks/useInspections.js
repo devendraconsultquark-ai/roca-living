@@ -11,6 +11,7 @@ const RATING_LABELS = {
 
 const mapInspection = (i) => ({
   id: i.id,
+  property_id: i.property_id,
   property: i.address_line1
     ? `${i.address_line1}, ${i.city || ''}`.trim().replace(/,$/, '')
     : `Property #${i.property_id}`,

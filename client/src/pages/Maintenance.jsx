@@ -1,6 +1,4 @@
-import React, { useState, useEffect } from "react";
-import { usePropertyContext } from "../context/PropertyContext";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import {
   Wrench,
   ShieldCheck,
@@ -21,34 +19,45 @@ import { TableEmptyState } from "../components/UI/TableEmptyState";
 import { DonutChart } from "../components/UI/DonutChart";
 import { StatusPill } from "../components/UI/StatusPill";
 import { Skeleton } from "../components/UI/Skeleton";
+import { useToast } from "../components/UI/ToastContext";
+import { usePropertyContext } from "../context/PropertyContext";
+import { filterByProperty } from "../utilities/propertyFilter";
 
 export const Maintenance = () => {
+  const { tickets, ticketsLoading, error } = useMaintenance();
+  const { addToast } = useToast();
+  const comingSoon = () => addToast("This feature is coming soon.", "info");
+
   const { selectedProperty } = usePropertyContext();
-  const navigate = useNavigate();
-  const { tickets, ticketsLoading, error, handleQuoteAction } =
-    useMaintenance();
+  // Scope to the globally-selected property (no-op when "All Properties").
+  const scopedTickets = filterByProperty(tickets, selectedProperty);
 
   // Filter states
   const [filterProperty, setFilterProperty] = useState("All Properties");
   const [filterStatus, setFilterStatus] = useState("All Statuses");
   const [filterPriority, setFilterPriority] = useState("All Priorities");
-  const [filterDue, setFilterDue] = useState("All Time");
+
+  const clearFilters = () => {
+    setFilterProperty("All Properties");
+    setFilterStatus("All Statuses");
+    setFilterPriority("All Priorities");
+  };
 
   // Dynamic statistics calculations
-  const totalCount = tickets.length;
-  const completedCount = tickets.filter((t) => t.status === "complete").length;
+  const totalCount = scopedTickets.length;
+  const completedCount = scopedTickets.filter((t) => t.status === "complete").length;
   const completedPct = totalCount
     ? Math.round((completedCount / totalCount) * 100)
     : 0;
 
-  const inProgressCount = tickets.filter((t) =>
+  const inProgressCount = scopedTickets.filter((t) =>
     ["triaged", "awaiting_approval", "in_progress"].includes(t.status),
   ).length;
   const inProgressPct = totalCount
     ? Math.round((inProgressCount / totalCount) * 100)
     : 0;
 
-  const overdueCount = tickets.filter((t) => t.status === "new").length;
+  const overdueCount = scopedTickets.filter((t) => t.status === "new").length;
   const overduePct = totalCount
     ? Math.round((overdueCount / totalCount) * 100)
     : 0;
@@ -103,7 +112,7 @@ export const Maintenance = () => {
     }
   };
 
-  const formattedRequests = tickets.map((t) => {
+  const formattedRequests = scopedTickets.map((t) => {
     const priority = getPriorityInfo(t.urgency);
     const status = getStatusInfo(t.status);
 
@@ -129,17 +138,73 @@ export const Maintenance = () => {
     };
   });
 
+  // Filter options derived from the real data — every option maps to a row.
+  const propertyOptions = [
+    { value: "All Properties", label: "All Properties" },
+    ...[
+      ...new Set(
+        formattedRequests.map((r) => r.property).filter((p) => p && p !== "—"),
+      ),
+    ]
+      .sort()
+      .map((p) => ({ value: p, label: p })),
+  ];
+  const statusOptions = [
+    { value: "All Statuses", label: "All Statuses" },
+    ...[...new Set(formattedRequests.map((r) => r.status).filter(Boolean))]
+      .sort()
+      .map((s) => ({ value: s, label: s })),
+  ];
+  const priorityOptions = [
+    { value: "All Priorities", label: "All Priorities" },
+    ...[...new Set(formattedRequests.map((r) => r.priority).filter(Boolean))]
+      .sort()
+      .map((p) => ({ value: p, label: p })),
+  ];
+
+  const filteredRequests = formattedRequests.filter((r) => {
+    if (filterProperty !== "All Properties" && r.property !== filterProperty)
+      return false;
+    if (filterStatus !== "All Statuses" && r.status !== filterStatus)
+      return false;
+    if (filterPriority !== "All Priorities" && r.priority !== filterPriority)
+      return false;
+    return true;
+  });
+
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
-  useEffect(() => {
+  // Reset to page 1 when the data or the active filters change (render-time
+  // pattern — avoids setState-in-effect).
+  const [prevReset, setPrevReset] = useState({
+    tickets,
+    selectedProperty,
+    filterProperty,
+    filterStatus,
+    filterPriority,
+  });
+  if (
+    prevReset.tickets !== tickets ||
+    prevReset.selectedProperty !== selectedProperty ||
+    prevReset.filterProperty !== filterProperty ||
+    prevReset.filterStatus !== filterStatus ||
+    prevReset.filterPriority !== filterPriority
+  ) {
+    setPrevReset({
+      tickets,
+      selectedProperty,
+      filterProperty,
+      filterStatus,
+      filterPriority,
+    });
     setCurrentPage(1);
-  }, [tickets]);
+  }
 
-  const totalItems = formattedRequests.length;
+  const totalItems = filteredRequests.length;
   const totalPages = Math.ceil(totalItems / pageSize);
 
-  const paginatedRequests = formattedRequests.slice(
+  const paginatedRequests = filteredRequests.slice(
     (currentPage - 1) * pageSize,
     currentPage * pageSize,
   );
@@ -149,37 +214,21 @@ export const Maintenance = () => {
       label: "Filter by Property",
       value: filterProperty,
       onChange: setFilterProperty,
-      options: [{ value: "All Properties", label: "All Properties" }],
+      options: propertyOptions,
       width: "w-44",
     },
     {
       label: "Filter by Status",
       value: filterStatus,
       onChange: setFilterStatus,
-      options: [
-        { value: "All Statuses", label: "All Statuses" },
-        { value: "In Progress", label: "In Progress" },
-        { value: "Completed", label: "Completed" },
-        { value: "Pending", label: "Pending" },
-      ],
+      options: statusOptions,
       width: "w-32",
     },
     {
       label: "Filter by Priority",
       value: filterPriority,
       onChange: setFilterPriority,
-      options: [
-        { value: "All Priorities", label: "All Priorities" },
-        { value: "High", label: "High" },
-        { value: "Medium", label: "Medium" },
-      ],
-      width: "w-32",
-    },
-    {
-      label: "Created Within",
-      value: filterDue,
-      onChange: setFilterDue,
-      options: [{ value: "All Time", label: "All Time" }],
+      options: priorityOptions,
       width: "w-32",
     },
   ];
@@ -187,7 +236,7 @@ export const Maintenance = () => {
   const actionConfig = {
     label: "New Maintenance Request",
     icon: Plus,
-    onClick: () => {},
+    onClick: comingSoon,
   };
 
   if (ticketsLoading) {
@@ -227,7 +276,7 @@ export const Maintenance = () => {
           icon={Wrench}
           variant="info"
           actionText="View All"
-          onActionClick={() => {}}
+          onActionClick={clearFilters}
         />
         <PortalMetricCard
           label="Completed"
@@ -237,7 +286,7 @@ export const Maintenance = () => {
           icon={ShieldCheck}
           variant="success"
           actionText="View Completed"
-          onActionClick={() => {}}
+          onActionClick={() => setFilterStatus("Completed")}
         />
         <PortalMetricCard
           label="In Progress"
@@ -247,7 +296,7 @@ export const Maintenance = () => {
           icon={Clock}
           variant="warning"
           actionText="View In Progress"
-          onActionClick={() => {}}
+          onActionClick={() => setFilterStatus("In Progress")}
         />
         <PortalMetricCard
           label="Overdue"
@@ -255,7 +304,7 @@ export const Maintenance = () => {
           icon={AlertCircle}
           variant="danger"
           actionText="View Overdue"
-          onActionClick={() => {}}
+          onActionClick={() => setFilterStatus("Pending")}
         />
       </div>
 
@@ -283,12 +332,12 @@ export const Maintenance = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {ticketsLoading || formattedRequests.length === 0 ? (
+                  {paginatedRequests.length === 0 ? (
                     <TableEmptyState
                       colSpan={8}
                       loading={ticketsLoading}
                       loadingText="Loading requests..."
-                      emptyText="No maintenance requests reported."
+                      emptyText="No maintenance requests match the selected filters."
                     />
                   ) : (
                     paginatedRequests.map((row, idx) => (
@@ -346,6 +395,7 @@ export const Maintenance = () => {
                             <Button
                               variant="secondary"
                               className="!py-0.5 !px-2.5 text-2xs font-bold card-bg"
+                              onClick={comingSoon}
                             >
                               {row.action}
                             </Button>
@@ -353,6 +403,7 @@ export const Maintenance = () => {
                               variant="icon-only"
                               size="sm"
                               className="p-0.5 text-sidebar-text-muted hover:text-brand-primary cursor-pointer"
+                              onClick={comingSoon}
                             >
                               <MoreVertical size={13} />
                             </Button>
@@ -448,6 +499,7 @@ export const Maintenance = () => {
             <Button
               variant="link"
               className="text-xs-portal font-bold text-status-info hover:underline text-left mt-2 flex items-center gap-0.5 cursor-pointer"
+              onClick={comingSoon}
             >
               View Full Report <ChevronRight size={10} />
             </Button>
@@ -468,6 +520,7 @@ export const Maintenance = () => {
             <Button
               variant="link"
               className="text-xs-portal font-bold text-status-info hover:underline text-left mt-1 flex items-center gap-0.5 cursor-pointer"
+              onClick={comingSoon}
             >
               View All Categories <ChevronRight size={10} />
             </Button>
@@ -496,7 +549,7 @@ export const Maintenance = () => {
               icon={ChevronRight}
               iconPosition="right"
               className="w-full font-bold card-bg text-xs-portal"
-              onClick={() => {}}
+              onClick={comingSoon}
             >
               Report an Issue
             </Button>

@@ -44,6 +44,7 @@ export const useMaintenance = () => {
       );
       setQuotes(quoteTickets.map(t => ({
         id: t.id,
+        property_id: t.property_id,
         property: t.address_line1 ? `${t.address_line1}, ${t.city || ''}`.trim().replace(/,$/, '') : `Property #${t.property_id}`,
         description: t.description,
         cost: parseFloat(t.quote_amount),
@@ -141,12 +142,28 @@ export const useMaintenance = () => {
     setLoading(true);
 
     try {
-      await api.post('/maintenance', {
+      const res = await api.post('/maintenance', {
         property_id: property,
         urgency: 'routine',
         title: title.trim(),
         description: description.trim(),
       });
+
+      // Attach the photo (if one was added) to the newly-created ticket.
+      const ticketId = res.data?.data?.id;
+      if (picture?.raw && ticketId) {
+        try {
+          const formData = new FormData();
+          formData.append('image', picture.raw);
+          await api.post(`/maintenance/${ticketId}/images`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+        } catch (imgErr) {
+          // The ticket itself succeeded — report the photo failure separately.
+          addToast(imgErr.response?.data?.message || 'Ticket created, but the photo failed to upload', 'warning');
+        }
+      }
+
       addToast('Maintenance ticket reported successfully!', 'success');
       setProperty('');
       setTitle('');

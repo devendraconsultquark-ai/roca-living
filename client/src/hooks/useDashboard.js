@@ -6,6 +6,9 @@ import { useInspections } from './useInspections';
 import { useMaintenance } from './useMaintenance';
 import { useDocuments } from './useDocuments';
 import { useUtilities } from './useUtilities';
+import { useRentSchedule } from './useRentSchedule';
+import { usePropertyContext } from '../context/PropertyContext';
+import { filterByProperty, filterByRelated, statementPropertyId } from '../utilities/propertyFilter';
 
 // ── Pure derivation helpers (unit-testable without React) ───────────────────
 
@@ -255,8 +258,9 @@ const buildAlerts = ({ expiredCertifications, inspections, quotes, activeTenancy
 // ── Hook ────────────────────────────────────────────────────────────────────
 
 export const useDashboard = () => {
-  const [latestStatement, setLatestStatement] = useState(null);
-  const [activeTenancy, setActiveTenancy] = useState(null);
+  const { selectedProperty } = usePropertyContext();
+  const [statementsList, setStatementsList] = useState([]);
+  const [tenanciesList, setTenanciesList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -265,12 +269,10 @@ export const useDashboard = () => {
       setLoading(true);
       try {
         const stmtRes = await api.get('/statements/my');
-        const latest = stmtRes.data.data && stmtRes.data.data.length > 0 ? stmtRes.data.data[0] : null;
-        setLatestStatement(latest);
+        setStatementsList(stmtRes.data.data || []);
 
         const tenancyRes = await api.get('/tenancies/my');
-        const active = tenancyRes.data.data && tenancyRes.data.data.length > 0 ? tenancyRes.data.data[0] : null;
-        setActiveTenancy(active);
+        setTenanciesList(tenancyRes.data.data || []);
 
         setError(null);
       } catch (err) {
@@ -290,6 +292,44 @@ export const useDashboard = () => {
   const { quotes } = useMaintenance();
   const { documents } = useDocuments();
   const { utilities } = useUtilities();
+  const { schedules } = useRentSchedule();
+
+  // Scope every dataset to the globally-selected property (no-op for "All").
+  const scopedStatements = useMemo(
+    () => filterByProperty(statementsList, selectedProperty, statementPropertyId),
+    [statementsList, selectedProperty],
+  );
+  const scopedTenancies = useMemo(
+    () => filterByProperty(tenanciesList, selectedProperty),
+    [tenanciesList, selectedProperty],
+  );
+  const scopedProperties = useMemo(
+    () => filterByProperty(properties, selectedProperty, (p) => p.id),
+    [properties, selectedProperty],
+  );
+  const scopedInspections = useMemo(
+    () => filterByProperty(inspections, selectedProperty),
+    [inspections, selectedProperty],
+  );
+  const scopedDocuments = useMemo(
+    () => filterByRelated(documents || [], selectedProperty),
+    [documents, selectedProperty],
+  );
+  const scopedUtilities = useMemo(
+    () => filterByProperty(utilities || [], selectedProperty),
+    [utilities, selectedProperty],
+  );
+  const scopedQuotes = useMemo(
+    () => filterByProperty(quotes || [], selectedProperty),
+    [quotes, selectedProperty],
+  );
+  const scopedSchedules = useMemo(
+    () => filterByProperty(schedules || [], selectedProperty),
+    [schedules, selectedProperty],
+  );
+
+  const latestStatement = scopedStatements[0] || null;
+  const activeTenancy = scopedTenancies[0] || null;
 
   // Financial figures derived from the latest statement & tenancy.
   const rentReceived = latestStatement ? parseFloat(latestStatement.gross_rent || 0) : 0.0;
@@ -313,8 +353,27 @@ export const useDashboard = () => {
   const innerData = [{ name: 'Occupied', value: innerValue, color: '#E8A020' }];
 
   const rentPcm = activeTenancy ? parseFloat(activeTenancy.rent_pcm || 0) : 0.0;
-  const rentArrears = hasActiveTenancy ? Math.max(0, rentPcm - rentReceived) : 0.0;
-  const daysInArrears = rentArrears > 0 ? 15 : 0;
+
+  // Real arrears from the rent schedule (overdue rows), not inferred from the
+  // latest statement — and days in arrears counted from the oldest overdue
+  // due date instead of a placeholder.
+  const overdueSchedules = useMemo(
+    () => scopedSchedules.filter((s) => s.status === 'overdue'),
+    [scopedSchedules],
+  );
+  const rentArrears = overdueSchedules.reduce(
+    (sum, s) => sum + parseFloat(s.amount || 0),
+    0,
+  );
+  const daysInArrears = overdueSchedules.length
+    ? Math.max(
+        0,
+        Math.ceil(
+          (new Date() - new Date(overdueSchedules[0].due_date)) /
+            (1000 * 60 * 60 * 24),
+        ),
+      )
+    : 0;
   const arrearsStatus = rentArrears > 0 ? 'arrears' : 'compliant';
   const customArrearsLabel = rentArrears > 0 ? 'Payment Overdue' : 'Up to Date';
 
@@ -325,23 +384,35 @@ export const useDashboard = () => {
   // Heavier list/aggregate derivations — memoised so they don't re-run on every
   // render (e.g. when the period dropdown changes).
   const { expiredCertifications, overallCompliancePct } = useMemo(
-    () => computeCompliance(properties),
-    [properties],
+    () => computeCompliance(scopedProperties),
+    [scopedProperties],
   );
 
   const keyDates = useMemo(
-    () => buildKeyDates(activeTenancy, inspections),
-    [activeTenancy, inspections],
+    () => buildKeyDates(activeTenancy, scopedInspections),
+    [activeTenancy, scopedInspections],
   );
 
   const activities = useMemo(
-    () => buildActivities(latestStatement, inspections, documents, utilities),
-    [latestStatement, inspections, documents, utilities],
+    () =>
+      buildActivities(
+        latestStatement,
+        scopedInspections,
+        scopedDocuments,
+        scopedUtilities,
+      ),
+    [latestStatement, scopedInspections, scopedDocuments, scopedUtilities],
   );
 
   const alertsList = useMemo(
-    () => buildAlerts({ expiredCertifications, inspections, quotes, activeTenancy }),
-    [expiredCertifications, inspections, quotes, activeTenancy],
+    () =>
+      buildAlerts({
+        expiredCertifications,
+        inspections: scopedInspections,
+        quotes: scopedQuotes,
+        activeTenancy,
+      }),
+    [expiredCertifications, scopedInspections, scopedQuotes, activeTenancy],
   );
 
   const activeAlertsCount = useMemo(
@@ -353,7 +424,7 @@ export const useDashboard = () => {
     // raw data
     latestStatement,
     activeTenancy,
-    properties,
+    properties: scopedProperties,
     error,
     loading: loading || propertiesLoading || inspectionsLoading,
     // financial figures

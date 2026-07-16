@@ -28,6 +28,7 @@ import { useProfile } from "../hooks/useProfile";
 import { Button } from "../components/UI/Button";
 import { PortalCard } from "../components/UI/PortalCard";
 import { Toggle as ToggleSwitch } from "../components/UI/Toggle";
+import { useToast } from "../components/UI/ToastContext";
 
 export const Profile = () => {
   const {
@@ -49,6 +50,9 @@ export const Profile = () => {
     handleExportData,
     handleDeleteAccount,
   } = useProfile();
+
+  const { addToast } = useToast();
+  const comingSoon = () => addToast("This feature is coming soon.", "info");
 
   const [isEditingPassword, setIsEditingPassword] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
@@ -406,7 +410,7 @@ export const Profile = () => {
               variant="ghost"
               size="sm"
               className="text-xs-portal font-bold text-status-info hover:underline"
-              onClick={() => {}}
+              onClick={comingSoon}
             >
               Edit
             </Button>
@@ -490,6 +494,24 @@ export const Profile = () => {
           }
         >
           <div className="flex flex-col gap-3.5 mt-2 text-xs-portal">
+            {profileData?.bankName ? (
+              <div className="flex items-center gap-2 py-1">
+                {profileData.bankChangePending ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-2xs font-bold rounded-full bg-status-warning/10 text-status-warning border border-status-warning/20 uppercase tracking-wide">
+                    Pending Verification
+                  </span>
+                ) : profileData.bankVerifiedAt ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-2xs font-bold rounded-full bg-status-success/10 text-status-success border border-status-success/20 uppercase tracking-wide">
+                    Verified
+                  </span>
+                ) : null}
+                {profileData.bankChangePending && (
+                  <span className="text-2xs text-status-muted">
+                    Payouts continue to your previous details until our team verifies the change.
+                  </span>
+                )}
+              </div>
+            ) : null}
             <div className="flex flex-col gap-1 py-1 border-b border-card-border/60">
               <div className="flex items-center gap-3">
                 <Landmark size={13} className="text-gray-400 shrink-0" />

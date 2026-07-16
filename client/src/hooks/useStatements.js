@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '../components/UI/ToastContext';
 import { downloadBlob } from '../utilities/download';
+import { statementPropertyId } from '../utilities/propertyFilter';
 import api from '../utilities/api';
 
 export const useStatements = () => {
@@ -14,16 +15,18 @@ export const useStatements = () => {
     try {
       const response = await api.get('/statements/my');
       const formatted = (response.data.data || []).map((s) => {
-        const totalFees = parseFloat(s.mgmt_fee || 0) + 
-                          parseFloat(s.mgmt_fee_vat || 0) + 
-                          parseFloat(s.roca_letting_fee || 0) + 
-                          parseFloat(s.agent_letting_fee || 0);
+        // Real money out of the statement: expense deductions + NRL withholding.
+        // (The mgmt_fee/letting-fee columns are always 0 in this statement format.)
+        const totalFees = parseFloat(s.deductions || 0) + parseFloat(s.nrl_withheld || 0);
 
         const periodStartStr = s.period_start ? new Date(s.period_start).toLocaleDateString('en-GB') : '';
         const periodEndStr = s.period_end ? new Date(s.period_end).toLocaleDateString('en-GB') : '';
 
         return {
           id: s.id,
+          // Resolve the local property id from the statement's cross-source
+          // reference (local-source only); enables per-property scoping.
+          property_id: statementPropertyId(s),
           period: `${periodStartStr} - ${periodEndStr}`,
           date: s.generated_at ? new Date(s.generated_at).toLocaleDateString('en-GB') : '-',
           invoiced: parseFloat(s.gross_rent || 0),

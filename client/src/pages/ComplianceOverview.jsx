@@ -17,6 +17,7 @@ import { TableEmptyState } from "../components/UI/TableEmptyState";
 import { StatusPill } from "../components/UI/StatusPill";
 import { Skeleton } from "../components/UI/Skeleton";
 import { useComplianceOverview } from "../hooks/useComplianceOverview";
+import { useToast } from "../components/UI/ToastContext";
 
 export const ComplianceOverview = () => {
   // All data + derivations (certificate lists, compliance stats, tenant
@@ -25,46 +26,83 @@ export const ComplianceOverview = () => {
     loading,
     error,
     stats,
+    landlordChecklist,
     moveInCompliance,
     ongoingTenantCompliance,
     essentialCertificates,
     propertyManagement,
   } = useComplianceOverview();
 
+  const { addToast } = useToast();
+  const comingSoon = () => addToast("This feature is coming soon.", "info");
+
   // Filter states
   const [filterProperty, setFilterProperty] = useState("All Properties");
-  const [filterType, setFilterType] = useState("All Types");
   const [filterStatus, setFilterStatus] = useState("All Statuses");
-  const [filterDue, setFilterDue] = useState("All Time");
 
+  const clearFilters = () => {
+    setFilterProperty("All Properties");
+    setFilterStatus("All Statuses");
+  };
+
+  // Options built from the real data. Status spans every list; property comes
+  // from the certificate lists (the tenant lists aren't property-scoped).
+  const allStatuses = [
+    ...landlordChecklist,
+    ...moveInCompliance,
+    ...ongoingTenantCompliance,
+    ...essentialCertificates,
+    ...propertyManagement,
+  ].map((r) => r.status);
+  const statusOptions = [
+    { value: "All Statuses", label: "All Statuses" },
+    ...[...new Set(allStatuses.filter(Boolean))]
+      .sort()
+      .map((s) => ({ value: s, label: s })),
+  ];
+  const propertyOptions = [
+    { value: "All Properties", label: "All Properties" },
+    ...[
+      ...new Set(
+        [...essentialCertificates, ...propertyManagement]
+          .map((r) => r.property)
+          .filter((p) => p && p !== "—"),
+      ),
+    ]
+      .sort()
+      .map((p) => ({ value: p, label: p })),
+  ];
+
+  const byStatus = (row) =>
+    filterStatus === "All Statuses" || row.status === filterStatus;
+  const byProperty = (row) =>
+    filterProperty === "All Properties" || row.property === filterProperty;
+
+  // Status filter applies to every list; property filter only to the
+  // certificate lists that carry a property.
+  const filteredChecklist = landlordChecklist.filter(byStatus);
+  const filteredMoveIn = moveInCompliance.filter(byStatus);
+  const filteredOngoing = ongoingTenantCompliance.filter(byStatus);
+  const filteredEssential = essentialCertificates.filter(
+    (r) => byStatus(r) && byProperty(r),
+  );
+  const filteredPropertyManagement = propertyManagement.filter(
+    (r) => byStatus(r) && byProperty(r),
+  );
 
   const filtersConfig = [
     {
       label: "Filter by Property",
       value: filterProperty,
       onChange: setFilterProperty,
-      options: [{ value: "All Properties", label: "All Properties" }],
+      options: propertyOptions,
       width: "w-44",
-    },
-    {
-      label: "Filter by Type",
-      value: filterType,
-      onChange: setFilterType,
-      options: [{ value: "All Types", label: "All Types" }],
-      width: "w-32",
     },
     {
       label: "Filter by Status",
       value: filterStatus,
       onChange: setFilterStatus,
-      options: [{ value: "All Statuses", label: "All Statuses" }],
-      width: "w-32",
-    },
-    {
-      label: "Due Within",
-      value: filterDue,
-      onChange: setFilterDue,
-      options: [{ value: "All Time", label: "All Time" }],
+      options: statusOptions,
       width: "w-32",
     },
   ];
@@ -73,7 +111,7 @@ export const ComplianceOverview = () => {
     label: "Review Compliance Checklist",
     icon: ChevronRight,
     iconPosition: "right",
-    onClick: () => {},
+    onClick: comingSoon,
   };
 
   if (loading) {
@@ -120,7 +158,7 @@ export const ComplianceOverview = () => {
           icon={ShieldCheck}
           variant="success"
           actionText="View Overview"
-          onActionClick={() => {}}
+          onActionClick={clearFilters}
         />
         <PortalMetricCard
           label="Action Required"
@@ -134,7 +172,7 @@ export const ComplianceOverview = () => {
           icon={AlertCircle}
           variant={stats.actionRequired > 0 ? "danger" : "success"}
           actionText="View All"
-          onActionClick={() => {}}
+          onActionClick={() => setFilterStatus("Expired")}
         />
         <PortalMetricCard
           label="Expiring Soon"
@@ -143,7 +181,7 @@ export const ComplianceOverview = () => {
           icon={Calendar}
           variant="warning"
           actionText="View Expiring"
-          onActionClick={() => {}}
+          onActionClick={comingSoon}
         />
         <PortalMetricCard
           label="Up to Date"
@@ -151,7 +189,7 @@ export const ComplianceOverview = () => {
           icon={CheckCircle2}
           variant="info"
           actionText="View All"
-          onActionClick={() => {}}
+          onActionClick={() => setFilterStatus("Valid")}
         />
       </div>
 
@@ -203,16 +241,16 @@ export const ComplianceOverview = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {loading || moveInCompliance.length === 0 ? (
+                      {filteredMoveIn.length === 0 ? (
                         <TableEmptyState
                           colSpan={4}
                           loading={loading}
                           loadingText="Loading..."
-                          emptyText="No move-in compliance items tracked."
+                          emptyText="No move-in compliance items match the filters."
                           className="py-6 text-center text-gray-400 font-bold"
                         />
                       ) : (
-                        moveInCompliance.map((row, idx) => (
+                        filteredMoveIn.map((row, idx) => (
                           <tr key={idx} className="hover:bg-surface-light/50">
                             <td className="py-2.5 px-1">
                               <div className="flex items-center gap-2">
@@ -246,6 +284,7 @@ export const ComplianceOverview = () => {
                                 <Button
                                   variant="secondary"
                                   className="!py-0.5 !px-2 text-2xs font-bold card-bg"
+                                  onClick={comingSoon}
                                 >
                                   {row.action}
                                 </Button>
@@ -253,6 +292,7 @@ export const ComplianceOverview = () => {
                                   variant="icon-only"
                                   size="sm"
                                   className="p-0.5 text-sidebar-text-muted hover:text-brand-primary cursor-pointer"
+                                  onClick={comingSoon}
                                 >
                                   <MoreVertical size={13} />
                                 </Button>
@@ -282,16 +322,16 @@ export const ComplianceOverview = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {loading || ongoingTenantCompliance.length === 0 ? (
+                      {filteredOngoing.length === 0 ? (
                         <TableEmptyState
                           colSpan={4}
                           loading={loading}
                           loadingText="Loading..."
-                          emptyText="No active ongoing tenancy items."
+                          emptyText="No ongoing tenancy items match the filters."
                           className="py-6 text-center text-gray-400 font-bold"
                         />
                       ) : (
-                        ongoingTenantCompliance.map((row, idx) => (
+                        filteredOngoing.map((row, idx) => (
                           <tr key={idx} className="hover:bg-surface-light/50">
                             <td className="py-2.5 px-1">
                               <div className="flex items-center gap-2">
@@ -325,6 +365,7 @@ export const ComplianceOverview = () => {
                                 <Button
                                   variant="secondary"
                                   className="!py-0.5 !px-2 text-2xs font-bold card-bg"
+                                  onClick={comingSoon}
                                 >
                                   {row.action}
                                 </Button>
@@ -332,6 +373,7 @@ export const ComplianceOverview = () => {
                                   variant="icon-only"
                                   size="sm"
                                   className="p-0.5 text-sidebar-text-muted hover:text-brand-primary cursor-pointer"
+                                  onClick={comingSoon}
                                 >
                                   <MoreVertical size={13} />
                                 </Button>
@@ -372,6 +414,67 @@ export const ComplianceOverview = () => {
 
             {/* Tables Certificates List */}
             <div className="card-bg border border-card-border rounded-card p-5 shadow-xs flex flex-col gap-6">
+              {/* Landlord Account Compliance Section */}
+              <div>
+                <h4 className="text-xs-portal font-extrabold text-brand-primary tracking-tight border-b border-card-border pb-2">
+                  Landlord Account Compliance
+                </h4>
+                <div className="overflow-x-auto w-full mt-2 select-none">
+                  <table className="w-full text-left border-collapse text-xs-portal">
+                    <thead>
+                      <tr className="text-2xs text-gray-400 font-bold uppercase tracking-wider border-b border-card-border">
+                        <th className="py-2 px-1">Item</th>
+                        <th className="py-2 px-1">Status</th>
+                        <th className="py-2 px-1">Verified Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {filteredChecklist.length === 0 ? (
+                        <TableEmptyState
+                          colSpan={3}
+                          loading={loading}
+                          loadingText="Loading..."
+                          emptyText="No account compliance items match the filters."
+                          className="py-6 text-center text-gray-400 font-bold"
+                        />
+                      ) : (
+                        filteredChecklist.map((row, idx) => (
+                          <tr key={idx} className="hover:bg-surface-light/50">
+                            <td className="py-2.5 px-1">
+                              <div className="flex items-center gap-2">
+                                <div
+                                  className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${row.color}`}
+                                >
+                                  <row.icon size={11} />
+                                </div>
+                                <div className="flex flex-col text-left">
+                                  <span className="font-bold text-brand-primary leading-tight truncate max-w-[180px]">
+                                    {row.item}
+                                  </span>
+                                  <span className="text-2xs text-gray-400 mt-0.5 leading-none truncate max-w-[180px]">
+                                    {row.detail}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-1">
+                              <StatusPill
+                                status={row.status}
+                                size="sm"
+                                showIcon={false}
+                              />
+                            </td>
+                            <td className="py-2.5 px-1 font-semibold text-brand-primary">
+                              {row.completed}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
               {/* Essential Certificates Section */}
               <div>
                 <h4 className="text-xs-portal font-extrabold text-brand-primary tracking-tight border-b border-card-border pb-2">
@@ -388,16 +491,16 @@ export const ComplianceOverview = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {loading || essentialCertificates.length === 0 ? (
+                      {filteredEssential.length === 0 ? (
                         <TableEmptyState
                           colSpan={4}
                           loading={loading}
                           loadingText="Loading..."
-                          emptyText="No active certifications tracked."
+                          emptyText="No certifications match the filters."
                           className="py-6 text-center text-gray-400 font-bold"
                         />
                       ) : (
-                        essentialCertificates.map((row, idx) => {
+                        filteredEssential.map((row, idx) => {
                           return (
                             <tr key={idx} className="hover:bg-surface-light/50">
                               <td className="py-2.5 px-1">
@@ -438,6 +541,7 @@ export const ComplianceOverview = () => {
                                   <Button
                                     variant="secondary"
                                     className="!py-0.5 !px-2 text-2xs font-bold card-bg"
+                                    onClick={comingSoon}
                                   >
                                     {row.action}
                                   </Button>
@@ -445,6 +549,7 @@ export const ComplianceOverview = () => {
                                     variant="icon-only"
                                     size="sm"
                                     className="p-0.5 text-sidebar-text-muted hover:text-brand-primary cursor-pointer"
+                                    onClick={comingSoon}
                                   >
                                     <MoreVertical size={13} />
                                   </Button>
@@ -475,16 +580,16 @@ export const ComplianceOverview = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {loading || propertyManagement.length === 0 ? (
+                      {filteredPropertyManagement.length === 0 ? (
                         <TableEmptyState
                           colSpan={4}
                           loading={loading}
                           loadingText="Loading..."
-                          emptyText="No management items tracked."
+                          emptyText="No management items match the filters."
                           className="py-6 text-center text-gray-400 font-bold"
                         />
                       ) : (
-                        propertyManagement.map((row, idx) => {
+                        filteredPropertyManagement.map((row, idx) => {
                           return (
                             <tr key={idx} className="hover:bg-surface-light/50">
                               <td className="py-2.5 px-1">
@@ -525,6 +630,7 @@ export const ComplianceOverview = () => {
                                   <Button
                                     variant="secondary"
                                     className="!py-0.5 !px-2 text-2xs font-bold card-bg"
+                                    onClick={comingSoon}
                                   >
                                     {row.action}
                                   </Button>
@@ -532,6 +638,7 @@ export const ComplianceOverview = () => {
                                     variant="icon-only"
                                     size="sm"
                                     className="p-0.5 text-sidebar-text-muted hover:text-brand-primary cursor-pointer"
+                                    onClick={comingSoon}
                                   >
                                     <MoreVertical size={13} />
                                   </Button>
