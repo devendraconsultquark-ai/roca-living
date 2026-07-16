@@ -155,12 +155,8 @@ export const Utilities = () => {
 
   return (
     <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-brand-primary tracking-tight">Utility Handover Dashboard</h2>
-          <p className="text-sm text-status-muted mt-1">Track energy, council tax, and water service transfers during tenant check-in and check-out periods.</p>
-        </div>
+      {/* Page actions (title lives in the layout header) */}
+      <div className="flex justify-end">
         <Button variant="primary" icon={Droplet} onClick={() => setIsModalOpen(true)}>
           Trigger Handover Transfer
         </Button>

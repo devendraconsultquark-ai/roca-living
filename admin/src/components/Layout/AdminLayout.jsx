@@ -9,27 +9,28 @@ import {
 import { Logo } from '../UI/Logo';
 import { useAuth } from '../../context/AuthContext';
 
-// Header subtitles per section (mirrors the landlord portal's header pattern)
-const SUBTITLES = {
-  dashboard: 'Portfolio performance overview.',
-  landlords: 'Manage landlord accounts, KYC and payment details.',
-  properties: 'Manage standard parameters, safety compliance and occupancy.',
-  tenancies: 'Review active leases, rental terms and upcoming expiries.',
-  tenants: 'Review tenant records, balances and right-to-rent status.',
-  agents: 'Manage letting agents, redress schemes and CMP providers.',
-  accounting: 'Manage, reconcile and audit statements and cashflows.',
-  statements: 'Generate and dispatch landlord statements.',
-  invoices: 'Generate and track landlord invoices.',
-  maintenance: 'Triage, quote and track maintenance tickets.',
-  contractors: 'Manage contractor records and assignments.',
-  deposits: 'Track deposit scheme registrations and deadlines.',
-  inspections: 'Log and schedule property inspections.',
-  utilities: 'Manage utility meters and access records.',
-  documents: 'Manage compliance certificates, agreements and documents.',
-  reports: 'Portfolio revenue, occupancy, arrears and compliance.',
-  settings: 'Configure portal preferences.',
-  profile: 'Manage your account details and preferences.',
-  onboarding: 'Onboard a new landlord, property and tenancy.',
+// The single page header: each page's title/subtitle lives HERE (pages no
+// longer render their own title block — this is the only header).
+const HEADERS = {
+  dashboard: { title: null, subtitle: 'Here is a summary of your ROCA Living portfolios and ongoing workflows.' }, // title is user-aware, built below
+  landlords: { title: 'Landlords Directory', subtitle: 'Review contact records, active portfolios, and compliance details for registered landlords.' },
+  properties: { title: 'Properties Portfolio', subtitle: 'Manage standard parameters, safety compliance certificates, and occupancies.' },
+  tenancies: { title: 'Tenancy Agreements', subtitle: 'Review active leases, rental terms, and upcoming expiries. New tenancies are created via the onboarding wizard.' },
+  tenants: { title: 'Tenants CRM', subtitle: 'Manage tenant communications, contact directory, and ledger account balances.' },
+  agents: { title: 'Letting Agents', subtitle: 'Review internal staff portfolios, active roles, branches, and client managers.' },
+  accounting: { title: 'Accounting Hub', subtitle: 'Manage, reconcile, and audit the financial statements and cashflows.' },
+  statements: { title: 'Landlord Statements Library', subtitle: 'Audit, export, and review statements issued to landlord partners.' },
+  invoices: { title: 'Landlord Invoices', subtitle: 'Audit, export, and manage service charge invoices issued to landlord partners.' },
+  maintenance: { title: 'Maintenance Board', subtitle: 'Drag and drop tickets to manage their progress lifecycle.' },
+  contractors: { title: 'Contractors Directory', subtitle: 'Review contact records, active insurance statuses, and ratings of maintenance contractors.' },
+  deposits: { title: 'Deposit Protection', subtitle: 'Track deposit scheme registrations and outstanding protection deadlines.' },
+  inspections: { title: 'Property Inspections', subtitle: 'Log routine inspections and track when the next visit is due. Inspections appear on the landlord portal.' },
+  utilities: { title: 'Utility Handover Dashboard', subtitle: 'Track energy, council tax, and water service transfers during tenant check-in and check-out periods.' },
+  documents: { title: 'Documents Library', subtitle: 'Manage compliance certificates, signed tenancy agreements, and landlord utility documents.' },
+  reports: { title: 'Reports Hub', subtitle: 'Portfolio revenue, occupancy, arrears, and compliance expiries — live from the ledger.' },
+  settings: { title: 'System Settings', subtitle: 'Configure global fee values, deposit parameters, and client templates.' },
+  profile: { title: 'Admin Profile', subtitle: 'Manage your administrative user information and profile settings.' },
+  onboarding: { title: 'New-Let Onboarding Wizard', subtitle: 'Complete the 6 onboarding stages to register the landlord, property, and move-in details.' },
 };
 
 export const AdminLayout = () => {
@@ -64,8 +65,11 @@ export const AdminLayout = () => {
   // Header title/subtitle derived from the current route (client-portal pattern)
   const sectionKey = location.pathname.split('/')[1] || 'dashboard';
   const activeItem = navItems.find((item) => location.pathname.startsWith(item.path));
-  const headerTitle = activeItem?.name || (sectionKey.charAt(0).toUpperCase() + sectionKey.slice(1).replace(/-/g, ' '));
-  const headerSubtitle = SUBTITLES[sectionKey] || 'Staff portal overview.';
+  const headerEntry = HEADERS[sectionKey];
+  const headerTitle = sectionKey === 'dashboard'
+    ? `Welcome back, ${user?.name?.split(' ')[0] || 'Admin'}`
+    : headerEntry?.title || activeItem?.name || (sectionKey.charAt(0).toUpperCase() + sectionKey.slice(1).replace(/-/g, ' '));
+  const headerSubtitle = headerEntry?.subtitle || 'Staff portal overview.';
 
   // Render a single navigation link
   const renderNavLink = (item, isMobile = false) => {

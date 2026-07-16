@@ -179,12 +179,6 @@ export const DocumentLibrary = () => {
 
   return (
     <div className="py-6 max-w-[1440px] mx-auto px-8 font-sans text-brand-primary">
-      {/* Title */}
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-brand-primary tracking-tight">Documents Library</h2>
-        <p className="text-sm text-status-muted mt-1">Manage compliance certificates, signed tenancy agreements, and landlord utility documents.</p>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Left Pane: Folder Tree */}

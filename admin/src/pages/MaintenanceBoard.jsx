@@ -240,12 +240,8 @@ export const MaintenanceBoard = () => {
 
   return (
     <div className="py-6 max-w-[1440px] mx-auto px-8 font-sans text-brand-primary">
-      {/* Title */}
-      <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-brand-primary tracking-tight">Maintenance Board</h2>
-          <p className="text-sm text-status-muted mt-1">Drag and drop tickets to manage their progress lifecycle.</p>
-        </div>
+      {/* Page actions (title lives in the layout header) */}
+      <div className="mb-6 flex justify-end">
         <Button variant="primary" icon={Plus} onClick={() => setIsModalOpen(true)}>
           New Ticket
         </Button>

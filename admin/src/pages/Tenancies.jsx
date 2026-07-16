@@ -96,14 +96,6 @@ export const Tenancies = () => {
 
   return (
     <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-brand-primary tracking-tight">Tenancy Agreements</h2>
-          <p className="text-sm text-status-muted mt-1">Review active leases, rental terms, and upcoming expiries. New tenancies are created via the onboarding wizard.</p>
-        </div>
-      </div>
-
       {/* Metrics Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <StatCard

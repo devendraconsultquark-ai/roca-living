@@ -64,15 +64,10 @@ export const Dashboard = () => {
 
   return (
     <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-8 font-sans text-brand-primary">
-      {/* Welcome Section */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-brand-primary tracking-tight">Welcome back, Admin</h2>
-          <p className="text-sm text-status-muted mt-1">Here is a summary of your ROCA Living portfolios and ongoing workflows.</p>
-        </div>
-        
+      {/* Page actions (title lives in the layout header) */}
+      <div className="flex justify-end">
         <Link to="/onboarding">
-          <Button variant="primary" icon={PlusCircle} className="shadow-sm">
+          <Button variant="primary" icon={PlusCircle}>
             New Onboarding
           </Button>
         </Link>

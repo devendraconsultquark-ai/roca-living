@@ -52,13 +52,7 @@ export const Settings = () => {
 
   return (
     <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-brand-primary tracking-tight">System Settings</h2>
-        <p className="text-sm text-status-muted mt-1">Configure global fee values, deposit parameters, and client templates.</p>
-      </div>
-
-      {/* Settings Form */}
+      {/* Settings Form (title lives in the layout header) */}
       <form onSubmit={handleSave} className="card-bg border border-card-border rounded-card p-6 md:p-8 shadow-premium flex flex-col gap-6">
 
         {/* Billing Section */}

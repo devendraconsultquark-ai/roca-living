@@ -220,12 +220,6 @@ export const OnboardingWizard = () => {
 
   return (
     <div className="py-6 max-w-[1440px] mx-auto px-8 font-sans text-brand-primary">
-      {/* Title */}
-      <div className="mb-8 text-center sm:text-left">
-        <h2 className="text-2xl font-bold text-brand-primary tracking-tight">New-Let Onboarding Wizard</h2>
-        <p className="text-sm text-status-muted mt-1">Complete the 6 onboarding stages to register the landlord, property, and move-in details.</p>
-      </div>
-
       {isSuccess ? (
         <div className="card-bg border border-card-border rounded-card shadow-premium p-8 text-center flex flex-col items-center justify-center gap-6">
           <div className="w-16 h-16 bg-status-success rounded-full flex items-center justify-center text-white shadow-lg animate-bounce">

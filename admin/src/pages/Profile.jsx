@@ -148,12 +148,6 @@ export const Profile = () => {
 
   return (
     <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-brand-primary tracking-tight">Admin Profile</h2>
-        <p className="text-sm text-status-muted mt-1">Manage your administrative user information and profile settings.</p>
-      </div>
-
       <div className="flex flex-col gap-6">
         {/* Settings Form */}
         <form onSubmit={handleSave} className="card-bg border border-card-border rounded-card p-6 shadow-premium flex flex-col gap-6">
