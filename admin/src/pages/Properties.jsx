@@ -166,6 +166,15 @@ export const Properties = () => {
   useEffect(() => {
     fetchProperties();
     fetchLandlordsList();
+    // Default management fee comes from the system settings (fallback 12.00).
+    api.get('/settings').then((res) => {
+      const fee = parseFloat(res.data?.data?.agencyFee);
+      if (Number.isFinite(fee)) {
+        setNewProperty((prev) =>
+          prev.mgmt_fee_pct === '12.00' ? { ...prev, mgmt_fee_pct: fee.toFixed(2) } : prev
+        );
+      }
+    }).catch(() => { /* prefill only */ });
   }, []);
 
   const handleAddPropertySubmit = async (e) => {

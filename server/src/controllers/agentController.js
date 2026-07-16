@@ -188,6 +188,47 @@ export const createInstruction = catchAsync(async (req, res, next) => {
   });
 });
 
+export const updateInstruction = catchAsync(async (req, res, next) => {
+  const { id } = req.params; // instruction_id
+  const { status } = req.body;
+
+  const instruction = await db('agent_instructions').where('id', id).first();
+  if (!instruction) {
+    throw new ApiError(404, 'Agent instruction not found');
+  }
+
+  if (!['completed', 'cancelled'].includes(status)) {
+    throw new ApiError(400, "status must be 'completed' or 'cancelled'");
+  }
+  if (instruction.status !== 'active') {
+    throw new ApiError(400, `Instruction is already ${instruction.status}`);
+  }
+
+  await db.transaction(async (trx) => {
+    await trx('agent_instructions').where('id', id).update({
+      status,
+      completed_at: status === 'completed' ? trx.fn.now() : null
+    });
+
+    await trx('audit_log').insert({
+      actor_id: req.user.id,
+      actor_role: req.user.role,
+      action: 'AGENT_INSTRUCTION_UPDATED',
+      entity_type: 'agent_instruction',
+      entity_id: id,
+      meta: JSON.stringify({ status }),
+      ip_address: req.ip || null
+    });
+  });
+
+  const updated = await db('agent_instructions').where('id', id).first();
+
+  res.json({
+    success: true,
+    data: formatInstruction(updated)
+  });
+});
+
 export const addViewing = catchAsync(async (req, res, next) => {
   const { id } = req.params; // instruction_id
   const { viewed_at, applicant_name, applicant_ref, feedback, outcome } = req.body;

@@ -43,7 +43,8 @@ export const Invoices = () => {
   const [propertySource, setPropertySource] = useState('local');   // 'local' | 'em'
   const [propertySourceId, setPropertySourceId] = useState(null);  // original property_id in source DB
   
-  // Line items
+  // Line items — new rows default to the system VAT rate (admin Settings page)
+  const [defaultVat, setDefaultVat] = useState(0);
   const [lineItems, setLineItems] = useState([
     { description: 'Tenancy sourcing fee', cost: '', vatPercent: 0, discount: '', net: 0 }
   ]);
@@ -104,6 +105,18 @@ export const Invoices = () => {
   useEffect(() => {
     if (showModal) {
       fetchAutofillMetadata();
+      // Prefill VAT on untouched rows from the system vatRate setting.
+      api.get('/settings').then((res) => {
+        const vat = parseFloat(res.data?.data?.vatRate);
+        if (Number.isFinite(vat)) {
+          setDefaultVat(vat);
+          setLineItems((items) => items.map((item) =>
+            item.cost === '' && (!item.vatPercent || item.vatPercent === 0)
+              ? { ...item, vatPercent: vat }
+              : item
+          ));
+        }
+      }).catch(() => { /* prefill only — form stays usable without it */ });
     }
   }, [showModal]);
 
@@ -152,7 +165,7 @@ export const Invoices = () => {
   const addLineItem = () => {
     setLineItems([
       ...lineItems,
-      { description: '', cost: '', vatPercent: 0, discount: '', net: 0 }
+      { description: '', cost: '', vatPercent: defaultVat, discount: '', net: 0 }
     ]);
   };
 

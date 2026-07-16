@@ -85,18 +85,31 @@ export const useMaintenance = () => {
     try {
       if (action === 'approve') {
         await api.patch(`/maintenance/${quoteId}/approve`);
-        addToast(`Quote #${quoteId} approved!`, 'success');
+        addToast(`Quote #${quoteId} approved — work can now go ahead.`, 'success');
       } else {
         await api.patch(`/maintenance/${quoteId}/decline`);
         addToast(`Quote #${quoteId} declined.`, 'info');
       }
-      // Update local state
-      setQuotes(prev =>
-        prev.map(q => q.id === quoteId ? { ...q, status: action === 'approve' ? 'Approved' : 'Declined' } : q)
-      );
+      // Re-fetch so the ticket reflects its real server state (in_progress /
+      // cancelled) rather than a locally-guessed label.
+      fetchQuotes();
     } catch (err) {
       addToast(err.response?.data?.message || `Failed to ${action} quote`, 'error');
     }
+  };
+
+  // Load a ticket's photos as object URLs for inline display. Caller revokes.
+  const getTicketImages = async (ticketId) => {
+    const res = await api.get(`/maintenance/${ticketId}/images`);
+    const rows = res.data.data || [];
+    return Promise.all(rows.map(async (img) => {
+      try {
+        const blobRes = await api.get(`/maintenance/images/${img.id}`, { responseType: 'blob' });
+        return { ...img, url: window.URL.createObjectURL(blobRes.data) };
+      } catch {
+        return { ...img, url: null };
+      }
+    }));
   };
 
   // Drag-drop handlers
@@ -129,14 +142,14 @@ export const useMaintenance = () => {
     }
   };
 
-  // Submit new issue
+  // Submit new issue — returns true on success so callers can close a modal.
   const handleSubmitIssue = async (e) => {
     e.preventDefault();
     const errs = {};
     if (!property) errs.property = 'Please select a property';
     if (!title.trim()) errs.title = 'Please enter a title';
     if (!description.trim()) errs.description = 'Please describe the issue';
-    if (Object.keys(errs).length > 0) { setErrors(errs); return; }
+    if (Object.keys(errs).length > 0) { setErrors(errs); return false; }
 
     setErrors({});
     setLoading(true);
@@ -170,8 +183,10 @@ export const useMaintenance = () => {
       setDescription('');
       setPicture(null);
       fetchQuotes();
+      return true;
     } catch (err) {
       addToast(err.response?.data?.message || 'Failed to submit issue', 'error');
+      return false;
     } finally {
       setLoading(false);
     }
@@ -200,5 +215,6 @@ export const useMaintenance = () => {
     handleDrop,
     handleFileInputChange,
     handleSubmitIssue,
+    getTicketImages,
   };
 };

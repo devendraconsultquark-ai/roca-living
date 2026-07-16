@@ -7,12 +7,14 @@ import {
   Plus,
   ChevronRight,
   Info,
-  Settings,
-  MoreVertical,
+  X,
+  Upload,
 } from "lucide-react";
 import { useMaintenance } from "../hooks/useMaintenance";
 import { PortalMetricCard } from "../components/UI/PortalMetricCard";
 import { Button } from "../components/UI/Button";
+import { Input } from "../components/UI/Input";
+import { Dropdown } from "../components/UI/Dropdown";
 import { FilterRibbon } from "../components/UI/FilterRibbon";
 import { Pagination } from "../components/UI/Pagination";
 import { TableEmptyState } from "../components/UI/TableEmptyState";
@@ -24,9 +26,57 @@ import { usePropertyContext } from "../context/PropertyContext";
 import { filterByProperty } from "../utilities/propertyFilter";
 
 export const Maintenance = () => {
-  const { tickets, ticketsLoading, error } = useMaintenance();
+  const {
+    tickets,
+    ticketsLoading,
+    error,
+    quotes,
+    myProperties,
+    property,
+    setProperty,
+    title,
+    setTitle,
+    description,
+    setDescription,
+    picture,
+    setPicture,
+    errors,
+    loading: submitLoading,
+    handleQuoteAction,
+    handleFileInputChange,
+    handleSubmitIssue,
+    getTicketImages,
+  } = useMaintenance();
   const { addToast } = useToast();
   const comingSoon = () => addToast("This feature is coming soon.", "info");
+
+  // Report-issue modal
+  const [isReportOpen, setIsReportOpen] = useState(false);
+
+  const submitReport = async (e) => {
+    const ok = await handleSubmitIssue(e);
+    if (ok) setIsReportOpen(false);
+  };
+
+  // Ticket detail modal
+  const [detailTicket, setDetailTicket] = useState(null);
+  const [detailImages, setDetailImages] = useState([]);
+
+  const openDetail = async (row) => {
+    setDetailTicket(row);
+    setDetailImages([]);
+    try {
+      setDetailImages(await getTicketImages(row.id));
+    } catch {
+      // No photos (or fetch failed) — the section stays empty.
+    }
+  };
+
+  const closeDetail = () => {
+    detailImages.forEach((img) => { if (img.url) window.URL.revokeObjectURL(img.url); });
+    setDetailTicket(null);
+    setDetailImages([]);
+  };
 
   const { selectedProperty } = usePropertyContext();
   // Scope to the globally-selected property (no-op when "All Properties").
@@ -135,6 +185,7 @@ export const Maintenance = () => {
       action: "View Details",
       icon: Wrench,
       color: "bg-status-info-bg text-status-info",
+      raw: t,
     };
   });
 
@@ -236,7 +287,7 @@ export const Maintenance = () => {
   const actionConfig = {
     label: "New Maintenance Request",
     icon: Plus,
-    onClick: comingSoon,
+    onClick: () => setIsReportOpen(true),
   };
 
   if (ticketsLoading) {
@@ -395,17 +446,9 @@ export const Maintenance = () => {
                             <Button
                               variant="secondary"
                               className="!py-0.5 !px-2.5 text-2xs font-bold card-bg"
-                              onClick={comingSoon}
+                              onClick={() => openDetail(row)}
                             >
                               {row.action}
-                            </Button>
-                            <Button
-                              variant="icon-only"
-                              size="sm"
-                              className="p-0.5 text-sidebar-text-muted hover:text-brand-primary cursor-pointer"
-                              onClick={comingSoon}
-                            >
-                              <MoreVertical size={13} />
                             </Button>
                           </div>
                         </td>
@@ -446,6 +489,47 @@ export const Maintenance = () => {
 
         {/* Right Side: Sidebar Panels (3 Columns) */}
         <div className="lg:col-span-3 flex flex-col gap-6 select-none">
+          {/* Quotes Awaiting Approval */}
+          {quotes.length > 0 && (
+            <div className="card-bg border border-status-warning/30 rounded-card p-5 shadow-xs flex flex-col gap-4">
+              <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider pb-2 border-b border-card-border">
+                Quotes Awaiting Approval
+              </h3>
+              <div className="flex flex-col gap-4">
+                {quotes.map((q) => (
+                  <div key={q.id} className="flex flex-col gap-2 pb-3 border-b border-card-border/60 last:border-0 last:pb-0">
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-xs-portal font-bold text-brand-primary leading-tight">{q.property}</span>
+                      <span className="text-xs-portal font-extrabold text-brand-primary whitespace-nowrap">
+                        £{q.cost.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <p className="text-2xs text-gray-400 font-semibold leading-snug">{q.description}</p>
+                    <p className="text-2xs text-gray-400 font-semibold">Contractor: {q.contractor}</p>
+                    <div className="flex gap-2 mt-1">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        className="!py-1 !px-3 text-2xs font-bold flex-1"
+                        onClick={() => handleQuoteAction(q.id, "approve")}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="!py-1 !px-3 text-2xs font-bold flex-1 text-status-danger"
+                        onClick={() => handleQuoteAction(q.id, "decline")}
+                      >
+                        Decline
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Maintenance Overview (Donut Chart) */}
           <div className="card-bg border border-card-border rounded-card p-5 shadow-xs flex flex-col gap-4">
             <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider pb-2 border-b border-card-border">
@@ -549,25 +633,185 @@ export const Maintenance = () => {
               icon={ChevronRight}
               iconPosition="right"
               className="w-full font-bold card-bg text-xs-portal"
-              onClick={comingSoon}
+              onClick={() => setIsReportOpen(true)}
             >
               Report an Issue
             </Button>
           </div>
-
-          {/* Maintenance Settings Button */}
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={Settings}
-            iconPosition="left"
-            className="w-full font-bold card-bg text-xs-portal h-9"
-            onClick={() => {}}
-          >
-            Maintenance Settings
-          </Button>
         </div>
       </div>
+
+      {/* Report Issue Modal */}
+      {isReportOpen && (
+        <div className="fixed inset-0 bg-brand-primary/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="card-bg rounded-card p-6 w-full max-w-lg shadow-premium border border-card-border max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-base-portal font-bold text-brand-primary">Report a Maintenance Issue</h3>
+              <button onClick={() => setIsReportOpen(false)} className="text-gray-400 hover:text-brand-primary cursor-pointer">
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={submitReport} className="flex flex-col gap-4">
+              <Dropdown
+                label="Property"
+                id="report-property"
+                placeholder="Select property..."
+                options={myProperties}
+                value={property}
+                onChange={setProperty}
+                error={errors.property}
+              />
+              <Input
+                label="Title"
+                id="report-title"
+                required
+                placeholder="e.g. Boiler not heating"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                error={errors.title}
+              />
+              <div className="flex flex-col gap-1">
+                <label htmlFor="report-description" className="text-2xs font-bold text-gray-400 uppercase tracking-wider">
+                  Description <span className="text-status-danger">*</span>
+                </label>
+                <textarea
+                  id="report-description"
+                  rows={3}
+                  placeholder="Describe the issue in detail..."
+                  className={`w-full text-xs-portal bg-white border border-card-border rounded-card py-2.5 px-3 transition-all focus:outline-none focus:ring-2 focus:ring-status-info/20 focus:border-status-info ${errors.description ? "border-status-danger" : ""}`}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+                {errors.description && <span className="text-2xs text-status-danger font-bold">{errors.description}</span>}
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label htmlFor="report-photo" className="text-2xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                  <Upload size={11} /> Photo (optional)
+                </label>
+                <input
+                  id="report-photo"
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.gif,.webp"
+                  onChange={handleFileInputChange}
+                  className="text-xs-portal text-status-muted file:mr-3 file:px-3 file:py-1.5 file:rounded-card file:border file:border-card-border file:bg-surface-light file:text-brand-primary file:font-bold file:text-2xs file:cursor-pointer cursor-pointer"
+                />
+                {picture && (
+                  <div className="flex items-center gap-2 text-2xs text-status-muted font-semibold mt-1">
+                    <span className="truncate">{picture.name}</span>
+                    <button type="button" onClick={() => setPicture(null)} className="text-status-danger font-bold cursor-pointer hover:underline">
+                      Remove
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 justify-end mt-1">
+                <Button type="button" variant="secondary" onClick={() => setIsReportOpen(false)} disabled={submitLoading}>
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary" disabled={submitLoading}>
+                  {submitLoading ? "Submitting…" : "Submit Request"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Ticket Detail Modal */}
+      {detailTicket && (
+        <div className="fixed inset-0 bg-brand-primary/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="card-bg rounded-card p-6 w-full max-w-lg shadow-premium border border-card-border max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-1">
+              <h3 className="text-base-portal font-bold text-brand-primary">{detailTicket.item}</h3>
+              <button onClick={closeDetail} className="text-gray-400 hover:text-brand-primary cursor-pointer">
+                <X size={20} />
+              </button>
+            </div>
+            <p className="text-2xs text-gray-400 font-semibold mb-4">{detailTicket.ref} • {detailTicket.property}</p>
+
+            <div className="flex items-center gap-2 mb-4">
+              <StatusPill status={detailTicket.status} size="sm" rounded="sm" showIcon={false} />
+              <StatusPill status={detailTicket.priority} size="sm" rounded="sm" showIcon={false} />
+            </div>
+
+            <p className="text-xs-portal text-status-muted leading-relaxed mb-4 bg-surface-light border border-card-border rounded-card p-3">
+              {detailTicket.raw.description}
+            </p>
+
+            <div className="grid grid-cols-2 gap-3 text-xs-portal mb-4">
+              <div>
+                <p className="text-2xs text-gray-400 font-bold uppercase tracking-wider">Reported</p>
+                <p className="font-bold text-brand-primary mt-0.5">{detailTicket.created}</p>
+              </div>
+              <div>
+                <p className="text-2xs text-gray-400 font-bold uppercase tracking-wider">Last Updated</p>
+                <p className="font-bold text-brand-primary mt-0.5">{detailTicket.updated}</p>
+              </div>
+              <div>
+                <p className="text-2xs text-gray-400 font-bold uppercase tracking-wider">Contractor</p>
+                <p className="font-bold text-brand-primary mt-0.5">{detailTicket.raw.contractor_company || "Not yet assigned"}</p>
+              </div>
+              <div>
+                <p className="text-2xs text-gray-400 font-bold uppercase tracking-wider">Quote</p>
+                <p className="font-bold text-brand-primary mt-0.5">
+                  {detailTicket.raw.quote_amount && parseFloat(detailTicket.raw.quote_amount) > 0
+                    ? `£${parseFloat(detailTicket.raw.quote_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                    : "—"}
+                </p>
+              </div>
+            </div>
+
+            {detailImages.length > 0 && (
+              <div className="flex flex-col gap-2 mb-4">
+                <p className="text-2xs text-gray-400 font-bold uppercase tracking-wider">Photos ({detailImages.length})</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {detailImages.map((img) => (
+                    img.url ? (
+                      <a key={img.id} href={img.url} target="_blank" rel="noreferrer">
+                        <img src={img.url} alt={img.original_name || `Ticket photo ${img.id}`} className="w-full h-20 object-cover rounded-card border border-card-border hover:opacity-90 transition-opacity" />
+                      </a>
+                    ) : (
+                      <div key={img.id} className="w-full h-20 rounded-card border border-dashed border-card-border flex items-center justify-center text-2xs text-gray-400">
+                        Unavailable
+                      </div>
+                    )
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {quotes.some((q) => q.id === detailTicket.id) && (
+              <div className="flex gap-2 mb-4">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="flex-1"
+                  onClick={async () => { await handleQuoteAction(detailTicket.id, "approve"); closeDetail(); }}
+                >
+                  Approve Quote
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="flex-1 text-status-danger"
+                  onClick={async () => { await handleQuoteAction(detailTicket.id, "decline"); closeDetail(); }}
+                >
+                  Decline Quote
+                </Button>
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <Button variant="secondary" onClick={closeDetail}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

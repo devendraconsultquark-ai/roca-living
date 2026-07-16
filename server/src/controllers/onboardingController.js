@@ -5,6 +5,7 @@ import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { addDays, addMonths, getLastDayOfCurrentMonth } from '../utils/dateHelpers.js';
 import { ensureLandlordSetup } from '../utils/landlordSetup.js';
+import { getSetting } from '../utils/settings.js';
 
 const BCRYPT_COST = parseInt(process.env.BCRYPT_COST || '12', 10);
 
@@ -207,6 +208,12 @@ export const completeOnboarding = catchAsync(async (req, res, next) => {
       ? parseFloat(depositAmount).toFixed(2)
       : parseFloat((rentPrice * 12 / 52) * 5).toFixed(2);
     const registerDue = addDays(startDate, 30);
+    // Agency scheme membership number comes from the admin Settings page.
+    const schemeAgencyId = await getSetting('depositSchemeNum', null);
+    const depositNotes = [
+      depositSchemeId ? `Certificate ID: ${depositSchemeId}` : null,
+      schemeAgencyId ? `Scheme Agency ID: ${schemeAgencyId}` : null
+    ].filter(Boolean).join(' | ') || null;
     await trx('deposits').insert({
       tenancy_id: tenancyId,
       holding_deposit: null,
@@ -215,7 +222,7 @@ export const completeOnboarding = catchAsync(async (req, res, next) => {
       received_at: startDate,
       register_due: registerDue,
       status: 'pending_registration',
-      notes: depositSchemeId ? `Certificate ID: ${depositSchemeId}` : null
+      notes: depositNotes
     });
 
     // 10. Create utility record for utilityProvider

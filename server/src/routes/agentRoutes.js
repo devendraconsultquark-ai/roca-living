@@ -5,6 +5,7 @@ import {
   updateAgent,
   getAgentById,
   createInstruction,
+  updateInstruction,
   addViewing,
   getInstructionViewings,
   deleteAgent
@@ -23,6 +24,7 @@ agentRouter.get('/:id', getAgentById);
 agentRouter.patch('/:id', updateAgent);
 agentRouter.delete('/:id', deleteAgent);
 agentRouter.post('/:id/instructions', createInstruction);
+agentRouter.patch('/instructions/:id', updateInstruction);
 agentRouter.post('/instructions/:id/viewings', addViewing);
 agentRouter.get('/instructions/:id/viewings', getInstructionViewings);
 

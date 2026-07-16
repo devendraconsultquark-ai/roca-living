@@ -1,6 +1,7 @@
 import db from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
+import { getNumericSetting } from '../utils/settings.js';
 import fs from 'fs';
 import path from 'path';
 import logger from '../utils/logger.js';
@@ -172,6 +173,9 @@ export const createProperty = catchAsync(async (req, res, next) => {
     throw new ApiError(404, 'Landlord not found');
   }
 
+  // System default management fee (admin Settings page), 12% as last resort.
+  const defaultMgmtFee = await getNumericSetting('agencyFee', 12.00);
+
   const result = await db.transaction(async (trx) => {
     const tempRef = `TEMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const [propertyId] = await trx('properties').insert({
@@ -183,7 +187,7 @@ export const createProperty = catchAsync(async (req, res, next) => {
       property_type: property_type || null,
       bedrooms: bedrooms !== undefined ? bedrooms : null,
       rent_pcm: rent_pcm !== undefined ? rent_pcm : null,
-      mgmt_fee_pct: mgmt_fee_pct !== undefined ? mgmt_fee_pct : 12.00,
+      mgmt_fee_pct: mgmt_fee_pct !== undefined ? mgmt_fee_pct : defaultMgmtFee,
       key_ref: key_ref || null,
       notes: notes || null,
       block_name: block_name || null,
