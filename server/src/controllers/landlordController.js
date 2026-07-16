@@ -5,6 +5,7 @@ import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import logger from '../utils/logger.js';
 import { deletePropertyInternal } from './propertyController.js';
+import { ensureLandlordSetup } from '../utils/landlordSetup.js';
 import fs from 'fs';
 
 const BCRYPT_COST = parseInt(process.env.BCRYPT_COST || '12', 10);
@@ -47,7 +48,7 @@ export const getAllLandlords = catchAsync(async (req, res, next) => {
       'landlord_profiles.is_overseas',
       'users.created_at',
       db.raw('(SELECT COUNT(*) FROM properties WHERE landlord_id = users.id) as propertiesCount'),
-      db.raw('NULL as payouts')
+      db.raw("(SELECT COALESCE(SUM(net_paid), 0) FROM landlord_statements WHERE landlord_id = users.id AND status = 'paid') as payouts")
     )
     .where('users.role', 'LANDLORD');
 
@@ -92,6 +93,7 @@ export const getLandlordById = catchAsync(async (req, res, next) => {
       'users.role',
       'landlord_profiles.company_name',
       'landlord_profiles.landlord_reference',
+      'landlord_profiles.initials',
       'landlord_profiles.is_overseas',
       'landlord_profiles.nrl_hmrc_approved',
       'landlord_profiles.nrl_hmrc_ref',
@@ -153,6 +155,50 @@ export const getLandlordById = catchAsync(async (req, res, next) => {
   });
 });
 
+// Landlord-portal view of the caller's own compliance checklist: their
+// landlord-scope items plus the property-scope items of every property they own.
+export const getMyChecklist = catchAsync(async (req, res, next) => {
+  const formatItem = (c) => ({
+    id: c.id,
+    scope: c.scope,
+    item_code: c.item_code,
+    item_label: c.item_label,
+    applicable: c.applicable,
+    status: c.status,
+    verified_at: c.verified_at ? new Date(c.verified_at).toISOString() : null
+  });
+
+  const landlordItems = await db('compliance_checklist')
+    .where({ scope: 'landlord', entity_id: req.user.id })
+    .orderBy('id', 'asc');
+
+  const propertyItems = await db('compliance_checklist')
+    .join('properties', 'compliance_checklist.entity_id', 'properties.id')
+    .select(
+      'compliance_checklist.*',
+      'properties.id as property_id',
+      'properties.property_reference',
+      'properties.address_line1',
+      'properties.city'
+    )
+    .where('compliance_checklist.scope', 'property')
+    .where('properties.landlord_id', req.user.id)
+    .orderBy(['properties.id', 'compliance_checklist.id']);
+
+  res.json({
+    success: true,
+    data: {
+      landlord: landlordItems.map(formatItem),
+      property: propertyItems.map((c) => ({
+        ...formatItem(c),
+        property_id: c.property_id,
+        property_reference: c.property_reference,
+        property_address: `${c.address_line1}, ${c.city}`
+      }))
+    }
+  });
+});
+
 export const createLandlord = catchAsync(async (req, res, next) => {
   const { name, email, phone, address, company_name, is_overseas, ownership_share, tob_status } = req.body;
 
@@ -174,34 +220,12 @@ export const createLandlord = catchAsync(async (req, res, next) => {
       role: 'LANDLORD'
     });
 
-    const landlord_reference = `REM-LND-${String(userId).padStart(3, '0')}`;
-
-    await trx('landlord_profiles').insert({
-      user_id: userId,
-      landlord_reference,
+    await ensureLandlordSetup(trx, userId, {
       company_name: company_name || null,
       is_overseas: is_overseas ? 1 : 0,
       ownership_share: ownership_share !== undefined ? ownership_share : null,
       tob_status: tob_status || 'not_sent'
     });
-
-    const defaultItems = [
-      { item_code: 'KYC_PENDING', item_label: 'KYC Passed' },
-      { item_code: 'TOB_SIGNED', item_label: 'Terms of Business Signed' },
-      { item_code: 'OWNERSHIP_CONFIRMED', item_label: 'Ownership Confirmed' },
-      { item_code: 'BANK_DETAILS_ADDED', item_label: 'Bank Details Added & Verified' }
-    ];
-
-    const checklistRows = defaultItems.map((item) => ({
-      scope: 'landlord',
-      entity_id: userId,
-      item_code: item.item_code,
-      item_label: item.item_label,
-      applicable: 1,
-      status: 'pending'
-    }));
-
-    await trx('compliance_checklist').insert(checklistRows);
 
     await trx('audit_log').insert({
       actor_id: req.user.id,
@@ -365,7 +389,8 @@ export const updateLandlord = catchAsync(async (req, res, next) => {
   const { id } = req.params;
   const {
     name, email, phone, address,
-    company_name, is_overseas, nrl_hmrc_approved, nrl_hmrc_ref, nrl_withhold_pct, kyc_status, tob_status, ownership_share
+    company_name, is_overseas, nrl_hmrc_approved, nrl_hmrc_ref, nrl_withhold_pct, kyc_status, tob_status, ownership_share,
+    ownership_confirmed, initials
   } = req.body;
 
   const landlord = await db('users').where({ id, role: 'LANDLORD' }).first();
@@ -388,10 +413,10 @@ export const updateLandlord = catchAsync(async (req, res, next) => {
   if (kyc_status !== undefined) profileUpdates.kyc_status = kyc_status;
   if (tob_status !== undefined) profileUpdates.tob_status = tob_status;
   if (ownership_share !== undefined) profileUpdates.ownership_share = ownership_share !== '' ? parseFloat(ownership_share).toFixed(2) : null;
-
-  if (kyc_status === 'passed') {
-    profileUpdates.ownership_confirmed = 1;
-  }
+  if (initials !== undefined) profileUpdates.initials = initials || null;
+  // Ownership confirmation is an explicit admin decision — never inferred from
+  // KYC passing (they verify different things).
+  if (ownership_confirmed !== undefined) profileUpdates.ownership_confirmed = ownership_confirmed ? 1 : 0;
 
   await db.transaction(async (trx) => {
     if (Object.keys(userUpdates).length > 0) {
@@ -410,6 +435,15 @@ export const updateLandlord = catchAsync(async (req, res, next) => {
       }
     }
 
+    // Keep the checklist item in step with an explicit ownership confirmation.
+    if (ownership_confirmed !== undefined) {
+      await trx('compliance_checklist')
+        .where({ scope: 'landlord', entity_id: id, item_code: 'OWNERSHIP_CONFIRMED' })
+        .update(ownership_confirmed
+          ? { status: 'complete', verified_at: trx.fn.now(), verified_by: req.user.id }
+          : { status: 'pending', verified_at: null, verified_by: null });
+    }
+
     await trx('audit_log').insert({
       actor_id: req.user.id,
       actor_role: req.user.role,
@@ -423,7 +457,7 @@ export const updateLandlord = catchAsync(async (req, res, next) => {
 
   const updatedLandlord = await db('users')
     .leftJoin('landlord_profiles', 'users.id', 'landlord_profiles.user_id')
-    .select('users.*', 'landlord_profiles.company_name', 'landlord_profiles.landlord_reference', 'landlord_profiles.is_overseas', 'landlord_profiles.nrl_hmrc_approved', 'landlord_profiles.nrl_hmrc_ref', 'landlord_profiles.nrl_withhold_pct', 'landlord_profiles.kyc_status', 'landlord_profiles.tob_status', 'landlord_profiles.ownership_share')
+    .select('users.*', 'landlord_profiles.company_name', 'landlord_profiles.landlord_reference', 'landlord_profiles.is_overseas', 'landlord_profiles.nrl_hmrc_approved', 'landlord_profiles.nrl_hmrc_ref', 'landlord_profiles.nrl_withhold_pct', 'landlord_profiles.kyc_status', 'landlord_profiles.tob_status', 'landlord_profiles.ownership_share', 'landlord_profiles.ownership_confirmed', 'landlord_profiles.initials')
     .where('users.id', id)
     .first();
 

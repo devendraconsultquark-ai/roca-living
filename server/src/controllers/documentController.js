@@ -38,10 +38,23 @@ export const getFolders = catchAsync(async (req, res, next) => {
   const landlords = await db('users')
     .join('landlord_profiles', 'users.id', 'landlord_profiles.user_id')
     .select('users.id', 'landlord_profiles.landlord_reference');
+  const tenancies = await db('tenancies').select('id', 'property_id');
 
   const propRefMap = Object.fromEntries(properties.map(p => [p.id, p.property_reference]));
   const landRefMap = Object.fromEntries(landlords.map(l => [l.id, l.landlord_reference]));
+  const tenancyPropMap = Object.fromEntries(tenancies.map(t => [t.id, t.property_id]));
 
+  // Each owner_type resolves through its OWN reference map — tenancy docs show
+  // the tenancy id plus the property it belongs to, never a bogus property ref.
+  const entityRefFor = (d) => {
+    if (d.owner_type === 'landlord') return landRefMap[d.owner_id] || `LND-${d.owner_id}`;
+    if (d.owner_type === 'property') return propRefMap[d.owner_id] || `PRP-${d.owner_id}`;
+    if (d.owner_type === 'tenancy') {
+      const propRef = propRefMap[tenancyPropMap[d.owner_id]];
+      return propRef ? `TCY-${d.owner_id} @ ${propRef}` : `TCY-${d.owner_id}`;
+    }
+    return '—'; // global / unattributed
+  };
 
   const responseData = foldersList.map(folder => {
     // Filter documents in this folder
@@ -57,9 +70,7 @@ export const getFolders = catchAsync(async (req, res, next) => {
         size: formatBytes(d.file_size_bytes),
         date: d.created_at ? new Date(d.created_at).toISOString().split('T')[0] : '',
         scope: d.owner_type,
-        entityId: d.owner_type === 'landlord'
-          ? (landRefMap[d.owner_id] || `LND-${d.owner_id}`)
-          : (propRefMap[d.owner_id] || `PRP-${d.owner_id}`),
+        entityId: entityRefFor(d),
         doc_reference: d.doc_reference
       }))
     };
@@ -122,12 +133,13 @@ export const uploadDocument = catchAsync(async (req, res, next) => {
         folder = { id: fid, name: folderName };
       }
 
+      const DOC_TYPES = { landlord: 'kyc_document', property: 'property_certificate', tenancy: 'tenancy_agreement' };
       const tempRef = `TEMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       [documentId] = await trx('documents').insert({
         folder_id: folder.id,
         owner_type: scope,
         owner_id: parsedOwnerId,
-        doc_type: scope === 'landlord' ? 'kyc_document' : 'property_certificate',
+        doc_type: DOC_TYPES[scope],
         filename: req.file.filename,
         original_name: req.file.originalname,
         mime_type: req.file.mimetype,
@@ -202,6 +214,60 @@ export const deleteDocument = catchAsync(async (req, res, next) => {
     success: true,
     message: 'Document deleted successfully'
   });
+});
+
+// Serve a stored document to its rightful viewer. Admin can download anything;
+// a landlord only documents they own — directly (owner_type landlord), via one
+// of their properties, or via a tenancy on one of their properties.
+export const downloadDocument = catchAsync(async (req, res, next) => {
+  const { id } = req.params;
+
+  const doc = await db('documents').where('id', id).first();
+  if (!doc) {
+    throw new ApiError(404, 'Document not found');
+  }
+
+  if (req.user.role !== 'ADMIN') {
+    let permitted = false;
+
+    if (doc.owner_type === 'landlord') {
+      permitted = doc.owner_id === req.user.id;
+    } else if (doc.owner_type === 'property') {
+      const property = await db('properties').where({ id: doc.owner_id, landlord_id: req.user.id }).first();
+      permitted = !!property;
+    } else if (doc.owner_type === 'tenancy') {
+      const tenancy = await db('tenancies')
+        .join('properties', 'tenancies.property_id', 'properties.id')
+        .where('tenancies.id', doc.owner_id)
+        .where('properties.landlord_id', req.user.id)
+        .first();
+      permitted = !!tenancy;
+    }
+
+    if (!permitted) {
+      throw new ApiError(403, 'You do not have permission to access this document');
+    }
+  }
+
+  // file_path is server-generated and stored relative to the app root; resolve
+  // and confine it to the uploads directory to rule out traversal.
+  const absolutePath = path.isAbsolute(doc.file_path)
+    ? doc.file_path
+    : path.join(process.cwd(), doc.file_path);
+  const resolved = path.resolve(absolutePath);
+  if (!resolved.startsWith(path.resolve(uploadsDir))) {
+    logger.warn(`Blocked document download outside uploads dir: ${resolved}`);
+    throw new ApiError(404, 'Document file not found');
+  }
+
+  if (!fs.existsSync(resolved)) {
+    logger.warn(`Document missing on disk: ${resolved}`);
+    throw new ApiError(404, 'Document file not found');
+  }
+
+  res.setHeader('Content-Type', doc.mime_type || 'application/octet-stream');
+  res.setHeader('Content-Disposition', `attachment; filename="${(doc.original_name || doc.filename || 'document').replace(/"/g, '')}"`);
+  res.sendFile(resolved);
 });
 
 export const getMyDocuments = catchAsync(async (req, res, next) => {

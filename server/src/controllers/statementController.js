@@ -33,8 +33,8 @@ export const generateStatements = catchAsync(async (req, res, next) => {
   const {
     // Source tracking — tells us which DB this property came from
     source = 'local',           // 'local' | 'em'
-    source_property_id = null,  // original property id in the source DB\
-    landlord_id,   
+    source_property_id = null,  // original property id in the source DB
+    landlord_id,                // explicit local landlord user id (from autofill)
     landlord_name,
     landlord_address,
     nrl_number,
@@ -72,16 +72,36 @@ export const generateStatements = catchAsync(async (req, res, next) => {
   }
 
   // ── No cross-DB resolution. All data comes directly from the form. ──
-  // For local-source properties, try to find the landlord_id in local DB (best-effort, not required).
+  // Attribution requires an EXPLICIT landlord_id (the autofill metadata supplies it).
+  // Never guess from the name: a fuzzy match can attach the statement to the wrong
+  // landlord, who could then view it via the portal. Unmatched statements stay
+  // unattributed (landlord_id NULL) and are visible to admin only.
   let landlordId = null;
-  if (source === 'local' && landlord_name) {
-    const localUser = await db('users')
-      .where({ role: 'LANDLORD' })
-      .where('name', 'like', `%${landlord_name}%`)
-      .first();
-    if (localUser) landlordId = localUser.id;
+  if (landlord_id !== undefined && landlord_id !== null && landlord_id !== '') {
+    const localUser = await db('users').where({ id: landlord_id, role: 'LANDLORD' }).first();
+    if (!localUser) {
+      throw new ApiError(400, `No landlord found with id ${landlord_id}`);
+    }
+    landlordId = localUser.id;
   }
-  // For 'em' source — landlordId stays null. Data is stored as text.
+
+  // For local-source statements, resolve the local property id from its
+  // reference when the caller didn't pass one explicitly. This attributes the
+  // statement to a property so the landlord portal can scope financials per
+  // unit. Best-effort — leaves it null if the property can't be resolved.
+  let resolvedSourcePropertyId = source_property_id;
+  if (source === 'local' && !resolvedSourcePropertyId && property_reference) {
+    const localProp = await db('properties')
+      .where({ property_reference })
+      .first();
+    if (localProp) resolvedSourcePropertyId = localProp.id;
+  }
+  // Verify a caller-supplied local property id actually exists — it is written
+  // to FK columns (transactions.property_id) further down.
+  if (source === 'local' && resolvedSourcePropertyId) {
+    const exists = await db('properties').where('id', resolvedSourcePropertyId).first();
+    if (!exists) resolvedSourcePropertyId = null;
+  }
 
   // Build PDF template input entirely from form data
   const statementInput = {
@@ -124,8 +144,10 @@ export const generateStatements = catchAsync(async (req, res, next) => {
     const tempDocRef = `TEMP-DOC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const [docId] = await trx('documents').insert({
       folder_id: null,
-      owner_type: 'landlord',
-      owner_id: landlordId || req.user.id,  // null for EM-sourced
+      // Unattributed statements (EM-sourced / no landlord match) are 'global'
+      // documents — never owned by the generating admin's user id.
+      owner_type: landlordId ? 'landlord' : 'global',
+      owner_id: landlordId || 0,
       doc_type: 'landlord_statement',
       filename,
       original_name: `Landlord Statement (${statement_number})`,
@@ -148,7 +170,7 @@ export const generateStatements = catchAsync(async (req, res, next) => {
       landlord_name,              // text snapshot (critical for EM-sourced records)
       landlord_address: landlord_address || null,
       source,
-      source_property_id: source_property_id ? String(source_property_id) : null,
+      source_property_id: resolvedSourcePropertyId ? String(resolvedSourcePropertyId) : null,
       period_start,
       period_end,
       gross_rent: parseFloat(rent_received || 0).toFixed(2),
@@ -192,14 +214,18 @@ export const generateStatements = catchAsync(async (req, res, next) => {
       ledgerRows.push({ type: 'deduction', amount: exp_amount, desc: `Invoice ${exp_invoice_no || ''} deductions` });
     }
 
+    // Stamp rows with the statement period (not the generation time) and the
+    // resolved local property, so per-month and per-property views line up.
+    const localPropertyId = source === 'local' && resolvedSourcePropertyId ? resolvedSourcePropertyId : null;
     const txRows = ledgerRows.map(row => ({
       type: row.type,
       landlord_id: landlordId || null,
+      property_id: localPropertyId,
       statement_id: statementId,
       amount: parseFloat(row.amount || 0).toFixed(2),
       vat_amount: 0.00,
       description: row.desc,
-      transaction_date: trx.fn.now(),
+      transaction_date: period_end,
       reconciled: 1,
       created_by: req.user.id
     }));
@@ -303,6 +329,61 @@ export const getLandlordStatements = catchAsync(async (req, res, next) => {
   });
 });
 
+// Forward-only lifecycle; 'paid' is terminal and stamps paid_at.
+const STATEMENT_TRANSITIONS = {
+  draft: ['sent', 'paid'],
+  sent: ['paid'],
+  paid: []
+};
+
+export const updateStatementStatus = catchAsync(async (req, res, next) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  if (!status || !Object.prototype.hasOwnProperty.call(STATEMENT_TRANSITIONS, status)) {
+    throw new ApiError(400, "status must be one of: draft, sent, paid");
+  }
+
+  const statement = await db('landlord_statements').where('id', id).first();
+  if (!statement) {
+    throw new ApiError(404, 'Statement not found');
+  }
+
+  if (status === statement.status) {
+    throw new ApiError(400, `Statement is already '${status}'`);
+  }
+  const allowed = STATEMENT_TRANSITIONS[statement.status] || [];
+  if (!allowed.includes(status)) {
+    throw new ApiError(400, `Invalid status transition from '${statement.status}' to '${status}'`);
+  }
+
+  await db.transaction(async (trx) => {
+    await trx('landlord_statements')
+      .where('id', id)
+      .update({
+        status,
+        paid_at: status === 'paid' ? trx.fn.now() : statement.paid_at
+      });
+
+    await trx('audit_log').insert({
+      actor_id: req.user.id,
+      actor_role: req.user.role,
+      action: 'STATEMENT_STATUS_UPDATED',
+      entity_type: 'landlord_statement',
+      entity_id: id,
+      meta: JSON.stringify({ from: statement.status, to: status }),
+      ip_address: req.ip || null
+    });
+  });
+
+  const updated = await db('landlord_statements').where('id', id).first();
+
+  res.json({
+    success: true,
+    data: formatStatement(updated)
+  });
+});
+
 export const downloadStatement = catchAsync(async (req, res, next) => {
   const { id } = req.params;
 
@@ -362,7 +443,7 @@ export const getAutofillMetadata = catchAsync(async (req, res, next) => {
       'landlords.name as landlord_name',
       'landlords.address as landlord_address',
       'profiles.initials as landlord_initials',
-      'profiles.nrl_number as landlord_nrl_number',
+      'profiles.nrl_hmrc_ref as landlord_nrl_number',
       'tenancies.id as tenancy_id',
       'tenancies.start_date as tenancy_start_date',
       'tenancies.rent_pcm as tenancy_rent_pcm',
@@ -468,6 +549,7 @@ export const getAutofillMetadata = catchAsync(async (req, res, next) => {
     allProperties.push({
       source: 'local',
       property_id: p.property_id,
+      landlord_id: p.landlord_id || null,
       display_name: `[Local] ${p.address_line1}${p.city ? ', ' + p.city : ''}`,
       property_address: [p.address_line1, p.address_line2, p.city, p.postcode].filter(Boolean).join(', '),
       block_name: blockName,
@@ -493,7 +575,8 @@ export const getAutofillMetadata = catchAsync(async (req, res, next) => {
     const profiles = await db('users')
       .leftJoin('landlord_profiles', 'users.id', 'landlord_profiles.user_id')
       .whereIn('users.email', emEmails)
-      .select('users.email', 'landlord_profiles.initials', 'landlord_profiles.nrl_number');
+      .where('users.role', 'LANDLORD')
+      .select('users.id as user_id', 'users.email', 'landlord_profiles.initials', 'landlord_profiles.nrl_hmrc_ref');
 
     for (const prof of profiles) {
       if (prof.email) {
@@ -515,7 +598,7 @@ export const getAutofillMetadata = catchAsync(async (req, res, next) => {
     const fullPropAddr = [addr, p.property_city, p.property_postcode].filter(Boolean).join(', ');
 
     // Format NRL as "{Initials}:{NRL}" per Excel spec
-    const rawNrl = localProfile?.nrl_number || '';
+    const rawNrl = localProfile?.nrl_hmrc_ref || '';
     const nrlFormatted = rawNrl && initials
       ? initials.split('/').map(ini => `${ini}:${rawNrl}`).join(' / ')
       : rawNrl;
@@ -523,6 +606,8 @@ export const getAutofillMetadata = catchAsync(async (req, res, next) => {
     allProperties.push({
       source: 'em',
       property_id: p.property_id,
+      // EM landlords attribute to a local account only via an exact email match
+      landlord_id: localProfile?.user_id || null,
       display_name: `[EM] ${propName}`,
       property_address: fullPropAddr,
       block_name: blockName,

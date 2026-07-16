@@ -32,6 +32,14 @@ const formatProperty = (p) => {
   };
 };
 
+// Internal/operational fields that must not leave the admin portal.
+// key_ref identifies the physical key safe; notes hold internal admin remarks.
+const sanitizePropertyForLandlord = (p) => {
+  if (!p) return null;
+  const { key_ref, notes, ...publicFields } = p;
+  return publicFields;
+};
+
 export const getAllProperties = catchAsync(async (req, res, next) => {
   const { landlord_id, status, search } = req.query;
 
@@ -41,7 +49,8 @@ export const getAllProperties = catchAsync(async (req, res, next) => {
       'properties.*',
       'users.name as landlord_name',
       db.raw(`(SELECT status FROM property_certificates WHERE property_id = properties.id AND cert_type = 'GAS' LIMIT 1) as gasCompliance`),
-      db.raw(`(SELECT status FROM property_certificates WHERE property_id = properties.id AND cert_type = 'EPC' LIMIT 1) as epcCompliance`)
+      db.raw(`(SELECT status FROM property_certificates WHERE property_id = properties.id AND cert_type = 'EPC' LIMIT 1) as epcCompliance`),
+      db.raw(`(SELECT status FROM property_certificates WHERE property_id = properties.id AND cert_type = 'EICR' LIMIT 1) as eicrCompliance`)
     );
 
   if (landlord_id) {
@@ -250,9 +259,13 @@ export const updateProperty = catchAsync(async (req, res, next) => {
 
   if (updateData.status === 'let') {
     const checklist = await db('compliance_checklist').where({ scope: 'property', entity_id: id });
-    const incomplete = checklist.some((item) => item.status !== 'complete');
+    // not_applicable (or applicable = 0) items don't block letting — only
+    // applicable items that are still pending do.
+    const incomplete = checklist.some(
+      (item) => item.applicable !== 0 && item.status !== 'complete' && item.status !== 'not_applicable'
+    );
     if (incomplete || checklist.length === 0) {
-      throw new ApiError(400, 'Cannot set status to let until all compliance checklist items are complete');
+      throw new ApiError(400, 'Cannot set status to let until all applicable compliance checklist items are complete');
     }
   }
 
@@ -281,6 +294,59 @@ export const updateProperty = catchAsync(async (req, res, next) => {
   res.json({
     success: true,
     data: formatted
+  });
+});
+
+// Manually settle a property checklist item that has no dedicated flow of its
+// own (e.g. KEYS_RECEIVED). Certificate-backed items are normally completed via
+// updateCertificate, but this endpoint accepts any item on the property.
+export const updateChecklistItem = catchAsync(async (req, res, next) => {
+  const { id, itemCode } = req.params;
+  const { status, notes } = req.body;
+
+  const VALID_STATUSES = ['pending', 'complete', 'not_applicable'];
+  if (!VALID_STATUSES.includes(status)) {
+    throw new ApiError(400, `status must be one of: ${VALID_STATUSES.join(', ')}`);
+  }
+
+  const item = await db('compliance_checklist')
+    .where({ scope: 'property', entity_id: id, item_code: itemCode })
+    .first();
+  if (!item) {
+    throw new ApiError(404, 'Checklist item not found for this property');
+  }
+
+  await db.transaction(async (trx) => {
+    await trx('compliance_checklist')
+      .where({ scope: 'property', entity_id: id, item_code: itemCode })
+      .update({
+        status,
+        notes: notes !== undefined ? notes : item.notes,
+        verified_at: status === 'complete' ? trx.fn.now() : null,
+        verified_by: status === 'complete' ? req.user.id : null
+      });
+
+    await trx('audit_log').insert({
+      actor_id: req.user.id,
+      actor_role: req.user.role,
+      action: 'COMPLIANCE_CHECKLIST_UPDATED',
+      entity_type: 'property',
+      entity_id: id,
+      meta: JSON.stringify({ item_code: itemCode, from: item.status, to: status }),
+      ip_address: req.ip || null
+    });
+  });
+
+  const updated = await db('compliance_checklist')
+    .where({ scope: 'property', entity_id: id, item_code: itemCode })
+    .first();
+
+  res.json({
+    success: true,
+    data: {
+      ...updated,
+      verified_at: updated.verified_at ? new Date(updated.verified_at).toISOString() : null
+    }
   });
 });
 
@@ -386,11 +452,43 @@ export const getMyProperties = catchAsync(async (req, res, next) => {
     )
     .where('properties.landlord_id', req.user.id);
 
-  const formatted = properties.map(formatProperty);
+  const formatted = properties.map((p) => sanitizePropertyForLandlord(formatProperty(p)));
 
   res.json({
     success: true,
     data: formatted
+  });
+});
+
+// All certificates across the landlord's properties — real statuses and expiry
+// dates from property_certificates (the landlord portal previously faked these
+// from the documents list).
+export const getMyCertificates = catchAsync(async (req, res, next) => {
+  const certificates = await db('property_certificates')
+    .join('properties', 'property_certificates.property_id', 'properties.id')
+    .select(
+      'property_certificates.id',
+      'property_certificates.property_id',
+      'property_certificates.cert_type',
+      'property_certificates.status',
+      'property_certificates.issued_at',
+      'property_certificates.expires_at',
+      'properties.name as property_name',
+      'properties.address_line1',
+      'properties.city',
+      'properties.postcode',
+      'properties.property_reference'
+    )
+    .where('properties.landlord_id', req.user.id)
+    .orderBy(['property_certificates.property_id', 'property_certificates.cert_type']);
+
+  res.json({
+    success: true,
+    data: certificates.map((c) => ({
+      ...c,
+      issued_at: c.issued_at ? new Date(c.issued_at).toISOString().split('T')[0] : null,
+      expires_at: c.expires_at ? new Date(c.expires_at).toISOString().split('T')[0] : null
+    }))
   });
 });
 
@@ -428,7 +526,7 @@ export const getMyPropertyById = catchAsync(async (req, res, next) => {
     updated_at: c.updated_at ? new Date(c.updated_at).toISOString() : null
   }));
 
-  const formattedProperty = formatProperty(property);
+  const formattedProperty = sanitizePropertyForLandlord(formatProperty(property));
 
   res.json({
     success: true,

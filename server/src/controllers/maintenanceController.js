@@ -1,6 +1,9 @@
 import db from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
+import fs from 'fs';
+import path from 'path';
+import logger from '../utils/logger.js';
 
 const formatTicket = (t) => {
   if (!t) return null;
@@ -39,12 +42,23 @@ export const createTicket = catchAsync(async (req, res, next) => {
 
   // A landlord may only raise tickets against their own properties (prevents IDOR write +
   // injecting contractor_cost deductions onto another landlord's ledger).
-  if (req.user.role === 'LANDLORD' && property.landlord_id !== req.user.id) {
+  const isLandlordCaller = req.user.role === 'LANDLORD';
+  if (isLandlordCaller && property.landlord_id !== req.user.id) {
     throw new ApiError(403, 'You do not have permission to create a ticket for this property');
   }
 
-  const quoteAmt = quote_amount !== undefined ? parseFloat(quote_amount) : 0;
-  const threshold = spend_threshold_auto_approve !== undefined ? parseFloat(spend_threshold_auto_approve) : 250.00;
+  // If a tenancy is referenced it must belong to the same property.
+  if (tenancy_id) {
+    const tenancy = await db('tenancies').where('id', tenancy_id).first();
+    if (!tenancy || tenancy.property_id !== property.id) {
+      throw new ApiError(400, 'Tenancy does not belong to the specified property');
+    }
+  }
+
+  // Quotes and auto-approval thresholds are admin-set: a landlord-supplied quote
+  // would let the caller mint pre-approved contractor_cost ledger deductions.
+  const quoteAmt = !isLandlordCaller && quote_amount !== undefined ? parseFloat(quote_amount) : 0;
+  const threshold = !isLandlordCaller && spend_threshold_auto_approve !== undefined ? parseFloat(spend_threshold_auto_approve) : 250.00;
 
   let ticketStatus = 'new';
   let landlordApproved = null;
@@ -80,6 +94,7 @@ export const createTicket = catchAsync(async (req, res, next) => {
         type: 'contractor_cost',
         property_id,
         landlord_id: property.landlord_id,
+        ticket_id: ticketId,
         amount: quoteAmt.toFixed(2),
         transaction_date: trx.fn.now(),
         reconciled: 1,
@@ -154,8 +169,7 @@ export const updateTicketStatus = catchAsync(async (req, res, next) => {
     // 1. Create deduction transaction if newly approved and quote > 0
     if (isApproved && quoteAmt > 0) {
       const existingTx = await trx('transactions')
-        .where({ type: 'contractor_cost', property_id: ticket.property_id, landlord_id: property.landlord_id })
-        .whereRaw('description LIKE ?', [`%ticket ID ${id}%`])
+        .where({ type: 'contractor_cost', ticket_id: id })
         .first();
 
       if (!existingTx) {
@@ -163,11 +177,30 @@ export const updateTicketStatus = catchAsync(async (req, res, next) => {
           type: 'contractor_cost',
           property_id: ticket.property_id,
           landlord_id: property.landlord_id,
+          ticket_id: id,
           amount: quoteAmt.toFixed(2),
           transaction_date: trx.fn.now(),
           reconciled: 1,
           created_by: req.user.id,
           description: `Contractor cost deduction for approved maintenance ticket ID ${id} (${ticket.title})`
+        });
+      }
+    }
+
+    // 1b. Reverse the deduction if the admin explicitly un-approves the quote.
+    if (landlord_approved !== undefined && !isApproved) {
+      const removed = await trx('transactions')
+        .where({ type: 'contractor_cost', ticket_id: id })
+        .delete();
+      if (removed > 0) {
+        await trx('audit_log').insert({
+          actor_id: req.user.id,
+          actor_role: req.user.role,
+          action: 'CONTRACTOR_COST_REVERSED',
+          entity_type: 'maintenance_ticket',
+          entity_id: id,
+          meta: JSON.stringify({ reason: 'quote un-approved', transactions_removed: removed }),
+          ip_address: req.ip || null
         });
       }
     }
@@ -288,8 +321,7 @@ export const approveQuote = catchAsync(async (req, res, next) => {
     // 1. Create deduction transaction if quote > 0 and doesn't exist yet
     if (quoteAmt > 0) {
       const existingTx = await trx('transactions')
-        .where({ type: 'contractor_cost', property_id: ticket.property_id, landlord_id: property.landlord_id })
-        .whereRaw('description LIKE ?', [`%ticket ID ${id}%`])
+        .where({ type: 'contractor_cost', ticket_id: id })
         .first();
 
       if (!existingTx) {
@@ -297,6 +329,7 @@ export const approveQuote = catchAsync(async (req, res, next) => {
           type: 'contractor_cost',
           property_id: ticket.property_id,
           landlord_id: property.landlord_id,
+          ticket_id: id,
           amount: quoteAmt.toFixed(2),
           transaction_date: trx.fn.now(),
           reconciled: 1,
@@ -358,13 +391,19 @@ export const declineQuote = catchAsync(async (req, res, next) => {
         updated_at: trx.fn.now()
       });
 
+    // Declining cancels the job — reverse any deduction created by an earlier
+    // approval so the landlord isn't charged for work that won't happen.
+    const removed = await trx('transactions')
+      .where({ type: 'contractor_cost', ticket_id: id })
+      .delete();
+
     await trx('audit_log').insert({
       actor_id: req.user.id,
       actor_role: req.user.role,
       action: 'MAINTENANCE_TICKET_QUOTE_DECLINED',
       entity_type: 'maintenance_ticket',
       entity_id: id,
-      meta: JSON.stringify({ landlord_approved: 0, status: 'cancelled' }),
+      meta: JSON.stringify({ landlord_approved: 0, status: 'cancelled', transactions_removed: removed }),
       ip_address: req.ip || null
     });
   });
@@ -375,6 +414,102 @@ export const declineQuote = catchAsync(async (req, res, next) => {
     success: true,
     data: formatTicket(updatedTicket)
   });
+});
+
+// ─── Ticket images ──────────────────────────────────────────────────────────
+
+// A landlord may only touch images on tickets against their own properties.
+const assertTicketAccess = async (ticketId, user) => {
+  const ticket = await db('maintenance_tickets').where('id', ticketId).first();
+  if (!ticket) {
+    throw new ApiError(404, 'Maintenance ticket not found');
+  }
+  if (user.role === 'LANDLORD') {
+    const property = await db('properties').where('id', ticket.property_id).first();
+    if (!property || property.landlord_id !== user.id) {
+      throw new ApiError(403, 'You do not have permission to access this ticket');
+    }
+  }
+  return ticket;
+};
+
+export const uploadTicketImage = catchAsync(async (req, res, next) => {
+  const { id } = req.params;
+
+  if (!req.file) {
+    throw new ApiError(400, 'No image uploaded');
+  }
+
+  try {
+    await assertTicketAccess(id, req.user);
+  } catch (err) {
+    await fs.promises.unlink(req.file.path).catch(() => {});
+    throw err;
+  }
+
+  const document_path = `uploads/maintenance/${req.file.filename}`;
+
+  const [imageId] = await db('maintenance_images').insert({
+    ticket_id: id,
+    document_path,
+    uploaded_by: req.user.id
+  });
+
+  await db('audit_log').insert({
+    actor_id: req.user.id,
+    actor_role: req.user.role,
+    action: 'MAINTENANCE_IMAGE_UPLOADED',
+    entity_type: 'maintenance_ticket',
+    entity_id: id,
+    meta: JSON.stringify({ image_id: imageId, original_name: req.file.originalname }),
+    ip_address: req.ip || null
+  });
+
+  res.status(201).json({
+    success: true,
+    data: { id: imageId, ticket_id: parseInt(id, 10), document_path }
+  });
+});
+
+export const getTicketImages = catchAsync(async (req, res, next) => {
+  const { id } = req.params;
+  await assertTicketAccess(id, req.user);
+
+  const images = await db('maintenance_images').where('ticket_id', id).orderBy('created_at', 'asc');
+
+  res.json({
+    success: true,
+    data: images.map(img => ({
+      id: img.id,
+      ticket_id: img.ticket_id,
+      created_at: img.created_at ? new Date(img.created_at).toISOString() : null
+    }))
+  });
+});
+
+export const downloadTicketImage = catchAsync(async (req, res, next) => {
+  const { imageId } = req.params;
+
+  const image = await db('maintenance_images').where('id', imageId).first();
+  if (!image) {
+    throw new ApiError(404, 'Image not found');
+  }
+  await assertTicketAccess(image.ticket_id, req.user);
+
+  const absolutePath = path.isAbsolute(image.document_path)
+    ? image.document_path
+    : path.join(process.cwd(), image.document_path);
+  const resolved = path.resolve(absolutePath);
+  if (!resolved.startsWith(path.resolve(path.join(process.cwd(), 'uploads')))) {
+    logger.warn(`Blocked maintenance image download outside uploads dir: ${resolved}`);
+    throw new ApiError(404, 'Image file not found');
+  }
+  if (!fs.existsSync(resolved)) {
+    logger.warn(`Maintenance image missing on disk: ${resolved}`);
+    throw new ApiError(404, 'Image file not found');
+  }
+
+  res.sendFile(resolved);
 });
 
 // ─── Contractors ────────────────────────────────────────────────────────────

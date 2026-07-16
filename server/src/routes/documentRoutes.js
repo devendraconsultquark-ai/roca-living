@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
-import { getFolders, uploadDocument, deleteDocument, getMyDocuments } from '../controllers/documentController.js';
+import { getFolders, uploadDocument, deleteDocument, getMyDocuments, downloadDocument } from '../controllers/documentController.js';
 import { protect } from '../middlewares/protect.js';
 import { restrictTo } from '../middlewares/restrictTo.js';
 
@@ -51,6 +51,9 @@ const documentRouter = Router();
 
 // Landlord routes
 documentRouter.get('/my', protect('landlord'), restrictTo('LANDLORD'), getMyDocuments);
+
+// Shared admin/landlord route — ownership enforced in the controller
+documentRouter.get('/:id/download', protect(), restrictTo('ADMIN', 'LANDLORD'), downloadDocument);
 
 // Secure all other routes
 documentRouter.use(protect('admin'), restrictTo('ADMIN'));

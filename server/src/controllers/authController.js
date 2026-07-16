@@ -8,6 +8,7 @@ import { catchAsync } from "../utils/catchAsync.js";
 import { sendEmail } from "../utils/email.js";
 import { getForgotPasswordEmail, getLoginAlertEmail, getPasswordResetSuccessEmail } from "../utils/emailTemplates.js";
 import { eraseLandlordData } from "./landlordController.js";
+import { ensureLandlordSetup } from "../utils/landlordSetup.js";
 
 // bcrypt work factor — configurable via env so it can be tuned without code changes.
 const BCRYPT_COST = parseInt(process.env.BCRYPT_COST || '12', 10);
@@ -25,25 +26,31 @@ export const register = catchAsync(async (req, res, next) => {
     // 1. Hash the password before saving to the database
     const hashedPassword = await bcrypt.hash(password, BCRYPT_COST);
 
-    // 2. Insert with the hashed password (role set explicitly, not left to the DB default)
-    const [newUserId] = await db("users").insert({
-        name: name,
-        email: email.toLowerCase(),
-        password: hashedPassword,
-        phone: phone,
-        address: address,
-        role: 'LANDLORD'
-    });
+    // 2. Create the account with the same data shape as admin-created landlords:
+    //    profile + landlord_reference + compliance checklist (all in one transaction).
+    let newUserId;
+    await db.transaction(async (trx) => {
+        [newUserId] = await trx("users").insert({
+            name: name,
+            email: email.toLowerCase(),
+            password: hashedPassword,
+            phone: phone,
+            address: address,
+            role: 'LANDLORD'
+        });
 
-    // 3. Audit the account creation, consistent with other user mutations
-    await db("audit_log").insert({
-        actor_id: newUserId,
-        actor_role: 'LANDLORD',
-        action: 'USER_REGISTERED',
-        entity_type: 'user',
-        entity_id: newUserId,
-        meta: JSON.stringify({ email: email.toLowerCase() }),
-        ip_address: req.ip || null
+        await ensureLandlordSetup(trx, newUserId);
+
+        // 3. Audit the account creation, consistent with other user mutations
+        await trx("audit_log").insert({
+            actor_id: newUserId,
+            actor_role: 'LANDLORD',
+            action: 'USER_REGISTERED',
+            entity_type: 'user',
+            entity_id: newUserId,
+            meta: JSON.stringify({ email: email.toLowerCase() }),
+            ip_address: req.ip || null
+        });
     });
 
     logger.info(`User registered: ${newUserId}`);
@@ -168,7 +175,6 @@ const getUserPayload = async (userId, role) => {
                 "landlord_profiles.company_name",
                 "landlord_profiles.landlord_reference",
                 "landlord_profiles.initials",
-                "landlord_profiles.nrl_number",
                 "landlord_profiles.is_overseas",
                 "landlord_profiles.nrl_hmrc_approved",
                 "landlord_profiles.nrl_hmrc_ref",
@@ -285,20 +291,45 @@ export const updateProfile = catchAsync(async (req, res, next) => {
             }
         }
 
+        let bankDetailsChanged = false;
+        let changedPaymentFields = [];
         if (Object.keys(paymentUpdates).length > 0) {
             const existingPayment = await trx("landlord_payment_details").where({ user_id: req.user.id }).first();
-            if (existingPayment) {
-                await trx("landlord_payment_details").where({ user_id: req.user.id }).update(paymentUpdates);
-            } else {
-                // Bank columns are NOT NULL, so fall back to '' for any field not supplied.
-                await trx("landlord_payment_details").insert({
-                    user_id: req.user.id,
-                    bank_name: paymentUpdates.bank_name ?? '',
-                    account_name: paymentUpdates.account_name ?? '',
-                    account_number: paymentUpdates.account_number ?? '',
-                    sort_code: paymentUpdates.sort_code ?? '',
-                    iban_bic: paymentUpdates.iban_bic ?? null,
-                });
+
+            // Only treat fields whose value actually differs as changes, so saving an
+            // unrelated profile edit doesn't re-flag already-verified bank details.
+            const differs = (a, b) => String(a ?? '') !== String(b ?? '');
+            const realChanges = {};
+            for (const [field, value] of Object.entries(paymentUpdates)) {
+                if (!existingPayment || differs(existingPayment[field], value)) {
+                    realChanges[field] = value;
+                }
+            }
+
+            // Don't create a payment row (or flag a pending change) when the form
+            // submitted nothing but empty bank fields and none exist yet.
+            const hasAnyValue = Object.values(realChanges).some(v => String(v ?? '').trim() !== '');
+            if (Object.keys(realChanges).length > 0 && (existingPayment || hasAnyValue)) {
+                bankDetailsChanged = true;
+                changedPaymentFields = Object.keys(realChanges);
+                // Any bank-detail change must be re-verified by an admin before payouts —
+                // same rule as the admin flow (updatePaymentDetails/verifyPaymentDetails).
+                const pendingFlags = { change_pending: 1, change_requested_at: trx.fn.now() };
+
+                if (existingPayment) {
+                    await trx("landlord_payment_details").where({ user_id: req.user.id }).update({ ...realChanges, ...pendingFlags });
+                } else {
+                    // Bank columns are NOT NULL, so fall back to '' for any field not supplied.
+                    await trx("landlord_payment_details").insert({
+                        user_id: req.user.id,
+                        bank_name: realChanges.bank_name ?? '',
+                        account_name: realChanges.account_name ?? '',
+                        account_number: realChanges.account_number ?? '',
+                        sort_code: realChanges.sort_code ?? '',
+                        iban_bic: realChanges.iban_bic ?? null,
+                        ...pendingFlags,
+                    });
+                }
             }
         }
 
@@ -307,8 +338,8 @@ export const updateProfile = catchAsync(async (req, res, next) => {
         if (Object.keys(profileUpdates).length > 0) {
             auditMeta.profile_fields_changed = Object.keys(profileUpdates);
         }
-        if (Object.keys(paymentUpdates).length > 0) {
-            auditMeta.payment_fields_changed = Object.keys(paymentUpdates);
+        if (bankDetailsChanged) {
+            auditMeta.payment_fields_changed = changedPaymentFields;
         }
         if (user.role === 'LANDLORD') {
             auditMeta.landlord_profile_changes = true;
@@ -322,6 +353,20 @@ export const updateProfile = catchAsync(async (req, res, next) => {
             meta: JSON.stringify(auditMeta),
             ip_address: req.ip || null
         });
+
+        // Separate audit event mirroring the admin flow, so bank-detail change
+        // requests are searchable under one action regardless of who made them.
+        if (bankDetailsChanged) {
+            await trx("audit_log").insert({
+                actor_id: req.user.id,
+                actor_role: req.user.role,
+                action: 'PAYMENT_DETAILS_CHANGE_REQUESTED',
+                entity_type: 'landlord',
+                entity_id: req.user.id,
+                meta: JSON.stringify({ fields_changed: auditMeta.payment_fields_changed, self_service: true }),
+                ip_address: req.ip || null
+            });
+        }
     });
 
     const updatedUser = await getUserPayload(req.user.id, req.user.role);

@@ -3,6 +3,7 @@ import {
   createTenancy,
   getAllTenancies,
   getMyTenancies,
+  getMyRentSchedule,
   getTenancyById,
   recordRentPayment,
   getRentPayments,
@@ -16,8 +17,9 @@ import { restrictTo } from '../middlewares/restrictTo.js';
 
 const tenancyRouter = Router();
 
-// Landlord Route - MUST be defined before /:id to prevent routing clash
+// Landlord Routes - MUST be defined before /:id to prevent routing clash
 tenancyRouter.get('/my', protect('landlord'), restrictTo('LANDLORD'), getMyTenancies);
+tenancyRouter.get('/my/rent-schedule', protect('landlord'), restrictTo('LANDLORD'), getMyRentSchedule);
 
 // Admin Routes
 tenancyRouter.get('/tenants/all', protect('admin'), restrictTo('ADMIN'), getAllTenants);

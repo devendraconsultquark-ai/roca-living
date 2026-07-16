@@ -79,6 +79,37 @@ export const updateDeposit = catchAsync(async (req, res, next) => {
   });
 });
 
+export const getAllDeposits = catchAsync(async (req, res, next) => {
+  const deposits = await db('deposits')
+    .join('tenancies', 'deposits.tenancy_id', 'tenancies.id')
+    .join('properties', 'tenancies.property_id', 'properties.id')
+    .join('users', 'properties.landlord_id', 'users.id')
+    .leftJoin('tenants', function() {
+      this.on('tenants.tenancy_id', '=', 'tenancies.id').andOn('tenants.is_lead_tenant', '=', db.raw('1'));
+    })
+    .select(
+      'deposits.*',
+      'properties.address_line1',
+      'properties.city',
+      'properties.postcode',
+      'users.name as landlord_name',
+      'tenants.name as lead_tenant_name'
+    )
+    .orderBy('deposits.created_at', 'desc');
+
+  res.json({
+    success: true,
+    data: deposits.map(d => ({
+      ...formatDeposit(d),
+      address_line1: d.address_line1,
+      city: d.city,
+      postcode: d.postcode,
+      landlord_name: d.landlord_name,
+      lead_tenant_name: d.lead_tenant_name || '-'
+    }))
+  });
+});
+
 export const getDepositsNeedingRegistration = catchAsync(async (req, res, next) => {
   // Query deposits needing registration (registered_at is NULL and register_due is within next 7 days)
   const deposits = await db('deposits')

@@ -192,13 +192,17 @@ export const getAllTenancies = catchAsync(async (req, res, next) => {
   let query = db('tenancies')
     .join('properties', 'tenancies.property_id', 'properties.id')
     .join('users', 'properties.landlord_id', 'users.id')
+    .leftJoin('tenants', function() {
+      this.on('tenants.tenancy_id', '=', 'tenancies.id').andOn('tenants.is_lead_tenant', '=', db.raw('1'));
+    })
     .select(
       'tenancies.*',
       'properties.address_line1',
       'properties.city',
       'properties.postcode',
       'users.name as landlord_name',
-      'users.email as landlord_email'
+      'users.email as landlord_email',
+      'tenants.name as lead_tenant_name'
     );
 
   if (status) {
@@ -470,19 +474,76 @@ export const getMyTenancies = catchAsync(async (req, res, next) => {
       'properties.postcode',
       'tenants.name as lead_tenant_name',
       'deposits.tenancy_deposit as deposit_amount',
-      'deposits.scheme as deposit_scheme'
+      'deposits.scheme as deposit_scheme',
+      'deposits.status as deposit_status',
+      'deposits.registered_at as deposit_registered_at',
+      'deposits.register_due as deposit_register_due'
     )
     .where('properties.landlord_id', req.user.id)
     .orderBy('tenancies.created_at', 'desc');
 
   res.json({
     success: true,
-    data: list.map(t => ({
-      ...formatTenancy(t),
-      lead_tenant_name: t.lead_tenant_name || '-',
-      deposit_amount: t.deposit_amount !== null && t.deposit_amount !== undefined ? parseFloat(t.deposit_amount).toFixed(2) : null,
-      deposit_scheme: t.deposit_scheme || '-'
-    }))
+    data: list.map(t => {
+      // created_by is the internal admin user id — not for landlord consumption.
+      const { created_by, ...tenancy } = formatTenancy(t);
+      return {
+        ...tenancy,
+        lead_tenant_name: t.lead_tenant_name || '-',
+        deposit_amount: t.deposit_amount !== null && t.deposit_amount !== undefined ? parseFloat(t.deposit_amount).toFixed(2) : null,
+        deposit_scheme: t.deposit_scheme || '-',
+        deposit_status: t.deposit_status || null,
+        deposit_registered_at: t.deposit_registered_at ? new Date(t.deposit_registered_at).toISOString().split('T')[0] : null,
+        deposit_register_due: t.deposit_register_due ? new Date(t.deposit_register_due).toISOString().split('T')[0] : null
+      };
+    })
+  });
+});
+
+export const getMyRentSchedule = catchAsync(async (req, res, next) => {
+  const schedules = await db('rent_schedules')
+    .join('tenancies', 'rent_schedules.tenancy_id', 'tenancies.id')
+    .join('properties', 'tenancies.property_id', 'properties.id')
+    .select(
+      'rent_schedules.id',
+      'rent_schedules.tenancy_id',
+      'rent_schedules.due_date',
+      'rent_schedules.amount',
+      'rent_schedules.status',
+      'properties.id as property_id',
+      'properties.address_line1',
+      'properties.city'
+    )
+    .where('properties.landlord_id', req.user.id)
+    .orderBy('rent_schedules.due_date', 'asc');
+
+  const formatted = schedules.map(s => ({
+    ...formatRentSchedule(s),
+    property_address: `${s.address_line1}, ${s.city}`
+  }));
+
+  const overdue = formatted.filter(s => s.status === 'overdue');
+  const overdueTotal = overdue.reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
+  let daysInArrears = 0;
+  if (overdue.length > 0) {
+    const oldest = new Date(overdue[0].due_date);
+    daysInArrears = Math.max(0, Math.ceil((Date.now() - oldest.getTime()) / (1000 * 60 * 60 * 24)));
+  }
+  const nextDue = formatted.find(s => s.status === 'due');
+
+  res.json({
+    success: true,
+    data: {
+      schedules: formatted,
+      summary: {
+        overdue_count: overdue.length,
+        overdue_total: overdueTotal.toFixed(2),
+        oldest_overdue_date: overdue.length > 0 ? overdue[0].due_date : null,
+        days_in_arrears: daysInArrears,
+        next_due_date: nextDue ? nextDue.due_date : null,
+        next_due_amount: nextDue ? nextDue.amount : null
+      }
+    }
   });
 });
 

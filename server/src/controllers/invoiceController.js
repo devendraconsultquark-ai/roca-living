@@ -40,14 +40,18 @@ export const generateInvoice = catchAsync(async (req, res, next) => {
   }
 
   // ── No cross-DB resolution. All data comes from the form. ──
-  // For local-source only, try a best-effort landlord_id lookup (not required).
+  // Attribution requires an EXPLICIT landlord id (autofill metadata supplies it).
+  // Never guess from the name — a fuzzy match can attach the invoice to the wrong
+  // landlord, who could then view it via the portal. Unmatched invoices stay
+  // unattributed (landlord_id NULL) and are visible to admin only.
   let landlordId = null;
-  if (source === 'local' && landlord?.name) {
-    const localUser = await db('users')
-      .where({ role: 'LANDLORD' })
-      .where('name', 'like', `%${landlord.name}%`)
-      .first();
-    if (localUser) landlordId = localUser.id;
+  const explicitLandlordId = landlord?.id ?? req.body.landlord_id;
+  if (explicitLandlordId !== undefined && explicitLandlordId !== null && explicitLandlordId !== '') {
+    const localUser = await db('users').where({ id: explicitLandlordId, role: 'LANDLORD' }).first();
+    if (!localUser) {
+      throw new ApiError(400, `No landlord found with id ${explicitLandlordId}`);
+    }
+    landlordId = localUser.id;
   }
 
   // Calculate totals from line items
@@ -105,8 +109,10 @@ export const generateInvoice = catchAsync(async (req, res, next) => {
     const tempDocRef = `TEMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const [docId] = await trx('documents').insert({
       folder_id: null,
-      owner_type: 'landlord',
-      owner_id: landlordId || req.user.id,   // owner_id is NOT NULL; fall back to the admin when no landlord is resolved (matches statement flow)
+      // Unattributed invoices are 'global' documents — never owned by the
+      // generating admin's user id (owner_id is NOT NULL, so 0 = none).
+      owner_type: landlordId ? 'landlord' : 'global',
+      owner_id: landlordId || 0,
       doc_type: 'landlord_invoice',
       filename,
       original_name: `Invoice ${invoice_number}`,
@@ -122,6 +128,14 @@ export const generateInvoice = catchAsync(async (req, res, next) => {
       .where({ id: docId })
       .update({ doc_reference });
 
+    // For local-source invoices the source_property_id IS the local property id.
+    // Verified against the DB because it feeds FK columns below.
+    let localPropertyId = null;
+    if (source === 'local' && source_property_id) {
+      const localProp = await trx('properties').where('id', source_property_id).first();
+      if (localProp) localPropertyId = localProp.id;
+    }
+
     // 2. Insert invoice record
     [invoiceId] = await trx('invoices').insert({
       landlord_id: landlordId || null,
@@ -129,7 +143,7 @@ export const generateInvoice = catchAsync(async (req, res, next) => {
       landlord_address: landlord?.address || null,
       source,
       source_property_id: source_property_id ? String(source_property_id) : null,
-      property_id: null,                         // no local property FK needed
+      property_id: localPropertyId,
       invoice_number,
       period_start: period_start || null,
       period_end: period_end || null,
@@ -163,15 +177,16 @@ export const generateInvoice = catchAsync(async (req, res, next) => {
       });
     }
 
-    // 4. Create ledgers / transaction entry of type 'deduction'
+    // 4. Create ledgers / transaction entry of type 'deduction' — stamped with
+    //    the invoice period and resolved property so ledger views line up.
     await trx('transactions').insert({
       type: 'deduction',
-      property_id: null,                         // no local property FK resolved (matches invoice row)
+      property_id: localPropertyId,
       landlord_id: landlordId,
       amount: totalNet.toFixed(2),
       vat_amount: totalVat.toFixed(2),
       description: `Invoice ${invoice_number} - Service Fee Charges`,
-      transaction_date: trx.fn.now(),
+      transaction_date: period_end || trx.fn.now(),
       reconciled: 1,
       created_by: req.user.id
     });
@@ -221,15 +236,21 @@ export const getInvoices = catchAsync(async (req, res, next) => {
 
   const invoices = await query;
 
+  const isLandlordCaller = req.user.role === 'LANDLORD';
+
   res.json({
     success: true,
-    data: invoices.map(inv => ({
-      ...inv,
-      gross: parseFloat(inv.total_gross),
-      discounts: parseFloat(inv.total_discount),
-      net: parseFloat(inv.total_net),
-      created_at: inv.created_at
-    }))
+    data: invoices.map(inv => {
+      // created_by is the internal admin user id — not for landlord consumption.
+      const { created_by, ...rest } = inv;
+      return {
+        ...(isLandlordCaller ? rest : inv),
+        gross: parseFloat(inv.total_gross),
+        discounts: parseFloat(inv.total_discount),
+        net: parseFloat(inv.total_net),
+        created_at: inv.created_at
+      };
+    })
   });
 });
 
@@ -259,10 +280,13 @@ export const getInvoiceById = catchAsync(async (req, res, next) => {
 
   const items = await db('invoice_items').where('invoice_id', id);
 
+  // created_by is the internal admin user id — not for landlord consumption.
+  const { created_by, ...invoiceForLandlord } = invoice;
+
   res.json({
     success: true,
     data: {
-      ...invoice,
+      ...(req.user.role === 'LANDLORD' ? invoiceForLandlord : invoice),
       gross: parseFloat(invoice.total_gross),
       discounts: parseFloat(invoice.total_discount),
       net: parseFloat(invoice.total_net),
@@ -273,6 +297,62 @@ export const getInvoiceById = catchAsync(async (req, res, next) => {
         discount: parseFloat(item.discount),
         net: parseFloat(item.net)
       }))
+    }
+  });
+});
+
+// Forward-only lifecycle; 'paid' and 'voided' are terminal.
+const INVOICE_TRANSITIONS = {
+  draft: ['sent', 'paid', 'voided'],
+  sent: ['paid', 'voided'],
+  paid: [],
+  voided: []
+};
+
+export const updateInvoiceStatus = catchAsync(async (req, res, next) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  if (!status || !Object.prototype.hasOwnProperty.call(INVOICE_TRANSITIONS, status)) {
+    throw new ApiError(400, 'status must be one of: draft, sent, paid, voided');
+  }
+
+  const invoice = await db('invoices').where('id', id).first();
+  if (!invoice) {
+    throw new ApiError(404, 'Invoice not found');
+  }
+
+  if (status === invoice.status) {
+    throw new ApiError(400, `Invoice is already '${status}'`);
+  }
+  const allowed = INVOICE_TRANSITIONS[invoice.status] || [];
+  if (!allowed.includes(status)) {
+    throw new ApiError(400, `Invalid status transition from '${invoice.status}' to '${status}'`);
+  }
+
+  await db.transaction(async (trx) => {
+    await trx('invoices').where('id', id).update({ status });
+
+    await trx('audit_log').insert({
+      actor_id: req.user.id,
+      actor_role: req.user.role,
+      action: 'INVOICE_STATUS_UPDATED',
+      entity_type: 'invoice',
+      entity_id: id,
+      meta: JSON.stringify({ from: invoice.status, to: status }),
+      ip_address: req.ip || null
+    });
+  });
+
+  const updated = await db('invoices').where('id', id).first();
+
+  res.json({
+    success: true,
+    data: {
+      ...updated,
+      gross: parseFloat(updated.total_gross),
+      discounts: parseFloat(updated.total_discount),
+      net: parseFloat(updated.total_net)
     }
   });
 });

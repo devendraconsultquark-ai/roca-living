@@ -13,6 +13,7 @@ import { runPhase9Migrations } from './src/db/migrations/phase9_dual_db_support.
 import { runPhase10Migrations } from './src/db/migrations/phase10_landlord_reference.js';
 import { runPhase11Migrations } from './src/db/migrations/phase11_unique_references.js';
 import { runPhase12Migrations } from './src/db/migrations/phase12_performance_indexes.js';
+import { runPhase13Migrations } from './src/db/migrations/phase13_data_consistency.js';
 import { startScheduler } from './src/jobs/scheduler.js';
 import { ensurePuppeteerDependencies } from './src/utils/puppeteerGenerator.js';
 const PORT = Number(process.env.PORT) || 9000;
@@ -66,6 +67,9 @@ const startServer = async () => {
 
   await runPhase12Migrations();
   logger.info('Phase 12 migrations complete');
+
+  await runPhase13Migrations();
+  logger.info('Phase 13 migrations complete');
 
   await ensurePuppeteerDependencies();
 

@@ -4,6 +4,7 @@ import { catchAsync } from '../utils/catchAsync.js';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { addDays, addMonths, getLastDayOfCurrentMonth } from '../utils/dateHelpers.js';
+import { ensureLandlordSetup } from '../utils/landlordSetup.js';
 
 const BCRYPT_COST = parseInt(process.env.BCRYPT_COST || '12', 10);
 
@@ -59,7 +60,9 @@ export const completeOnboarding = catchAsync(async (req, res, next) => {
       landlordId = newLandlordId;
     }
 
-    // 2. Create/Update landlord_profile with kyc_status, tob_status
+    // 2. Create/Update landlord_profile + landlord compliance checklist via the
+    //    shared setup, so onboarded landlords match the other creation paths.
+    //    ownership_confirmed is NOT auto-set on KYC pass — it is its own check.
     let tobDbStatus = 'not_sent';
     if (tobStatus === 'Signed') tobDbStatus = 'signed';
     else if (tobStatus === 'Sent') tobDbStatus = 'sent';
@@ -67,43 +70,42 @@ export const completeOnboarding = catchAsync(async (req, res, next) => {
 
     const kycDbStatus = kycStatus.toLowerCase(); // 'passed', 'pending', or 'failed'
 
-    const existingProfile = await trx('landlord_profiles').where('user_id', landlordId).first();
-    if (existingProfile) {
-      await trx('landlord_profiles').where('user_id', landlordId).update({
-        kyc_status: kycDbStatus,
-        kyc_ref: passportNumber,
-        tob_status: tobDbStatus,
-        tob_signed_at: tobStatus === 'Signed' ? trx.fn.now() : existingProfile.tob_signed_at,
-        ownership_confirmed: kycStatus === 'Passed' ? 1 : existingProfile.ownership_confirmed,
-        ownership_share: parseFloat(ownershipShare),
-        updated_at: trx.fn.now()
-      });
-    } else {
-      const landlord_reference = `REM-LND-${String(landlordId).padStart(3, '0')}`;
-      await trx('landlord_profiles').insert({
-        user_id: landlordId,
-        landlord_reference,
-        kyc_status: kycDbStatus,
-        kyc_ref: passportNumber,
-        tob_status: tobDbStatus,
-        tob_signed_at: tobStatus === 'Signed' ? trx.fn.now() : null,
-        ownership_confirmed: kycStatus === 'Passed' ? 1 : 0,
-        ownership_share: parseFloat(ownershipShare),
-        kyc_provider: 'HIPLA',
-        is_overseas: 0,
-        nrl_hmrc_approved: 0,
-        nrl_withhold_pct: 20.00
-      });
+    const profileFields = {
+      kyc_status: kycDbStatus,
+      kyc_ref: passportNumber,
+      tob_status: tobDbStatus,
+      ownership_share: parseFloat(ownershipShare)
+    };
+    if (tobStatus === 'Signed') {
+      profileFields.tob_signed_at = trx.fn.now();
+    }
+    await ensureLandlordSetup(trx, landlordId, profileFields);
+
+    // Reflect the wizard's answers on the landlord checklist (same rules as the
+    // dedicated KYC endpoint).
+    if (kycDbStatus === 'passed') {
+      await trx('compliance_checklist')
+        .where({ scope: 'landlord', entity_id: landlordId, item_code: 'KYC_PENDING' })
+        .update({ status: 'complete', verified_at: trx.fn.now(), verified_by: req.user.id });
+    }
+    if (tobDbStatus === 'signed') {
+      await trx('compliance_checklist')
+        .where({ scope: 'landlord', entity_id: landlordId, item_code: 'TOB_SIGNED' })
+        .update({ status: 'complete', verified_at: trx.fn.now(), verified_by: req.user.id });
     }
 
-    // 3. Create property record with address, rent_pcm=rentPrice, mgmt_fee_pct=managementFee
+    // 3. Create property record with address, rent_pcm=rentPrice, mgmt_fee_pct=managementFee.
+    //    Status is decided AFTER the compliance checklist is built (step 13) — 'let'
+    //    only when every checklist item is genuinely satisfied, same gate as
+    //    updateProperty. Until then it stays 'onboarding' even though the tenancy
+    //    is active, so outstanding compliance work remains visible.
     const tempRef = `TEMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const [propertyId] = await trx('properties').insert({
       landlord_id: landlordId,
       address_line1: addressLine1,
       city: city,
       postcode: postcode,
-      status: 'let', // Directly let since tenancy is established
+      status: 'onboarding',
       rent_pcm: parseFloat(rentPrice).toFixed(2),
       mgmt_fee_pct: parseFloat(managementFee).toFixed(2),
       name: addressLine1,
@@ -251,13 +253,15 @@ export const completeOnboarding = catchAsync(async (req, res, next) => {
     }
     await trx('rent_schedules').insert(schedules);
 
-    // 13. Update all compliance_checklist items to complete
+    // 13. Build the property compliance checklist from what the wizard ACTUALLY
+    //     confirmed. Items with no wizard input stay pending — marking them
+    //     complete here would fake compliance the admin never verified.
     const checklistItems = [
-      { item_code: 'GAS_CERT', item_label: 'Gas Safety Certificate' },
-      { item_code: 'EICR_CERT', item_label: 'Electrical Installation Condition Report' },
-      { item_code: 'EPC_CERT', item_label: 'Energy Performance Certificate' },
-      { item_code: 'SMOKE_CO', item_label: 'Smoke & Carbon Monoxide Alarms' },
-      { item_code: 'KEYS_RECEIVED', item_label: 'Physical Key References Received' }
+      { item_code: 'GAS_CERT', item_label: 'Gas Safety Certificate', complete: gasSafety === 'Compliant' },
+      { item_code: 'EICR_CERT', item_label: 'Electrical Installation Condition Report', complete: eicrStatus === 'Compliant' },
+      { item_code: 'EPC_CERT', item_label: 'Energy Performance Certificate', complete: false },
+      { item_code: 'SMOKE_CO', item_label: 'Smoke & Carbon Monoxide Alarms', complete: moveInChecklist === 'Completed' },
+      { item_code: 'KEYS_RECEIVED', item_label: 'Physical Key References Received', complete: false }
     ];
     const checklistRows = checklistItems.map((item) => ({
       scope: 'property',
@@ -265,12 +269,20 @@ export const completeOnboarding = catchAsync(async (req, res, next) => {
       item_code: item.item_code,
       item_label: item.item_label,
       applicable: 1,
-      status: 'complete',
-      verified_at: trx.fn.now(),
-      verified_by: req.user.id,
-      notes: 'Completed during onboarding wizard'
+      status: item.complete ? 'complete' : 'pending',
+      verified_at: item.complete ? trx.fn.now() : null,
+      verified_by: item.complete ? req.user.id : null,
+      notes: item.complete ? 'Confirmed during onboarding wizard' : null
     }));
     await trx('compliance_checklist').insert(checklistRows);
+
+    // Same gate as updateProperty: 'let' only when every checklist item is
+    // satisfied; otherwise the property stays 'onboarding' with the active
+    // tenancy visible so the outstanding items get chased.
+    const allComplete = checklistItems.every((item) => item.complete);
+    if (allComplete) {
+      await trx('properties').where('id', propertyId).update({ status: 'let' });
+    }
 
     // 14. Write audit_log (action: 'ONBOARDING_COMPLETED', meta: { landlord_id, property_id, tenancy_id })
     await trx('audit_log').insert({
