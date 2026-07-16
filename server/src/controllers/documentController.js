@@ -352,8 +352,6 @@ export const getMyDocuments = catchAsync(async (req, res, next) => {
       category,
       related,
       uploaded: d.created_at ? new Date(d.created_at).toISOString().split('T')[0] : '',
-      expires: 'N/A',
-      status: 'Valid',
       file_path: d.file_path,
       size: formatBytes(d.file_size_bytes)
     };

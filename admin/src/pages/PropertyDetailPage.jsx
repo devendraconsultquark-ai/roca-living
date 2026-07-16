@@ -153,7 +153,7 @@ export const PropertyDetailPage = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-1">
                   <div>
                     <DataRow icon={Building2} label="Property Type" value={data.property_type} />
-                    <DataRow icon={Home} label="Bedrooms" value={`${data.bedrooms} Bed`} />
+                    <DataRow icon={Home} label="Bedrooms" value={data.bedrooms != null ? `${data.bedrooms} Bed` : null} />
                     <DataRow icon={MapPin} label="Full Address" value={address} />
                     <DataRow icon={Hash} label="Key Reference" value={data.key_ref} />
                   </div>

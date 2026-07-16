@@ -13,7 +13,7 @@ import {
 import { protect } from '../middlewares/protect.js';
 import { restrictTo } from '../middlewares/restrictTo.js';
 import { validate } from '../middlewares/validate.js';
-import { createLandlordSchema } from '../validations/landlordValidation.js';
+import { createLandlordSchema, updatePaymentDetailsSchema } from '../validations/landlordValidation.js';
 
 const landlordRouter = Router();
 
@@ -28,7 +28,7 @@ landlordRouter.get('/', getAllLandlords);
 landlordRouter.post('/', validate(createLandlordSchema), createLandlord);
 landlordRouter.get('/:id', getLandlordById);
 landlordRouter.patch('/:id/kyc', updateLandlordKyc);
-landlordRouter.put('/:id/payment-details', updatePaymentDetails);
+landlordRouter.put('/:id/payment-details', validate(updatePaymentDetailsSchema), updatePaymentDetails);
 landlordRouter.patch('/:id/payment-details/verify', verifyPaymentDetails);
 landlordRouter.patch('/:id', updateLandlord);
 landlordRouter.delete('/:id', deleteLandlord);

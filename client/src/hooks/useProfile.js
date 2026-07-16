@@ -23,7 +23,6 @@ export const useProfile = () => {
     nrlHmrcApproved: false,
     nrlHmrcRef: '',
     nrlWithholdPct: '20.00',
-    nrlNumber: '',
 
     // Bank
     bankName: '',
@@ -43,6 +42,7 @@ export const useProfile = () => {
     tobSignedAt: '',
     ownershipConfirmed: false,
     ownershipShare: '',
+    joinedAt: null,
   });
 
   const handleCancel = () => {
@@ -60,7 +60,6 @@ export const useProfile = () => {
         nrlHmrcApproved: !!user.nrl_hmrc_approved,
         nrlHmrcRef: user.nrl_hmrc_ref || '',
         nrlWithholdPct: user.nrl_withhold_pct !== null && user.nrl_withhold_pct !== undefined ? String(user.nrl_withhold_pct) : '20.00',
-        nrlNumber: user.nrl_number || '',
 
         bankName: user.bank_name || '',
         accountName: user.account_name || user.name || '',
@@ -78,6 +77,7 @@ export const useProfile = () => {
         tobSignedAt: user.tob_signed_at ? new Date(user.tob_signed_at).toLocaleString('en-GB') : '',
         ownershipConfirmed: !!user.ownership_confirmed,
         ownershipShare: user.ownership_share !== null && user.ownership_share !== undefined ? String(user.ownership_share) : '',
+        joinedAt: user.created_at || null,
       });
     }
   };
@@ -106,7 +106,6 @@ export const useProfile = () => {
         nrlHmrcApproved: !!user.nrl_hmrc_approved,
         nrlHmrcRef: user.nrl_hmrc_ref || '',
         nrlWithholdPct: user.nrl_withhold_pct !== null && user.nrl_withhold_pct !== undefined ? String(user.nrl_withhold_pct) : '20.00',
-        nrlNumber: user.nrl_number || '',
 
         bankName: user.bank_name || '',
         accountName: user.account_name || user.name || '',
@@ -124,6 +123,7 @@ export const useProfile = () => {
         tobSignedAt: user.tob_signed_at ? new Date(user.tob_signed_at).toLocaleString('en-GB') : '',
         ownershipConfirmed: !!user.ownership_confirmed,
         ownershipShare: user.ownership_share !== null && user.ownership_share !== undefined ? String(user.ownership_share) : '',
+        joinedAt: user.created_at || null,
       });
     }
   }, [user]);

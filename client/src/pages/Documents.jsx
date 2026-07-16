@@ -3,8 +3,8 @@ import { usePropertyContext } from "../context/PropertyContext";
 import {
   FileText,
   ShieldCheck,
-  Clock,
-  AlertCircle,
+  Receipt,
+  FolderCheck,
   ChevronRight,
   Download,
 } from "lucide-react";
@@ -15,25 +15,19 @@ import { TableEmptyState } from "../components/UI/TableEmptyState";
 import { Button } from "../components/UI/Button";
 
 import { useDocuments } from "../hooks/useDocuments";
-import { useToast } from "../components/UI/ToastContext";
 
 export const Documents = () => {
   const { selectedProperty } = usePropertyContext();
   const { documents, loading, handleDownload } = useDocuments();
-  const { addToast } = useToast();
-  const comingSoon = () => addToast("This feature is coming soon.", "info");
-
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCategory, setFilterCategory] = useState("All Categories");
   const [filterRelated, setFilterRelated] = useState("All");
-  const [filterStatus, setFilterStatus] = useState("All Statuses");
 
   const clearFilters = () => {
     setSearchQuery("");
     setFilterCategory("All Categories");
     setFilterRelated("All");
-    setFilterStatus("All Statuses");
   };
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -67,14 +61,10 @@ export const Documents = () => {
     );
   }
 
-  if (filterStatus && filterStatus !== "All Statuses") {
-    documentsData = documentsData.filter((doc) => doc.status === filterStatus);
-  }
-
   // Reset to page 1 when the data or the active filters change (render-time
   // pattern). This also fixes a prior bug where a fresh documentsData array
   // reset the page on every render, making pagination impossible.
-  const resetKey = `${searchQuery}|${filterCategory}|${filterRelated}|${filterStatus}|${
+  const resetKey = `${searchQuery}|${filterCategory}|${filterRelated}|${
     selectedProperty?.property_reference || selectedProperty?.name || "all"
   }`;
   const [prevResetKey, setPrevResetKey] = useState(resetKey);
@@ -91,21 +81,17 @@ export const Documents = () => {
     currentPage * pageSize,
   );
 
-  const stats = {
-    total: documentsData.length,
-    upToDate: documentsData.filter(d => d.status === 'Valid').length,
-    upToDatePct: documentsData.length ? Math.round((documentsData.filter(d => d.status === 'Valid').length / documentsData.length) * 100) : 0,
-    expiringSoon: 0,
-    expiringSoonPct: 0,
-    expired: 0,
-    expiredPct: 0,
-  };
-
   const categoriesCount = {
     Tenancy: documentsData.filter(d => d.category === 'Tenancy').length,
+    Statements: documentsData.filter(d => d.category === 'Statements').length,
     Certificates: documentsData.filter(d => d.category === 'Certificates').length,
     Compliance: documentsData.filter(d => d.category === 'Compliance').length,
   };
+
+  const recentUploads = [...documentsData]
+    .filter((d) => d.uploaded)
+    .sort((a, b) => (a.uploaded < b.uploaded ? 1 : -1))
+    .slice(0, 3);
 
   // Filter options built from the real data so every dropdown value maps to
   // at least one document (derived from the full set, not the filtered view).
@@ -123,13 +109,6 @@ export const Documents = () => {
       .sort()
       .map((r) => ({ value: r, label: r })),
   ];
-  const statusOptions = [
-    { value: "All Statuses", label: "All Statuses" },
-    ...[...new Set((documents || []).map((d) => d.status).filter(Boolean))]
-      .sort()
-      .map((s) => ({ value: s, label: s })),
-  ];
-
   const filtersConfig = [
     {
       label: "Category",
@@ -143,13 +122,6 @@ export const Documents = () => {
       value: filterRelated,
       onChange: setFilterRelated,
       options: relatedOptions,
-      width: "w-32",
-    },
-    {
-      label: "Status",
-      value: filterStatus,
-      onChange: setFilterStatus,
-      options: statusOptions,
       width: "w-32",
     },
   ];
@@ -166,35 +138,35 @@ export const Documents = () => {
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <PortalMetricCard
           label="Total Documents"
-          value={stats.total}
+          value={documentsData.length}
           icon={FileText}
           variant="info"
           actionText="View All Documents"
           onActionClick={clearFilters}
         />
         <PortalMetricCard
-          label="Up to Date"
-          value={`${stats.upToDate} (${stats.upToDatePct}%)`}
-          icon={ShieldCheck}
+          label="Statements"
+          value={categoriesCount.Statements}
+          icon={Receipt}
           variant="success"
-          actionText="View Up to Date"
-          onActionClick={() => setFilterStatus("Valid")}
+          actionText="View Statements"
+          onActionClick={() => setFilterCategory("Statements")}
         />
         <PortalMetricCard
-          label="Expiring Soon"
-          value={`${stats.expiringSoon} (${stats.expiringSoonPct}%)`}
-          icon={Clock}
+          label="Certificates"
+          value={categoriesCount.Certificates}
+          icon={ShieldCheck}
           variant="warning"
-          actionText="View Expiring Soon"
-          onActionClick={comingSoon}
+          actionText="View Certificates"
+          onActionClick={() => setFilterCategory("Certificates")}
         />
         <PortalMetricCard
-          label="Expired"
-          value={`${stats.expired} (${stats.expiredPct}%)`}
-          icon={AlertCircle}
-          variant="danger"
-          actionText="View Expired"
-          onActionClick={() => setFilterStatus("Expired")}
+          label="Compliance"
+          value={categoriesCount.Compliance}
+          icon={FolderCheck}
+          variant="info"
+          actionText="View Compliance"
+          onActionClick={() => setFilterCategory("Compliance")}
         />
       </div>
 
@@ -218,15 +190,14 @@ export const Documents = () => {
                     <th className="py-3 px-2">Category</th>
                     <th className="py-3 px-2">Related To</th>
                     <th className="py-3 px-2">Uploaded</th>
-                    <th className="py-3 px-2">Expiry Date</th>
-                    <th className="py-3 px-2">Status</th>
+                    <th className="py-3 px-2">Size</th>
                     <th className="py-3 px-2 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {documentsData.length === 0 ? (
                     <TableEmptyState
-                      colSpan={7}
+                      colSpan={6}
                       loading={loading}
                       emptyText="No documents match the selected filters."
                       className="py-8 text-center text-gray-400 font-semibold"
@@ -241,8 +212,7 @@ export const Documents = () => {
                         <td className="py-3 px-2">{row.category}</td>
                         <td className="py-3 px-2">{row.related}</td>
                         <td className="py-3 px-2">{row.uploaded}</td>
-                        <td className="py-3 px-2">{row.expires}</td>
-                        <td className="py-3 px-2">{row.status}</td>
+                        <td className="py-3 px-2">{row.size}</td>
                         <td className="py-3 px-2 text-center">
                           <Button
                             variant="icon-only"
@@ -305,7 +275,7 @@ export const Documents = () => {
             <Button
               variant="link"
               className="text-xs-portal font-bold text-status-info hover:underline text-left mt-1 flex items-center gap-0.5 cursor-pointer"
-              onClick={comingSoon}
+              onClick={clearFilters}
             >
               View All Categories <ChevronRight size={10} />
             </Button>
@@ -318,9 +288,18 @@ export const Documents = () => {
             </h3>
 
             <div className="flex flex-col gap-3 mt-1">
-              <div className="text-xs-portal text-gray-400 font-semibold py-2">
-                No recent uploads
-              </div>
+              {recentUploads.length === 0 ? (
+                <div className="text-xs-portal text-gray-400 font-semibold py-2">
+                  No recent uploads
+                </div>
+              ) : (
+                recentUploads.map((doc) => (
+                  <div key={doc.id} className="flex justify-between items-center gap-2 text-xs-portal">
+                    <span className="font-bold text-brand-primary truncate" title={doc.item}>{doc.item}</span>
+                    <span className="text-gray-400 font-semibold whitespace-nowrap">{doc.uploaded}</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

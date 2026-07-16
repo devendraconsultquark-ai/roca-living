@@ -7,7 +7,6 @@ import {
   Bell,
   Trash,
   Download,
-  ChevronDown,
   ChevronRight,
   KeyRound,
   Wrench,
@@ -25,10 +24,10 @@ import {
   Hash
 } from "lucide-react";
 import { useProfile } from "../hooks/useProfile";
+import { usePropertyContext } from "../context/PropertyContext";
 import { Button } from "../components/UI/Button";
 import { PortalCard } from "../components/UI/PortalCard";
 import { Toggle as ToggleSwitch } from "../components/UI/Toggle";
-import { useToast } from "../components/UI/ToastContext";
 
 export const Profile = () => {
   const {
@@ -51,8 +50,7 @@ export const Profile = () => {
     handleDeleteAccount,
   } = useProfile();
 
-  const { addToast } = useToast();
-  const comingSoon = () => addToast("This feature is coming soon.", "info");
+  const { properties } = usePropertyContext();
 
   const [isEditingPassword, setIsEditingPassword] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
@@ -404,17 +402,7 @@ export const Profile = () => {
         {/* Card 3: About You */}
         <PortalCard
           title="About You"
-          subtitle="Tell us a bit about yourself. This helps us personalise your experience."
-          headerActions={
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs-portal font-bold text-status-info hover:underline"
-              onClick={comingSoon}
-            >
-              Edit
-            </Button>
-          }
+          subtitle="A summary of your account with ROCA Living."
         >
           <div className="flex flex-col gap-3.5 mt-2 text-xs-portal">
             <div className="flex items-center justify-between py-2 border-b border-card-border/60">
@@ -423,10 +411,10 @@ export const Profile = () => {
                 <span className="text-status-muted font-bold w-24 shrink-0">
                   Landlord Type
                 </span>
-                <div className="flex items-center gap-1 font-semibold text-brand-primary">
-                  <span>Individual</span>
-                  <ChevronDown size={11} className="text-gray-400 mt-0.5" />
-                </div>
+                <span className="font-semibold text-brand-primary">
+                  {profileData.companyName ? "Company" : "Individual"}
+                  {profileData.isOverseas ? " (Overseas)" : ""}
+                </span>
               </div>
             </div>
 
@@ -437,7 +425,7 @@ export const Profile = () => {
                   Portfolio Size
                 </span>
                 <span className="font-semibold text-brand-primary">
-                  1 property
+                  {(properties || []).length} {(properties || []).length === 1 ? "property" : "properties"}
                 </span>
               </div>
             </div>
@@ -449,7 +437,9 @@ export const Profile = () => {
                   Joined
                 </span>
                 <span className="font-semibold text-brand-primary">
-                  24 April 2024
+                  {profileData.joinedAt
+                    ? new Date(profileData.joinedAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
+                    : "—"}
                 </span>
               </div>
             </div>

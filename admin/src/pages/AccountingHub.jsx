@@ -572,7 +572,7 @@ export const AccountingHub = () => {
                 label="Method"
                 options={[
                   { value: 'bank_transfer', label: 'Bank Transfer' },
-                  { value: 'standing_order', label: 'Standing Order' },
+                  { value: 'direct_debit', label: 'Direct Debit' },
                   { value: 'card', label: 'Card' },
                   { value: 'cash', label: 'Cash' },
                   { value: 'other', label: 'Other' }

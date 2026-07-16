@@ -334,14 +334,11 @@ export const useDashboard = () => {
   // Financial figures derived from the latest statement & tenancy.
   const rentReceived = latestStatement ? parseFloat(latestStatement.gross_rent || 0) : 0.0;
   const netIncome = latestStatement ? parseFloat(latestStatement.net_paid || 0) : 0.0;
-  const totalFees = latestStatement
-    ? parseFloat(latestStatement.mgmt_fee || 0) +
-      parseFloat(latestStatement.mgmt_fee_vat || 0) +
-      parseFloat(latestStatement.roca_letting_fee || 0) +
-      parseFloat(latestStatement.agent_letting_fee || 0)
-    : 0.0;
   const deductions = latestStatement ? parseFloat(latestStatement.deductions || 0) + parseFloat(latestStatement.nrl_withheld || 0) : 0.0;
-  const expenditure = totalFees + deductions;
+  // Everything withheld between gross and net (deductions, fees, NRL). Derived
+  // from the gross-to-net gap because the statement generator does not itemise
+  // fee columns (they are always 0.00).
+  const expenditure = latestStatement ? Math.max(0, rentReceived - netIncome) : 0.0;
 
   const hasActiveTenancy = !!activeTenancy;
   const occupancyPct = hasActiveTenancy ? '100%' : '0%';
@@ -430,7 +427,6 @@ export const useDashboard = () => {
     // financial figures
     rentReceived,
     netIncome,
-    totalFees,
     deductions,
     expenditure,
     // occupancy / gauge (retained for existing consumers)
