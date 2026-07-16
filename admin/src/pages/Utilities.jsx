@@ -29,8 +29,10 @@ const mapUtility = (u) => ({
   id: u.id,
   property: u.address_line1 ? `${u.address_line1}, ${u.city || ''}`.trim().replace(/,$/, '') : `Property #${u.property_id}`,
   provider: u.supplier || '—',
+  account_ref: u.account_ref || '—',
   type: UTILITY_TYPES.find(t => t.value === u.utility_type)?.label || u.utility_type,
   date: u.handover_date ? new Date(u.handover_date).toLocaleDateString('en-GB') : '—',
+  rawStatus: u.status,
   status: u.status === 'completed' ? 'Completed' : u.status === 'disputed' ? 'Disputed' : 'Pending Transfer',
 });
 
@@ -137,6 +139,16 @@ export const Utilities = () => {
     }
   };
 
+  const handleStatusChange = async (row, newStatus) => {
+    try {
+      await api.patch(`/utilities/${row.id}`, { status: newStatus });
+      addToast(`Handover #${row.id} marked as ${newStatus}`, 'success');
+      fetchUtilities();
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to update handover status', 'error');
+    }
+  };
+
   const completedCount = utilities.filter(u => u.status === 'Completed').length;
   const pendingCount = utilities.filter(u => u.status !== 'Completed').length;
 
@@ -144,6 +156,7 @@ export const Utilities = () => {
     { header: 'Handover ID', accessor: 'id', sortable: true },
     { header: 'Property Address', accessor: 'property', sortable: true },
     { header: 'Provider Name', accessor: 'provider', sortable: true },
+    { header: 'Account Ref', accessor: 'account_ref' },
     { header: 'Utility Type', accessor: 'type', sortable: true },
     { header: 'Handover Date', accessor: 'date', sortable: true },
     {
@@ -153,10 +166,30 @@ export const Utilities = () => {
         <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border ${
           row.status === 'Completed'
             ? 'bg-status-success-bg text-status-success border-status-success/15'
-            : 'bg-status-warning/10 text-status-warning border-status-warning/15'
+            : row.status === 'Disputed'
+              ? 'bg-status-danger-bg text-status-danger border-status-danger/15'
+              : 'bg-status-warning/10 text-status-warning border-status-warning/15'
         }`}>
           {row.status}
         </span>
+      )
+    },
+    {
+      header: 'Actions',
+      accessor: 'id',
+      renderCell: (row) => (
+        <div className="flex items-center gap-1">
+          {row.rawStatus !== 'completed' && (
+            <Button variant="ghost" size="sm" icon={CheckCircle2} onClick={() => handleStatusChange(row, 'completed')}>
+              Complete
+            </Button>
+          )}
+          {row.rawStatus === 'pending' && (
+            <Button variant="ghost" size="sm" className="text-status-danger" onClick={() => handleStatusChange(row, 'disputed')}>
+              Dispute
+            </Button>
+          )}
+        </div>
       )
     },
   ];

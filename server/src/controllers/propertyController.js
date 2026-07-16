@@ -392,16 +392,20 @@ export const updateCertificate = catchAsync(async (req, res, next) => {
   else if (certType === 'EPC') itemCode = 'EPC_CERT';
 
   await db.transaction(async (trx) => {
+    // document_path/notes are only touched when explicitly provided — otherwise
+    // a date-only update would wipe an uploaded certificate file.
+    const certUpdates = {
+      issued_at: issued_at ? new Date(issued_at) : null,
+      expires_at: expires_at ? new Date(expires_at) : null,
+      status: certStatus,
+      updated_at: trx.fn.now()
+    };
+    if (document_path !== undefined) certUpdates.document_path = document_path || null;
+    if (notes !== undefined) certUpdates.notes = notes || null;
+
     await trx('property_certificates')
       .where({ property_id: id, cert_type: certType })
-      .update({
-        issued_at: issued_at ? new Date(issued_at) : null,
-        expires_at: expires_at ? new Date(expires_at) : null,
-        status: certStatus,
-        document_path: document_path || null,
-        notes: notes || null,
-        updated_at: trx.fn.now()
-      });
+      .update(certUpdates);
 
     // Mark corresponding compliance item complete if present in the checklist
     const checklistExists = await trx('compliance_checklist')
@@ -468,6 +472,85 @@ export const getMyProperties = catchAsync(async (req, res, next) => {
 // All certificates across the landlord's properties — real statuses and expiry
 // dates from property_certificates (the landlord portal previously faked these
 // from the documents list).
+// Attach an uploaded certificate file (multer has already written it) to the
+// property_certificates row for :certType.
+export const uploadCertificateDocument = catchAsync(async (req, res, next) => {
+  const { id, certType } = req.params;
+
+  if (!req.file) {
+    throw new ApiError(400, 'No certificate file uploaded');
+  }
+
+  const cert = await db('property_certificates')
+    .where({ property_id: id, cert_type: certType })
+    .first();
+  if (!cert) {
+    // Remove the orphaned upload before erroring
+    try { fs.unlinkSync(req.file.path); } catch { /* best effort */ }
+    throw new ApiError(404, 'Certificate record not found for this property');
+  }
+
+  // Replace any previous file for this certificate
+  if (cert.document_path) {
+    const oldPath = path.join(process.cwd(), cert.document_path);
+    if (fs.existsSync(oldPath)) {
+      try { fs.unlinkSync(oldPath); } catch (err) { logger.error(`Failed to remove old certificate file: ${err.message}`); }
+    }
+  }
+
+  const relativePath = req.file.path.replace(/\\/g, '/');
+
+  await db.transaction(async (trx) => {
+    await trx('property_certificates')
+      .where({ property_id: id, cert_type: certType })
+      .update({ document_path: relativePath, updated_at: trx.fn.now() });
+
+    await trx('audit_log').insert({
+      actor_id: req.user.id,
+      actor_role: req.user.role,
+      action: 'CERTIFICATE_DOCUMENT_UPLOADED',
+      entity_type: 'property',
+      entity_id: id,
+      meta: JSON.stringify({ cert_type: certType, file: req.file.originalname }),
+      ip_address: req.ip || null
+    });
+  });
+
+  res.status(201).json({
+    success: true,
+    message: 'Certificate document uploaded'
+  });
+});
+
+// Shared admin/landlord download — landlords may only fetch certificates for
+// properties they own.
+export const downloadCertificateDocument = catchAsync(async (req, res, next) => {
+  const { id, certType } = req.params;
+
+  const cert = await db('property_certificates')
+    .join('properties', 'property_certificates.property_id', 'properties.id')
+    .select('property_certificates.*', 'properties.landlord_id')
+    .where({ 'property_certificates.property_id': id, 'property_certificates.cert_type': certType })
+    .first();
+
+  if (!cert) {
+    throw new ApiError(404, 'Certificate record not found');
+  }
+  if (req.user.role === 'LANDLORD' && cert.landlord_id !== req.user.id) {
+    throw new ApiError(403, 'You do not have permission to perform this action');
+  }
+  if (!cert.document_path) {
+    throw new ApiError(404, 'No document has been uploaded for this certificate');
+  }
+
+  const absPath = path.join(process.cwd(), cert.document_path);
+  if (!fs.existsSync(absPath)) {
+    throw new ApiError(404, 'Certificate file is missing from storage');
+  }
+
+  res.download(absPath, `${certType}_certificate${path.extname(absPath)}`);
+});
+
 export const getMyCertificates = catchAsync(async (req, res, next) => {
   const certificates = await db('property_certificates')
     .join('properties', 'property_certificates.property_id', 'properties.id')
@@ -478,6 +561,7 @@ export const getMyCertificates = catchAsync(async (req, res, next) => {
       'property_certificates.status',
       'property_certificates.issued_at',
       'property_certificates.expires_at',
+      'property_certificates.document_path',
       'properties.name as property_name',
       'properties.address_line1',
       'properties.city',
@@ -491,6 +575,8 @@ export const getMyCertificates = catchAsync(async (req, res, next) => {
     success: true,
     data: certificates.map((c) => ({
       ...c,
+      document_path: undefined,
+      has_document: !!c.document_path,
       issued_at: c.issued_at ? new Date(c.issued_at).toISOString().split('T')[0] : null,
       expires_at: c.expires_at ? new Date(c.expires_at).toISOString().split('T')[0] : null
     }))

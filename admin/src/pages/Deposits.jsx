@@ -4,6 +4,7 @@ import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { StatCard } from '../components/UI/StatCard';
 import { Input } from '../components/UI/Input';
+import { Dropdown } from '../components/UI/Dropdown';
 import { useToast } from '../components/UI/ToastContext';
 import { Skeleton } from '../components/UI/Skeleton';
 import api from '../utilities/api';
@@ -68,6 +69,16 @@ export const Deposits = () => {
     }
   };
 
+  const handleStatusChange = async (row, newStatus) => {
+    try {
+      await api.patch(`/deposits/${row.id}`, { status: newStatus });
+      addToast(`Deposit ${row.depositRef} marked as ${newStatus}`, 'success');
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to update deposit status', 'error');
+    }
+  };
+
   const rows = deposits.map((d) => {
     const isRegistered = !!d.registered_at;
     const isOverdue = !isRegistered && d.register_due && new Date(d.register_due) < new Date();
@@ -83,6 +94,7 @@ export const Deposits = () => {
       registerDue: d.register_due || '—',
       registeredAt: d.registered_at,
       scheme: d.scheme || '—',
+      rawStatus: d.status,
       isRegistered,
       isOverdue,
     };
@@ -108,35 +120,82 @@ export const Deposits = () => {
     {
       header: 'Protection Status',
       accessor: 'isRegistered',
-      renderCell: (row) => (
-        <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border ${
-          row.isRegistered
-            ? 'bg-status-success-bg text-status-success border-status-success/15'
-            : row.isOverdue
-              ? 'bg-status-danger-bg text-status-danger border-status-danger/15'
-              : 'bg-status-warning/10 text-status-warning border-status-warning/15'
-        }`}>
-          {row.isRegistered ? `Registered ${row.registeredAt}` : row.isOverdue ? `Overdue (due ${row.registerDue})` : `Due ${row.registerDue}`}
-        </span>
-      )
+      renderCell: (row) => {
+        const endStates = {
+          returned: { label: 'Returned to Tenant', style: 'bg-surface-hover text-gray-400 border-card-border' },
+          disputed: { label: 'In Dispute', style: 'bg-status-danger-bg text-status-danger border-status-danger/15' },
+          deducted: { label: 'Deductions Made', style: 'bg-status-warning/10 text-status-warning border-status-warning/15' },
+        };
+        const end = endStates[row.rawStatus];
+        if (end) {
+          return (
+            <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border ${end.style}`}>
+              {end.label}
+            </span>
+          );
+        }
+        return (
+          <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border ${
+            row.isRegistered
+              ? 'bg-status-success-bg text-status-success border-status-success/15'
+              : row.isOverdue
+                ? 'bg-status-danger-bg text-status-danger border-status-danger/15'
+                : 'bg-status-warning/10 text-status-warning border-status-warning/15'
+          }`}>
+            {row.isRegistered ? `Registered ${row.registeredAt}` : row.isOverdue ? `Overdue (due ${row.registerDue})` : `Due ${row.registerDue}`}
+          </span>
+        );
+      }
     },
     {
       header: 'Action',
       accessor: 'id',
       align: 'center',
-      renderCell: (row) => (
-        row.isRegistered ? (
-          <span className="text-2xs text-gray-400 font-semibold">—</span>
-        ) : (
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => openRegisterModal(row)}
-          >
-            Mark Registered
-          </Button>
-        )
-      )
+      renderCell: (row) => {
+        if (!row.isRegistered && row.rawStatus === 'pending_registration') {
+          return (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => openRegisterModal(row)}
+            >
+              Mark Registered
+            </Button>
+          );
+        }
+        if (row.rawStatus === 'registered') {
+          return (
+            <Dropdown
+              id={`dep-status-${row.id}`}
+              size="sm"
+              placeholder="Close out…"
+              options={[
+                { value: 'returned', label: 'Returned to Tenant' },
+                { value: 'deducted', label: 'Deductions Made' },
+                { value: 'disputed', label: 'In Dispute' },
+              ]}
+              value=""
+              onChange={(val) => handleStatusChange(row, val)}
+            />
+          );
+        }
+        if (row.rawStatus === 'disputed') {
+          return (
+            <Dropdown
+              id={`dep-status-${row.id}`}
+              size="sm"
+              placeholder="Resolve…"
+              options={[
+                { value: 'returned', label: 'Returned to Tenant' },
+                { value: 'deducted', label: 'Deductions Made' },
+              ]}
+              value=""
+              onChange={(val) => handleStatusChange(row, val)}
+            />
+          );
+        }
+        return <span className="text-2xs text-gray-400 font-semibold">—</span>;
+      }
     },
   ];
 

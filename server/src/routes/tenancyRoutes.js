@@ -5,6 +5,7 @@ import {
   getMyTenancies,
   getMyRentSchedule,
   getTenancyById,
+  updateTenancy,
   recordRentPayment,
   getRentPayments,
   getAllTenants,
@@ -29,6 +30,7 @@ tenancyRouter.delete('/tenants/:id', protect('admin'), restrictTo('ADMIN'), dele
 tenancyRouter.post('/', protect('admin'), restrictTo('ADMIN'), createTenancy);
 tenancyRouter.get('/', protect('admin'), restrictTo('ADMIN'), getAllTenancies);
 tenancyRouter.get('/:id', protect('admin'), restrictTo('ADMIN'), getTenancyById);
+tenancyRouter.patch('/:id', protect('admin'), restrictTo('ADMIN'), updateTenancy);
 tenancyRouter.post('/:id/rent-payments', protect('admin'), restrictTo('ADMIN'), recordRentPayment);
 tenancyRouter.get('/:id/rent-payments', protect('admin'), restrictTo('ADMIN'), getRentPayments);
 

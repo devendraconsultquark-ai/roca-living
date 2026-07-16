@@ -31,6 +31,7 @@ export const ComplianceOverview = () => {
     ongoingTenantCompliance,
     essentialCertificates,
     propertyManagement,
+    handleViewCertificate,
   } = useComplianceOverview();
 
   const { addToast } = useToast();
@@ -538,21 +539,17 @@ export const ComplianceOverview = () => {
                               </td>
                               <td className="py-2.5 px-1">
                                 <div className="flex items-center justify-center gap-1">
-                                  <Button
-                                    variant="secondary"
-                                    className="!py-0.5 !px-2 text-2xs font-bold card-bg"
-                                    onClick={comingSoon}
-                                  >
-                                    {row.action}
-                                  </Button>
-                                  <Button
-                                    variant="icon-only"
-                                    size="sm"
-                                    className="p-0.5 text-sidebar-text-muted hover:text-brand-primary cursor-pointer"
-                                    onClick={comingSoon}
-                                  >
-                                    <MoreVertical size={13} />
-                                  </Button>
+                                  {row.hasDocument ? (
+                                    <Button
+                                      variant="secondary"
+                                      className="!py-0.5 !px-2 text-2xs font-bold card-bg"
+                                      onClick={() => handleViewCertificate(row)}
+                                    >
+                                      {row.action}
+                                    </Button>
+                                  ) : (
+                                    <span className="text-2xs text-gray-400 font-semibold">No document</span>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -627,21 +624,17 @@ export const ComplianceOverview = () => {
                               </td>
                               <td className="py-2.5 px-1">
                                 <div className="flex items-center justify-center gap-1">
-                                  <Button
-                                    variant="secondary"
-                                    className="!py-0.5 !px-2 text-2xs font-bold card-bg"
-                                    onClick={comingSoon}
-                                  >
-                                    {row.action}
-                                  </Button>
-                                  <Button
-                                    variant="icon-only"
-                                    size="sm"
-                                    className="p-0.5 text-sidebar-text-muted hover:text-brand-primary cursor-pointer"
-                                    onClick={comingSoon}
-                                  >
-                                    <MoreVertical size={13} />
-                                  </Button>
+                                  {row.hasDocument ? (
+                                    <Button
+                                      variant="secondary"
+                                      className="!py-0.5 !px-2 text-2xs font-bold card-bg"
+                                      onClick={() => handleViewCertificate(row)}
+                                    >
+                                      {row.action}
+                                    </Button>
+                                  ) : (
+                                    <span className="text-2xs text-gray-400 font-semibold">No document</span>
+                                  )}
                                 </div>
                               </td>
                             </tr>

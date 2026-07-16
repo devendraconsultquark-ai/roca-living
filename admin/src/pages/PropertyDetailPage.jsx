@@ -24,6 +24,7 @@ export const PropertyDetailPage = () => {
   // Certificate update modal
   const [certModalCert, setCertModalCert] = useState(null); // the cert being edited, or null
   const [certForm, setCertForm] = useState({ issued_at: '', expires_at: '', notes: '' });
+  const [certFile, setCertFile] = useState(null);
   const [certSaving, setCertSaving] = useState(false);
 
   // Bump to re-fetch after a mutation (certificate update).
@@ -69,6 +70,7 @@ export const PropertyDetailPage = () => {
       expires_at: cert.expires_at || '',
       notes: cert.notes || ''
     });
+    setCertFile(null);
     setCertModalCert(cert);
   };
 
@@ -85,6 +87,13 @@ export const PropertyDetailPage = () => {
         expires_at: certForm.expires_at,
         notes: certForm.notes || null
       });
+      if (certFile) {
+        const formData = new FormData();
+        formData.append('file', certFile);
+        await api.post(`/properties/${id}/certificates/${certModalCert.cert_type}/document`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+      }
       addToast(`${certModalCert.cert_type} certificate updated`, 'success');
       setCertModalCert(null);
       setReloadKey((k) => k + 1);
@@ -92,6 +101,24 @@ export const PropertyDetailPage = () => {
       addToast(err.response?.data?.message || 'Failed to update certificate', 'error');
     } finally {
       setCertSaving(false);
+    }
+  };
+
+  const handleCertDownload = async (cert) => {
+    try {
+      const res = await api.get(`/properties/${id}/certificates/${cert.cert_type}/document`, {
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: res.headers?.['content-type'] }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${cert.cert_type}_certificate.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to download certificate document', 'error');
     }
   };
 
@@ -295,6 +322,11 @@ export const PropertyDetailPage = () => {
                       </div>
                       <div className="flex items-center gap-3">
                         <CertBadge status={cert.status} />
+                        {cert.document_path && (
+                          <Button variant="ghost" size="sm" onClick={() => handleCertDownload(cert)}>
+                            View
+                          </Button>
+                        )}
                         <Button variant="ghost" size="sm" onClick={() => openCertModal(cert)}>
                           Update
                         </Button>
@@ -387,6 +419,19 @@ export const PropertyDetailPage = () => {
                 value={certForm.notes}
                 onChange={(e) => setCertForm({ ...certForm, notes: e.target.value })}
               />
+
+              <div className="flex flex-col gap-1">
+                <label htmlFor="cert_file" className="text-xs font-semibold text-status-muted uppercase tracking-wide">
+                  Certificate File (PDF / JPEG / PNG{certModalCert.document_path ? ' — replaces the current file' : ''})
+                </label>
+                <input
+                  id="cert_file"
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  onChange={(e) => setCertFile(e.target.files?.[0] || null)}
+                  className="text-xs-portal text-status-muted file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border file:border-card-border file:bg-surface-light file:text-brand-primary file:font-bold file:text-xs file:cursor-pointer cursor-pointer"
+                />
+              </div>
 
               <div className="flex gap-3 justify-end mt-2">
                 <Button type="button" variant="ghost" onClick={() => setCertModalCert(null)} disabled={certSaving}>

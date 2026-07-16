@@ -3,6 +3,7 @@ import { ShieldCheck } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
 import { usePropertyContext } from '../context/PropertyContext';
 import { filterByProperty } from '../utilities/propertyFilter';
+import { downloadBlob } from '../utilities/download';
 import api from '../utilities/api';
 
 const PAGE_SIZE = 10;
@@ -58,6 +59,7 @@ const buildCertificates = (certs) =>
       countdown: countdown.text,
       countdownColor: countdown.color,
       status,
+      hasDocument: !!cert.has_document,
       action: 'View Certificate',
       icon: ShieldCheck,
       color:
@@ -190,6 +192,21 @@ export const useCertificates = () => {
     setFilterStatus(ALL_STATUSES);
   };
 
+  // Download the uploaded certificate file (admin attaches it via the property
+  // detail page; rows without a file render no view action).
+  const handleViewCertificate = async (row) => {
+    try {
+      const res = await api.get(
+        `/properties/${row.property_id}/certificates/${row.type}/document`,
+        { responseType: 'blob' },
+      );
+      downloadBlob(res.data, `${row.type}_certificate.pdf`, res.headers?.['content-type']);
+      addToast('Certificate downloaded', 'success');
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to download certificate', 'error');
+    }
+  };
+
   return {
     loading,
     error,
@@ -216,5 +233,6 @@ export const useCertificates = () => {
     typeOptions,
     statusOptions,
     clearFilters,
+    handleViewCertificate,
   };
 };

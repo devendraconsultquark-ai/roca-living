@@ -224,6 +224,103 @@ export const getAllTenancies = catchAsync(async (req, res, next) => {
   });
 });
 
+// Lifecycle transitions. 'ended' is terminal; 'notice' can be rescinded back
+// to 'active' (served in error).
+const TENANCY_TRANSITIONS = {
+  pending: ['active', 'ended'],
+  active: ['notice', 'ended'],
+  notice: ['active', 'ended'],
+  ended: []
+};
+
+export const updateTenancy = catchAsync(async (req, res, next) => {
+  const { id } = req.params;
+  const { status, end_date, rent_pcm, rent_frequency } = req.body;
+
+  const tenancy = await db('tenancies').where('id', id).first();
+  if (!tenancy) {
+    throw new ApiError(404, 'Tenancy not found');
+  }
+
+  const updates = {};
+  if (status !== undefined && status !== tenancy.status) {
+    const allowed = TENANCY_TRANSITIONS[tenancy.status] || [];
+    if (!allowed.includes(status)) {
+      throw new ApiError(400, `Cannot change tenancy status from '${tenancy.status}' to '${status}'`);
+    }
+    updates.status = status;
+  }
+  if (end_date !== undefined) updates.end_date = end_date || null;
+  if (rent_pcm !== undefined) {
+    const rent = parseFloat(rent_pcm);
+    if (isNaN(rent) || rent <= 0) {
+      throw new ApiError(400, 'rent_pcm must be a positive amount');
+    }
+    updates.rent_pcm = rent.toFixed(2);
+  }
+  if (rent_frequency !== undefined) {
+    if (!['monthly', 'weekly'].includes(rent_frequency)) {
+      throw new ApiError(400, 'rent_frequency must be monthly or weekly');
+    }
+    updates.rent_frequency = rent_frequency;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    throw new ApiError(400, 'No valid tenancy fields to update');
+  }
+
+  // Ending a tenancy stamps an end date if none was supplied.
+  const effectiveEndDate = updates.status === 'ended'
+    ? (updates.end_date || tenancy.end_date || new Date().toISOString().split('T')[0])
+    : null;
+  if (updates.status === 'ended' && !updates.end_date && !tenancy.end_date) {
+    updates.end_date = effectiveEndDate;
+  }
+
+  await db.transaction(async (trx) => {
+    await trx('tenancies').where('id', id).update({
+      ...updates,
+      updated_at: trx.fn.now()
+    });
+
+    if (updates.status === 'ended') {
+      // Unpaid schedules falling after the end date are no longer owed.
+      await trx('rent_schedules')
+        .where('tenancy_id', id)
+        .where('status', 'due')
+        .where('due_date', '>', effectiveEndDate)
+        .delete();
+
+      // Free the property when no other live tenancy remains on it.
+      const otherLive = await trx('tenancies')
+        .where('property_id', tenancy.property_id)
+        .whereNot('id', id)
+        .whereIn('status', ['active', 'notice', 'pending'])
+        .first();
+      if (!otherLive) {
+        await trx('properties').where('id', tenancy.property_id).update({ status: 'vacant' });
+      }
+    }
+
+    await trx('audit_log').insert({
+      actor_id: req.user.id,
+      actor_role: req.user.role,
+      action: 'TENANCY_UPDATED',
+      entity_type: 'tenancy',
+      entity_id: id,
+      meta: JSON.stringify(updates),
+      ip_address: req.ip || null
+    });
+  });
+
+  const updated = await db('tenancies').where('id', id).first();
+
+  res.json({
+    success: true,
+    data: formatTenancy(updated)
+  });
+});
+
 export const getTenancyById = catchAsync(async (req, res, next) => {
   const { id } = req.params;
 

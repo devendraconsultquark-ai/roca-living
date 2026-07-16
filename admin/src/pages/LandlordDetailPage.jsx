@@ -10,6 +10,7 @@ import { useConfirm } from '../components/UI/ConfirmContext';
 import { DataRow, Card, DetailContainer, DetailSkeleton, DetailHeader, DetailTabs } from '../components/UI/DetailComponents';
 import {StatusPill} from "../components/UI/StatusPill"
 import { Input } from '../components/UI/Input';
+import { Dropdown } from '../components/UI/Dropdown';
 import { Button } from '../components/UI/Button';
 import api from '../utilities/api';
 
@@ -29,6 +30,10 @@ export const LandlordDetailPage = () => {
   const [bankForm, setBankForm] = useState({ bank_name: '', account_name: '', account_number: '', sort_code: '', iban_bic: '' });
   const [bankSaving, setBankSaving] = useState(false);
 
+  // KYC update state
+  const [kycForm, setKycForm] = useState({ kyc_status: 'not_started', kyc_ref: '' });
+  const [kycSaving, setKycSaving] = useState(false);
+
   // Bump to re-fetch after a mutation (verify / bank-details update).
   const [reloadKey, setReloadKey] = useState(0);
   const refetchLandlord = () => setReloadKey((k) => k + 1);
@@ -38,6 +43,10 @@ export const LandlordDetailPage = () => {
       try {
         const res = await api.get(`/landlords/${id}`);
         setData(res.data.data);
+        setKycForm({
+          kyc_status: res.data.data.kyc_status || 'not_started',
+          kyc_ref: res.data.data.kyc_ref || '',
+        });
       } catch (err) {
         addToast(err.response?.data?.message || 'Failed to load landlord', 'error');
         navigate('/landlords');
@@ -47,6 +56,20 @@ export const LandlordDetailPage = () => {
     };
     fetchLandlord();
   }, [id, navigate, addToast, reloadKey]);
+
+  const handleKycSubmit = async (e) => {
+    e.preventDefault();
+    setKycSaving(true);
+    try {
+      await api.patch(`/landlords/${id}/kyc`, kycForm);
+      addToast('KYC status updated', 'success');
+      refetchLandlord();
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to update KYC status', 'error');
+    } finally {
+      setKycSaving(false);
+    }
+  };
 
   const handleVerifyBankDetails = async () => {
     const ok = await confirm({
@@ -187,6 +210,32 @@ export const LandlordDetailPage = () => {
                     </p>
                   </div>
                 </div>
+
+                {/* KYC update controls */}
+                <form onSubmit={handleKycSubmit} className="mt-5 pt-4 border-t border-card-border flex flex-col gap-3">
+                  <Dropdown
+                    label="KYC Status"
+                    id="kyc-status"
+                    options={[
+                      { value: 'not_started', label: 'Not Started' },
+                      { value: 'pending', label: 'Pending Review' },
+                      { value: 'passed', label: 'Passed' },
+                      { value: 'failed', label: 'Failed' },
+                    ]}
+                    value={kycForm.kyc_status}
+                    onChange={(val) => setKycForm(f => ({ ...f, kyc_status: val }))}
+                  />
+                  <Input
+                    label="KYC Reference"
+                    id="kyc-ref"
+                    placeholder="e.g. HIPLA check ref"
+                    value={kycForm.kyc_ref}
+                    onChange={(e) => setKycForm(f => ({ ...f, kyc_ref: e.target.value }))}
+                  />
+                  <Button type="submit" variant="primary" disabled={kycSaving}>
+                    {kycSaving ? 'Saving…' : 'Update KYC Status'}
+                  </Button>
+                </form>
               </Card>
             </div>
           </div>

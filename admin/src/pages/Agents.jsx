@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldAlert, Briefcase, X, Edit, Trash2, Eye } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { StatCard } from '../components/UI/StatCard';
 import { Input } from '../components/UI/Input';
+import { Dropdown } from '../components/UI/Dropdown';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
 import { Skeleton } from '../components/UI/Skeleton';
@@ -45,6 +46,7 @@ export const Agents = () => {
     phone: '',
     redress_scheme: '',
     cmp_provider: '',
+    status: 'active',
   });
 
   const [formErrors, setFormErrors] = useState({});
@@ -62,6 +64,7 @@ export const Agents = () => {
       phone: raw.phone || '',
       redress_scheme: raw.redress_scheme || '',
       cmp_provider: raw.cmp_provider || '',
+      status: raw.status || 'active',
     });
     setIsEditModalOpen(true);
   };
@@ -373,6 +376,16 @@ export const Agents = () => {
                 placeholder="e.g. Client Money Protect"
                 value={editForm.cmp_provider}
                 onChange={(e) => setEditForm(f => ({ ...f, cmp_provider: e.target.value }))}
+              />
+              <Dropdown
+                label="Agent Status"
+                id="edit-a-status"
+                options={[
+                  { value: 'active', label: 'Active' },
+                  { value: 'suspended', label: 'Suspended' }
+                ]}
+                value={editForm.status}
+                onChange={(val) => setEditForm(f => ({ ...f, status: val }))}
               />
 
               <div className="flex gap-3 justify-end mt-1">

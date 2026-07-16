@@ -29,6 +29,9 @@ const splitCertificates = (certificatesData) => {
       icon: cert.type === 'EPC' ? FileText : ShieldCheck,
       color: isExpired ? 'bg-red-50 text-red-500' : cert.color,
       property: cert.property,
+      property_id: cert.property_id,
+      type: cert.type,
+      hasDocument: cert.hasDocument,
     };
     if (cert.type === 'EPC') {
       propertyManagement.push(certData);
@@ -91,7 +94,7 @@ export const useComplianceOverview = () => {
   // derives compliance from certificates + tenancies + the landlord checklist).
   const { loading: propertiesLoading, error } = useProperties();
   const { tenancies, loading: tenancyLoading } = useTenancy();
-  const { certificatesData, loading: certificatesLoading } = useCertificates();
+  const { certificatesData, loading: certificatesLoading, handleViewCertificate } = useCertificates();
   const { selectedProperty } = usePropertyContext();
 
   // Landlord-scope compliance checklist (KYC / ToB / ownership / bank details).
@@ -196,5 +199,6 @@ export const useComplianceOverview = () => {
     ongoingTenantCompliance,
     essentialCertificates,
     propertyManagement,
+    handleViewCertificate,
   };
 };

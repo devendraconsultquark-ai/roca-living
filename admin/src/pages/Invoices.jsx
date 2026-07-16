@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Calendar, Plus, Trash2, Receipt, Send, CheckCircle2 } from 'lucide-react';
+import { Download, Calendar, Plus, Trash2, Receipt, Send, CheckCircle2, Ban } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { DatePicker } from '../components/UI/DatePicker';
 import { Dropdown } from '../components/UI/Dropdown';
 import { useToast } from '../components/UI/ToastContext';
+import { useConfirm } from '../components/UI/ConfirmContext';
 import { Skeleton } from '../components/UI/Skeleton';
 import api from '../utilities/api';
 
@@ -18,6 +19,7 @@ export const Invoices = () => {
   const [showModal, setShowModal] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const { addToast } = useToast();
+  const confirm = useConfirm();
  
   // Autofill states
   const [propertiesList, setPropertiesList] = useState([]);
@@ -353,6 +355,25 @@ export const Invoices = () => {
               icon={CheckCircle2}
             >
               Mark Paid
+            </Button>
+          )}
+          {(row.rawStatus === 'draft' || row.rawStatus === 'sent') && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-status-danger"
+              onClick={async () => {
+                const ok = await confirm({
+                  title: 'Void Invoice',
+                  message: `Void invoice ${row.invoice_number}? A voided invoice cannot be sent or paid afterwards.`,
+                  variant: 'danger',
+                  confirmText: 'Void Invoice',
+                });
+                if (ok) handleStatusChange(row, 'voided');
+              }}
+              icon={Ban}
+            >
+              Void
             </Button>
           )}
           <Button
