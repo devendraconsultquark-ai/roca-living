@@ -3,6 +3,7 @@ import { BarChart3, DollarSign, Home, AlertTriangle, PiggyBank } from 'lucide-re
 import { Button } from '../components/UI/Button';
 import { DataTable } from '../components/UI/DataTable';
 import { useToast } from '../components/UI/ToastContext';
+import { Skeleton } from '../components/UI/Skeleton';
 import api from '../utilities/api';
 
 const toCsv = (rows, headers) => {
@@ -127,12 +128,12 @@ export const Reports = () => {
       align: 'center',
       sortable: true,
       renderCell: (row) => (
-        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
+        <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border ${
           row.expires_in_days < 0
-            ? 'bg-status-danger/10 text-status-danger border-status-danger/20'
+            ? 'bg-status-danger-bg text-status-danger border-status-danger/15'
             : row.expires_in_days <= 30
-              ? 'bg-status-warning/10 text-status-warning border-status-warning/20'
-              : 'bg-status-success/10 text-status-success border-status-success/20'
+              ? 'bg-status-warning/10 text-status-warning border-status-warning/15'
+              : 'bg-status-success-bg text-status-success border-status-success/15'
         }`}>
           {row.expires_in_days < 0 ? `Expired ${Math.abs(row.expires_in_days)}d ago` : `${row.expires_in_days} days`}
         </span>
@@ -142,21 +143,21 @@ export const Reports = () => {
 
   const renderSkeleton = () => (
     <div className="space-y-4 py-4">
-      <div className="h-10 bg-gray-100/80 rounded-lg animate-pulse w-full" />
-      <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-      <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+      <Skeleton radius="bar" className="h-10 w-full" />
+      <Skeleton className="h-16 w-full" />
+      <Skeleton className="h-16 w-full" />
     </div>
   );
 
   return (
-    <div className="py-6 max-w-7xl mx-auto px-4 flex flex-col gap-6">
+    <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-[#1A1A1A]">Reports Hub</h2>
-          <p className="text-sm text-gray-500 mt-1">Portfolio revenue, occupancy, arrears, and compliance expiries — live from the ledger.</p>
+          <h2 className="text-2xl font-bold text-brand-primary tracking-tight">Reports Hub</h2>
+          <p className="text-sm text-status-muted mt-1">Portfolio revenue, occupancy, arrears, and compliance expiries — live from the ledger.</p>
         </div>
-        <Button variant="primary" icon={BarChart3} className="shadow-sm" onClick={handleExportArrears}>
+        <Button variant="primary" icon={BarChart3} onClick={handleExportArrears}>
           Export Arrears CSV
         </Button>
       </div>
@@ -165,15 +166,15 @@ export const Reports = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {loading ? (
           [...Array(4)].map((_, idx) => (
-            <div key={idx} className="bg-white border border-border-color/60 rounded-2xl p-6 shadow-sm h-28 animate-pulse" />
+            <Skeleton key={idx} radius="card" className="h-28" />
           ))
         ) : (
           tiles.map((rep, idx) => {
             const Icon = rep.icon;
             return (
-              <div key={idx} className="bg-white border border-border-color/60 rounded-2xl p-6 shadow-sm flex flex-col gap-4">
+              <div key={idx} className="card-bg border border-card-border rounded-card shadow-premium p-6 flex flex-col gap-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{rep.name}</span>
+                  <span className="text-2xs font-bold text-gray-400 uppercase tracking-wider">{rep.name}</span>
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
                     rep.type === 'success'
                       ? 'bg-status-success/10 text-status-success'
@@ -185,8 +186,8 @@ export const Reports = () => {
                   </div>
                 </div>
                 <div>
-                  <span className="text-2xl font-black text-[#1A1A1A]">{rep.value}</span>
-                  <p className="text-xs text-gray-400 mt-1.5 font-semibold">{rep.change}</p>
+                  <span className="text-2xl font-black text-brand-primary tracking-tight">{rep.value}</span>
+                  <p className="text-xs-portal text-gray-400 mt-1.5 font-semibold">{rep.change}</p>
                 </div>
               </div>
             );
@@ -195,8 +196,8 @@ export const Reports = () => {
       </div>
 
       {/* Arrears by Landlord */}
-      <div className="bg-white rounded-2xl border border-border-color/60 p-4 shadow-sm">
-        <h3 className="text-sm font-bold text-[#1A1A1A] uppercase tracking-wider px-2 pt-2 pb-4">Arrears by Landlord</h3>
+      <div className="card-bg border border-card-border rounded-card shadow-premium p-4">
+        <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider px-2 pt-2 pb-3 border-b border-card-border mb-3">Arrears by Landlord</h3>
         {loading ? renderSkeleton() : (
           arrears.landlord_summary.length === 0 ? (
             <div className="text-center py-8 text-sm text-gray-400 font-medium">No rent arrears — all schedules up to date.</div>
@@ -207,8 +208,8 @@ export const Reports = () => {
       </div>
 
       {/* Compliance Expiries */}
-      <div className="bg-white rounded-2xl border border-border-color/60 p-4 shadow-sm">
-        <h3 className="text-sm font-bold text-[#1A1A1A] uppercase tracking-wider px-2 pt-2 pb-4">Compliance Expiries (Next 90 Days)</h3>
+      <div className="card-bg border border-card-border rounded-card shadow-premium p-4">
+        <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider px-2 pt-2 pb-3 border-b border-card-border mb-3">Compliance Expiries (Next 90 Days)</h3>
         {loading ? renderSkeleton() : (
           expiries.length === 0 ? (
             <div className="text-center py-8 text-sm text-gray-400 font-medium">No certificates expiring in the next 90 days.</div>

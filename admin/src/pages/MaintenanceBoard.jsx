@@ -5,6 +5,7 @@ import { useToast } from '../components/UI/ToastContext';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
+import { Skeleton } from '../components/UI/Skeleton';
 import api from '../utilities/api';
 
 // ─── Status mapping: API values ↔ board column IDs ──────────────────────────
@@ -62,9 +63,9 @@ const DraggableCard = ({ ticket }) => {
   };
 
   const urgencyStyles = {
-    Routine: 'bg-status-success/15 text-status-success border-status-success/20',
-    Urgent: 'bg-status-warning/15 text-status-warning border-status-warning/20',
-    Emergency: 'bg-status-danger/15 text-status-danger border-status-danger/20',
+    Routine: 'bg-status-success-bg text-status-success border-status-success/15',
+    Urgent: 'bg-status-warning/10 text-status-warning border-status-warning/15',
+    Emergency: 'bg-status-danger-bg text-status-danger border-status-danger/15',
   };
 
   return (
@@ -73,23 +74,23 @@ const DraggableCard = ({ ticket }) => {
       style={style}
       {...listeners}
       {...attributes}
-      className="bg-white p-4 rounded-xl border border-border-color shadow-sm select-none hover:shadow-md transition-shadow flex flex-col gap-2 relative z-10"
+      className="card-bg p-4 rounded-card border border-card-border shadow-premium select-none transition-shadow flex flex-col gap-2 relative z-10"
     >
       <div className="flex justify-between items-center">
-        <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${urgencyStyles[ticket.urgency] || urgencyStyles.Routine}`}>
+        <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border ${urgencyStyles[ticket.urgency] || urgencyStyles.Routine}`}>
           {ticket.urgency}
         </span>
-        <span className="text-[10px] text-gray-400 font-semibold">#{ticket.id}</span>
+        <span className="text-2xs text-gray-400 font-semibold">#{ticket.id}</span>
       </div>
-      <h4 className="text-sm font-bold text-[#1A1A1A] leading-tight mt-1">
+      <h4 className="text-sm font-bold text-brand-primary leading-tight mt-1">
         {ticket.address}
       </h4>
-      <p className="text-xs text-gray-500 leading-snug line-clamp-2">
+      <p className="text-xs text-status-muted leading-snug line-clamp-2">
         {ticket.description}
       </p>
-      <div className="border-t border-border-color/60 pt-2.5 mt-1.5 flex justify-between items-center text-[10px] text-gray-400 font-semibold">
+      <div className="border-t border-card-border pt-2.5 mt-1.5 flex justify-between items-center text-2xs text-gray-400 font-semibold">
         <span>Contractor:</span>
-        <span className="text-gray-600 font-bold">{ticket.contractor}</span>
+        <span className="text-brand-primary font-bold">{ticket.contractor}</span>
       </div>
     </div>
   );
@@ -101,10 +102,10 @@ const DroppableColumn = ({ id, title, tickets, loading }) => {
   const count = tickets.length;
 
   return (
-    <div className="flex flex-col flex-1 min-w-[240px] bg-[#F8FAFC] rounded-2xl border border-border-color/80 overflow-hidden shadow-xs">
-      <div className="bg-white px-4 py-3.5 border-b border-border-color flex justify-between items-center select-none">
-        <h3 className="text-sm font-bold text-[#1A1A1A] tracking-wide">{title}</h3>
-        <span className="bg-gray-100 text-[#1A1A1A] text-xs font-bold px-2 py-0.5 rounded-full border border-border-color/50">
+    <div className="flex flex-col flex-1 min-w-[240px] bg-surface-light rounded-card border border-card-border overflow-hidden">
+      <div className="card-bg px-4 py-3.5 border-b border-card-border flex justify-between items-center select-none">
+        <h3 className="text-sm-portal font-bold text-brand-primary tracking-wide">{title}</h3>
+        <span className="bg-surface-hover text-brand-primary text-2xs font-bold px-2 py-0.5 rounded-sm border border-card-border">
           {count}
         </span>
       </div>
@@ -112,12 +113,13 @@ const DroppableColumn = ({ id, title, tickets, loading }) => {
       <div
         ref={setNodeRef}
         className={`flex-grow p-3 flex flex-col gap-3 min-h-[480px] transition-colors duration-200 ${
-          isOver ? 'bg-brand-accent/5 border-2 border-dashed border-brand-accent/30 rounded-b-2xl' : ''
+          isOver ? 'bg-brand-accent/5 border-2 border-dashed border-brand-accent/30 rounded-b-card' : ''
         }`}
       >
         {loading ? (
-          <div className="h-full flex items-center justify-center text-center text-xs text-gray-400 font-medium py-12 select-none">
-            Loading tickets...
+          <div className="flex flex-col gap-3 py-1">
+            <Skeleton radius="card" className="h-28 w-full" />
+            <Skeleton radius="card" className="h-28 w-full" />
           </div>
         ) : (
           <>
@@ -237,12 +239,12 @@ export const MaintenanceBoard = () => {
   };
 
   return (
-    <div className="py-6 max-w-7xl mx-auto px-4">
+    <div className="py-6 max-w-[1440px] mx-auto px-8 font-sans text-brand-primary">
       {/* Title */}
       <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-[#1A1A1A]">Maintenance Board</h2>
-          <p className="text-sm text-gray-500 mt-1">Drag and drop tickets to manage their progress lifecycle.</p>
+          <h2 className="text-2xl font-bold text-brand-primary tracking-tight">Maintenance Board</h2>
+          <p className="text-sm text-status-muted mt-1">Drag and drop tickets to manage their progress lifecycle.</p>
         </div>
         <Button variant="primary" icon={Plus} onClick={() => setIsModalOpen(true)}>
           New Ticket
@@ -266,18 +268,18 @@ export const MaintenanceBoard = () => {
 
       {/* New Ticket Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-brand-primary/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-border-color">
+        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-[#1A1A1A]">New Maintenance Ticket</h3>
-              <button onClick={() => { setIsModalOpen(false); setFormErrors({}); }} className="text-gray-400 hover:text-gray-700 cursor-pointer">
+              <h3 className="text-lg font-bold text-brand-primary">New Maintenance Ticket</h3>
+              <button onClick={() => { setIsModalOpen(false); setFormErrors({}); }} className="text-gray-400 hover:text-brand-primary cursor-pointer">
                 <X size={20} />
               </button>
             </div>
 
             <form onSubmit={handleModalSubmit} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Property <span className="text-status-danger">*</span></label>
+                <label className="text-xs font-semibold text-status-muted uppercase tracking-wide">Property <span className="text-status-danger">*</span></label>
                 <Dropdown
                   id="modal-property"
                   placeholder="Select property..."
@@ -290,7 +292,7 @@ export const MaintenanceBoard = () => {
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Urgency <span className="text-status-danger">*</span></label>
+                <label className="text-xs font-semibold text-status-muted uppercase tracking-wide">Urgency <span className="text-status-danger">*</span></label>
                 <Dropdown
                   id="modal-urgency"
                   placeholder="Select urgency..."
@@ -316,14 +318,14 @@ export const MaintenanceBoard = () => {
               />
 
               <div className="flex flex-col gap-1">
-                <label htmlFor="modal-description" className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                <label htmlFor="modal-description" className="text-xs font-semibold text-status-muted uppercase tracking-wide">
                   Description <span className="text-status-danger">*</span>
                 </label>
                 <textarea
                   id="modal-description"
                   rows={3}
                   placeholder="Describe the issue in detail..."
-                  className={`w-full text-sm bg-white border border-border-color rounded-lg py-2.5 px-3 transition-all focus:outline-none focus:ring-2 focus:ring-brand-accent/20 focus:border-brand-accent ${formErrors.description ? 'border-status-danger' : ''}`}
+                  className={`w-full text-sm bg-white border border-card-border rounded-lg py-2.5 px-3 transition-all focus:outline-none focus:ring-2 focus:ring-brand-accent/20 focus:border-brand-accent ${formErrors.description ? 'border-status-danger' : ''}`}
                   value={form.description}
                   onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
                 />

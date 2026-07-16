@@ -5,6 +5,7 @@ import { Button } from '../components/UI/Button';
 import { StatCard } from '../components/UI/StatCard';
 import { Input } from '../components/UI/Input';
 import { useToast } from '../components/UI/ToastContext';
+import { Skeleton } from '../components/UI/Skeleton';
 import api from '../utilities/api';
 
 export const Deposits = () => {
@@ -108,12 +109,12 @@ export const Deposits = () => {
       header: 'Protection Status',
       accessor: 'isRegistered',
       renderCell: (row) => (
-        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
+        <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border ${
           row.isRegistered
-            ? 'bg-status-success/10 text-status-success border-status-success/20'
+            ? 'bg-status-success-bg text-status-success border-status-success/15'
             : row.isOverdue
-              ? 'bg-status-danger/10 text-status-danger border-status-danger/20'
-              : 'bg-status-warning/10 text-status-warning border-status-warning/20'
+              ? 'bg-status-danger-bg text-status-danger border-status-danger/15'
+              : 'bg-status-warning/10 text-status-warning border-status-warning/15'
         }`}>
           {row.isRegistered ? `Registered ${row.registeredAt}` : row.isOverdue ? `Overdue (due ${row.registerDue})` : `Due ${row.registerDue}`}
         </span>
@@ -125,7 +126,7 @@ export const Deposits = () => {
       align: 'center',
       renderCell: (row) => (
         row.isRegistered ? (
-          <span className="text-[10px] text-gray-400 font-semibold">—</span>
+          <span className="text-2xs text-gray-400 font-semibold">—</span>
         ) : (
           <Button
             size="sm"
@@ -140,12 +141,12 @@ export const Deposits = () => {
   ];
 
   return (
-    <div className="py-6 max-w-7xl mx-auto px-4 flex flex-col gap-6">
+    <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-[#1A1A1A]">Deposit Protection</h2>
-          <p className="text-sm text-gray-500 mt-1">Track deposit scheme registrations and outstanding protection deadlines.</p>
+          <h2 className="text-2xl font-bold text-brand-primary tracking-tight">Deposit Protection</h2>
+          <p className="text-sm text-status-muted mt-1">Track deposit scheme registrations and outstanding protection deadlines.</p>
         </div>
       </div>
 
@@ -168,13 +169,13 @@ export const Deposits = () => {
       </div>
 
       {/* Grid container */}
-      <div className="bg-white rounded-2xl border border-border-color/60 p-4 shadow-sm">
+      <div className="card-bg border border-card-border rounded-card shadow-premium p-4">
         {loading ? (
           <div className="space-y-4 py-4">
-            <div className="h-10 bg-gray-100/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+            <Skeleton radius="bar" className="h-10 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
           </div>
         ) : (
           <DataTable columns={columns} data={rows} />
@@ -183,16 +184,16 @@ export const Deposits = () => {
 
       {/* Mark Registered Modal */}
       {registerTarget && (
-        <div className="fixed inset-0 bg-brand-primary/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl border border-border-color">
+        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl border border-card-border">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-[#1A1A1A]">Register Deposit</h3>
-              <button onClick={() => setRegisterTarget(null)} className="text-gray-400 hover:text-gray-700 cursor-pointer">
+              <h3 className="text-lg font-bold text-brand-primary">Register Deposit</h3>
+              <button onClick={() => setRegisterTarget(null)} className="text-gray-400 hover:text-brand-primary cursor-pointer">
                 <X size={20} />
               </button>
             </div>
 
-            <p className="text-xs text-gray-500 mb-4 leading-snug">
+            <p className="text-xs text-status-muted mb-4 leading-snug">
               Confirm the scheme registration for {registerTarget.depositRef} ({registerTarget.property}) —
               £{registerTarget.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} held under {registerTarget.scheme}.
             </p>

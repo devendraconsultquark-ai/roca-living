@@ -219,48 +219,48 @@ export const OnboardingWizard = () => {
   const progressPercent = (currentStep / 6) * 100;
 
   return (
-    <div className="py-6 max-w-4xl mx-auto px-4">
+    <div className="py-6 max-w-[1440px] mx-auto px-8 font-sans text-brand-primary">
       {/* Title */}
       <div className="mb-8 text-center sm:text-left">
-        <h2 className="text-2xl font-bold text-[#1A1A1A]">New-Let Onboarding Wizard</h2>
-        <p className="text-sm text-gray-500 mt-1">Complete the 6 onboarding stages to register the landlord, property, and move-in details.</p>
+        <h2 className="text-2xl font-bold text-brand-primary tracking-tight">New-Let Onboarding Wizard</h2>
+        <p className="text-sm text-status-muted mt-1">Complete the 6 onboarding stages to register the landlord, property, and move-in details.</p>
       </div>
 
       {isSuccess ? (
-        <div className="bg-white border border-border-color rounded-2xl shadow-md p-8 text-center flex flex-col items-center justify-center gap-6">
+        <div className="card-bg border border-card-border rounded-card shadow-premium p-8 text-center flex flex-col items-center justify-center gap-6">
           <div className="w-16 h-16 bg-status-success rounded-full flex items-center justify-center text-white shadow-lg animate-bounce">
             <Check size={32} />
           </div>
           <div>
-            <h3 className="text-xl font-bold text-[#1A1A1A]">Onboarding Completed Successfully!</h3>
-            <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
+            <h3 className="text-xl font-bold text-brand-primary">Onboarding Completed Successfully!</h3>
+            <p className="text-sm text-status-muted mt-2 max-w-md mx-auto">
               All 6 steps of compliance, business sign-off, property safety, and move-in utility checklists have been stored.
             </p>
           </div>
 
-          <div className="bg-app-bg rounded-xl p-6 text-left w-full max-w-lg border border-border-color text-xs grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="bg-surface-light rounded-card p-6 text-left w-full max-w-lg border border-card-border text-xs grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <p className="text-gray-400 font-semibold">LANDLORD</p>
-              <p className="font-bold text-[#1A1A1A] text-sm mt-0.5">{formData.landlordName}</p>
-              <p className="text-gray-500">{formData.landlordEmail}</p>
-              {createdIds && <p className="text-[10px] text-gray-400 mt-1">ID: {createdIds.landlord_id}</p>}
+              <p className="font-bold text-brand-primary text-sm mt-0.5">{formData.landlordName}</p>
+              <p className="text-status-muted">{formData.landlordEmail}</p>
+              {createdIds && <p className="text-2xs text-gray-400 mt-1">ID: {createdIds.landlord_id}</p>}
             </div>
             <div>
               <p className="text-gray-400 font-semibold">PROPERTY ADDRESS</p>
-              <p className="font-bold text-[#1A1A1A] text-sm mt-0.5">{formData.addressLine1}</p>
-              <p className="text-gray-500">{formData.city}, {formData.postcode}</p>
-              {createdIds && <p className="text-[10px] text-gray-400 mt-1">ID: {createdIds.property_id}</p>}
+              <p className="font-bold text-brand-primary text-sm mt-0.5">{formData.addressLine1}</p>
+              <p className="text-status-muted">{formData.city}, {formData.postcode}</p>
+              {createdIds && <p className="text-2xs text-gray-400 mt-1">ID: {createdIds.property_id}</p>}
             </div>
             <div>
               <p className="text-gray-400 font-semibold">COMPLIANCE CERTIFICATES</p>
-              <p className="font-bold text-[#1A1A1A] text-sm mt-0.5">Gas: {formData.gasSafety}</p>
-              <p className="text-gray-500">EICR: {formData.eicrStatus}</p>
+              <p className="font-bold text-brand-primary text-sm mt-0.5">Gas: {formData.gasSafety}</p>
+              <p className="text-status-muted">EICR: {formData.eicrStatus}</p>
             </div>
             <div>
               <p className="text-gray-400 font-semibold">TENANCY DETAILS</p>
-              <p className="font-bold text-[#1A1A1A] text-sm mt-0.5">Tenant: {formData.tenantName}</p>
-              <p className="text-gray-500">Rent: £{formData.rentPrice}/mo</p>
-              {createdIds && <p className="text-[10px] text-gray-400 mt-1">Tenancy ID: {createdIds.tenancy_id}</p>}
+              <p className="font-bold text-brand-primary text-sm mt-0.5">Tenant: {formData.tenantName}</p>
+              <p className="text-status-muted">Rent: £{formData.rentPrice}/mo</p>
+              {createdIds && <p className="text-2xs text-gray-400 mt-1">Tenancy ID: {createdIds.tenancy_id}</p>}
             </div>
           </div>
 
@@ -278,15 +278,15 @@ export const OnboardingWizard = () => {
         <div className="flex flex-col gap-6">
           
           {/* Step Progress Nodes Indicator */}
-          <div className="bg-white border border-border-color rounded-2xl p-6 shadow-sm">
+          <div className="card-bg border border-card-border rounded-card p-6 shadow-premium">
             <div className="relative flex justify-between items-center w-full mb-6 max-w-3xl mx-auto">
               
               {/* Connected Line Background */}
               <div className="absolute top-5 left-0 right-0 h-0.5 bg-gray-200 -translate-y-1/2 z-0" />
               
               {/* Connected Line Foreground */}
-              <div 
-                className="absolute top-5 left-0 h-0.5 bg-brand-accent -translate-y-1/2 z-0 transition-all duration-300"
+              <div
+                className="absolute top-5 left-0 h-0.5 bg-status-info -translate-y-1/2 z-0 transition-all duration-300"
                 style={{ width: `${((currentStep - 1) / 5) * 100}%` }}
               />
 
@@ -298,7 +298,7 @@ export const OnboardingWizard = () => {
                 if (isCompleted) {
                   nodeStyle = 'bg-status-success text-white border-status-success shadow';
                 } else if (isActive) {
-                  nodeStyle = 'bg-brand-accent text-white border-brand-accent shadow';
+                  nodeStyle = 'bg-status-info text-white border-status-info shadow';
                 }
 
                 return (
@@ -312,8 +312,8 @@ export const OnboardingWizard = () => {
                       {isCompleted ? <Check size={16} /> : step.id}
                     </button>
                     <span 
-                      className={`hidden sm:block text-[11px] font-bold mt-2 text-center select-none ${
-                        isActive ? 'text-brand-accent' : isCompleted ? 'text-status-success' : 'text-gray-400'
+                      className={`hidden sm:block text-2xs font-bold mt-2 text-center select-none ${
+                        isActive ? 'text-status-info' : isCompleted ? 'text-status-success' : 'text-gray-400'
                       }`}
                     >
                       {step.name}
@@ -324,14 +324,14 @@ export const OnboardingWizard = () => {
             </div>
 
             {/* Progress bar info underneath */}
-            <div className="border-t border-border-color/50 pt-4 flex flex-col gap-2 max-w-3xl mx-auto">
-              <div className="flex justify-between items-center text-xs font-semibold text-gray-500">
+            <div className="border-t border-card-border/50 pt-4 flex flex-col gap-2 max-w-3xl mx-auto">
+              <div className="flex justify-between items-center text-xs font-semibold text-status-muted">
                 <span>Step {currentStep} of 6: {steps[currentStep - 1].name}</span>
                 <span>{Math.round(progressPercent)}% Complete</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-[6px] overflow-hidden">
-                <div 
-                  className="bg-brand-accent h-full rounded-full transition-all duration-300"
+              <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                <div
+                  className="bg-status-info h-full rounded-full transition-all duration-300"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
@@ -339,10 +339,10 @@ export const OnboardingWizard = () => {
           </div>
 
           {/* Form Step Container */}
-          <div className="bg-white border border-border-color rounded-2xl shadow-sm">
-            <div className="bg-brand-primary/5 border-b border-border-color p-5 rounded-t-2xl">
-              <h3 className="font-bold text-base text-[#1A1A1A] flex items-center gap-2">
-                {React.createElement(steps[currentStep - 1].icon, { size: 18, className: "text-brand-accent" })}
+          <div className="card-bg border border-card-border rounded-card shadow-premium">
+            <div className="bg-brand-primary/5 border-b border-card-border p-5 rounded-t-card">
+              <h3 className="font-bold text-base-portal text-brand-primary flex items-center gap-2">
+                {React.createElement(steps[currentStep - 1].icon, { size: 18, className: "text-status-info" })}
                 Stage {currentStep}: {steps[currentStep - 1].name}
               </h3>
             </div>
@@ -617,7 +617,7 @@ export const OnboardingWizard = () => {
             </div>
 
             {/* Footer with actions */}
-            <div className="bg-gray-50 border-t border-border-color px-6 py-4 flex justify-between items-center rounded-b-2xl">
+            <div className="bg-surface-light border-t border-card-border px-6 py-4 flex justify-between items-center rounded-b-card">
               <div>
                 {currentStep > 1 && (
                   <Button variant="secondary" onClick={handleBack}>

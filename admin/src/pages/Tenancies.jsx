@@ -3,14 +3,15 @@ import { CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { StatCard } from '../components/UI/StatCard';
 import { useToast } from '../components/UI/ToastContext';
+import { Skeleton } from '../components/UI/Skeleton';
 import api from '../utilities/api';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const STATUS_STYLES = {
-  active: 'bg-status-success/10 text-status-success border-status-success/20',
-  pending: 'bg-status-warning/10 text-status-warning border-status-warning/20',
-  ended: 'bg-gray-100 text-gray-500 border-gray-200',
+  active: 'bg-status-success-bg text-status-success border-status-success/15',
+  pending: 'bg-status-warning/10 text-status-warning border-status-warning/15',
+  ended: 'bg-surface-hover text-gray-400 border-card-border',
 };
 
 export const Tenancies = () => {
@@ -82,10 +83,10 @@ export const Tenancies = () => {
               ? 'Pending'
               : 'Ended';
         const style = isExpiring
-          ? 'bg-status-danger/10 text-status-danger border-status-danger/20'
+          ? 'bg-status-danger-bg text-status-danger border-status-danger/15'
           : STATUS_STYLES[row.rawStatus] || STATUS_STYLES.ended;
         return (
-          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${style}`}>
+          <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border ${style}`}>
             {label}
           </span>
         );
@@ -94,12 +95,12 @@ export const Tenancies = () => {
   ];
 
   return (
-    <div className="py-6 max-w-7xl mx-auto px-4 flex flex-col gap-6">
+    <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-[#1A1A1A]">Tenancy Agreements</h2>
-          <p className="text-sm text-gray-500 mt-1">Review active leases, rental terms, and upcoming expiries. New tenancies are created via the onboarding wizard.</p>
+          <h2 className="text-2xl font-bold text-brand-primary tracking-tight">Tenancy Agreements</h2>
+          <p className="text-sm text-status-muted mt-1">Review active leases, rental terms, and upcoming expiries. New tenancies are created via the onboarding wizard.</p>
         </div>
       </div>
 
@@ -128,13 +129,13 @@ export const Tenancies = () => {
       </div>
 
       {/* Grid container */}
-      <div className="bg-white rounded-2xl border border-border-color/60 p-4 shadow-sm">
+      <div className="card-bg border border-card-border rounded-card shadow-premium p-4">
         {loading ? (
           <div className="space-y-4 py-4">
-            <div className="h-10 bg-gray-100/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+            <Skeleton radius="bar" className="h-10 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
           </div>
         ) : (
           <DataTable columns={columns} data={tenancies} />

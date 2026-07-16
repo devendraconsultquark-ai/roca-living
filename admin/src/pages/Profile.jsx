@@ -147,19 +147,19 @@ export const Profile = () => {
   };
 
   return (
-    <div className="py-6 max-w-4xl mx-auto px-4 flex flex-col gap-6">
+    <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-[#1A1A1A]">Admin Profile</h2>
-        <p className="text-sm text-gray-500 mt-1">Manage your administrative user information and profile settings.</p>
+        <h2 className="text-2xl font-bold text-brand-primary tracking-tight">Admin Profile</h2>
+        <p className="text-sm text-status-muted mt-1">Manage your administrative user information and profile settings.</p>
       </div>
 
       <div className="flex flex-col gap-6">
         {/* Settings Form */}
-        <form onSubmit={handleSave} className="bg-white border border-border-color rounded-2xl p-6 shadow-sm flex flex-col gap-6">
+        <form onSubmit={handleSave} className="card-bg border border-card-border rounded-card p-6 shadow-premium flex flex-col gap-6">
           <div className="flex flex-col gap-4">
             <div className="flex justify-between items-center w-full">
-              <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 select-none">
+              <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider flex items-center gap-2 select-none">
                 <User size={16} className="text-brand-accent" />
                 Contact Information
               </h3>
@@ -178,7 +178,7 @@ export const Profile = () => {
               </button>
             </div>
             
-            <div className="border-t border-border-color/60 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div className="border-t border-card-border pt-4 grid grid-cols-1 sm:grid-cols-2 gap-5">
               <Input
                 label="Full Name"
                 id="name"
@@ -216,11 +216,11 @@ export const Profile = () => {
           </div>
 
           {/* Save and Logout Buttons */}
-          <div className="border-t border-border-color/60 pt-6 flex justify-between items-center">
+          <div className="border-t border-card-border pt-6 flex justify-between items-center">
             <button
               type="button"
               onClick={handleLogout}
-              className="px-4 py-2.5 text-sm font-bold text-status-danger hover:bg-status-danger/5 border border-status-danger/20 hover:border-status-danger/30 rounded-xl transition-colors cursor-pointer flex items-center gap-2"
+              className="px-4 py-2.5 text-sm font-bold text-status-danger hover:bg-status-danger-bg border border-status-danger/20 hover:border-status-danger/30 rounded-lg transition-colors cursor-pointer flex items-center gap-2"
             >
               <LogOut size={16} />
               Log Out
@@ -240,15 +240,15 @@ export const Profile = () => {
         </form>
 
         {/* Change Password Form */}
-        <div className="bg-white border border-border-color rounded-2xl p-6 shadow-sm flex flex-col gap-6">
+        <div className="card-bg border border-card-border rounded-card p-6 shadow-premium flex flex-col gap-6">
           <form onSubmit={handlePasswordChange} className="flex flex-col gap-6">
             <div className="flex flex-col gap-4">
-              <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 select-none">
+              <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider flex items-center gap-2 select-none">
                 <Shield size={16} className="text-brand-accent" />
                 Change Password
               </h3>
               
-              <div className="border-t border-border-color/60 pt-4 grid grid-cols-1 sm:grid-cols-3 gap-5">
+              <div className="border-t border-card-border pt-4 grid grid-cols-1 sm:grid-cols-3 gap-5">
                 <Input
                   label="Current Password"
                   id="currentPassword"
@@ -294,7 +294,7 @@ export const Profile = () => {
               </div>
             </div>
 
-            <div className="border-t border-border-color/60 pt-6 flex justify-end">
+            <div className="border-t border-card-border pt-6 flex justify-end">
               <Button
                 type="submit"
                 variant="primary"

@@ -7,6 +7,7 @@ import { StatCard } from '../components/UI/StatCard';
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
 import { StatusPill } from '../components/UI/StatusPill';
+import { Skeleton } from '../components/UI/Skeleton';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
 import api from '../utilities/api';
@@ -201,7 +202,7 @@ export const Properties = () => {
     const item = config[statusValue] || { color: 'text-status-muted', icon: HelpCircle, text: statusValue };
     const Icon = item.icon;
     return (
-      <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${item.color}`}>
+      <span className={`inline-flex items-center gap-1 text-2xs font-semibold ${item.color}`}>
         <Icon size={13} />
         {item.text}
       </span>
@@ -216,8 +217,8 @@ export const Properties = () => {
       sortable: true,
       renderCell: (row) => (
         <div>
-          <div className="font-semibold text-gray-900">{row.name || row.address_line1}</div>
-          <div className="text-xs text-gray-500">{row.address}</div>
+          <div className="font-semibold text-brand-primary">{row.name || row.address_line1}</div>
+          <div className="text-xs text-status-muted">{row.address}</div>
         </div>
       )
     },
@@ -268,21 +269,21 @@ export const Properties = () => {
         <div className="flex justify-center gap-1">
           <button
             onClick={(e) => { e.stopPropagation(); navigate(`/properties/${row.id}`); }}
-            className="p-1.5 text-gray-500 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
+            className="p-1.5 text-status-muted hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
             title="View property details"
           >
             <Eye size={16} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleEditClick(row); }}
-            className="p-1.5 text-gray-500 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
+            className="p-1.5 text-status-muted hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
             title="Edit property details"
           >
             <Edit size={16} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleDeleteClick(row); }}
-            className="p-1.5 text-gray-500 hover:text-status-danger hover:bg-status-danger/5 rounded-lg transition-colors cursor-pointer"
+            className="p-1.5 text-status-muted hover:text-status-danger hover:bg-status-danger/5 rounded-lg transition-colors cursor-pointer"
             title="Delete property"
           >
             <Trash2 size={16} />
@@ -293,12 +294,12 @@ export const Properties = () => {
   ];
 
   return (
-    <div className="py-6 max-w-7xl mx-auto px-4 flex flex-col gap-6">
+    <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-[#1A1A1A]">Properties Portfolio</h2>
-          <p className="text-sm text-gray-500 mt-1">Manage standard parameters, safety compliance certificates, and occupancies.</p>
+          <h2 className="text-2xl font-bold text-brand-primary tracking-tight">Properties Portfolio</h2>
+          <p className="text-sm text-status-muted mt-1">Manage standard parameters, safety compliance certificates, and occupancies.</p>
         </div>
         <Button 
           variant="primary" 
@@ -316,42 +317,42 @@ export const Properties = () => {
           label="Total Properties"
           value={`${properties.length} units`}
           icon={Home}
-          iconColor="text-brand-primary bg-brand-primary/10"
+          iconColor="text-brand-primary bg-surface-hover"
         />
         <StatCard
           label="Occupied"
           value={`${properties.filter(p => p.status === 'let').length} units`}
           icon={CheckCircle2}
-          iconColor="text-status-success bg-status-success/10"
+          iconColor="text-status-success bg-status-success-bg"
           valueColor="text-status-success"
         />
         <StatCard
           label="Vacant Units"
           value={`${properties.filter(p => p.status === 'vacant').length} units`}
           icon={HelpCircle}
-          iconColor="text-brand-accent bg-brand-accent/10"
+          iconColor="text-status-info bg-status-info-bg"
           valueColor="text-brand-accent"
         />
         <StatCard
           label="Safety Warnings"
           value={`${properties.filter(p => ['gasCompliance', 'eicrCompliance', 'epcCompliance'].some(k => p[k] === 'expired' || p[k] === 'not_uploaded')).length} Warnings`}
           icon={AlertTriangle}
-          iconColor="text-status-danger bg-status-danger/10"
+          iconColor="text-status-danger bg-status-danger-bg"
           valueColor="text-status-danger"
         />
       </div>
 
       {/* Grid container */}
-      <div className="bg-white rounded-2xl border border-border-color/60 p-4 shadow-sm">
+      <div className="card-bg border border-card-border rounded-card shadow-premium p-4">
         {loading ? (
           <div className="space-y-4 py-4">
-            <div className="h-10 bg-gray-100/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+            <Skeleton radius="bar" className="h-10 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
           </div>
         ) : error ? (
-          <div className="border border-status-danger bg-status-danger/5 rounded-xl p-6 text-center text-status-danger font-semibold">
+          <div className="border border-status-danger/15 bg-status-danger-bg rounded-card p-6 text-center text-status-danger font-semibold">
             {error}
           </div>
         ) : (
@@ -365,9 +366,9 @@ export const Properties = () => {
 
       {/* Add New Property Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-brand-primary/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-border-color max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-bold text-[#1A1A1A] mb-4">Add New Property</h3>
+        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold text-brand-primary mb-4">Add New Property</h3>
             
             <form onSubmit={handleAddPropertySubmit} className="flex flex-col gap-4">
               <Dropdown
@@ -503,9 +504,9 @@ export const Properties = () => {
 
       {/* Edit Property Modal */}
       {isEditModalOpen && (
-        <div className="fixed inset-0 bg-brand-primary/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-border-color max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-bold text-[#1A1A1A] mb-4">Edit Property Details</h3>
+        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold text-brand-primary mb-4">Edit Property Details</h3>
             
             <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
               <Input

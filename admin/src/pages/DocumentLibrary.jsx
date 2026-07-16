@@ -178,18 +178,18 @@ export const DocumentLibrary = () => {
   const selectedFolder = folders.find(f => f.id === selectedFolderId);
 
   return (
-    <div className="py-6 max-w-7xl mx-auto px-4">
+    <div className="py-6 max-w-[1440px] mx-auto px-8 font-sans text-brand-primary">
       {/* Title */}
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-[#1A1A1A]">Documents Library</h2>
-        <p className="text-sm text-gray-500 mt-1">Manage compliance certificates, signed tenancy agreements, and landlord utility documents.</p>
+        <h2 className="text-2xl font-bold text-brand-primary tracking-tight">Documents Library</h2>
+        <p className="text-sm text-status-muted mt-1">Manage compliance certificates, signed tenancy agreements, and landlord utility documents.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Left Pane: Folder Tree */}
-        <div className="lg:col-span-1 bg-white border border-border-color rounded-2xl shadow-sm p-5 flex flex-col gap-4">
-          <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider mb-2 select-none">Folder Tree</h3>
+        <div className="lg:col-span-1 card-bg border border-card-border rounded-card shadow-premium p-5 flex flex-col gap-4">
+          <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider pb-3 border-b border-card-border select-none">Folder Tree</h3>
           
           <div className="flex flex-col gap-2">
             {folders.map(folder => {
@@ -202,7 +202,7 @@ export const DocumentLibrary = () => {
                     className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-all ${
                       isSelected 
                         ? 'bg-brand-accent/10 text-brand-accent font-semibold border-l-4 border-brand-accent' 
-                        : 'hover:bg-app-bg text-[#1A1A1A]'
+                        : 'hover:bg-surface-light text-brand-primary'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -212,7 +212,7 @@ export const DocumentLibrary = () => {
                           e.stopPropagation();
                           handleToggleFolder(folder.id);
                         }}
-                        className="p-1 hover:bg-black/5 rounded text-gray-400 focus:outline-none"
+                        className="p-1 hover:bg-surface-hover rounded text-gray-400 focus:outline-none"
                       >
                         {folder.isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                       </button>
@@ -223,25 +223,25 @@ export const DocumentLibrary = () => {
                       )}
                       <span className="text-xs sm:text-sm truncate select-none">{folder.name}</span>
                     </div>
-                    <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded-full border text-gray-500 font-bold">
+                    <span className="text-2xs bg-surface-hover px-2 py-0.5 rounded-sm border border-card-border text-status-muted font-bold">
                       {folder.children.length}
                     </span>
                   </div>
 
                   {/* Folder Children Files (if expanded) */}
                   {folder.isOpen && (
-                    <div className="ml-8 mt-1.5 flex flex-col gap-1 border-l border-border-color pl-3">
+                    <div className="ml-8 mt-1.5 flex flex-col gap-1 border-l border-card-border pl-3">
                       {folder.children.map(file => (
                         <div 
                           key={file.id} 
-                          className="flex items-center gap-2 py-1.5 text-xs text-gray-500 hover:text-[#1A1A1A]"
+                          className="flex items-center gap-2 py-1.5 text-xs text-status-muted hover:text-brand-primary"
                         >
                           <FileText size={14} className="text-status-muted shrink-0" />
                           <span className="truncate select-none">{file.name}</span>
                         </div>
                       ))}
                       {folder.children.length === 0 && (
-                        <span className="text-[10px] text-gray-400 italic py-1 pl-1">Empty folder</span>
+                        <span className="text-2xs text-gray-400 italic py-1 pl-1">Empty folder</span>
                       )}
                     </div>
                   )}
@@ -255,9 +255,9 @@ export const DocumentLibrary = () => {
         <div className="lg:col-span-2 flex flex-col gap-6">
           
           {/* Active Folder Files Grid */}
-          <div className="bg-white border border-border-color rounded-2xl shadow-sm overflow-hidden">
-            <div className="bg-brand-primary/5 border-b border-border-color p-5">
-              <h3 className="font-bold text-base text-[#1A1A1A] flex items-center gap-2 select-none">
+          <div className="card-bg border border-card-border rounded-card shadow-premium overflow-hidden">
+            <div className="bg-brand-primary/5 border-b border-card-border p-5">
+              <h3 className="font-bold text-base text-brand-primary flex items-center gap-2 select-none">
                 <FolderOpen size={18} className="text-brand-accent" />
                 Contents of: <span className="text-brand-accent">{selectedFolder?.name}</span>
               </h3>
@@ -268,18 +268,18 @@ export const DocumentLibrary = () => {
                 {selectedFolder?.children.map(file => (
                   <div 
                     key={file.id} 
-                    className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-app-bg/50 border border-border-color rounded-xl hover:bg-app-bg transition-colors gap-3"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-surface-light/50 border border-card-border rounded-card hover:bg-surface-light transition-colors gap-3"
                   >
                     <div className="flex items-start gap-3 min-w-0">
-                      <div className="bg-white p-2 rounded-lg border border-border-color text-brand-accent shrink-0">
+                      <div className="card-bg p-2 rounded-lg border border-card-border text-brand-accent shrink-0">
                         <FileText size={18} />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-xs sm:text-sm font-bold text-[#1A1A1A] truncate">{file.name}</p>
-                        <div className="flex flex-wrap items-center gap-2 text-[10px] text-gray-400 font-semibold mt-1">
+                        <p className="text-xs sm:text-sm font-bold text-brand-primary truncate">{file.name}</p>
+                        <div className="flex flex-wrap items-center gap-2 text-2xs text-gray-400 font-semibold mt-1">
                           {file.doc_reference && (
                             <>
-                              <span className="text-gray-600 font-bold bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">{file.doc_reference}</span>
+                              <span className="text-brand-primary font-bold bg-surface-hover px-1.5 py-0.5 rounded-sm border border-card-border">{file.doc_reference}</span>
                               <span>•</span>
                             </>
                           )}
@@ -319,9 +319,9 @@ export const DocumentLibrary = () => {
           </div>
 
           {/* Upload Form Box */}
-          <div className="bg-white border border-border-color rounded-2xl shadow-sm">
-            <div className="bg-brand-primary/5 border-b border-border-color p-5 rounded-t-2xl">
-              <h3 className="font-bold text-base text-[#1A1A1A] flex items-center gap-2 select-none">
+          <div className="card-bg border border-card-border rounded-card shadow-premium">
+            <div className="bg-brand-primary/5 border-b border-card-border p-5 rounded-t-card">
+              <h3 className="font-bold text-base text-brand-primary flex items-center gap-2 select-none">
                 <Upload size={18} className="text-brand-accent" />
                 Upload New Certificate / Document
               </h3>
@@ -331,7 +331,7 @@ export const DocumentLibrary = () => {
               
               {/* Drag and Drop Zone */}
               <div className="flex flex-col w-full">
-                <span className="text-xs font-semibold text-gray-500 mb-1 flex items-center gap-0.5 select-none">
+                <span className="text-xs font-semibold text-status-muted mb-1 flex items-center gap-0.5 select-none">
                   Select File <span className="text-status-danger">*</span>
                 </span>
                 
@@ -340,12 +340,12 @@ export const DocumentLibrary = () => {
                   onDragOver={handleDrag}
                   onDragLeave={handleDrag}
                   onDrop={handleDrop}
-                  className={`w-full border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center transition-all min-h-[160px] relative ${
-                    dragActive 
-                      ? 'border-brand-accent bg-brand-accent/5 ring-4 ring-brand-accent/10' 
-                      : uploadedFile 
-                        ? 'border-status-success bg-status-success/5 animate-pulse' 
-                        : 'border-border-color hover:border-brand-accent bg-white'
+                  className={`w-full border-2 border-dashed rounded-card p-8 flex flex-col items-center justify-center text-center transition-all min-h-[160px] relative ${
+                    dragActive
+                      ? 'border-brand-accent bg-brand-accent/5 ring-4 ring-brand-accent/10'
+                      : uploadedFile
+                        ? 'border-status-success bg-status-success-bg'
+                        : 'border-card-border hover:border-brand-accent card-bg'
                   }`}
                 >
                   <input
@@ -361,8 +361,8 @@ export const DocumentLibrary = () => {
                         <CheckCircle2 size={24} />
                       </div>
                       <div>
-                        <p className="text-xs sm:text-sm font-bold text-[#1A1A1A]">{uploadedFile.name}</p>
-                        <p className="text-[10px] text-gray-400 font-semibold mt-1">Size: {uploadedFile.size} • Ready for upload</p>
+                        <p className="text-xs sm:text-sm font-bold text-brand-primary">{uploadedFile.name}</p>
+                        <p className="text-2xs text-gray-400 font-semibold mt-1">Size: {uploadedFile.size} • Ready for upload</p>
                       </div>
                       <button 
                         type="button"
@@ -371,7 +371,7 @@ export const DocumentLibrary = () => {
                           e.preventDefault();
                           setUploadedFile(null);
                         }}
-                        className="text-[10px] text-status-danger hover:underline font-bold z-30 cursor-pointer"
+                        className="text-2xs text-status-danger hover:underline font-bold z-30 cursor-pointer"
                       >
                         Remove file
                       </button>
@@ -381,10 +381,10 @@ export const DocumentLibrary = () => {
                       <div className="w-12 h-12 rounded-full bg-brand-accent/10 flex items-center justify-center text-brand-accent">
                         <Upload size={20} />
                       </div>
-                      <p className="text-xs sm:text-sm font-bold text-[#1A1A1A]">
+                      <p className="text-xs sm:text-sm font-bold text-brand-primary">
                         Drag and drop files here, or <span className="text-brand-accent hover:underline">browse</span>
                       </p>
-                      <p className="text-[10px] text-gray-400 font-semibold">Supports PDF, PNG, JPG, DOCX (Max 10MB)</p>
+                      <p className="text-2xs text-gray-400 font-semibold">Supports PDF, PNG, JPG, DOCX (Max 10MB)</p>
                     </div>
                   )}
                 </div>

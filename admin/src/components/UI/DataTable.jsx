@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronUp, ChevronDown } from 'lucide-react';
 import { Dropdown } from './Dropdown';
 
 export const DataTable = ({
   columns = [], // Array of { header, accessor, align: 'left'|'right', sortable: bool, renderCell: func }
   data = [],
-  headerVariant = 'grey', // 'grey' or 'navy-tint'
+  headerVariant = 'grey', // retained for API compatibility — both variants render the portal header
   enableBulkSelect = false,
   onSelectionChange = null,
   initialPageSize = 10,
@@ -29,17 +29,17 @@ export const DataTable = ({
 
   const sortedData = React.useMemo(() => {
     if (!sortField) return data;
-    
+
     return [...data].sort((a, b) => {
       let aVal = a[sortField];
       let bVal = b[sortField];
-      
+
       if (typeof aVal === 'string') {
-        return sortOrder === 'asc' 
+        return sortOrder === 'asc'
           ? aVal.localeCompare(bVal)
           : bVal.localeCompare(aVal);
       }
-      
+
       return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
     });
   }, [data, sortField, sortOrder]);
@@ -75,41 +75,41 @@ export const DataTable = ({
     if (onSelectionChange) onSelectionChange(Array.from(newSelected));
   };
 
-  // Header styling variants — §7.3: Navy #1F3A5F background
-  const headerClasses = {
-    grey: 'bg-[#000000] text-white border-b border-border-color',
-    'navy-tint': 'bg-[#000000] text-white border-b border-border-color'
-  };
+  // Portal pagination button styles (mirrors the landlord portal Pagination)
+  const pageBtnBase =
+    'w-8 h-8 rounded-card text-brand-primary/50 hover:text-brand-primary hover:bg-surface-light transition-colors duration-150 cursor-pointer text-xs flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed disabled:pointer-events-none';
+  const pageBtnActive =
+    'w-8 h-8 border border-status-info text-status-info rounded-card flex items-center justify-center text-xs font-bold bg-transparent select-none disabled:pointer-events-none';
 
   return (
-    <div className="w-full bg-white rounded-lg border border-border-color flex flex-col">
-      <div className="overflow-x-auto w-full rounded-t-lg">
-        <table className="w-full text-sm text-left border-collapse">
+    <div className="w-full card-bg rounded-card flex flex-col">
+      <div className="overflow-x-auto w-full">
+        <table className="w-full text-xs-portal text-left border-collapse">
           {/* Table Header */}
-          <thead className={headerClasses[headerVariant]}>
-            <tr>
+          <thead>
+            <tr className="border-b border-card-border text-2xs text-gray-400 font-bold uppercase tracking-wider select-none">
               {enableBulkSelect && (
-                <th className="p-4 w-12 text-center">
-                  <input 
-                    type="checkbox" 
+                <th className="py-3 px-2 w-12 text-center">
+                  <input
+                    type="checkbox"
                     onChange={handleSelectAll}
                     checked={paginatedData.length > 0 && selectedIds.size === paginatedData.length}
-                    className="rounded border-border-color text-brand-accent focus:ring-brand-accent/20 cursor-pointer"
+                    className="rounded border-card-border text-status-info focus:ring-status-info/20 cursor-pointer"
                   />
                 </th>
               )}
               {columns.map((col, idx) => {
-                const alignClass = col.align === 'right' ? 'text-right' : 'text-left';
+                const alignClass = col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left';
                 return (
-                  <th 
+                  <th
                     key={idx}
-                    className={`p-4 font-bold text-[10px] uppercase tracking-wider ${alignClass} ${col.sortable ? 'cursor-pointer select-none hover:bg-white/10' : ''}`}
+                    className={`py-3 px-2 font-bold ${alignClass} ${col.sortable ? 'cursor-pointer select-none hover:text-brand-primary' : ''}`}
                     onClick={() => col.sortable && handleSort(col.accessor)}
                   >
-                    <div className={`flex items-center gap-1.5 ${col.align === 'right' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`flex items-center gap-1.5 ${col.align === 'right' ? 'justify-end' : col.align === 'center' ? 'justify-center' : 'justify-start'}`}>
                       {col.header}
                       {col.sortable && sortField === col.accessor && (
-                        sortOrder === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />
+                        sortOrder === 'asc' ? <ChevronUp size={13} /> : <ChevronDown size={13} />
                       )}
                     </div>
                   </th>
@@ -119,34 +119,34 @@ export const DataTable = ({
           </thead>
 
           {/* Table Body */}
-          <tbody className="divide-y divide-border-color">
+          <tbody className="divide-y divide-gray-50">
             {paginatedData.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + (enableBulkSelect ? 1 : 0)} className="p-8 text-center text-status-muted">
+                <td colSpan={columns.length + (enableBulkSelect ? 1 : 0)} className="py-8 px-2 text-center text-gray-400 font-bold">
                   No records found.
                 </td>
               </tr>
             ) : (
               paginatedData.map((row, rowIdx) => (
-                <tr 
-                  key={row.id || rowIdx} 
+                <tr
+                  key={row.id || rowIdx}
                   onClick={(e) => onRowClick && onRowClick(row, e)}
-                  className={`transition-colors odd:bg-white even:bg-[#F8F9FA] hover:bg-app-bg/40 ${selectedIds.has(row.id) ? 'bg-[#E8A020]/10' : ''} ${onRowClick ? 'cursor-pointer' : ''}`}
+                  className={`transition-colors hover:bg-surface-light/50 ${selectedIds.has(row.id) ? 'bg-status-info-bg/40' : ''} ${onRowClick ? 'cursor-pointer' : ''}`}
                 >
                   {enableBulkSelect && (
-                    <td className="p-4 text-center">
-                      <input 
-                        type="checkbox" 
+                    <td className="py-3 px-2 text-center">
+                      <input
+                        type="checkbox"
                         checked={selectedIds.has(row.id)}
                         onChange={() => handleSelectRow(row.id)}
-                        className="rounded border-border-color text-brand-accent focus:ring-brand-accent/20 cursor-pointer"
+                        className="rounded border-card-border text-status-info focus:ring-status-info/20 cursor-pointer"
                       />
                     </td>
                   )}
                   {columns.map((col, colIdx) => {
-                    const alignClass = col.align === 'right' ? 'text-right font-medium tabular-nums' : 'text-left';
+                    const alignClass = col.align === 'right' ? 'text-right font-semibold font-mono' : col.align === 'center' ? 'text-center' : 'text-left';
                     return (
-                      <td key={colIdx} className={`p-4 ${alignClass}`}>
+                      <td key={colIdx} className={`py-3 px-2 text-brand-primary font-medium ${alignClass}`}>
                         {col.renderCell ? col.renderCell(row) : row[col.accessor]}
                       </td>
                     );
@@ -160,9 +160,9 @@ export const DataTable = ({
 
       {/* Table Pagination Footer */}
       {totalPages > 0 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between p-4 border-t border-border-color bg-white gap-4 rounded-b-lg">
+        <div className="flex flex-col sm:flex-row items-center justify-between pt-4 mt-2 border-t border-card-border gap-4 select-none">
           {/* Left Side: Page Size Selector */}
-          <div className="flex items-center gap-2 text-xs text-gray-500">
+          <div className="flex items-center gap-2 text-xs-portal text-gray-400 font-bold">
             <span>Show</span>
             <Dropdown
               size="sm"
@@ -191,18 +191,16 @@ export const DataTable = ({
             <button
               disabled={currentPage === 1}
               onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-              className="p-1.5 border border-border-color rounded text-gray-500 hover:bg-app-bg disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+              className={pageBtnBase}
             >
-              <ChevronLeft size={16} />
+              &lt;
             </button>
             {Array.from({ length: totalPages }).map((_, idx) => (
               <button
                 key={idx}
                 onClick={() => setCurrentPage(idx + 1)}
-                className={`px-3 py-1 border rounded text-xs font-semibold cursor-pointer ${currentPage === idx + 1 
-                  ? 'bg-brand-accent text-white border-brand-accent' 
-                  : 'border-border-color text-gray-500 hover:bg-app-bg'
-                }`}
+                disabled={currentPage === idx + 1}
+                className={currentPage === idx + 1 ? pageBtnActive : pageBtnBase}
               >
                 {idx + 1}
               </button>
@@ -210,9 +208,9 @@ export const DataTable = ({
             <button
               disabled={currentPage === totalPages}
               onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-              className="p-1.5 border border-border-color rounded text-gray-500 hover:bg-app-bg disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+              className={pageBtnBase}
             >
-              <ChevronRight size={16} />
+              &gt;
             </button>
           </div>
         </div>

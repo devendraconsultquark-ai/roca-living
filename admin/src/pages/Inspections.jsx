@@ -6,6 +6,7 @@ import { StatCard } from '../components/UI/StatCard';
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
 import { useToast } from '../components/UI/ToastContext';
+import { Skeleton } from '../components/UI/Skeleton';
 import api from '../utilities/api';
 
 const RATING_OPTIONS = [
@@ -16,10 +17,10 @@ const RATING_OPTIONS = [
 ];
 
 const ratingStyle = {
-  Excellent: 'bg-status-success/10 text-status-success border-status-success/20',
-  Good: 'bg-status-success/10 text-status-success border-status-success/20',
-  Satisfactory: 'bg-status-warning/10 text-status-warning border-status-warning/20',
-  Unsatisfactory: 'bg-status-danger/10 text-status-danger border-status-danger/20',
+  Excellent: 'bg-status-success-bg text-status-success border-status-success/15',
+  Good: 'bg-status-success-bg text-status-success border-status-success/15',
+  Satisfactory: 'bg-status-warning/10 text-status-warning border-status-warning/15',
+  Unsatisfactory: 'bg-status-danger-bg text-status-danger border-status-danger/15',
 };
 
 const mapInspection = (i) => ({
@@ -126,8 +127,8 @@ export const Inspections = () => {
       header: 'Rating',
       accessor: 'rating',
       renderCell: (row) => (
-        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
-          ratingStyle[row.rating] || 'bg-gray-100 text-gray-500 border-gray-200'
+        <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border ${
+          ratingStyle[row.rating] || 'bg-surface-hover text-gray-400 border-card-border'
         }`}>
           {row.rating}
         </span>
@@ -137,14 +138,14 @@ export const Inspections = () => {
   ];
 
   return (
-    <div className="py-6 max-w-7xl mx-auto px-4 flex flex-col gap-6">
+    <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-[#1A1A1A]">Property Inspections</h2>
-          <p className="text-sm text-gray-500 mt-1">Log routine inspections and track when the next visit is due. Inspections appear on the landlord portal.</p>
+          <h2 className="text-2xl font-bold text-brand-primary tracking-tight">Property Inspections</h2>
+          <p className="text-sm text-status-muted mt-1">Log routine inspections and track when the next visit is due. Inspections appear on the landlord portal.</p>
         </div>
-        <Button variant="primary" icon={ClipboardCheck} className="shadow-sm" onClick={() => setIsModalOpen(true)}>
+        <Button variant="primary" icon={ClipboardCheck} onClick={() => setIsModalOpen(true)}>
           Log Inspection
         </Button>
       </div>
@@ -168,13 +169,13 @@ export const Inspections = () => {
       </div>
 
       {/* Grid container */}
-      <div className="bg-white rounded-2xl border border-border-color/60 p-4 shadow-sm">
+      <div className="card-bg border border-card-border rounded-card shadow-premium p-4">
         {loading ? (
           <div className="space-y-4 py-4">
-            <div className="h-10 bg-gray-100/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+            <Skeleton radius="bar" className="h-10 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
           </div>
         ) : (
           <DataTable columns={columns} data={inspections} />
@@ -183,18 +184,18 @@ export const Inspections = () => {
 
       {/* Log Inspection Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-brand-primary/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-border-color">
+        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-[#1A1A1A]">Log Property Inspection</h3>
-              <button onClick={() => { setIsModalOpen(false); setFormErrors({}); }} className="text-gray-400 hover:text-gray-700 cursor-pointer">
+              <h3 className="text-lg font-bold text-brand-primary">Log Property Inspection</h3>
+              <button onClick={() => { setIsModalOpen(false); setFormErrors({}); }} className="text-gray-400 hover:text-brand-primary cursor-pointer">
                 <X size={20} />
               </button>
             </div>
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Property <span className="text-status-danger">*</span></label>
+                <label className="text-xs font-semibold text-status-muted uppercase tracking-wide">Property <span className="text-status-danger">*</span></label>
                 <Dropdown
                   id="i-property"
                   placeholder="Select property..."
@@ -233,7 +234,7 @@ export const Inspections = () => {
               />
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Rating</label>
+                <label className="text-xs font-semibold text-status-muted uppercase tracking-wide">Rating</label>
                 <Dropdown
                   id="i-rating"
                   placeholder="Select rating..."

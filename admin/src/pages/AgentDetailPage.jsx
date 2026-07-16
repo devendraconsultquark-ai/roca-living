@@ -10,9 +10,9 @@ import { DataRow, Card, DetailContainer, DetailSkeleton, DetailHeader, DetailTab
 import api from '../utilities/api';
 
 const statusColors = {
-  active: 'bg-status-success/10 text-status-success border-status-success/20',
-  completed: 'bg-gray-100 text-gray-600 border-gray-200',
-  cancelled: 'bg-status-danger/10 text-status-danger border-status-danger/20',
+  active: 'bg-status-success-bg text-status-success border-status-success/15',
+  completed: 'bg-surface-hover text-gray-400 border-card-border',
+  cancelled: 'bg-status-danger-bg text-status-danger border-status-danger/15',
 };
 
 export const AgentDetailPage = () => {
@@ -80,8 +80,8 @@ export const AgentDetailPage = () => {
         backLabel="Back to Letting Agents"
         title={data.company_name}
         badge={
-          <span className={`px-2.5 py-0.5 text-[11px] font-bold rounded-full border tracking-wide uppercase ${
-            data.status === 'active' ? 'bg-status-success/10 text-status-success border-status-success/20' : 'bg-status-danger/10 text-status-danger border-status-danger/20'
+          <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border tracking-wide uppercase ${
+            data.status === 'active' ? 'bg-status-success-bg text-status-success border-status-success/15' : 'bg-status-danger-bg text-status-danger border-status-danger/15'
           }`}>
             {data.status}
           </span>
@@ -120,9 +120,9 @@ export const AgentDetailPage = () => {
                     { label: 'Completed', value: data.instructions?.filter(i => i.status === 'completed').length || 0 },
                     { label: 'Total Viewings', value: data.instructions?.reduce((sum, i) => sum + (i.viewings_count || 0), 0) || 0, color: 'text-brand-accent' },
                   ].map(stat => (
-                    <div key={stat.label} className="bg-gray-50 border border-gray-100 rounded-xl p-4 flex flex-col justify-center items-center text-center">
-                      <p className={`text-2xl font-bold ${stat.color || 'text-[#1A1A1A]'}`}>{stat.value}</p>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">{stat.label}</p>
+                    <div key={stat.label} className="bg-surface-light border border-card-border rounded-xl p-4 flex flex-col justify-center items-center text-center">
+                      <p className={`text-2xl font-bold ${stat.color || 'text-brand-primary'}`}>{stat.value}</p>
+                      <p className="text-2xs font-bold text-gray-400 uppercase tracking-wider mt-1">{stat.label}</p>
                     </div>
                   ))}
                 </div>
@@ -135,29 +135,29 @@ export const AgentDetailPage = () => {
           <div className="grid grid-cols-1 gap-6">
             <Card title={`Instructions (${data.instructions?.length || 0})`}>
               {data.instructions?.length > 0 ? (
-                <div className="overflow-x-auto rounded-xl border border-gray-100">
+                <div className="overflow-x-auto rounded-xl border border-card-border">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-gray-100 bg-gray-50/50">
+                      <tr className="border-b border-card-border text-2xs text-gray-400 font-bold uppercase tracking-wider">
                         {['Property', 'Landlord', 'Marketing Rent', 'Fee', 'Viewings', 'Status', 'Instructed'].map(h => (
-                          <th key={h} className="text-left py-3 px-4 text-[11px] font-bold text-gray-400 uppercase tracking-wide">{h}</th>
+                          <th key={h} className="text-left py-3 px-4">{h}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-gray-50 text-xs-portal">
                       {data.instructions.map(ins => (
-                        <tr key={ins.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors last:border-0">
+                        <tr key={ins.id} className="hover:bg-surface-light/50 transition-colors">
                           <td className="py-3 px-4">
-                            <p className="font-bold text-[#1A1A1A]">{ins.property_address}</p>
+                            <p className="font-bold text-brand-primary">{ins.property_address}</p>
                           </td>
-                          <td className="py-3 px-4 text-gray-600">{ins.landlord_name}</td>
-                          <td className="py-3 px-4 font-bold text-[#1A1A1A]">{ins.marketing_rent ? `£${parseFloat(ins.marketing_rent).toLocaleString('en-GB', { minimumFractionDigits: 2 })}` : '—'}</td>
-                          <td className="py-3 px-4 text-gray-600">{ins.agent_fee_amount ? `£${ins.agent_fee_amount}` : '—'}</td>
+                          <td className="py-3 px-4 text-status-muted">{ins.landlord_name}</td>
+                          <td className="py-3 px-4 font-bold text-brand-primary">{ins.marketing_rent ? `£${parseFloat(ins.marketing_rent).toLocaleString('en-GB', { minimumFractionDigits: 2 })}` : '—'}</td>
+                          <td className="py-3 px-4 text-status-muted">{ins.agent_fee_amount ? `£${ins.agent_fee_amount}` : '—'}</td>
                           <td className="py-3 px-4 text-center">
                             <span className="font-bold text-brand-accent bg-brand-accent/10 px-2 py-0.5 rounded-full">{ins.viewings_count}</span>
                           </td>
                           <td className="py-3 px-4">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider ${statusColors[ins.status] || statusColors.active}`}>
+                            <span className={`text-2xs font-bold px-2 py-0.5 rounded-sm border uppercase tracking-wider ${statusColors[ins.status] || statusColors.active}`}>
                               {ins.status}
                             </span>
                           </td>
@@ -168,9 +168,9 @@ export const AgentDetailPage = () => {
                   </table>
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center p-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                <div className="flex flex-col items-center justify-center p-12 bg-surface-light rounded-xl border border-dashed border-card-border">
                   <Home size={32} className="text-gray-300 mb-3" />
-                  <p className="text-sm font-semibold text-gray-500">No instructions recorded</p>
+                  <p className="text-sm font-semibold text-status-muted">No instructions recorded</p>
                 </div>
               )}
             </Card>

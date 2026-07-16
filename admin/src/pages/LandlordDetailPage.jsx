@@ -132,10 +132,10 @@ export const LandlordDetailPage = () => {
         backLabel="Back to Landlords"
         title={data.name}
         badge={
-          <span className={`px-2.5 py-0.5 text-[11px] font-bold rounded-full border tracking-wide uppercase ${
-            isVerified ? 'bg-status-success/10 text-status-success border-status-success/20' :
-            data.kyc_status === 'pending' ? 'bg-status-warning/10 text-status-warning border-status-warning/20' :
-            'bg-status-danger/10 text-status-danger border-status-danger/20'
+          <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border tracking-wider uppercase ${
+            isVerified ? 'bg-status-success-bg text-status-success border-status-success/15' :
+            data.kyc_status === 'pending' ? 'bg-status-warning/10 text-status-warning border-status-warning/15' :
+            'bg-status-danger-bg text-status-danger border-status-danger/15'
           }`}>
             {isVerified ? 'Verified' : data.kyc_status}
           </span>
@@ -174,13 +174,13 @@ export const LandlordDetailPage = () => {
               <Card title="Verification Status">
                 <div className="flex items-start gap-4">
                   <div className={`flex items-center justify-center w-12 h-12 rounded-full shrink-0 ${
-                    isVerified ? 'bg-status-success/10 text-status-success' : 'bg-status-warning/10 text-status-warning'
+                    isVerified ? 'bg-status-success-bg text-status-success' : 'bg-status-warning/10 text-status-warning'
                   }`}>
                     {isVerified ? <ShieldCheck size={24} /> : <AlertTriangle size={24} />}
                   </div>
                   <div>
-                    <h4 className="text-[#1A1A1A] font-bold text-lg">{isVerified ? 'Verified' : 'Pending'}</h4>
-                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                    <h4 className="text-brand-primary font-bold text-lg">{isVerified ? 'Verified' : 'Pending'}</h4>
+                    <p className="text-xs text-status-muted mt-1 leading-relaxed">
                       {isVerified ? `Verified on ${data.tob_signed_at ? new Date(data.tob_signed_at).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB')}` : 'Awaiting verification'}
                       <br/>
                       {isVerified ? 'by Administrator' : ''}
@@ -196,17 +196,17 @@ export const LandlordDetailPage = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
               <Card title="Managed Properties">
-                <p className="text-sm font-semibold text-gray-500 mb-4">{data.properties?.length || 0} Property{data.properties?.length !== 1 ? 'ies' : ''}</p>
+                <p className="text-sm font-semibold text-status-muted mb-4">{data.properties?.length || 0} Property{data.properties?.length !== 1 ? 'ies' : ''}</p>
                 <div className="flex flex-col gap-3">
                   {data.properties?.length > 0 ? data.properties.map(p => (
-                    <div key={p.id} onClick={() => navigate(`/properties/${p.id}`)} className="flex items-center justify-between p-4 bg-gray-50/50 border border-border-color rounded-xl hover:border-brand-accent cursor-pointer transition-colors group">
+                    <div key={p.id} onClick={() => navigate(`/properties/${p.id}`)} className="flex items-center justify-between p-4 bg-gray-50/50 border border-card-border rounded-xl hover:border-brand-accent cursor-pointer transition-colors group">
                       <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-brand-primary/10 rounded-lg flex items-center justify-center text-brand-primary">
+                        <div className="w-10 h-10 rounded-full bg-surface-hover flex items-center justify-center text-brand-primary">
                           <Home size={20} />
                         </div>
                         <div>
-                          <h4 className="font-bold text-[#1A1A1A] group-hover:text-brand-accent transition-colors">{p.name || p.address_line1}</h4>
-                          <p className="text-xs font-semibold text-gray-500 mt-0.5">{p.property_reference || `Property #${p.id}`} • {p.city}, {p.postcode} • {p.property_type}</p>
+                          <h4 className="font-bold text-brand-primary group-hover:text-brand-accent transition-colors">{p.name || p.address_line1}</h4>
+                          <p className="text-xs font-semibold text-status-muted mt-0.5">{p.property_reference || `Property #${p.id}`} • {p.city}, {p.postcode} • {p.property_type}</p>
                         </div>
                       </div>
                       <StatusPill status={p.status === 'let' ? 'active' : p.status === 'vacant' ? 'pending' : 'draft'} />
@@ -229,27 +229,27 @@ export const LandlordDetailPage = () => {
             <div className="lg:col-span-2">
               <Card title="Financial Summary">
                 <div className="grid grid-cols-3 gap-4 mb-8">
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">YTD Income</p>
-                    <p className="text-2xl font-bold text-[#1A1A1A]">£0.00</p>
+                  <div className="bg-surface-light p-4 rounded-card border border-card-border">
+                    <p className="text-2xs font-bold text-gray-400 uppercase tracking-wider mb-1">YTD Income</p>
+                    <p className="text-2xl font-bold text-brand-primary">£0.00</p>
                   </div>
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">YTD Expenses</p>
-                    <p className="text-2xl font-bold text-[#1A1A1A]">£0.00</p>
+                  <div className="bg-surface-light p-4 rounded-card border border-card-border">
+                    <p className="text-2xs font-bold text-gray-400 uppercase tracking-wider mb-1">YTD Expenses</p>
+                    <p className="text-2xl font-bold text-brand-primary">£0.00</p>
                   </div>
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Pending Payout</p>
-                    <p className="text-2xl font-bold text-[#1A1A1A]">£0.00</p>
+                  <div className="bg-surface-light p-4 rounded-card border border-card-border">
+                    <p className="text-2xs font-bold text-gray-400 uppercase tracking-wider mb-1">Pending Payout</p>
+                    <p className="text-2xl font-bold text-brand-primary">£0.00</p>
                   </div>
                 </div>
                 
                 <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-bold text-[#1A1A1A]">Recent Transactions</h4>
+                  <h4 className="font-bold text-brand-primary">Recent Transactions</h4>
                   <button className="text-xs font-bold text-brand-accent hover:underline">View All</button>
                 </div>
-                <div className="flex flex-col items-center justify-center p-8 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                <div className="flex flex-col items-center justify-center p-8 bg-surface-light rounded-card border border-dashed border-card-border">
                   <Banknote size={32} className="text-gray-300 mb-3" />
-                  <p className="text-sm font-semibold text-gray-500">No transactions found</p>
+                  <p className="text-sm font-semibold text-status-muted">No transactions found</p>
                   <p className="text-xs text-gray-400 mt-1">Rent payments and payouts will appear here.</p>
                 </div>
               </Card>
@@ -260,15 +260,15 @@ export const LandlordDetailPage = () => {
                   <div className="space-y-1">
                     <div className="flex items-center justify-between mb-3">
                       {data.change_pending ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-bold rounded-full border tracking-wide uppercase bg-status-warning/10 text-status-warning border-status-warning/20">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-2xs font-bold rounded-sm border tracking-wider uppercase bg-status-warning/10 text-status-warning border-status-warning/15">
                           <AlertTriangle size={12} /> Pending Verification
                         </span>
                       ) : data.verified_at ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-bold rounded-full border tracking-wide uppercase bg-status-success/10 text-status-success border-status-success/20">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-2xs font-bold rounded-sm border tracking-wider uppercase bg-status-success-bg text-status-success border-status-success/15">
                           <CheckCircle2 size={12} /> Verified {new Date(data.verified_at).toLocaleDateString('en-GB')}
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-bold rounded-full border tracking-wide uppercase bg-status-danger/10 text-status-danger border-status-danger/20">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-2xs font-bold rounded-sm border tracking-wider uppercase bg-status-danger-bg text-status-danger border-status-danger/15">
                           <AlertTriangle size={12} /> Never Verified
                         </span>
                       )}
@@ -310,11 +310,11 @@ export const LandlordDetailPage = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
               <Card title="Uploaded Documents">
-                <div className="flex flex-col items-center justify-center p-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                <div className="flex flex-col items-center justify-center p-12 bg-surface-light rounded-card border border-dashed border-card-border">
                   <FileText size={32} className="text-gray-300 mb-3" />
-                  <p className="text-sm font-semibold text-gray-500">No documents uploaded</p>
+                  <p className="text-sm font-semibold text-status-muted">No documents uploaded</p>
                   <p className="text-xs text-gray-400 mt-1">Contracts, IDs, and agreements will appear here.</p>
-                  <button className="mt-4 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-[#1A1A1A] hover:bg-gray-50 transition-colors shadow-sm">
+                  <button className="mt-4 px-4 py-2 bg-white border border-card-border rounded-lg text-sm font-bold text-brand-primary hover:bg-surface-hover transition-colors shadow-sm">
                     Upload Document
                   </button>
                 </div>
@@ -325,9 +325,9 @@ export const LandlordDetailPage = () => {
                 <div className="flex flex-col gap-3">
                   {data.compliance_checklist?.length > 0 ? data.compliance_checklist.map(item => (
                     <div key={item.id} className="flex items-center justify-between pb-3 border-b border-gray-50 last:border-0 last:pb-0">
-                      <span className="text-[13px] font-semibold text-gray-600">{item.item_label}</span>
-                      <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${
-                        item.status === 'complete' ? 'bg-status-success/10 text-status-success' : 'bg-status-warning/10 text-status-warning'
+                      <span className="text-xs-portal font-semibold text-brand-primary">{item.item_label}</span>
+                      <span className={`text-2xs uppercase tracking-wider font-bold px-2 py-0.5 rounded-sm border ${
+                        item.status === 'complete' ? 'bg-status-success-bg text-status-success border-status-success/15' : 'bg-status-warning/10 text-status-warning border-status-warning/15'
                       }`}>
                         {item.status}
                       </span>
@@ -343,9 +343,9 @@ export const LandlordDetailPage = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
               <Card title="Communication History">
-                <div className="flex flex-col items-center justify-center p-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                <div className="flex flex-col items-center justify-center p-12 bg-surface-light rounded-card border border-dashed border-card-border">
                   <Mail size={32} className="text-gray-300 mb-3" />
-                  <p className="text-sm font-semibold text-gray-500">No recent communications</p>
+                  <p className="text-sm font-semibold text-status-muted">No recent communications</p>
                   <p className="text-xs text-gray-400 mt-1">Emails and automated messages sent to this landlord will appear here.</p>
                 </div>
               </Card>
@@ -356,10 +356,10 @@ export const LandlordDetailPage = () => {
 
       {/* Update Bank Details Modal */}
       {isBankModalOpen && (
-        <div className="fixed inset-0 bg-brand-primary/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-border-color">
-            <h3 className="text-lg font-bold text-[#1A1A1A] mb-1">Update Bank Details</h3>
-            <p className="text-xs text-gray-500 mb-4">Changes are held as pending until verified by an administrator. Payouts should not be made against unverified details.</p>
+        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
+            <h3 className="text-lg font-bold text-brand-primary mb-1">Update Bank Details</h3>
+            <p className="text-xs text-status-muted mb-4">Changes are held as pending until verified by an administrator. Payouts should not be made against unverified details.</p>
 
             <form onSubmit={handleBankSubmit} className="flex flex-col gap-4">
               <Input

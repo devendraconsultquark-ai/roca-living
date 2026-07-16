@@ -6,6 +6,7 @@ import { Button } from '../components/UI/Button';
 import { StatCard } from '../components/UI/StatCard';
 import { Input } from '../components/UI/Input';
 import { StatusPill } from '../components/UI/StatusPill';
+import { Skeleton } from '../components/UI/Skeleton';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
 import api from '../utilities/api';
@@ -160,7 +161,7 @@ export const Landlords = () => {
       align: 'center', 
       sortable: true,
       renderCell: (row) => (
-        <span className="font-bold text-gray-700 bg-gray-100 px-2 py-0.5 rounded text-xs">
+        <span className="px-2 py-0.5 text-2xs font-bold rounded-sm border bg-surface-hover text-brand-primary border-card-border">
           {row.propertiesCount}
         </span>
       )
@@ -193,21 +194,21 @@ export const Landlords = () => {
         <div className="flex justify-center gap-1">
           <button
             onClick={(e) => { e.stopPropagation(); navigate(`/landlords/${row.id}`); }}
-            className="p-1.5 text-gray-500 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
+            className="p-1.5 text-status-muted hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
             title="View details"
           >
             <Eye size={16} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleEditClick(row); }}
-            className="p-1.5 text-gray-500 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
+            className="p-1.5 text-status-muted hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
             title="Edit details"
           >
             <Edit size={16} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleDeleteClick(row); }}
-            className="p-1.5 text-gray-500 hover:text-status-danger hover:bg-status-danger/5 rounded-lg transition-colors cursor-pointer"
+            className="p-1.5 text-status-muted hover:text-status-danger hover:bg-status-danger/5 rounded-lg transition-colors cursor-pointer"
             title="Delete landlord"
           >
             <Trash2 size={16} />
@@ -218,12 +219,12 @@ export const Landlords = () => {
   ];
 
   return (
-    <div className="py-6 max-w-7xl mx-auto px-4 flex flex-col gap-6">
+    <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-[#1A1A1A]">Landlords Directory</h2>
-          <p className="text-sm text-gray-500 mt-1">Review contact records, active portfolios, and compliance details for registered landlords.</p>
+          <h2 className="text-2xl font-bold text-brand-primary tracking-tight">Landlords Directory</h2>
+          <p className="text-sm text-status-muted mt-1">Review contact records, active portfolios, and compliance details for registered landlords.</p>
         </div>
         <Button 
           variant="primary" 
@@ -241,26 +242,26 @@ export const Landlords = () => {
           label="Total Landlords"
           value={`${landlords.length} Registered`}
           icon={Users}
-          iconColor="text-brand-accent bg-brand-accent/10"
+          iconColor="text-status-info bg-status-info-bg"
         />
         <StatCard
           label="Active Payouts"
           value={`${landlords.filter(l => l.kyc_status === 'passed').length} Passed`}
           icon={Users}
-          iconColor="text-brand-accent bg-brand-accent/10"
+          iconColor="text-status-info bg-status-info-bg"
           valueColor="text-status-success"
         />
         <StatCard
           label="Awaiting Verification"
           value={`${landlords.filter(l => l.kyc_status === 'pending' || l.kyc_status === 'not_started').length} Pending`}
           icon={Users}
-          iconColor="text-brand-accent bg-brand-accent/10"
+          iconColor="text-status-info bg-status-info-bg"
           valueColor="text-status-warning"
         />
       </div>
 
       {/* Grid container */}
-      <div className="bg-white rounded-2xl border border-border-color/60 p-4 shadow-sm">
+      <div className="card-bg border border-card-border rounded-card shadow-premium p-4">
         <div className="mb-4 max-w-md">
           <Input
             id="search"
@@ -272,29 +273,29 @@ export const Landlords = () => {
 
         {loading ? (
           <div className="space-y-4 py-4">
-            <div className="h-10 bg-gray-100/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+            <Skeleton radius="bar" className="h-10 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
           </div>
         ) : error ? (
-          <div className="border border-status-danger bg-status-danger/5 rounded-xl p-6 text-center text-status-danger font-semibold">
+          <div className="border border-status-danger/15 bg-status-danger-bg rounded-card p-6 text-center text-status-danger font-semibold">
             {error}
           </div>
         ) : (
-          <DataTable 
-            columns={columns} 
-            data={landlords} 
-            onRowClick={(row) => navigate(`/landlords/${row.id}`)} 
+          <DataTable
+            columns={columns}
+            data={landlords}
+            onRowClick={(row) => navigate(`/landlords/${row.id}`)}
           />
         )}
       </div>
 
       {/* Register Landlord Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-brand-primary/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-border-color">
-            <h3 className="text-lg font-bold text-[#1A1A1A] mb-4">Register Landlord</h3>
+        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
+            <h3 className="text-lg font-bold text-brand-primary mb-4">Register Landlord</h3>
             
             <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-4">
               <Input
@@ -353,9 +354,9 @@ export const Landlords = () => {
 
       {/* Edit Landlord Modal */}
       {isEditModalOpen && (
-        <div className="fixed inset-0 bg-brand-primary/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-border-color">
-            <h3 className="text-lg font-bold text-[#1A1A1A] mb-4">Edit Landlord Details</h3>
+        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
+            <h3 className="text-lg font-bold text-brand-primary mb-4">Edit Landlord Details</h3>
             
             <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
               <Input

@@ -1,53 +1,237 @@
-import React from 'react';
-import { CheckCircle2, AlertTriangle, XCircle, Circle } from 'lucide-react';
+import React from "react";
+import {
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  Circle,
+  Clock,
+  Calendar,
+} from "lucide-react";
 
 export const StatusPill = ({
-  status = 'active', // active, pending, danger, draft
-  customLabel = null
+  status = "active",
+  customLabel = null,
+  size = "md", // sm, md
+  rounded = "full", // sm, full
+  showIcon = true,
 }) => {
-
   // Map backend statuses to design system concepts and icons
   const statusConfig = {
     // 1. Success States (Green, CheckCircle2)
-    active: { text: 'Active', classes: 'bg-[#2E7D32]/10 text-[#2E7D32]', icon: CheckCircle2 },
-    compliant: { text: 'Compliant', classes: 'bg-[#2E7D32]/10 text-[#2E7D32]', icon: CheckCircle2 },
-    reconciled: { text: 'Reconciled', classes: 'bg-[#2E7D32]/10 text-[#2E7D32]', icon: CheckCircle2 },
-    verified: { text: 'Verified', classes: 'bg-[#2E7D32]/10 text-[#2E7D32]', icon: CheckCircle2 },
-    paid: { text: 'Paid', classes: 'bg-[#2E7D32]/10 text-[#2E7D32]', icon: CheckCircle2 },
+    active: {
+      text: "Active",
+      classes:
+        "bg-status-success-bg text-status-success border-status-success/15",
+      icon: CheckCircle2,
+    },
+    compliant: {
+      text: "Compliant",
+      classes:
+        "bg-status-success-bg text-status-success border-status-success/15",
+      icon: CheckCircle2,
+    },
+    "fully compliant": {
+      text: "Fully Compliant",
+      classes:
+        "bg-status-success-bg text-status-success border-status-success/15",
+      icon: CheckCircle2,
+    },
+    fully_compliant: {
+      text: "Fully Compliant",
+      classes:
+        "bg-status-success-bg text-status-success border-status-success/15",
+      icon: CheckCircle2,
+    },
+    reconciled: {
+      text: "Reconciled",
+      classes:
+        "bg-status-success-bg text-status-success border-status-success/15",
+      icon: CheckCircle2,
+    },
+    verified: {
+      text: "Verified",
+      classes:
+        "bg-status-success-bg text-status-success border-status-success/15",
+      icon: CheckCircle2,
+    },
+    paid: {
+      text: "Paid",
+      classes:
+        "bg-status-success-bg text-status-success border-status-success/15",
+      icon: CheckCircle2,
+    },
+    completed: {
+      text: "Completed",
+      classes:
+        "bg-status-success-bg text-status-success border-status-success/15",
+      icon: CheckCircle2,
+    },
+    low: {
+      text: "Low",
+      classes:
+        "bg-status-success-bg text-status-success border-status-success/15",
+      icon: CheckCircle2,
+    },
 
     // 2. Warning States (Amber, AlertTriangle)
-    pending: { text: 'Pending', classes: 'bg-[#E0A93B]/10 text-[#E0A93B]', icon: AlertTriangle },
-    'expiring soon': { text: 'Expiring Soon', classes: 'bg-[#E0A93B]/10 text-[#E0A93B]', icon: AlertTriangle },
-    'awaiting approval': { text: 'Awaiting Approval', classes: 'bg-[#E0A93B]/10 text-[#E0A93B]', icon: AlertTriangle },
+    pending: {
+      text: "Pending",
+      classes:
+        "bg-status-warning/10 text-status-warning border-status-warning/15",
+      icon: AlertTriangle,
+    },
+    "expiring soon": {
+      text: "Expiring Soon",
+      classes:
+        "bg-status-warning/10 text-status-warning border-status-warning/15",
+      icon: AlertTriangle,
+    },
+    expiring_soon: {
+      text: "Expiring Soon",
+      classes:
+        "bg-status-warning/10 text-status-warning border-status-warning/15",
+      icon: AlertTriangle,
+    },
+    "awaiting approval": {
+      text: "Awaiting Approval",
+      classes:
+        "bg-status-warning/10 text-status-warning border-status-warning/15",
+      icon: AlertTriangle,
+    },
+    awaiting_approval: {
+      text: "Awaiting Approval",
+      classes:
+        "bg-status-warning/10 text-status-warning border-status-warning/15",
+      icon: AlertTriangle,
+    },
+    medium: {
+      text: "Medium",
+      classes:
+        "bg-status-warning/10 text-status-warning border-status-warning/15",
+      icon: AlertTriangle,
+    },
 
-    // 3. Danger States (Red, XCircle)
-    overdue: { text: 'Overdue', classes: 'bg-[#C62828]/10 text-[#C62828]', icon: XCircle },
-    expired: { text: 'Expired', classes: 'bg-[#C62828]/10 text-[#C62828]', icon: XCircle },
-    failed: { text: 'Failed', classes: 'bg-[#C62828]/10 text-[#C62828]', icon: XCircle },
-    blocked: { text: 'Blocked', classes: 'bg-[#C62828]/10 text-[#C62828]', icon: XCircle },
+    // 3. Danger States (Red, XCircle / AlertTriangle)
+    overdue: {
+      text: "Overdue",
+      classes: "bg-status-danger-bg text-status-danger border-status-danger/15",
+      icon: XCircle,
+    },
+    expired: {
+      text: "Expired",
+      classes: "bg-status-danger-bg text-status-danger border-status-danger/15",
+      icon: XCircle,
+    },
+    failed: {
+      text: "Failed",
+      classes: "bg-status-danger-bg text-status-danger border-status-danger/15",
+      icon: XCircle,
+    },
+    blocked: {
+      text: "Blocked",
+      classes: "bg-status-danger-bg text-status-danger border-status-danger/15",
+      icon: XCircle,
+    },
+    cancelled: {
+      text: "Cancelled",
+      classes: "bg-status-danger-bg text-status-danger border-status-danger/15",
+      icon: XCircle,
+    },
+    "action required": {
+      text: "Action Required",
+      classes: "bg-status-danger-bg text-status-danger border-status-danger/15",
+      icon: AlertTriangle,
+    },
+    action_required: {
+      text: "Action Required",
+      classes: "bg-status-danger-bg text-status-danger border-status-danger/15",
+      icon: AlertTriangle,
+    },
+    high: {
+      text: "High",
+      classes: "bg-status-danger-bg text-status-danger border-status-danger/15",
+      icon: AlertTriangle,
+    },
 
-    // 4. Muted States (Grey, Circle)
-    onboarding: { text: 'Onboarding', classes: 'bg-[#F2F2F2] text-[#888888]', icon: Circle },
-    draft: { text: 'Draft', classes: 'bg-[#F2F2F2] text-[#888888]', icon: Circle },
-    'not started': { text: 'Not Started', classes: 'bg-[#F2F2F2] text-[#888888]', icon: Circle },
+    // 4. Info States (Blue, Clock / Calendar)
+    "in progress": {
+      text: "In Progress",
+      classes: "bg-status-info-bg text-status-info border-status-info/15",
+      icon: Clock,
+    },
+    in_progress: {
+      text: "In Progress",
+      classes: "bg-status-info-bg text-status-info border-status-info/15",
+      icon: Clock,
+    },
+    triaged: {
+      text: "In Progress",
+      classes: "bg-status-info-bg text-status-info border-status-info/15",
+      icon: Clock,
+    },
+    scheduled: {
+      text: "Scheduled",
+      classes: "bg-status-info-bg text-status-info border-status-info/15",
+      icon: Calendar,
+    },
+
+    // 5. Muted States (Grey, Circle)
+    onboarding: {
+      text: "Onboarding",
+      classes: "bg-surface-hover text-gray-400 border-card-border",
+      icon: Circle,
+    },
+    draft: {
+      text: "Draft",
+      classes: "bg-surface-hover text-gray-400 border-card-border",
+      icon: Circle,
+    },
+    "not started": {
+      text: "Not Started",
+      classes: "bg-surface-hover text-gray-400 border-card-border",
+      icon: Circle,
+    },
+    "not uploaded": {
+      text: "Not Uploaded",
+      classes: "bg-surface-hover text-gray-400 border-card-border",
+      icon: Circle,
+    },
+    not_uploaded: {
+      text: "Not Uploaded",
+      classes: "bg-surface-hover text-gray-400 border-card-border",
+      icon: Circle,
+    },
   };
 
-  // Normalize input status string to lowercase (defensive programming)
-  const normalizedStatus = status ? status.toLowerCase() : 'draft';
-  
+  // Normalize input status string to lowercase
+  const normalizedStatus = status
+    ? String(status).toLowerCase().trim()
+    : "draft";
+
   // Find match, or default to grey draft status
-  const config = statusConfig[normalizedStatus] || { 
-    text: status, 
-    classes: 'bg-[#F2F2F2] text-[#888888]', 
-    icon: Circle 
+  const config = statusConfig[normalizedStatus] || {
+    text: status,
+    classes: "bg-surface-hover text-gray-400 border-card-border",
+    icon: Circle,
   };
 
   const label = customLabel || config.text;
   const Icon = config.icon;
 
+  // Determine size classes
+  // Note: sm size is text-2xs depending on the original style.
+  // We'll use text-2xs px-2 py-0.5 for small, text-xs-portal py-1 px-2.5 for medium.
+  const sizeClasses =
+    size === "sm" ? "text-2xs py-0.5 px-2" : "text-xs py-1 px-2.5";
+
+  // Determine border-radius shape
+  const roundedClasses = rounded === "sm" ? "rounded-sm" : "rounded-full";
+
   return (
-    <span className={`inline-flex items-center gap-1.5 py-1 px-2.5 rounded-full text-xs font-bold w-fit ${config.classes}`}>
-      <Icon size={14} className="shrink-0" />
+    <span
+      className={`inline-flex items-center justify-center gap-1 font-bold border select-none w-fit leading-none shrink-0 ${sizeClasses} ${roundedClasses} ${config.classes}`}
+    >
+      {showIcon && <Icon size={size === "sm" ? 11 : 14} className="shrink-0" />}
       {label}
     </span>
   );

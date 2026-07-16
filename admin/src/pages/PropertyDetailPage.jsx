@@ -164,8 +164,8 @@ export const PropertyDetailPage = () => {
                   </div>
                 </div>
                 {data.notes && (
-                  <div className="mt-6 bg-gray-50 rounded-xl p-4 text-sm text-gray-600 border border-gray-100">
-                    <p className="font-semibold text-gray-700 mb-1">Notes</p>
+                  <div className="mt-6 bg-surface-light rounded-card p-4 text-sm text-status-muted border border-card-border">
+                    <p className="font-semibold text-brand-primary mb-1">Notes</p>
                     {data.notes}
                   </div>
                 )}
@@ -175,12 +175,12 @@ export const PropertyDetailPage = () => {
               <Card title="Quick Status">
                 <div className="flex flex-col gap-4">
                   <div className="flex items-center justify-between pb-3 border-b border-gray-50">
-                    <span className="text-sm font-medium text-gray-500">Current Occupancy</span>
-                    <span className="text-sm font-bold text-[#1A1A1A]">{data.status === 'let' ? 'Occupied' : 'Vacant'}</span>
+                    <span className="text-sm font-medium text-status-muted">Current Occupancy</span>
+                    <span className="text-sm font-bold text-brand-primary">{data.status === 'let' ? 'Occupied' : 'Vacant'}</span>
                   </div>
                   <div className="flex items-center justify-between pb-3 border-b border-gray-50">
-                    <span className="text-sm font-medium text-gray-500">Active Tickets</span>
-                    <span className="text-sm font-bold text-[#1A1A1A]">{data.maintenance_tickets?.filter(t => t.status !== 'complete' && t.status !== 'cancelled').length || 0}</span>
+                    <span className="text-sm font-medium text-status-muted">Active Tickets</span>
+                    <span className="text-sm font-bold text-brand-primary">{data.maintenance_tickets?.filter(t => t.status !== 'complete' && t.status !== 'cancelled').length || 0}</span>
                   </div>
                 </div>
               </Card>
@@ -205,29 +205,29 @@ export const PropertyDetailPage = () => {
                     </div>
                     
                     <div>
-                      <h4 className="font-bold text-[#1A1A1A] mb-3">Tenants</h4>
+                      <h4 className="font-bold text-brand-primary mb-3">Tenants</h4>
                       <div className="flex flex-col gap-2">
                         {data.active_tenancy.tenants?.map(t => (
                           <div key={t.id}
                             onClick={() => navigate(`/tenants/${t.id}`)}
-                            className="flex items-center justify-between bg-gray-50 border border-border-color/30 rounded-xl px-4 py-3 cursor-pointer hover:border-brand-accent transition-colors"
+                            className="flex items-center justify-between bg-gray-50 border border-card-border/30 rounded-xl px-4 py-3 cursor-pointer hover:border-brand-accent transition-colors"
                           >
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary">
+                              <div className="w-8 h-8 rounded-full bg-surface-hover flex items-center justify-center text-brand-primary">
                                 <Users size={14} />
                               </div>
-                              <span className="text-sm font-bold text-[#1A1A1A]">{t.name}</span>
+                              <span className="text-sm font-bold text-brand-primary">{t.name}</span>
                             </div>
-                            {t.is_lead_tenant && <span className="text-[10px] uppercase font-bold bg-brand-accent/10 text-brand-accent px-2 py-1 rounded-md">Lead Tenant</span>}
+                            {t.is_lead_tenant && <span className="text-2xs uppercase tracking-wider font-bold bg-status-info-bg text-status-info border border-status-info/15 px-2 py-0.5 rounded-sm">Lead Tenant</span>}
                           </div>
                         ))}
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center p-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                  <div className="flex flex-col items-center justify-center p-12 bg-surface-light rounded-card border border-dashed border-card-border">
                     <Users size={32} className="text-gray-300 mb-3" />
-                    <p className="text-sm font-semibold text-gray-500">No active tenancy</p>
+                    <p className="text-sm font-semibold text-status-muted">No active tenancy</p>
                     <p className="text-xs text-gray-400 mt-1">This property is currently vacant.</p>
                   </div>
                 )}
@@ -242,29 +242,29 @@ export const PropertyDetailPage = () => {
               <Card title="Recent Maintenance">
                 <div className="flex flex-col gap-3">
                   {data.maintenance_tickets?.length > 0 ? data.maintenance_tickets.map(t => (
-                    <div key={t.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-gray-50/50 border border-border-color rounded-xl p-4 gap-4 hover:border-brand-accent transition-colors cursor-pointer">
+                    <div key={t.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-gray-50/50 border border-card-border rounded-xl p-4 gap-4 hover:border-brand-accent transition-colors cursor-pointer">
                       <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500">
+                        <div className="w-10 h-10 rounded-full bg-surface-hover flex items-center justify-center text-status-muted">
                           <Wrench size={20} />
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-[#1A1A1A]">{t.title}</p>
-                          <p className="text-xs text-gray-500 mt-0.5">Reported: {t.created_at ? new Date(t.created_at).toLocaleDateString('en-GB') : ''}</p>
+                          <p className="text-sm font-bold text-brand-primary">{t.title}</p>
+                          <p className="text-xs text-status-muted mt-0.5">Reported: {t.created_at ? new Date(t.created_at).toLocaleDateString('en-GB') : ''}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider ${urgencyColor[t.urgency] || urgencyColor.routine}`}>
+                        <span className={`text-2xs font-bold px-2 py-0.5 rounded-sm border uppercase tracking-wider ${urgencyColor[t.urgency] || urgencyColor.routine}`}>
                           {t.urgency}
                         </span>
-                        <span className="text-[10px] font-bold bg-white text-gray-600 border border-gray-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                        <span className="text-2xs font-bold bg-surface-hover text-gray-400 border border-card-border px-2 py-0.5 rounded-sm uppercase tracking-wider">
                           {t.status?.replace(/_/g, ' ')}
                         </span>
                       </div>
                     </div>
                   )) : (
-                    <div className="flex flex-col items-center justify-center p-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                    <div className="flex flex-col items-center justify-center p-12 bg-surface-light rounded-card border border-dashed border-card-border">
                       <Wrench size={32} className="text-gray-300 mb-3" />
-                      <p className="text-sm font-semibold text-gray-500">No maintenance tickets</p>
+                      <p className="text-sm font-semibold text-status-muted">No maintenance tickets</p>
                     </div>
                   )}
                 </div>
@@ -279,15 +279,15 @@ export const PropertyDetailPage = () => {
               <Card title="Safety Certificates">
                 <div className="grid grid-cols-1 gap-3">
                   {(data.property_certificates || []).map(cert => (
-                    <div key={cert.id} className="flex items-center justify-between bg-white border border-border-color rounded-xl p-4">
+                    <div key={cert.id} className="flex items-center justify-between bg-white border border-card-border rounded-xl p-4">
                       <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-gray-50 border border-gray-100 rounded-lg flex items-center justify-center text-gray-500">
+                        <div className="w-10 h-10 rounded-full bg-surface-hover flex items-center justify-center text-status-muted">
                           <ShieldCheck size={20} />
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-[#1A1A1A]">{cert.cert_type}</p>
+                          <p className="text-sm font-bold text-brand-primary">{cert.cert_type}</p>
                           {cert.expires_at ? (
-                            <p className="text-xs font-semibold text-gray-500 mt-0.5">Expires: {new Date(cert.expires_at).toLocaleDateString('en-GB')}</p>
+                            <p className="text-xs font-semibold text-status-muted mt-0.5">Expires: {new Date(cert.expires_at).toLocaleDateString('en-GB')}</p>
                           ) : (
                             <p className="text-xs text-gray-400 mt-0.5">No expiry date set</p>
                           )}
@@ -312,18 +312,18 @@ export const PropertyDetailPage = () => {
                 <div className="flex flex-col gap-3">
                   {(data.compliance_checklist || []).map(item => (
                     <div key={item.id} className="flex items-center justify-between pb-3 border-b border-gray-50 last:border-0 last:pb-0">
-                      <span className="text-[13px] font-semibold text-gray-600">{item.item_label}</span>
+                      <span className="text-xs-portal font-semibold text-brand-primary">{item.item_label}</span>
                       <div className="flex items-center gap-2">
-                        <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${
+                        <span className={`text-2xs uppercase tracking-wider font-bold px-2 py-0.5 rounded-sm border ${
                           item.status === 'complete'
-                            ? 'bg-status-success/10 text-status-success'
-                            : 'bg-status-warning/10 text-status-warning'
+                            ? 'bg-status-success-bg text-status-success border-status-success/15'
+                            : 'bg-status-warning/10 text-status-warning border-status-warning/15'
                         }`}>
                           {item.status}
                         </span>
                         <button
                           onClick={() => handleChecklistToggle(item)}
-                          className="text-[10px] font-bold text-brand-accent hover:underline cursor-pointer"
+                          className="text-2xs font-bold text-brand-accent hover:underline cursor-pointer"
                           title={item.status === 'complete' ? 'Reopen this item' : 'Mark this item complete'}
                         >
                           {item.status === 'complete' ? 'Reopen' : 'Mark Complete'}
@@ -344,11 +344,11 @@ export const PropertyDetailPage = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
               <Card title="Property Documents">
-                <div className="flex flex-col items-center justify-center p-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                <div className="flex flex-col items-center justify-center p-12 bg-surface-light rounded-card border border-dashed border-card-border">
                   <FileText size={32} className="text-gray-300 mb-3" />
-                  <p className="text-sm font-semibold text-gray-500">No documents uploaded</p>
+                  <p className="text-sm font-semibold text-status-muted">No documents uploaded</p>
                   <p className="text-xs text-gray-400 mt-1">Leases, floor plans, and instructions will appear here.</p>
-                  <button className="mt-4 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-[#1A1A1A] hover:bg-gray-50 transition-colors shadow-sm">
+                  <button className="mt-4 px-4 py-2 bg-white border border-card-border rounded-lg text-sm font-bold text-brand-primary hover:bg-surface-hover transition-colors shadow-sm">
                     Upload Document
                   </button>
                 </div>
@@ -360,10 +360,10 @@ export const PropertyDetailPage = () => {
 
       {/* Update Certificate Modal */}
       {certModalCert && (
-        <div className="fixed inset-0 bg-brand-primary/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-border-color">
-            <h3 className="text-lg font-bold text-[#1A1A1A] mb-1">Update {certModalCert.cert_type} Certificate</h3>
-            <p className="text-xs text-gray-500 mb-4">The compliance status (compliant / expiring soon / expired) is calculated from the expiry date, and the matching checklist item is marked complete.</p>
+        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
+            <h3 className="text-lg font-bold text-brand-primary mb-1">Update {certModalCert.cert_type} Certificate</h3>
+            <p className="text-xs text-status-muted mb-4">The compliance status (compliant / expiring soon / expired) is calculated from the expiry date, and the matching checklist item is marked complete.</p>
 
             <form onSubmit={handleCertSubmit} className="flex flex-col gap-4">
               <Input

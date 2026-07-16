@@ -5,6 +5,7 @@ import { Button } from '../components/UI/Button';
 import { StatCard } from '../components/UI/StatCard';
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
+import { Skeleton } from '../components/UI/Skeleton';
 import { useToast } from '../components/UI/ToastContext';
 import api from '../utilities/api';
 
@@ -141,10 +142,10 @@ export const Utilities = () => {
       header: 'Transfer Status',
       accessor: 'status',
       renderCell: (row) => (
-        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
+        <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border ${
           row.status === 'Completed'
-            ? 'bg-status-success/10 text-status-success border-status-success/20'
-            : 'bg-status-warning/10 text-status-warning border-status-warning/20 animate-pulse'
+            ? 'bg-status-success-bg text-status-success border-status-success/15'
+            : 'bg-status-warning/10 text-status-warning border-status-warning/15'
         }`}>
           {row.status}
         </span>
@@ -153,14 +154,14 @@ export const Utilities = () => {
   ];
 
   return (
-    <div className="py-6 max-w-7xl mx-auto px-4 flex flex-col gap-6">
+    <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-[#1A1A1A]">Utility Handover Dashboard</h2>
-          <p className="text-sm text-gray-500 mt-1">Track energy, council tax, and water service transfers during tenant check-in and check-out periods.</p>
+          <h2 className="text-2xl font-bold text-brand-primary tracking-tight">Utility Handover Dashboard</h2>
+          <p className="text-sm text-status-muted mt-1">Track energy, council tax, and water service transfers during tenant check-in and check-out periods.</p>
         </div>
-        <Button variant="primary" icon={Droplet} className="shadow-sm" onClick={() => setIsModalOpen(true)}>
+        <Button variant="primary" icon={Droplet} onClick={() => setIsModalOpen(true)}>
           Trigger Handover Transfer
         </Button>
       </div>
@@ -184,13 +185,13 @@ export const Utilities = () => {
       </div>
 
       {/* Grid container */}
-      <div className="bg-white rounded-2xl border border-border-color/60 p-4 shadow-sm">
+      <div className="card-bg rounded-card border border-card-border p-4 shadow-premium">
         {loading ? (
           <div className="space-y-4 py-4">
-            <div className="h-10 bg-gray-100/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+            <Skeleton radius="bar" className="h-10 w-full" />
+            <Skeleton radius="bar" className="h-16 w-full" />
+            <Skeleton radius="bar" className="h-16 w-full" />
+            <Skeleton radius="bar" className="h-16 w-full" />
           </div>
         ) : (
           <DataTable columns={columns} data={utilities} />
@@ -199,18 +200,18 @@ export const Utilities = () => {
 
       {/* Trigger Handover Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-brand-primary/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-border-color">
+        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-[#1A1A1A]">Trigger Utility Handover</h3>
-              <button onClick={() => { setIsModalOpen(false); setFormErrors({}); }} className="text-gray-400 hover:text-gray-700 cursor-pointer">
+              <h3 className="text-lg font-bold text-brand-primary">Trigger Utility Handover</h3>
+              <button onClick={() => { setIsModalOpen(false); setFormErrors({}); }} className="text-gray-400 hover:text-brand-primary cursor-pointer">
                 <X size={20} />
               </button>
             </div>
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Property <span className="text-status-danger">*</span></label>
+                <label className="text-xs font-semibold text-status-muted uppercase tracking-wide">Property <span className="text-status-danger">*</span></label>
                 <Dropdown
                   id="u-property"
                   placeholder="Select property..."
@@ -223,7 +224,7 @@ export const Utilities = () => {
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Tenancy (Optional)</label>
+                <label className="text-xs font-semibold text-status-muted uppercase tracking-wide">Tenancy (Optional)</label>
                 <Dropdown
                   id="u-tenancy"
                   placeholder="Select tenancy..."
@@ -235,7 +236,7 @@ export const Utilities = () => {
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Utility Type <span className="text-status-danger">*</span></label>
+                <label className="text-xs font-semibold text-status-muted uppercase tracking-wide">Utility Type <span className="text-status-danger">*</span></label>
                 <Dropdown
                   id="u-type"
                   placeholder="Select utility type..."
@@ -247,7 +248,7 @@ export const Utilities = () => {
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Direction <span className="text-status-danger">*</span></label>
+                <label className="text-xs font-semibold text-status-muted uppercase tracking-wide">Direction <span className="text-status-danger">*</span></label>
                 <Dropdown
                   id="u-direction"
                   placeholder="Select direction..."

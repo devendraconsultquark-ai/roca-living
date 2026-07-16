@@ -1,41 +1,144 @@
 @import "tailwindcss";
 
+/* Design system ported 1:1 from the landlord portal (client/src/index.css) so
+   both portals share the exact same visual language. Admin-only legacy token
+   names are aliased onto the client palette at the bottom of the @theme block. */
+
+:root {
+  /* ── TIER 1: PRIMITIVES (Core Colors) ── */
+  --primitive-pure-black: #000000;
+  --primitive-charcoal: #121212;
+  --primitive-ink: #1A1A1A;         /* interactive near-black (buttons) */
+  --primitive-ink-hover: #2D2D2D;
+  --primitive-ink-muted: #888888;   /* disabled button label */
+  --primitive-grey-200: #E5E7EB;
+  --primitive-grey-500: #6B7280;
+  --primitive-grey-800: #1F2937;
+
+  --primitive-orange: #F16900;
+  --primitive-green: #2E7D32;
+  --primitive-green-light: #E8F5E9;
+  --primitive-blue: #0A58CA;
+  --primitive-blue-light: #E7F0FD;
+  --primitive-red: #C62828;
+  --primitive-red-light: #FFEBEE;
+
+  /* ── TIER 2: RUNTIME VARIABLES (No '--color-' prefix to prevent cycles) ── */
+  --sidebar-bg: var(--primitive-pure-black);
+  --sidebar-text: #FFFFFF;
+  --sidebar-text-muted: #d8d4d4;
+  --sidebar-hover: var(--primitive-charcoal);
+  --sidebar-accent: var(--primitive-grey-800);
+  --sidebar-help-bg: var(--primitive-charcoal);
+  --app-bg: #FFFFFF;
+  --card-bg: #FFFFFF;
+  --card-border: var(--primitive-grey-200);
+  --surface-light: #F8F9FA;
+  --surface-hover: #F3F4F6;
+  --skeleton: #EBEDF0;   /* single canonical loading-placeholder fill */
+  --brand-primary: var(--primitive-pure-black);
+  --interactive-ink: var(--primitive-ink);
+  --interactive-ink-hover: var(--primitive-ink-hover);
+  --interactive-ink-muted: var(--primitive-ink-muted);
+  --brand-accent: var(--primitive-blue);
+  --brand-accent-hover: #084caE;
+  --status-success: var(--primitive-green);
+  --status-success-bg: var(--primitive-green-light);
+  --status-warning: var(--primitive-orange);
+  --status-danger: var(--primitive-red);
+  --status-danger-bg: var(--primitive-red-light);
+  --status-info: var(--primitive-blue);
+  --status-info-bg: var(--primitive-blue-light);
+  --status-muted: var(--primitive-grey-500);
+
+  /* ── PORTAL TYPE SCALE ── */
+  --portal-text-2xs: 12px;      /* timestamps, badges, uppercase labels */
+  --portal-text-xs: 13px;       /* table cell secondary text */
+  --portal-text-sm: 14px;       /* table primary text, button labels */
+  --portal-text-base: 16px;     /* card titles, body */
+
+  --primary: var(--primitive-blue);
+}
+
+/* ── TIER 3: TAILWIND REGISTERING ── */
 @theme {
-  /* Brand Theme Colors */
-  --color-brand-primary: #000000;    /* Navy - structural, headers, sidebars */
-  --color-brand-accent: #f16900;     /* Orange - primary brand accent */
-  --color-brand-accent-hover: #ff8425; /* Darker orange for hover states */
-  --color-accent-blue: #f2a302;      /* Blue - demoted to secondary/informational, focus rings */
-  
-  /* Backgrounds & Surfaces */
-  --color-app-bg: #F5F4F0;           /* Neutral page background — §2.2 Page BG */
-  --color-card-bg: #FFFFFF;          /* White cards, tables, panels */
-  --color-header-bg: #F8F9FA;        /* Table headers, section labels */
-  --color-section-tile: #F2F2F2;     /* Property/tenant grey tiles */
-  --color-payment-panel: #1A1A2E;    /* Dark near-black panel */
-  --color-border-color: #DDDDDD;     /* Thin rules, borders */
+  --font-sans: 'Outfit', 'Inter', system-ui, -apple-system, Arial, sans-serif;
+  --font-weight-bold: 600;
+  --font-weight-black: 800;
+  --font-weight-semibold: 500;
 
-  /* Status Colors */
-  --color-status-success: #2E7D32;   /* Green - active, compliant, paid */
-  --color-status-warning: #f2a302;   /* Amber - arrears, expiring soon, pending */
-  --color-status-danger: #C62828;    /* Red - overdue, expired, failed */
-  --color-status-muted: #888888;     /* Grey - onboarding, draft, not started */
+  /* Map the runtime variables to Tailwind color classes */
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-sidebar-text: var(--sidebar-text);
+  --color-sidebar-text-muted: var(--sidebar-text-muted);
+  --color-sidebar-hover: var(--sidebar-hover);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-help-bg: var(--sidebar-help-bg);
+  --color-app-bg: var(--app-bg);
+  --color-card-bg: var(--card-bg);
+  --color-card-border: var(--card-border);
+  --color-surface-light: var(--surface-light);
+  --color-surface-hover: var(--surface-hover);
+  --color-skeleton: var(--skeleton);
+  --color-brand-primary: var(--brand-primary);
+  --color-ink: var(--interactive-ink);
+  --color-ink-hover: var(--interactive-ink-hover);
+  --color-ink-muted: var(--interactive-ink-muted);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-accent-hover: var(--brand-accent-hover);
+  --color-status-success: var(--status-success);
+  --color-status-success-bg: var(--status-success-bg);
+  --color-status-warning: var(--status-warning);
+  --color-status-danger: var(--status-danger);
+  --color-status-danger-bg: var(--status-danger-bg);
+  --color-status-info: var(--status-info);
+  --color-status-info-bg: var(--status-info-bg);
+  --color-status-muted: var(--status-muted);
+  --color-primary: var(--primary);
+  /* Global Gray override for darker, readable label colors */
+  --color-gray-400: #5c6470;
 
-  /* Text Colors */
-  --color-text-primary: #1A1A1A;
-  --color-text-secondary: #555555;
-  --color-text-muted: #888888;
+  /* ── Admin legacy aliases (older class names still used across pages) ── */
+  --color-border-color: var(--card-border);
+  --color-header-bg: var(--surface-light);
+  --color-section-tile: var(--surface-hover);
+  --color-payment-panel: var(--primitive-charcoal);
+  --color-text-primary: var(--interactive-ink);
+  --color-text-secondary: var(--primitive-grey-500);
+  --color-text-muted: var(--primitive-ink-muted);
   --color-text-white: #FFFFFF;
-
-  /* Chart Colors */
+  --color-accent-blue: var(--primitive-blue);
   --color-chart-green: #3A7D44;
   --color-chart-orange: #E8A020;
-  --color-chart-red: #C62828;
+  --color-chart-red: var(--primitive-red);
 
-  /* Typography */
-  --font-sans: 'Inter', system-ui, -apple-system, Arial, sans-serif;
-  --font-weight-bold: 600;
-  --font-weight-black: 600;
+  /* Portal Font Sizes */
+  --text-2xs: var(--portal-text-2xs);
+  --text-xs-portal: var(--portal-text-xs);
+  --text-sm-portal: var(--portal-text-sm);
+  --text-base-portal: var(--portal-text-base);
+
+  /* Align Tailwind's DEFAULT text sizes to the portal scale, so `text-xs` and
+     `text-xs-portal` (etc.) resolve to ONE size system instead of two overlapping ones.
+     Only text-xs actually changes (12px -> 13px); sm/base already matched. */
+  --text-xs: var(--portal-text-xs);      /* 13px (Tailwind default was 12px) */
+  --text-sm: var(--portal-text-sm);      /* 14px */
+  --text-base: var(--portal-text-base);  /* 16px */
+
+  /* Borders, Radius & Shadows */
+  --radius-card: 6px;
+  /* One coherent radius scale so containers stop mixing 6 / 8 / 12 / 16px corners.
+     md + lg collapse onto the 6px card radius; larger surfaces stay distinct but tighter. */
+  --radius-md: 6px;   /* Tailwind default 6px  */
+  --radius-lg: 6px;   /* was 8px  -> snaps to card radius */
+  --radius-xl: 10px;  /* was 12px */
+  --radius-2xl: 12px; /* was 16px */
+  --radius-3xl: 16px; /* was 24px */
+
+  --shadow-premium: 0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 2px 8px -1px rgba(0, 0, 0, 0.03);
+  /* On-brand soft elevation for the common shadow utilities so cards read cohesively. */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 4px 14px -3px rgba(0, 0, 0, 0.06), 0 2px 6px -2px rgba(0, 0, 0, 0.04);
 }
 
 /* Base resets & styling defaults */
@@ -46,7 +149,7 @@
 body {
   font-family: var(--font-sans);
   background-color: var(--color-app-bg);
-  color: #1A1A1A; /* Text Primary hex */
+  color: var(--color-brand-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -62,7 +165,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border-color);
+  background: var(--color-card-border);
   border-radius: 9999px;
 }
 
@@ -73,5 +176,23 @@ body {
 /* Firefox compatibility */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-border-color) transparent;
+  scrollbar-color: var(--color-card-border) transparent;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* Global Portal Small Label Overrides */
+.text-2xs {
+  text-transform: capitalize !important;
+  font-weight: 500 !important;
+  letter-spacing: normal !important;
 }

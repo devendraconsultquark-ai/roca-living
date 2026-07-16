@@ -6,6 +6,7 @@ import { Input } from '../components/UI/Input';
 import { DatePicker } from '../components/UI/DatePicker';
 import { Dropdown } from '../components/UI/Dropdown';
 import { useToast } from '../components/UI/ToastContext';
+import { Skeleton } from '../components/UI/Skeleton';
 import api from '../utilities/api';
 
 export const Statements = () => {
@@ -311,7 +312,7 @@ export const Statements = () => {
       align: 'right', 
       sortable: true,
       renderCell: (row) => (
-        <span className="font-bold text-[#1A1A1A]">
+        <span className="font-bold text-brand-primary">
           £{row.payout.toFixed(2)}
         </span>
       )
@@ -320,14 +321,14 @@ export const Statements = () => {
       header: 'Payout Status',
       accessor: 'status',
       renderCell: (row) => {
-        let style = 'bg-status-warning/10 text-status-warning border-status-warning/20';
+        let style = 'bg-status-warning/10 text-status-warning border-status-warning/15';
         if (row.status === 'Paid') {
-          style = 'bg-status-success/10 text-status-success border-status-success/20';
+          style = 'bg-status-success-bg text-status-success border-status-success/15';
         } else if (row.status === 'Sent') {
-          style = 'bg-brand-accent/10 text-brand-accent border-brand-accent/20';
+          style = 'bg-status-info-bg text-status-info border-status-info/15';
         }
         return (
-          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${style}`}>
+          <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border ${style}`}>
             {row.status}
           </span>
         );
@@ -372,34 +373,33 @@ export const Statements = () => {
   ];
 
   return (
-    <div className="py-6 max-w-7xl mx-auto px-4 flex flex-col gap-6">
+    <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-[#1A1A1A]">Landlord Statements Library</h2>
-          <p className="text-sm text-gray-500 mt-1">Audit, export, and review statements issued to landlord partners.</p>
+          <h2 className="text-2xl font-bold text-brand-primary tracking-tight">Landlord Statements Library</h2>
+          <p className="text-sm text-status-muted mt-1">Audit, export, and review statements issued to landlord partners.</p>
         </div>
-        <Button 
-          variant="primary" 
+        <Button
+          variant="primary"
           onClick={() => setShowModal(true)}
           icon={FileSpreadsheet}
-          className="shadow-sm"
         >
           Generate Statements
         </Button>
       </div>
 
       {/* Grid container */}
-      <div className="bg-white rounded-2xl border border-border-color/60 p-4 shadow-sm">
+      <div className="card-bg border border-card-border rounded-card shadow-premium p-4">
         {loading ? (
           <div className="space-y-4 py-4">
-            <div className="h-10 bg-gray-100/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+            <Skeleton radius="bar" className="h-10 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
           </div>
         ) : error ? (
-          <div className="border border-status-danger bg-status-danger/5 rounded-xl p-6 text-center text-status-danger font-semibold">
+          <div className="border border-status-danger/15 bg-status-danger-bg rounded-card p-6 text-center text-status-danger font-semibold">
             {error}
           </div>
         ) : (
@@ -409,8 +409,8 @@ export const Statements = () => {
 
       {/* Statement Generation Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-brand-primary/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl border border-border-color overflow-hidden my-8">
+        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl border border-card-border overflow-hidden my-8">
             <div className="bg-brand-primary text-white p-5 font-bold flex items-center gap-2 select-none shrink-0">
               <Calendar size={18} />
               <span>Generate Landlord Statement</span>
@@ -418,7 +418,7 @@ export const Statements = () => {
 
             <form onSubmit={handleGenerateStatementsSubmit} className="p-6 flex flex-col gap-6 max-h-[80vh] overflow-y-auto">
               {/* Select Property for Autofill */}
-              <div className="bg-[#1F3A5F]/5 p-4 rounded-xl border border-[#1F3A5F]/10 flex flex-col gap-3">
+              <div className="bg-status-info-bg p-4 rounded-card border border-status-info/15 flex flex-col gap-3">
                 <Dropdown
                   label="Select Property for Autofill"
                   id="propertySelect"
@@ -433,18 +433,18 @@ export const Statements = () => {
                   clearable
                   disabled={loadingAutofill}
                 />
-                <p className="text-xs text-[#1F3A5F] italic">
+                <p className="text-xs-portal text-status-info italic">
                   Selecting a property will automatically populate landlord, reference, property, and tenant details.
                 </p>
               </div>
 
               {/* Warning: EM property with no landlord data */}
               {propertySource === 'em' && !landlordName && (
-                <div className="flex gap-3 items-start bg-amber-50 border border-amber-300 rounded-xl p-4">
-                  <span className="text-amber-500 mt-0.5 shrink-0 text-lg">⚠️</span>
+                <div className="flex gap-3 items-start bg-status-warning/10 border border-status-warning/15 rounded-card p-4">
+                  <span className="text-status-warning mt-0.5 shrink-0 text-lg">⚠️</span>
                   <div>
-                    <p className="text-sm font-semibold text-amber-800">Landlord details not found in external database</p>
-                    <p className="text-xs text-amber-700 mt-0.5">
+                    <p className="text-sm font-semibold text-status-warning">Landlord details not found in external database</p>
+                    <p className="text-xs-portal text-status-muted mt-0.5">
                       This EM property has no linked landlord record. Please fill in the <strong>Landlord Name</strong>, <strong>Landlord Address</strong>, and <strong>NRL Number</strong> manually below.
                     </p>
                   </div>
@@ -452,8 +452,8 @@ export const Statements = () => {
               )}
 
               {/* Section 1: Landlord & Reference Details */}
-              <div className="border-b pb-4 border-gray-100">
-                <h3 className="font-semibold text-brand-primary mb-3 text-sm">Landlord & References Details</h3>
+              <div className="border-b pb-4 border-card-border">
+                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-3">Landlord & References Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input 
                     label="Landlord / Company Name *"
@@ -503,8 +503,8 @@ export const Statements = () => {
               </div>
 
               {/* Section 2: Property & Tenant Details */}
-              <div className="border-b pb-4 border-gray-100">
-                <h3 className="font-semibold text-brand-primary mb-3 text-sm">Property & Tenant Details</h3>
+              <div className="border-b pb-4 border-card-border">
+                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-3">Property & Tenant Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input 
                     label="Property Details / Address"
@@ -537,8 +537,8 @@ export const Statements = () => {
               </div>
 
               {/* Section 3: Billing Period */}
-              <div className="border-b pb-4 border-gray-100">
-                <h3 className="font-semibold text-brand-primary mb-3 text-sm">Billing Period</h3>
+              <div className="border-b pb-4 border-card-border">
+                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-3">Billing Period</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <DatePicker 
                     label="Statement Period Start"
@@ -558,8 +558,8 @@ export const Statements = () => {
               </div>
 
               {/* Section 4: Income details */}
-              <div className="border-b pb-4 border-gray-100">
-                <h3 className="font-semibold text-brand-primary mb-3 text-sm">Income</h3>
+              <div className="border-b pb-4 border-card-border">
+                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-3">Income</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input 
                     label="Rent Received (£)"
@@ -580,17 +580,17 @@ export const Statements = () => {
                     placeholder="0.00"
                   />
                   <div className="md:col-span-2">
-                    <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-semibold text-gray-500 h-10 flex items-center justify-between">
+                    <div className="px-3 py-2 bg-surface-light border border-card-border rounded-lg text-xs-portal font-semibold text-status-muted h-10 flex items-center justify-between">
                       <span>Total Income:</span>
-                      <span className="font-bold text-sm text-[#1A1A1A]">£{totalIncome.toFixed(2)}</span>
+                      <span className="font-bold text-sm text-brand-primary">£{totalIncome.toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Section 5: Expenditure details */}
-              <div className="border-b pb-4 border-gray-100">
-                <h3 className="font-semibold text-brand-primary mb-3 text-sm">Expenditure</h3>
+              <div className="border-b pb-4 border-card-border">
+                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-3">Expenditure</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input 
                     label="Expenditure Invoice Number"
@@ -618,16 +618,16 @@ export const Statements = () => {
                     placeholder="0.00"
                   />
                   <div className="flex items-end">
-                    <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-semibold text-gray-500 h-10 flex items-center justify-between">
+                    <div className="w-full px-3 py-2 bg-surface-light border border-card-border rounded-lg text-xs-portal font-semibold text-status-muted h-10 flex items-center justify-between">
                       <span>Total Expenditure:</span>
-                      <span className="font-bold text-sm text-[#1A1A1A]">£{totalExpenditure.toFixed(2)}</span>
+                      <span className="font-bold text-sm text-brand-primary">£{totalExpenditure.toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Section 6: Summary & Payout Balance */}
-              <div className="bg-brand-primary/5 border border-brand-accent/20 rounded-xl p-4 flex flex-col md:flex-row justify-between gap-4">
+              <div className="bg-brand-primary/5 border border-brand-accent/20 rounded-card p-4 flex flex-col md:flex-row justify-between gap-4">
                 <div className="flex-1">
                   <Input 
                     label="Balance from Previous Statement (£)"
@@ -640,12 +640,12 @@ export const Statements = () => {
                   />
                 </div>
                 
-                <div className="w-full md:w-64 flex flex-col gap-2 justify-center border-t md:border-t-0 md:border-l border-gray-200 pt-3 md:pt-0 md:pl-4">
-                  <div className="flex justify-between text-xs text-gray-500">
+                <div className="w-full md:w-64 flex flex-col gap-2 justify-center border-t md:border-t-0 md:border-l border-card-border pt-3 md:pt-0 md:pl-4">
+                  <div className="flex justify-between text-xs text-status-muted">
                     <span>Previous Balance:</span>
                     <span>£{prevBalanceVal.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-xs text-gray-500">
+                  <div className="flex justify-between text-xs text-status-muted">
                     <span>Net Period Income:</span>
                     <span>£{netIncome.toFixed(2)}</span>
                   </div>

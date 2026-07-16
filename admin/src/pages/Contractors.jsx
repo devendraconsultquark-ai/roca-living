@@ -5,6 +5,7 @@ import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
+import { Skeleton } from '../components/UI/Skeleton';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
 import api from '../utilities/api';
@@ -141,7 +142,7 @@ export const Contractors = () => {
       header: 'Insurance Status',
       accessor: 'status',
       renderCell: (row) => (
-        <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${
+        <span className={`inline-flex items-center gap-1 text-2xs font-semibold ${
           row.status.includes('Active') ? 'text-status-success' : 'text-status-danger'
         }`}>
           {row.status.includes('Active') ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
@@ -157,21 +158,21 @@ export const Contractors = () => {
         <div className="flex justify-center gap-1">
           <button
             onClick={(e) => { e.stopPropagation(); navigate(`/contractors/${row.raw.id}`); }}
-            className="p-1.5 text-gray-500 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
+            className="p-1.5 text-status-muted hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
             title="View details"
           >
             <Eye size={16} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleEditClick(row); }}
-            className="p-1.5 text-gray-500 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
+            className="p-1.5 text-status-muted hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors cursor-pointer"
             title="Edit contractor details"
           >
             <Edit size={16} />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleDeleteClick(row); }}
-            className="p-1.5 text-gray-500 hover:text-status-danger hover:bg-status-danger/5 rounded-lg transition-colors cursor-pointer"
+            className="p-1.5 text-status-muted hover:text-status-danger hover:bg-status-danger/5 rounded-lg transition-colors cursor-pointer"
             title="Delete contractor"
           >
             <Trash2 size={16} />
@@ -182,12 +183,12 @@ export const Contractors = () => {
   ];
 
   return (
-    <div className="py-6 max-w-7xl mx-auto px-4 flex flex-col gap-6">
+    <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-[#1A1A1A]">Contractors Directory</h2>
-          <p className="text-sm text-gray-500 mt-1">Review contact records, active insurance statuses, and ratings of maintenance contractors.</p>
+          <h2 className="text-2xl font-bold text-brand-primary tracking-tight">Contractors Directory</h2>
+          <p className="text-sm text-status-muted mt-1">Review contact records, active insurance statuses, and ratings of maintenance contractors.</p>
         </div>
         <Button variant="primary" icon={UserCog} className="shadow-sm" onClick={() => setIsModalOpen(true)}>
           Add Contractor
@@ -195,13 +196,13 @@ export const Contractors = () => {
       </div>
 
       {/* Grid container */}
-      <div className="bg-white rounded-2xl border border-border-color/60 p-4 shadow-sm">
+      <div className="card-bg border border-card-border rounded-card shadow-premium p-4">
         {loading ? (
           <div className="space-y-4 py-4">
-            <div className="h-10 bg-gray-100/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+            <Skeleton radius="bar" className="h-10 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
           </div>
         ) : (
           <DataTable 
@@ -214,11 +215,11 @@ export const Contractors = () => {
 
       {/* Add Contractor Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-brand-primary/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-border-color">
+        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-[#1A1A1A]">Add Contractor</h3>
-              <button onClick={() => { setIsModalOpen(false); setFormErrors({}); }} className="text-gray-400 hover:text-gray-700 cursor-pointer">
+              <h3 className="text-lg font-bold text-brand-primary">Add Contractor</h3>
+              <button onClick={() => { setIsModalOpen(false); setFormErrors({}); }} className="text-gray-400 hover:text-brand-primary cursor-pointer">
                 <X size={20} />
               </button>
             </div>
@@ -277,11 +278,11 @@ export const Contractors = () => {
 
       {/* Edit Contractor Modal */}
       {isEditModalOpen && (
-        <div className="fixed inset-0 bg-brand-primary/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-border-color">
+        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-[#1A1A1A]">Edit Contractor Details</h3>
-              <button onClick={() => { setIsEditModalOpen(false); setFormErrors({}); }} className="text-gray-400 hover:text-gray-700 cursor-pointer">
+              <h3 className="text-lg font-bold text-brand-primary">Edit Contractor Details</h3>
+              <button onClick={() => { setIsEditModalOpen(false); setFormErrors({}); }} className="text-gray-400 hover:text-brand-primary cursor-pointer">
                 <X size={20} />
               </button>
             </div>

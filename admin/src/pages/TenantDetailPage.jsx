@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  User, Phone, Mail, ShieldCheck, 
+import {
+  User, Users, Phone, Mail, ShieldCheck,
   Home, CreditCard, Clock, AlertTriangle, Hash, Calendar, FileText
 } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
@@ -83,8 +83,8 @@ export const TenantDetailPage = () => {
         backLabel="Back to Tenants"
         title={data.name}
         badge={
-          <span className={`px-2.5 py-0.5 text-[11px] font-bold rounded-full border tracking-wide uppercase ${
-            balance < 0 ? 'bg-status-danger/10 text-status-danger border-status-danger/20' : 'bg-status-success/10 text-status-success border-status-success/20'
+          <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border tracking-wide uppercase ${
+            balance < 0 ? 'bg-status-danger-bg text-status-danger border-status-danger/15' : 'bg-status-success-bg text-status-success border-status-success/15'
           }`}>
             Balance: {balance < 0 ? `-£${Math.abs(balance).toFixed(2)}` : `£${balance.toFixed(2)}`}
           </span>
@@ -118,13 +118,13 @@ export const TenantDetailPage = () => {
               <Card title="Right to Rent">
                 <div className="flex items-start gap-4">
                   <div className={`flex items-center justify-center w-12 h-12 rounded-full shrink-0 ${
-                    data.right_to_rent_status === 'verified' ? 'bg-status-success/10 text-status-success' : 'bg-status-warning/10 text-status-warning'
+                    data.right_to_rent_status === 'verified' ? 'bg-status-success-bg text-status-success' : 'bg-status-warning/10 text-status-warning'
                   }`}>
                     {data.right_to_rent_status === 'verified' ? <ShieldCheck size={24} /> : <AlertTriangle size={24} />}
                   </div>
                   <div>
-                    <h4 className="text-[#1A1A1A] font-bold text-lg capitalize">{data.right_to_rent_status || 'Pending'}</h4>
-                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                    <h4 className="text-brand-primary font-bold text-lg capitalize">{data.right_to_rent_status || 'Pending'}</h4>
+                    <p className="text-xs text-status-muted mt-1 leading-relaxed">
                       {data.right_to_rent_status === 'verified' ? `Expiry: ${data.right_to_rent_expiry ? new Date(data.right_to_rent_expiry).toLocaleDateString('en-GB') : 'N/A'}` : 'Awaiting verification'}
                     </p>
                   </div>
@@ -155,9 +155,9 @@ export const TenantDetailPage = () => {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center p-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                  <div className="flex flex-col items-center justify-center p-12 bg-surface-light rounded-xl border border-dashed border-card-border">
                     <Home size={32} className="text-gray-300 mb-3" />
-                    <p className="text-sm font-semibold text-gray-500">No active tenancy</p>
+                    <p className="text-sm font-semibold text-status-muted">No active tenancy</p>
                     <p className="text-xs text-gray-400 mt-1">This tenant is not currently assigned to a property.</p>
                   </div>
                 )}
@@ -171,17 +171,17 @@ export const TenantDetailPage = () => {
                       <div
                         key={t.id}
                         onClick={() => navigate(`/tenants/${t.id}`)}
-                        className="flex items-center justify-between bg-gray-50 hover:border-brand-accent border border-border-color/30 rounded-xl px-4 py-3 cursor-pointer transition-colors"
+                        className="flex items-center justify-between bg-surface-light hover:border-brand-accent border border-card-border/30 rounded-xl px-4 py-3 cursor-pointer transition-colors"
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary">
                             <Users size={14} />
                           </div>
                           <div>
-                            <p className="text-sm font-bold text-[#1A1A1A]">{t.name}</p>
+                            <p className="text-sm font-bold text-brand-primary">{t.name}</p>
                           </div>
                         </div>
-                        {t.is_lead_tenant ? <span className="text-[10px] uppercase font-bold bg-brand-accent/10 text-brand-accent px-2 py-1 rounded-md">Lead</span> : null}
+                        {t.is_lead_tenant ? <span className="text-2xs uppercase font-bold bg-brand-accent/10 text-brand-accent px-2 py-1 rounded-md">Lead</span> : null}
                       </div>
                     ))}
                   </div>
@@ -197,22 +197,22 @@ export const TenantDetailPage = () => {
           <div className="grid grid-cols-1 gap-6">
             <Card title={`Rent Payment History (${data.payment_history?.length || 0})`}>
               {data.payment_history?.length > 0 ? (
-                <div className="overflow-x-auto rounded-xl border border-gray-100">
+                <div className="overflow-x-auto rounded-xl border border-card-border">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-gray-100 bg-gray-50/50">
-                        <th className="text-left py-3 px-4 text-[11px] font-bold text-gray-400 uppercase tracking-wide">Date</th>
-                        <th className="text-left py-3 px-4 text-[11px] font-bold text-gray-400 uppercase tracking-wide">Amount</th>
-                        <th className="text-left py-3 px-4 text-[11px] font-bold text-gray-400 uppercase tracking-wide">Method</th>
-                        <th className="text-left py-3 px-4 text-[11px] font-bold text-gray-400 uppercase tracking-wide">Reference</th>
+                      <tr className="border-b border-card-border text-2xs text-gray-400 font-bold uppercase tracking-wider">
+                        <th className="text-left py-3 px-4">Date</th>
+                        <th className="text-left py-3 px-4">Amount</th>
+                        <th className="text-left py-3 px-4">Method</th>
+                        <th className="text-left py-3 px-4">Reference</th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-gray-50 text-xs-portal">
                       {data.payment_history.map(p => (
-                        <tr key={p.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
-                          <td className="py-3 px-4 text-gray-600 font-medium">{p.received_at ? new Date(p.received_at).toLocaleDateString('en-GB') : '—'}</td>
-                          <td className="py-3 px-4 font-bold text-[#1A1A1A]">£{parseFloat(p.amount).toLocaleString('en-GB', { minimumFractionDigits: 2 })}</td>
-                          <td className="py-3 px-4 text-gray-600">{methodLabel[p.method] || p.method}</td>
+                        <tr key={p.id} className="hover:bg-surface-light/50 transition-colors">
+                          <td className="py-3 px-4 text-status-muted font-medium">{p.received_at ? new Date(p.received_at).toLocaleDateString('en-GB') : '—'}</td>
+                          <td className="py-3 px-4 font-bold text-brand-primary">£{parseFloat(p.amount).toLocaleString('en-GB', { minimumFractionDigits: 2 })}</td>
+                          <td className="py-3 px-4 text-status-muted">{methodLabel[p.method] || p.method}</td>
                           <td className="py-3 px-4 text-gray-400 text-xs font-mono">{p.reference || '—'}</td>
                         </tr>
                       ))}
@@ -220,9 +220,9 @@ export const TenantDetailPage = () => {
                   </table>
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center p-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                <div className="flex flex-col items-center justify-center p-12 bg-surface-light rounded-xl border border-dashed border-card-border">
                   <CreditCard size={32} className="text-gray-300 mb-3" />
-                  <p className="text-sm font-semibold text-gray-500">No payment history</p>
+                  <p className="text-sm font-semibold text-status-muted">No payment history</p>
                 </div>
               )}
             </Card>
@@ -233,11 +233,11 @@ export const TenantDetailPage = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
               <Card title="Tenant Documents">
-                <div className="flex flex-col items-center justify-center p-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                <div className="flex flex-col items-center justify-center p-12 bg-surface-light rounded-xl border border-dashed border-card-border">
                   <FileText size={32} className="text-gray-300 mb-3" />
-                  <p className="text-sm font-semibold text-gray-500">No documents uploaded</p>
+                  <p className="text-sm font-semibold text-status-muted">No documents uploaded</p>
                   <p className="text-xs text-gray-400 mt-1">IDs, references, and agreements will appear here.</p>
-                  <button className="mt-4 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-[#1A1A1A] hover:bg-gray-50 transition-colors shadow-sm">
+                  <button className="mt-4 px-4 py-2 bg-white border border-card-border rounded-lg text-sm font-bold text-brand-primary hover:bg-surface-hover transition-colors shadow-sm">
                     Upload Document
                   </button>
                 </div>

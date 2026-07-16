@@ -6,6 +6,7 @@ import { Input } from '../components/UI/Input';
 import { DatePicker } from '../components/UI/DatePicker';
 import { Dropdown } from '../components/UI/Dropdown';
 import { useToast } from '../components/UI/ToastContext';
+import { Skeleton } from '../components/UI/Skeleton';
 import api from '../utilities/api';
 
 export const Invoices = () => {
@@ -305,7 +306,7 @@ export const Invoices = () => {
       align: 'right', 
       sortable: true,
       renderCell: (row) => (
-        <span className="font-bold text-[#1A1A1A]">
+        <span className="font-bold text-brand-primary">
           £{row.net.toFixed(2)}
         </span>
       )
@@ -314,16 +315,16 @@ export const Invoices = () => {
       header: 'Status',
       accessor: 'status',
       renderCell: (row) => {
-        let style = 'bg-status-warning/10 text-status-warning border-status-warning/20';
+        let style = 'bg-status-warning/10 text-status-warning border-status-warning/15';
         if (row.status === 'Paid') {
-          style = 'bg-status-success/10 text-status-success border-status-success/20';
+          style = 'bg-status-success-bg text-status-success border-status-success/15';
         } else if (row.status === 'Sent') {
-          style = 'bg-brand-accent/10 text-brand-accent border-brand-accent/20';
+          style = 'bg-status-info-bg text-status-info border-status-info/15';
         } else if (row.status === 'Voided') {
-          style = 'bg-status-muted/10 text-status-muted border-status-muted/20';
+          style = 'bg-surface-hover text-gray-400 border-card-border';
         }
         return (
-          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${style}`}>
+          <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border ${style}`}>
             {row.status}
           </span>
         );
@@ -368,34 +369,33 @@ export const Invoices = () => {
   ];
 
   return (
-    <div className="py-6 max-w-7xl mx-auto px-4 flex flex-col gap-6">
+    <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-[#1A1A1A]">Landlord Invoices</h2>
-          <p className="text-sm text-gray-500 mt-1">Audit, export, and manage service charge invoices issued to landlord partners.</p>
+          <h2 className="text-2xl font-bold text-brand-primary tracking-tight">Landlord Invoices</h2>
+          <p className="text-sm text-status-muted mt-1">Audit, export, and manage service charge invoices issued to landlord partners.</p>
         </div>
-        <Button 
-          variant="primary" 
+        <Button
+          variant="primary"
           onClick={() => setShowModal(true)}
           icon={Receipt}
-          className="shadow-sm"
         >
           Generate Invoice
         </Button>
       </div>
 
       {/* Grid Table Container */}
-      <div className="bg-white rounded-2xl border border-border-color/60 p-4 shadow-sm">
+      <div className="card-bg border border-card-border rounded-card shadow-premium p-4">
         {loading ? (
           <div className="space-y-4 py-4">
-            <div className="h-10 bg-gray-100/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-            <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+            <Skeleton radius="bar" className="h-10 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
           </div>
         ) : error ? (
-          <div className="border border-status-danger bg-status-danger/5 rounded-xl p-6 text-center text-status-danger font-semibold">
+          <div className="border border-status-danger/15 bg-status-danger-bg rounded-card p-6 text-center text-status-danger font-semibold">
             {error}
           </div>
         ) : (
@@ -405,8 +405,8 @@ export const Invoices = () => {
 
       {/* Invoice Generation Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-brand-primary/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl border border-border-color overflow-hidden my-8">
+        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl border border-card-border overflow-hidden my-8">
             <div className="bg-brand-primary text-white p-5 font-bold flex items-center gap-2 select-none shrink-0">
               <Receipt size={18} />
               <span>Generate Landlord Invoice</span>
@@ -414,7 +414,7 @@ export const Invoices = () => {
 
             <form onSubmit={handleGenerateInvoiceSubmit} className="p-6 flex flex-col gap-6 max-h-[80vh] overflow-y-auto">
               {/* Select Property for Autofill */}
-              <div className="bg-[#1F3A5F]/5 p-4 rounded-xl border border-[#1F3A5F]/10 flex flex-col gap-3">
+              <div className="bg-status-info-bg p-4 rounded-card border border-status-info/15 flex flex-col gap-3">
                 <Dropdown
                   label="Select Property for Autofill"
                   id="propertySelect"
@@ -429,14 +429,14 @@ export const Invoices = () => {
                   clearable
                   disabled={loadingAutofill}
                 />
-                <p className="text-xs text-[#1F3A5F] italic">
+                <p className="text-xs-portal text-status-info italic">
                   Selecting a property will automatically populate landlord, reference, property, and tenant details.
                 </p>
               </div>
 
               {/* Section 1: Landlord & References */}
-              <div className="border-b pb-4 border-gray-100">
-                <h3 className="font-semibold text-brand-primary mb-3 text-sm">Landlord & References Details</h3>
+              <div className="border-b pb-4 border-card-border">
+                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-3">Landlord & References Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input 
                     label="Landlord / Company Name *"
@@ -472,8 +472,8 @@ export const Invoices = () => {
               </div>
 
               {/* Section 2: Property & Tenancy Details */}
-              <div className="border-b pb-4 border-gray-100">
-                <h3 className="font-semibold text-brand-primary mb-3 text-sm">Property & Tenancy Details</h3>
+              <div className="border-b pb-4 border-card-border">
+                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-3">Property & Tenancy Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input 
                     label="Property Details / Address"
@@ -510,8 +510,8 @@ export const Invoices = () => {
               </div>
 
               {/* Section 3: Billing Period */}
-              <div className="border-b pb-4 border-gray-100">
-                <h3 className="font-semibold text-brand-primary mb-3 text-sm">Billing Period</h3>
+              <div className="border-b pb-4 border-card-border">
+                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-3">Billing Period</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <DatePicker 
                     label="Invoice Period Start"
@@ -529,9 +529,9 @@ export const Invoices = () => {
               </div>
 
               {/* Section 4: Line Items */}
-              <div className="border-b pb-4 border-gray-100">
+              <div className="border-b pb-4 border-card-border">
                 <div className="flex justify-between items-center mb-3">
-                  <h3 className="font-semibold text-brand-primary text-sm">Invoice Line Items</h3>
+                  <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider">Invoice Line Items</h3>
                   <Button 
                     type="button" 
                     variant="secondary" 
@@ -584,8 +584,8 @@ export const Invoices = () => {
                         />
                       </div>
                       <div className="w-full md:w-28">
-                        <label className="block text-xs font-semibold text-gray-500 mb-1 md:hidden">Net (£)</label>
-                        <div className="px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm font-bold text-[#1A1A1A] h-10 flex items-center justify-end">
+                        <label className="block text-xs font-semibold text-status-muted mb-1 md:hidden">Net (£)</label>
+                        <div className="px-3 py-2 bg-surface-light border border-card-border rounded-lg text-sm font-bold text-brand-primary h-10 flex items-center justify-end">
                           £{item.net.toFixed(2)}
                         </div>
                       </div>
@@ -604,9 +604,9 @@ export const Invoices = () => {
               </div>
 
               {/* Section 5: Summary Display */}
-              <div className="bg-brand-primary/5 border border-brand-accent/20 rounded-xl p-4 flex flex-col md:flex-row justify-between gap-4">
+              <div className="bg-brand-primary/5 border border-brand-accent/20 rounded-card p-4 flex flex-col md:flex-row justify-between gap-4">
                 <div className="flex-1">
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">Notes</label>
+                  <label className="block text-xs font-semibold text-status-muted mb-1">Notes</label>
                   <textarea
                     rows={3}
                     value={notes}
@@ -616,16 +616,16 @@ export const Invoices = () => {
                   />
                 </div>
                 
-                <div className="w-full md:w-64 flex flex-col gap-2 justify-center border-t md:border-t-0 md:border-l border-gray-200 pt-3 md:pt-0 md:pl-4">
-                  <div className="flex justify-between text-xs text-gray-500">
+                <div className="w-full md:w-64 flex flex-col gap-2 justify-center border-t md:border-t-0 md:border-l border-card-border pt-3 md:pt-0 md:pl-4">
+                  <div className="flex justify-between text-xs text-status-muted">
                     <span>Total Gross:</span>
                     <span>£{totalGross.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-xs text-gray-500">
+                  <div className="flex justify-between text-xs text-status-muted">
                     <span>Total VAT:</span>
                     <span>£{totalVAT.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-xs text-gray-500">
+                  <div className="flex justify-between text-xs text-status-muted">
                     <span>Total Discount:</span>
                     <span className="text-status-danger">-£{totalDiscounts.toFixed(2)}</span>
                   </div>

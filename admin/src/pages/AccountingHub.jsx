@@ -6,6 +6,7 @@ import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
+import { Skeleton } from '../components/UI/Skeleton';
 import api from '../utilities/api';
 
 export const AccountingHub = () => {
@@ -253,10 +254,10 @@ export const AccountingHub = () => {
       header: 'Status', 
       accessor: 'status',
       renderCell: (row) => (
-        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
-          row.status === 'Cleared' 
-            ? 'bg-status-success/10 text-status-success border-status-success/20' 
-            : 'bg-status-warning/10 text-status-warning border-status-warning/20'
+        <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border ${
+          row.status === 'Cleared'
+            ? 'bg-status-success-bg text-status-success border-status-success/15'
+            : 'bg-status-warning/10 text-status-warning border-status-warning/15'
         }`}>
           {row.status}
         </span>
@@ -293,7 +294,7 @@ export const AccountingHub = () => {
       header: 'Status',
       accessor: 'status',
       renderCell: (row) => (
-        <span className="px-2 py-0.5 text-[10px] font-bold rounded-full border bg-status-success/10 text-status-success border-status-success/20">
+        <span className="px-2 py-0.5 text-2xs font-bold rounded-sm border bg-status-success-bg text-status-success border-status-success/15">
           {row.status}
         </span>
       )
@@ -323,10 +324,10 @@ export const AccountingHub = () => {
       accessor: 'reconciled',
       align: 'center',
       renderCell: (row) => (
-        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
+        <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border ${
           row.reconciled
-            ? 'bg-status-success/10 text-status-success border-status-success/20'
-            : 'bg-status-warning/10 text-status-warning border-status-warning/20'
+            ? 'bg-status-success-bg text-status-success border-status-success/15'
+            : 'bg-status-warning/10 text-status-warning border-status-warning/15'
         }`}>
           {row.reconciled ? 'Yes' : 'No'}
         </span>
@@ -396,21 +397,21 @@ export const AccountingHub = () => {
 
   const renderSkeleton = () => (
     <div className="space-y-4 py-4">
-      <div className="h-10 bg-gray-100/80 rounded-lg animate-pulse w-full" />
-      <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-      <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
-      <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+      <Skeleton radius="bar" className="h-10 w-full" />
+      <Skeleton className="h-16 w-full" />
+      <Skeleton className="h-16 w-full" />
+      <Skeleton className="h-16 w-full" />
     </div>
   );
 
   return (
-    <div className="py-6 max-w-7xl mx-auto px-4 flex flex-col gap-6">
-      
+    <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
+
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-[#1A1A1A]">Accounting Hub</h2>
-          <p className="text-sm text-gray-500 mt-1">Manage, reconcile, and audit the financial statements and cashflows.</p>
+          <h2 className="text-2xl font-bold text-brand-primary tracking-tight">Accounting Hub</h2>
+          <p className="text-sm text-status-muted mt-1">Manage, reconcile, and audit the financial statements and cashflows.</p>
         </div>
         
         <div className="flex gap-3 shrink-0">
@@ -418,7 +419,6 @@ export const AccountingHub = () => {
             variant="secondary"
             onClick={openPaymentModal}
             icon={Banknote}
-            className="shadow-md"
           >
             Record Rent Payment
           </Button>
@@ -426,7 +426,6 @@ export const AccountingHub = () => {
             variant="primary"
             onClick={() => navigate('/statements')}
             icon={FileSpreadsheet}
-            className="shadow-md"
           >
             Generate Landlord Statements
           </Button>
@@ -434,7 +433,7 @@ export const AccountingHub = () => {
       </div>
 
       {/* Tabs Header Navigation */}
-      <div className="border-b border-border-color overflow-x-auto w-full scrollbar-none">
+      <div className="border-b border-card-border overflow-x-auto w-full scrollbar-none">
         <div className="flex gap-2 min-w-max pb-[1px]">
           {tabItems.map(tab => {
             const isActive = tab.id === activeTab;
@@ -442,15 +441,15 @@ export const AccountingHub = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`py-3 px-4 font-semibold text-xs sm:text-sm border-b-2 transition-all cursor-pointer focus:outline-none flex items-center gap-2 ${
-                  isActive 
-                    ? 'border-brand-accent text-brand-accent' 
-                    : 'border-transparent text-gray-400 hover:text-[#1A1A1A] hover:border-gray-300'
+                className={`py-3 px-4 font-semibold text-xs sm:text-sm tracking-tight border-b-2 transition-all cursor-pointer focus:outline-none flex items-center gap-2 ${
+                  isActive
+                    ? 'border-brand-primary text-brand-primary'
+                    : 'border-transparent text-gray-400 hover:text-status-muted'
                 }`}
               >
                 <span>{tab.name}</span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  isActive ? 'bg-brand-accent/10 text-brand-accent' : 'bg-gray-100 text-gray-400'
+                <span className={`text-2xs font-bold px-2 py-0.5 rounded-sm ${
+                  isActive ? 'bg-status-info-bg text-status-info' : 'bg-surface-hover text-gray-400'
                 }`}>
                   {tab.count}
                 </span>
@@ -462,7 +461,7 @@ export const AccountingHub = () => {
 
       {/* Bulk Action Banner for Incoming Payments */}
       {activeTab === 'incoming' && selectedIncomingIds.length > 0 && (
-        <div className="bg-brand-primary/5 border border-brand-accent/20 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-center gap-3 transition-all animate-fade-in">
+        <div className="bg-brand-primary/5 border border-brand-accent/20 rounded-card p-4 flex flex-col sm:flex-row justify-between items-center gap-3 transition-all animate-fade-in">
           <span className="text-sm font-semibold text-brand-primary">
             {selectedIncomingIds.length} payments selected
           </span>
@@ -478,7 +477,7 @@ export const AccountingHub = () => {
       )}
 
       {/* Tab Grid Render */}
-      <div className="bg-white rounded-2xl shadow-sm border border-border-color p-4">
+      <div className="card-bg rounded-card shadow-premium border border-card-border p-4">
         {activeTab === 'incoming' && (
           loading['incoming'] ? renderSkeleton() : (
             <DataTable 
@@ -533,15 +532,15 @@ export const AccountingHub = () => {
 
       {/* Record Rent Payment Modal */}
       {showPaymentModal && (
-        <div className="fixed inset-0 bg-brand-primary/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-border-color overflow-hidden">
+        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-card-border overflow-hidden">
             <div className="bg-brand-primary text-white p-5 font-bold flex items-center gap-2 select-none">
               <Banknote size={18} />
               <span>Record Rent Payment</span>
             </div>
 
             <form onSubmit={handleRecordPayment} className="p-6 flex flex-col gap-5">
-              <p className="text-xs text-gray-500 leading-snug">
+              <p className="text-xs text-status-muted leading-snug">
                 Log a rent payment received from a tenant. If the amount matches an outstanding schedule it is reconciled automatically.
               </p>
 

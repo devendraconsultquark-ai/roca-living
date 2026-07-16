@@ -75,8 +75,8 @@ export const ContractorDetailPage = () => {
         backLabel="Back to Contractors"
         title={data.company_name}
         badge={
-          <span className={`px-2.5 py-0.5 text-[11px] font-bold rounded-full border tracking-wide uppercase ${
-            data.status === 'active' ? 'bg-status-success/10 text-status-success border-status-success/20' : 'bg-status-danger/10 text-status-danger border-status-danger/20'
+          <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border tracking-wide uppercase ${
+            data.status === 'active' ? 'bg-status-success-bg text-status-success border-status-success/15' : 'bg-status-danger-bg text-status-danger border-status-danger/15'
           }`}>
             {data.status}
           </span>
@@ -116,9 +116,9 @@ export const ContractorDetailPage = () => {
                     { label: 'In Progress', value: data.tickets?.filter(t => t.status === 'in_progress').length || 0, color: 'text-status-warning' },
                     { label: 'Cancelled', value: data.tickets?.filter(t => t.status === 'cancelled').length || 0, color: 'text-status-danger' },
                   ].map(stat => (
-                    <div key={stat.label} className="bg-gray-50 border border-gray-100 rounded-xl p-4 flex flex-col justify-center items-center text-center">
-                      <p className={`text-2xl font-bold ${stat.color || 'text-[#1A1A1A]'}`}>{stat.value}</p>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-1">{stat.label}</p>
+                    <div key={stat.label} className="bg-surface-light border border-card-border rounded-xl p-4 flex flex-col justify-center items-center text-center">
+                      <p className={`text-2xl font-bold ${stat.color || 'text-brand-primary'}`}>{stat.value}</p>
+                      <p className="text-2xs font-bold text-gray-400 uppercase tracking-wider mt-1">{stat.label}</p>
                     </div>
                   ))}
                 </div>
@@ -131,28 +131,28 @@ export const ContractorDetailPage = () => {
           <div className="grid grid-cols-1 gap-6">
             <Card title={`Assigned Jobs (${totalJobs})`}>
               {data.tickets?.length > 0 ? (
-                <div className="overflow-x-auto rounded-xl border border-gray-100">
+                <div className="overflow-x-auto rounded-xl border border-card-border">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-gray-100 bg-gray-50/50">
+                      <tr className="border-b border-card-border text-2xs text-gray-400 font-bold uppercase tracking-wider">
                         {['Job', 'Property', 'Urgency', 'Quote', 'Status', 'Date'].map(h => (
-                          <th key={h} className="text-left py-3 px-4 text-[11px] font-bold text-gray-400 uppercase tracking-wide">{h}</th>
+                          <th key={h} className="text-left py-3 px-4">{h}</th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-gray-50 text-xs-portal">
                       {data.tickets.map(t => (
-                        <tr key={t.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors last:border-0">
-                          <td className="py-3 px-4 font-bold text-[#1A1A1A] max-w-[200px] truncate">{t.title}</td>
-                          <td className="py-3 px-4 text-gray-600 text-xs">{t.property_address}</td>
+                        <tr key={t.id} className="hover:bg-surface-light/50 transition-colors">
+                          <td className="py-3 px-4 font-bold text-brand-primary max-w-[200px] truncate">{t.title}</td>
+                          <td className="py-3 px-4 text-status-muted text-xs">{t.property_address}</td>
                           <td className="py-3 px-4">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider ${urgencyColor[t.urgency] || urgencyColor.routine}`}>
+                            <span className={`text-2xs font-bold px-2 py-0.5 rounded-sm border uppercase tracking-wider ${urgencyColor[t.urgency] || urgencyColor.routine}`}>
                               {t.urgency}
                             </span>
                           </td>
-                          <td className="py-3 px-4 font-semibold text-[#1A1A1A]">{t.quote_amount ? `£${parseFloat(t.quote_amount).toLocaleString('en-GB', { minimumFractionDigits: 2 })}` : '—'}</td>
+                          <td className="py-3 px-4 font-semibold text-brand-primary">{t.quote_amount ? `£${parseFloat(t.quote_amount).toLocaleString('en-GB', { minimumFractionDigits: 2 })}` : '—'}</td>
                           <td className="py-3 px-4">
-                            <span className="flex items-center gap-1.5 text-[11px] font-bold text-gray-600 border border-gray-200 px-2 py-1 rounded-full uppercase tracking-wider w-fit bg-white">
+                            <span className="flex items-center gap-1.5 text-2xs font-bold px-2 py-0.5 rounded-sm border uppercase tracking-wider w-fit bg-surface-hover text-gray-400 border-card-border">
                               {ticketStatusIcon[t.status] || <Clock size={13} className="text-gray-400" />}
                               {t.status?.replace(/_/g, ' ')}
                             </span>
@@ -164,9 +164,9 @@ export const ContractorDetailPage = () => {
                   </table>
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center p-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                <div className="flex flex-col items-center justify-center p-12 bg-surface-light rounded-xl border border-dashed border-card-border">
                   <Wrench size={32} className="text-gray-300 mb-3" />
-                  <p className="text-sm font-semibold text-gray-500">No jobs assigned</p>
+                  <p className="text-sm font-semibold text-status-muted">No jobs assigned</p>
                   <p className="text-xs text-gray-400 mt-1">Maintenance jobs will appear here once assigned.</p>
                 </div>
               )}
@@ -179,15 +179,15 @@ export const ContractorDetailPage = () => {
             <div className="lg:col-span-2">
               <Card title="Insurance Details">
                 <div className="flex flex-col gap-6">
-                  <div className="flex items-start gap-4 p-4 bg-gray-50 border border-gray-100 rounded-xl">
+                  <div className="flex items-start gap-4 p-4 bg-surface-light border border-card-border rounded-xl">
                     <div className={`flex items-center justify-center w-12 h-12 rounded-full shrink-0 ${
-                      isInsuranceExpired ? 'bg-status-danger/10 text-status-danger' : 'bg-status-success/10 text-status-success'
+                      isInsuranceExpired ? 'bg-status-danger-bg text-status-danger' : 'bg-status-success-bg text-status-success'
                     }`}>
                       {isInsuranceExpired ? <AlertTriangle size={24} /> : <ShieldCheck size={24} />}
                     </div>
                     <div>
-                      <h4 className="text-[#1A1A1A] font-bold text-lg">{isInsuranceExpired ? 'Insurance Expired' : 'Insurance Valid'}</h4>
-                      <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                      <h4 className="text-brand-primary font-bold text-lg">{isInsuranceExpired ? 'Insurance Expired' : 'Insurance Valid'}</h4>
+                      <p className="text-xs text-status-muted mt-1 leading-relaxed">
                         {data.insurance_expiry ? `Expiry Date: ${new Date(data.insurance_expiry).toLocaleDateString('en-GB')}` : 'No insurance date provided'}
                       </p>
                     </div>

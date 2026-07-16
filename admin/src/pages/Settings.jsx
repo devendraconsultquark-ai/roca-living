@@ -51,23 +51,23 @@ export const Settings = () => {
   };
 
   return (
-    <div className="py-6 max-w-4xl mx-auto px-4 flex flex-col gap-6">
+    <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-[#1A1A1A]">System Settings</h2>
-        <p className="text-sm text-gray-500 mt-1">Configure global fee values, deposit parameters, and client templates.</p>
+        <h2 className="text-2xl font-bold text-brand-primary tracking-tight">System Settings</h2>
+        <p className="text-sm text-status-muted mt-1">Configure global fee values, deposit parameters, and client templates.</p>
       </div>
 
       {/* Settings Form */}
-      <form onSubmit={handleSave} className="bg-white border border-border-color/60 rounded-2xl p-6 md:p-8 shadow-sm flex flex-col gap-6">
+      <form onSubmit={handleSave} className="card-bg border border-card-border rounded-card p-6 md:p-8 shadow-premium flex flex-col gap-6">
 
         {/* Billing Section */}
         <div className="flex flex-col gap-4">
-          <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 select-none">
+          <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider flex items-center gap-2 select-none">
             <SettingsIcon size={16} className="text-brand-accent" />
             Financial Settings
           </h3>
-          <div className="border-t border-border-color/60 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="border-t border-card-border pt-4 grid grid-cols-1 sm:grid-cols-2 gap-5">
             <Input
               label="Standard Management Commission Fee (%)"
               id="agencyFee"
@@ -89,11 +89,11 @@ export const Settings = () => {
 
         {/* Deposit scheme parameters */}
         <div className="flex flex-col gap-4 mt-2">
-          <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 select-none">
+          <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider flex items-center gap-2 select-none">
             <SettingsIcon size={16} className="text-brand-accent" />
             Deposit Protection Settings
           </h3>
-          <div className="border-t border-border-color/60 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="border-t border-card-border pt-4 grid grid-cols-1 sm:grid-cols-2 gap-5">
             <Input
               label="Tenancy Deposit Scheme (TDS) Agency ID"
               id="depositSchemeNum"
@@ -106,7 +106,7 @@ export const Settings = () => {
         </div>
 
         {/* Save Button */}
-        <div className="border-t border-border-color/60 pt-6 flex justify-end">
+        <div className="border-t border-card-border pt-6 flex justify-end">
           <Button
             type="submit"
             variant="primary"
