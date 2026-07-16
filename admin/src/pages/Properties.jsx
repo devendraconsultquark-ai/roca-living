@@ -245,13 +245,18 @@ export const Properties = () => {
         return <StatusPill status={pillStatus} />;
       }
     },
-    { 
-      header: 'Gas Certificate', 
+    {
+      header: 'Gas Certificate',
       accessor: 'gasCompliance',
       renderCell: (row) => renderCertStatus(row.gasCompliance)
     },
-    { 
-      header: 'EPC rating', 
+    {
+      header: 'EICR',
+      accessor: 'eicrCompliance',
+      renderCell: (row) => renderCertStatus(row.eicrCompliance)
+    },
+    {
+      header: 'EPC rating',
       accessor: 'epcCompliance',
       renderCell: (row) => renderCertStatus(row.epcCompliance)
     },
@@ -329,7 +334,7 @@ export const Properties = () => {
         />
         <StatCard
           label="Safety Warnings"
-          value={`${properties.filter(p => p.gasCompliance === 'expired' || p.epcCompliance === 'expired' || p.gasCompliance === 'not_uploaded' || p.epcCompliance === 'not_uploaded').length} Warnings`}
+          value={`${properties.filter(p => ['gasCompliance', 'eicrCompliance', 'epcCompliance'].some(k => p[k] === 'expired' || p[k] === 'not_uploaded')).length} Warnings`}
           icon={AlertTriangle}
           iconColor="text-status-danger bg-status-danger/10"
           valueColor="text-status-danger"

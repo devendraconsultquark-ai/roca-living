@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileSpreadsheet, Download, Calendar, Plus, Trash2 } from 'lucide-react';
+import { FileSpreadsheet, Download, Calendar, Plus, Trash2, Send, CheckCircle2 } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
@@ -7,19 +7,6 @@ import { DatePicker } from '../components/UI/DatePicker';
 import { Dropdown } from '../components/UI/Dropdown';
 import { useToast } from '../components/UI/ToastContext';
 import api from '../utilities/api';
-
-const MOCK_STATEMENTS = [
-  {
-    id: 1,
-    landlord: 'Mr Rob Belema & Geertje Adrianntje Hogenes',
-    period: '01/06/2026 - 30/06/2026',
-    date: '14/06/2026',
-    invoiced: 1045.00,
-    fees: 0.00,
-    payout: 1045.00,
-    status: 'Sent'
-  }
-];
 
 export const Statements = () => {
   const [statements, setStatements] = useState([]);
@@ -40,6 +27,7 @@ export const Statements = () => {
   const [loadingAutofill, setLoadingAutofill] = useState(false);
 
   // Form Fields
+  const [landlordId, setLandlordId] = useState(null); // local landlord user id from autofill — drives statement attribution
   const [landlordName, setLandlordName] = useState('');
   const [landlordAddress, setLandlordAddress] = useState('');
   const [statementNumber, setStatementNumber] = useState('');
@@ -71,12 +59,11 @@ export const Statements = () => {
   const fetchStatements = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/statements').catch(() => ({ data: { data: MOCK_STATEMENTS } }));
-      const formatted = (response.data?.data || MOCK_STATEMENTS).map((s) => {
-        const totalFees = parseFloat(s.mgmt_fee || 0) + 
-                          parseFloat(s.mgmt_fee_vat || 0) + 
-                          parseFloat(s.roca_letting_fee || 0) + 
-                          parseFloat(s.agent_letting_fee || 0);
+      const response = await api.get('/statements');
+      const formatted = (response.data?.data || []).map((s) => {
+        // Real money out of the statement: expense deductions + NRL withholding.
+        // (The mgmt_fee/letting-fee columns are always 0 in this statement format.)
+        const totalDeductions = parseFloat(s.deductions || 0) + parseFloat(s.nrl_withheld || 0);
 
         const periodStartStr = s.period_start ? new Date(s.period_start).toLocaleDateString('en-GB') : '';
         const periodEndStr = s.period_end ? new Date(s.period_end).toLocaleDateString('en-GB') : '';
@@ -84,12 +71,13 @@ export const Statements = () => {
         return {
           id: s.id,
           statement_reference: s.statement_reference || `STM-${s.id}`,
-          landlord: s.landlord_name || s.landlord || 'Landlord',
-          period: s.period || `${periodStartStr} - ${periodEndStr}`,
-          date: s.generated_at ? new Date(s.generated_at).toLocaleDateString('en-GB') : (s.date || '-'),
-          invoiced: parseFloat(s.gross_rent || s.invoiced || 0),
-          fees: s.fees !== undefined ? parseFloat(s.fees) : totalFees,
-          payout: parseFloat(s.net_paid || s.payout || 0),
+          landlord: s.landlord_name || 'Landlord',
+          period: `${periodStartStr} - ${periodEndStr}`,
+          date: s.generated_at ? new Date(s.generated_at).toLocaleDateString('en-GB') : '-',
+          invoiced: parseFloat(s.gross_rent || 0),
+          fees: totalDeductions,
+          payout: parseFloat(s.net_paid || 0),
+          rawStatus: (s.status || 'draft').toLowerCase(),
           status: s.status ? s.status.charAt(0).toUpperCase() + s.status.slice(1) : 'Draft'
         };
       });
@@ -97,8 +85,8 @@ export const Statements = () => {
       setError(null);
     } catch (err) {
       console.error(err);
-      setError('Error loading statements');
-      setStatements(MOCK_STATEMENTS);
+      setError(err.response?.data?.message || 'Error loading statements');
+      setStatements([]);
     } finally {
       setLoading(false);
     }
@@ -139,6 +127,7 @@ export const Statements = () => {
       setPropertySourceId(prop.property_id || null);
 
       // Autofill form fields from whichever DB the property came from
+      setLandlordId(prop.landlord_id || null);
       setLandlordName(prop.landlord_name || '');
       setLandlordAddress(prop.landlord_address || '');
       setStatementNumber(prop.statement_number || '');
@@ -209,6 +198,16 @@ export const Statements = () => {
     }
   };
 
+  const handleStatusChange = async (row, newStatus) => {
+    try {
+      await api.patch(`/statements/${row.id}/status`, { status: newStatus });
+      addToast(`Statement ${row.statement_reference} marked as ${newStatus}`, 'success');
+      fetchStatements();
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to update statement status', 'error');
+    }
+  };
+
   const handleGenerateStatementsSubmit = async (e) => {
     e.preventDefault();
     if (!landlordName || !statementNumber) {
@@ -225,6 +224,7 @@ export const Statements = () => {
       const payload = {
         source: propertySource,
         source_property_id: propertySourceId,
+        landlord_id: landlordId,
         landlord_name: landlordName,
         landlord_address: landlordAddress,
         statement_number: statementNumber,
@@ -267,6 +267,7 @@ export const Statements = () => {
     setSelectedPropertyId('');
     setPropertySource('local');
     setPropertySourceId(null);
+    setLandlordId(null);
     setLandlordName('');
     setLandlordAddress('');
     setStatementNumber('');
@@ -297,10 +298,10 @@ export const Statements = () => {
       sortable: true,
       renderCell: (row) => `£${row.invoiced.toFixed(2)}`
     },
-    { 
-      header: 'Agency Fees', 
-      accessor: 'fees', 
-      align: 'right', 
+    {
+      header: 'Deductions',
+      accessor: 'fees',
+      align: 'right',
       sortable: true,
       renderCell: (row) => `-£${row.fees.toFixed(2)}`
     },
@@ -315,13 +316,15 @@ export const Statements = () => {
         </span>
       )
     },
-    { 
-      header: 'Payout Status', 
+    {
+      header: 'Payout Status',
       accessor: 'status',
       renderCell: (row) => {
         let style = 'bg-status-warning/10 text-status-warning border-status-warning/20';
-        if (row.status === 'Paid' || row.status === 'Sent') {
+        if (row.status === 'Paid') {
           style = 'bg-status-success/10 text-status-success border-status-success/20';
+        } else if (row.status === 'Sent') {
+          style = 'bg-brand-accent/10 text-brand-accent border-brand-accent/20';
         }
         return (
           <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${style}`}>
@@ -331,17 +334,39 @@ export const Statements = () => {
       }
     },
     {
-      header: 'Download',
+      header: 'Actions',
       accessor: 'id',
       renderCell: (row) => (
-        <Button 
-          variant="ghost" 
-          size="sm"
-          onClick={() => handleDownload(row.id, row.landlord)}
-          icon={Download}
-        >
-          Download PDF
-        </Button>
+        <div className="flex items-center gap-1">
+          {row.rawStatus === 'draft' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleStatusChange(row, 'sent')}
+              icon={Send}
+            >
+              Mark Sent
+            </Button>
+          )}
+          {(row.rawStatus === 'draft' || row.rawStatus === 'sent') && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleStatusChange(row, 'paid')}
+              icon={CheckCircle2}
+            >
+              Mark Paid
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleDownload(row.id, row.landlord)}
+            icon={Download}
+          >
+            PDF
+          </Button>
+        </div>
       )
     }
   ];
@@ -435,7 +460,7 @@ export const Statements = () => {
                     id="landlordName"
                     required
                     value={landlordName}
-                    onChange={(e) => setLandlordName(e.target.value)}
+                    onChange={(e) => { setLandlordName(e.target.value); setLandlordId(null); }}
                     placeholder="e.g. Mr Rob Belema & Geertje Adrianntje Hogenes"
                   />
                   <Input 

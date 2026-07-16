@@ -7,6 +7,8 @@ import { useToast } from '../components/UI/ToastContext';
 import { StatusPill } from '../components/UI/StatusPill';
 import { useConfirm } from '../components/UI/ConfirmContext';
 import { DataRow, Card, DetailContainer, DetailSkeleton, DetailHeader, DetailTabs, CertBadge, urgencyColor } from '../components/UI/DetailComponents';
+import { Input } from '../components/UI/Input';
+import { Button } from '../components/UI/Button';
 import api from '../utilities/api';
 
 export const PropertyDetailPage = () => {
@@ -14,10 +16,18 @@ export const PropertyDetailPage = () => {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const confirm = useConfirm();
-  
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+
+  // Certificate update modal
+  const [certModalCert, setCertModalCert] = useState(null); // the cert being edited, or null
+  const [certForm, setCertForm] = useState({ issued_at: '', expires_at: '', notes: '' });
+  const [certSaving, setCertSaving] = useState(false);
+
+  // Bump to re-fetch after a mutation (certificate update).
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     const fetchProperty = async () => {
@@ -32,7 +42,58 @@ export const PropertyDetailPage = () => {
       }
     };
     fetchProperty();
-  }, [id, navigate, addToast]);
+  }, [id, navigate, addToast, reloadKey]);
+
+  const handleChecklistToggle = async (item) => {
+    const newStatus = item.status === 'complete' ? 'pending' : 'complete';
+    if (newStatus === 'complete') {
+      const ok = await confirm({
+        title: 'Mark Checklist Item Complete',
+        message: `Confirm "${item.item_label}" has been verified. This counts towards the property's readiness to let.`,
+        confirmText: 'Mark Complete',
+      });
+      if (!ok) return;
+    }
+    try {
+      await api.patch(`/properties/${id}/checklist/${item.item_code}`, { status: newStatus });
+      addToast(`"${item.item_label}" marked ${newStatus}`, 'success');
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to update checklist item', 'error');
+    }
+  };
+
+  const openCertModal = (cert) => {
+    setCertForm({
+      issued_at: cert.issued_at || '',
+      expires_at: cert.expires_at || '',
+      notes: cert.notes || ''
+    });
+    setCertModalCert(cert);
+  };
+
+  const handleCertSubmit = async (e) => {
+    e.preventDefault();
+    if (!certForm.expires_at) {
+      addToast('Expiry date is required — it determines the compliance status', 'warning');
+      return;
+    }
+    setCertSaving(true);
+    try {
+      await api.patch(`/properties/${id}/certificates/${certModalCert.cert_type}`, {
+        issued_at: certForm.issued_at || null,
+        expires_at: certForm.expires_at,
+        notes: certForm.notes || null
+      });
+      addToast(`${certModalCert.cert_type} certificate updated`, 'success');
+      setCertModalCert(null);
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to update certificate', 'error');
+    } finally {
+      setCertSaving(false);
+    }
+  };
 
   const handleDelete = async () => {
     const ok = await confirm({
@@ -232,7 +293,12 @@ export const PropertyDetailPage = () => {
                           )}
                         </div>
                       </div>
-                      <CertBadge status={cert.status} />
+                      <div className="flex items-center gap-3">
+                        <CertBadge status={cert.status} />
+                        <Button variant="ghost" size="sm" onClick={() => openCertModal(cert)}>
+                          Update
+                        </Button>
+                      </div>
                     </div>
                   ))}
                   {(data.property_certificates || []).length === 0 && (
@@ -247,13 +313,22 @@ export const PropertyDetailPage = () => {
                   {(data.compliance_checklist || []).map(item => (
                     <div key={item.id} className="flex items-center justify-between pb-3 border-b border-gray-50 last:border-0 last:pb-0">
                       <span className="text-[13px] font-semibold text-gray-600">{item.item_label}</span>
-                      <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${
-                        item.status === 'complete'
-                          ? 'bg-status-success/10 text-status-success'
-                          : 'bg-status-warning/10 text-status-warning'
-                      }`}>
-                        {item.status}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full ${
+                          item.status === 'complete'
+                            ? 'bg-status-success/10 text-status-success'
+                            : 'bg-status-warning/10 text-status-warning'
+                        }`}>
+                          {item.status}
+                        </span>
+                        <button
+                          onClick={() => handleChecklistToggle(item)}
+                          className="text-[10px] font-bold text-brand-accent hover:underline cursor-pointer"
+                          title={item.status === 'complete' ? 'Reopen this item' : 'Mark this item complete'}
+                        >
+                          {item.status === 'complete' ? 'Reopen' : 'Mark Complete'}
+                        </button>
+                      </div>
                     </div>
                   ))}
                   {(data.compliance_checklist || []).length === 0 && (
@@ -282,6 +357,49 @@ export const PropertyDetailPage = () => {
           </div>
         )}
       </div>
+
+      {/* Update Certificate Modal */}
+      {certModalCert && (
+        <div className="fixed inset-0 bg-brand-primary/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-border-color">
+            <h3 className="text-lg font-bold text-[#1A1A1A] mb-1">Update {certModalCert.cert_type} Certificate</h3>
+            <p className="text-xs text-gray-500 mb-4">The compliance status (compliant / expiring soon / expired) is calculated from the expiry date, and the matching checklist item is marked complete.</p>
+
+            <form onSubmit={handleCertSubmit} className="flex flex-col gap-4">
+              <Input
+                label="Issued Date"
+                id="cert_issued_at"
+                type="date"
+                value={certForm.issued_at}
+                onChange={(e) => setCertForm({ ...certForm, issued_at: e.target.value })}
+              />
+              <Input
+                label="Expiry Date"
+                id="cert_expires_at"
+                type="date"
+                required
+                value={certForm.expires_at}
+                onChange={(e) => setCertForm({ ...certForm, expires_at: e.target.value })}
+              />
+              <Input
+                label="Notes (optional)"
+                id="cert_notes"
+                value={certForm.notes}
+                onChange={(e) => setCertForm({ ...certForm, notes: e.target.value })}
+              />
+
+              <div className="flex gap-3 justify-end mt-2">
+                <Button type="button" variant="ghost" onClick={() => setCertModalCert(null)} disabled={certSaving}>
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary" disabled={certSaving}>
+                  {certSaving ? 'Saving…' : 'Save Certificate'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </DetailContainer>
   );
 };

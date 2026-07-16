@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Calendar, Plus, Trash2, Receipt } from 'lucide-react';
+import { Download, Calendar, Plus, Trash2, Receipt, Send, CheckCircle2 } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
@@ -7,33 +7,6 @@ import { DatePicker } from '../components/UI/DatePicker';
 import { Dropdown } from '../components/UI/Dropdown';
 import { useToast } from '../components/UI/ToastContext';
 import api from '../utilities/api';
-
-const MOCK_INVOICES = [
-  {
-    id: 1,
-    invoice_number: 'INV_PH_19_0001',
-    landlord: 'Mr Rob Belema & Geertje Adrianntje Hogenes',
-    property: 'Apartment 19, Parsons House',
-    period: '01/06/2026 - 30/06/2026',
-    date: '14/06/2026',
-    gross: 816.00,
-    discounts: 816.00,
-    net: 0.00,
-    status: 'Sent'
-  },
-  {
-    id: 2,
-    invoice_number: 'INV_PH_33_0002',
-    landlord: 'Mrs Sarah Jenkins',
-    property: 'Apartment 33, Parsons House',
-    period: '01/06/2026 - 30/06/2026',
-    date: '15/06/2026',
-    gross: 96.00,
-    discounts: 0.00,
-    net: 96.00,
-    status: 'Draft'
-  }
-];
 
 export const Invoices = () => {
   const [invoices, setInvoices] = useState([]);
@@ -51,6 +24,7 @@ export const Invoices = () => {
   const [loadingAutofill, setLoadingAutofill] = useState(false);
 
   // Form Fields
+  const [landlordId, setLandlordId] = useState(null); // local landlord user id from autofill — drives invoice attribution
   const [landlordName, setLandlordName] = useState('');
   const [landlordAddress, setLandlordAddress] = useState('');
   const [landlordRef, setLandlordRef] = useState('');
@@ -76,26 +50,30 @@ export const Invoices = () => {
   const fetchInvoices = async () => {
     setLoading(true);
     try {
-      // Stub endpoint for frontend testing; fall back to mock data
-      const response = await api.get('/invoices').catch(() => ({ data: { data: MOCK_INVOICES } }));
-      const formatted = (response.data?.data || MOCK_INVOICES).map((inv) => ({
-        id: inv.id,
-        invoice_number: inv.invoice_number || `INV_PH_${String(inv.id).padStart(4, '0')}`,
-        landlord: inv.landlord || 'Landlord',
-        property: inv.property || 'Property Address',
-        period: inv.period || `${inv.period_month}/${inv.period_year}`,
-        date: inv.date || new Date(inv.created_at).toLocaleDateString('en-GB'),
-        gross: parseFloat(inv.gross || inv.total_amount || 0),
-        discounts: parseFloat(inv.discounts || 0),
-        net: parseFloat(inv.net || inv.total_amount || 0),
-        status: inv.status ? inv.status.charAt(0).toUpperCase() + inv.status.slice(1) : 'Draft'
-      }));
+      const response = await api.get('/invoices');
+      const formatted = (response.data?.data || []).map((inv) => {
+        const periodStartStr = inv.period_start ? new Date(inv.period_start).toLocaleDateString('en-GB') : '';
+        const periodEndStr = inv.period_end ? new Date(inv.period_end).toLocaleDateString('en-GB') : '';
+        return {
+          id: inv.id,
+          invoice_number: inv.invoice_number || `INV-${String(inv.id).padStart(4, '0')}`,
+          landlord: inv.landlord_name || 'Landlord',
+          property: inv.property_address || inv.property_name || '—',
+          period: periodStartStr || periodEndStr ? `${periodStartStr} - ${periodEndStr}` : '—',
+          date: inv.created_at ? new Date(inv.created_at).toLocaleDateString('en-GB') : '-',
+          gross: parseFloat(inv.gross || 0),
+          discounts: parseFloat(inv.discounts || 0),
+          net: parseFloat(inv.net || 0),
+          rawStatus: (inv.status || 'draft').toLowerCase(),
+          status: inv.status ? inv.status.charAt(0).toUpperCase() + inv.status.slice(1) : 'Draft'
+        };
+      });
       setInvoices(formatted);
       setError(null);
     } catch (err) {
       console.error(err);
-      setError('Error loading invoices library');
-      setInvoices(MOCK_INVOICES);
+      setError(err.response?.data?.message || 'Error loading invoices library');
+      setInvoices([]);
     } finally {
       setLoading(false);
     }
@@ -136,6 +114,7 @@ export const Invoices = () => {
       setPropertySourceId(prop.property_id || null);
 
       // Autofill all fields from whichever DB the property came from
+      setLandlordId(prop.landlord_id || null);
       setLandlordName(prop.landlord_name || '');
       setLandlordAddress(prop.landlord_address || '');
       setLandlordRef(prop.landlord_reference || '');
@@ -227,6 +206,16 @@ export const Invoices = () => {
     }
   };
 
+  const handleStatusChange = async (row, newStatus) => {
+    try {
+      await api.patch(`/invoices/${row.id}/status`, { status: newStatus });
+      addToast(`Invoice ${row.invoice_number} marked as ${newStatus}`, 'success');
+      fetchInvoices();
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to update invoice status', 'error');
+    }
+  };
+
   const handleGenerateInvoiceSubmit = async (e) => {
     e.preventDefault();
     if (!landlordName || !invoiceNumber) {
@@ -239,7 +228,7 @@ export const Invoices = () => {
       const payload = {
         source: propertySource,
         source_property_id: propertySourceId,
-        landlord: { name: landlordName, address: landlordAddress, reference: landlordRef },
+        landlord: { id: landlordId, name: landlordName, address: landlordAddress, reference: landlordRef },
         invoice_number: invoiceNumber,
         period_start: startDate,
         period_end: endDate,
@@ -275,6 +264,7 @@ export const Invoices = () => {
 
   const resetForm = () => {
     setSelectedPropertyId('');
+    setLandlordId(null);
     setLandlordName('');
     setLandlordAddress('');
     setLandlordRef('');
@@ -320,13 +310,17 @@ export const Invoices = () => {
         </span>
       )
     },
-    { 
-      header: 'Status', 
+    {
+      header: 'Status',
       accessor: 'status',
       renderCell: (row) => {
         let style = 'bg-status-warning/10 text-status-warning border-status-warning/20';
-        if (row.status === 'Paid' || row.status === 'Sent') {
+        if (row.status === 'Paid') {
           style = 'bg-status-success/10 text-status-success border-status-success/20';
+        } else if (row.status === 'Sent') {
+          style = 'bg-brand-accent/10 text-brand-accent border-brand-accent/20';
+        } else if (row.status === 'Voided') {
+          style = 'bg-status-muted/10 text-status-muted border-status-muted/20';
         }
         return (
           <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${style}`}>
@@ -339,14 +333,36 @@ export const Invoices = () => {
       header: 'Actions',
       accessor: 'id',
       renderCell: (row) => (
-        <Button 
-          variant="ghost" 
-          size="sm"
-          onClick={() => handleDownload(row.id, row.invoice_number)}
-          icon={Download}
-        >
-          Download PDF
-        </Button>
+        <div className="flex items-center gap-1">
+          {row.rawStatus === 'draft' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleStatusChange(row, 'sent')}
+              icon={Send}
+            >
+              Mark Sent
+            </Button>
+          )}
+          {(row.rawStatus === 'draft' || row.rawStatus === 'sent') && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleStatusChange(row, 'paid')}
+              icon={CheckCircle2}
+            >
+              Mark Paid
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleDownload(row.id, row.invoice_number)}
+            icon={Download}
+          >
+            PDF
+          </Button>
+        </div>
       )
     }
   ];
@@ -427,7 +443,7 @@ export const Invoices = () => {
                     id="landlordName"
                     required
                     value={landlordName}
-                    onChange={(e) => setLandlordName(e.target.value)}
+                    onChange={(e) => { setLandlordName(e.target.value); setLandlordId(null); }}
                     placeholder="e.g. Mr Rob Belema & Geertje Adrianntje Hogenes"
                   />
                   <Input 

@@ -1,32 +1,34 @@
-import React, { useState, useEffect } from 'react';
-import { FileSpreadsheet, Check, X, AlertTriangle, Download, RefreshCw, Calendar } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { FileSpreadsheet, Banknote } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useToast } from '../components/UI/ToastContext';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
+import { Dropdown } from '../components/UI/Dropdown';
 import api from '../utilities/api';
-
-const paymentsToApproveData = [];
-
-const failedPayoutsData = [];
 
 export const AccountingHub = () => {
   const [activeTab, setActiveTab] = useState('incoming');
   const [selectedIncomingIds, setSelectedIncomingIds] = useState([]);
-  const [showModal, setShowModal] = useState(false);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [modalLoading, setModalLoading] = useState(false);
   const { addToast } = useToast();
+  const navigate = useNavigate();
+
+  // Record Rent Payment modal
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [tenanciesList, setTenanciesList] = useState([]);
+  const [loadingTenancies, setLoadingTenancies] = useState(false);
+  const [paymentSaving, setPaymentSaving] = useState(false);
+  const emptyPayment = { tenancy_id: '', received_at: '', amount: '', method: 'bank_transfer', reference: '', notes: '' };
+  const [paymentForm, setPaymentForm] = useState(emptyPayment);
 
   // State data for API tabs
   const [incomingData, setIncomingData] = useState([]);
   const [unreconciledDataState, setUnreconciledDataState] = useState([]);
-  const [approveData, setApproveData] = useState(paymentsToApproveData);
   const [payoutsDataState, setPayoutsDataState] = useState([]);
-  const [failedData, setFailedData] = useState(failedPayoutsData);
   const [landlordsDataState, setLandlordsDataState] = useState([]);
   const [arrearsDataState, setArrearsDataState] = useState([]);
+  const [ledgerData, setLedgerData] = useState([]);
   
   const [loading, setLoading] = useState({});
 
@@ -66,10 +68,25 @@ export const AccountingHub = () => {
           date: s.paid_at ? new Date(s.paid_at).toLocaleDateString('en-GB') : (s.generated_at ? new Date(s.generated_at).toLocaleDateString('en-GB') : '-'),
           landlord: s.landlord_name || 'Landlord',
           amount: parseFloat(s.net_paid || 0),
-          bankAccount: `****${s.landlord_id}`,
-          status: 'Success'
+          statementRef: s.statement_reference || `STM-${s.id}`,
+          status: 'Paid'
         }));
         setPayoutsDataState(formatted);
+      } else if (tab === 'ledger') {
+        const res = await api.get('/transactions');
+        const formatted = (res.data.data || []).map(t => ({
+          id: t.id,
+          date: t.transaction_date ? new Date(t.transaction_date).toLocaleDateString('en-GB') : '-',
+          type: (t.type || '-').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+          description: t.description || '-',
+          property: t.property_address ? `${t.property_address}, ${t.property_city || ''}` : '-',
+          landlord: t.landlord_name || '-',
+          amount: parseFloat(t.amount || 0),
+          isIncome: t.type === 'rent_in',
+          reconciled: !!t.reconciled,
+          source: t.statement_id ? `Statement #${t.statement_id}` : (t.ticket_id ? `Ticket #${t.ticket_id}` : '-')
+        }));
+        setLedgerData(formatted);
       } else if (tab === 'landlords') {
         const landlordsRes = await api.get('/landlords');
         const statementsRes = await api.get('/statements');
@@ -146,34 +163,75 @@ export const AccountingHub = () => {
   };
 
   const handleBulkExport = () => {
-    addToast(`Exported ${selectedIncomingIds.length} records to CSV`, 'info');
-  };
-
-  const handleGenerateStatements = async (e) => {
-    e.preventDefault();
-    if (!startDate || !endDate) {
-      addToast('Please select both start and end dates', 'warning');
+    const rows = incomingData.filter(p => selectedIncomingIds.includes(p.id));
+    if (rows.length === 0) {
+      addToast('No payments selected to export', 'info');
       return;
     }
+    const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const csv = [
+      ['Date', 'Tenant', 'Property', 'Amount', 'Method', 'Reference', 'Status'].map(escape).join(','),
+      ...rows.map(r => [r.date, r.tenant, r.property, r.amount.toFixed(2), r.method, r.reference, r.status].map(escape).join(','))
+    ].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'incoming-payments.csv');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    addToast(`Exported ${rows.length} payments to CSV`, 'success');
+  };
 
-    setModalLoading(true);
+  const openPaymentModal = async () => {
+    setShowPaymentModal(true);
+    setLoadingTenancies(true);
     try {
-      await api.post('/statements/generate', {
-        period_start: startDate,
-        period_end: endDate
-      });
-      addToast(`Landlord Statements generated for period ${startDate} to ${endDate}`, 'success');
-      if (activeTab === 'payouts' || activeTab === 'landlords') {
-        fetchTabData(activeTab);
-      }
+      const res = await api.get('/tenancies?status=active');
+      setTenanciesList((res.data.data || []).map(t => ({
+        value: String(t.id),
+        label: `${t.address_line1 || 'Property'}, ${t.city || ''} — £${parseFloat(t.rent_pcm || 0).toFixed(2)} pcm (${t.landlord_name || '-'})`
+      })));
     } catch (err) {
       console.error(err);
-      addToast(err.response?.data?.message || 'Failed to generate landlord statements', 'error');
+      addToast('Failed to load tenancies', 'error');
     } finally {
-      setModalLoading(false);
-      setShowModal(false);
-      setStartDate('');
-      setEndDate('');
+      setLoadingTenancies(false);
+    }
+  };
+
+  const handleRecordPayment = async (e) => {
+    e.preventDefault();
+    if (!paymentForm.tenancy_id || !paymentForm.received_at || !paymentForm.amount) {
+      addToast('Tenancy, date received, and amount are required', 'warning');
+      return;
+    }
+    setPaymentSaving(true);
+    try {
+      const res = await api.post(`/tenancies/${paymentForm.tenancy_id}/rent-payments`, {
+        received_at: paymentForm.received_at,
+        amount: parseFloat(paymentForm.amount),
+        method: paymentForm.method,
+        reference: paymentForm.reference || undefined,
+        notes: paymentForm.notes || undefined
+      });
+      const reconciled = res.data?.data?.reconciled;
+      addToast(
+        reconciled
+          ? 'Payment recorded and auto-matched to a rent schedule'
+          : 'Payment recorded — no matching schedule found, reconcile it manually',
+        reconciled ? 'success' : 'info'
+      );
+      setShowPaymentModal(false);
+      setPaymentForm(emptyPayment);
+      fetchTabData('incoming');
+      fetchTabData('unreconciled');
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to record payment', 'error');
+    } finally {
+      setPaymentSaving(false);
     }
   };
 
@@ -220,55 +278,19 @@ export const AccountingHub = () => {
     { header: 'Type', accessor: 'type', sortable: true },
   ];
 
-  const approveColumns = [
-    { header: 'Request Date', accessor: 'date', sortable: true },
-    { header: 'Landlord Name', accessor: 'landlord', sortable: true },
-    { header: 'Property', accessor: 'property', sortable: true },
-    { 
-      header: 'Amount Due', 
-      accessor: 'amount', 
-      align: 'right', 
-      sortable: true,
-      renderCell: (row) => `£${row.amount.toFixed(2)}`
-    },
-    { header: 'Bank Details', accessor: 'bankDetails' },
-    {
-      header: 'Action',
-      accessor: 'id',
-      renderCell: (row) => (
-        <div className="flex gap-2">
-          <button 
-            onClick={() => addToast(`Approved payout to ${row.landlord}`, 'success')}
-            className="p-1 text-status-success hover:bg-status-success/5 rounded border border-transparent hover:border-status-success/20 cursor-pointer"
-            title="Approve"
-          >
-            <Check size={14} />
-          </button>
-          <button 
-            onClick={() => addToast(`Rejected payout request for ${row.landlord}`, 'error')}
-            className="p-1 text-status-danger hover:bg-status-danger/5 rounded border border-transparent hover:border-status-danger/20 cursor-pointer"
-            title="Reject"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      )
-    }
-  ];
-
   const payoutsColumns = [
     { header: 'Transfer Date', accessor: 'date', sortable: true },
     { header: 'Landlord Name', accessor: 'landlord', sortable: true },
-    { 
-      header: 'Amount Paid', 
-      accessor: 'amount', 
-      align: 'right', 
+    {
+      header: 'Amount Paid',
+      accessor: 'amount',
+      align: 'right',
       sortable: true,
       renderCell: (row) => `£${row.amount.toFixed(2)}`
     },
-    { header: 'Target Account', accessor: 'bankAccount' },
-    { 
-      header: 'Status', 
+    { header: 'Statement Ref', accessor: 'statementRef' },
+    {
+      header: 'Status',
       accessor: 'status',
       renderCell: (row) => (
         <span className="px-2 py-0.5 text-[10px] font-bold rounded-full border bg-status-success/10 text-status-success border-status-success/20">
@@ -278,30 +300,38 @@ export const AccountingHub = () => {
     },
   ];
 
-  const failedPayoutsColumns = [
-    { header: 'Date Attempted', accessor: 'date', sortable: true },
-    { header: 'Landlord Name', accessor: 'landlord', sortable: true },
-    { 
-      header: 'Amount', 
-      accessor: 'amount', 
-      align: 'right', 
-      sortable: true,
-      renderCell: (row) => `£${row.amount.toFixed(2)}`
-    },
-    { header: 'Bank Target', accessor: 'bankDetails' },
-    { header: 'Fail Reason', accessor: 'reason', className: 'text-status-danger font-semibold' },
+  const ledgerColumns = [
+    { header: 'Date', accessor: 'date', sortable: true },
+    { header: 'Type', accessor: 'type', sortable: true },
+    { header: 'Description', accessor: 'description', sortable: true },
+    { header: 'Property', accessor: 'property', sortable: true },
+    { header: 'Landlord', accessor: 'landlord', sortable: true },
     {
-      header: 'Action',
-      accessor: 'id',
+      header: 'Amount',
+      accessor: 'amount',
+      align: 'right',
+      sortable: true,
       renderCell: (row) => (
-        <button 
-          onClick={() => addToast(`Retrying transfer to ${row.landlord}...`, 'info')}
-          className="px-2.5 py-1 text-[10px] font-bold rounded bg-brand-accent text-white hover:bg-brand-accent/90 cursor-pointer"
-        >
-          Retry
-        </button>
+        <span className={row.isIncome ? 'text-status-success font-bold' : 'text-status-danger font-bold'}>
+          {row.isIncome ? '' : '-'}£{row.amount.toFixed(2)}
+        </span>
       )
-    }
+    },
+    { header: 'Source', accessor: 'source', sortable: true },
+    {
+      header: 'Reconciled',
+      accessor: 'reconciled',
+      align: 'center',
+      renderCell: (row) => (
+        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
+          row.reconciled
+            ? 'bg-status-success/10 text-status-success border-status-success/20'
+            : 'bg-status-warning/10 text-status-warning border-status-warning/20'
+        }`}>
+          {row.reconciled ? 'Yes' : 'No'}
+        </span>
+      )
+    },
   ];
 
   const landlordsBalanceColumns = [
@@ -358,11 +388,10 @@ export const AccountingHub = () => {
   const tabItems = [
     { id: 'incoming', name: 'Incoming Payments', count: incomingData.length },
     { id: 'unreconciled', name: 'Unreconciled', count: unreconciledDataState.length },
-    { id: 'approve', name: 'Payments to Approve', count: approveData.length },
     { id: 'payouts', name: 'Outgoing/Payouts', count: payoutsDataState.length },
-    { id: 'failed', name: 'Failed Payouts', count: failedData.length },
     { id: 'landlords', name: 'Landlords with a Balance', count: landlordsDataState.length },
     { id: 'arrears', name: 'Tenants in Arrears', count: arrearsDataState.length },
+    { id: 'ledger', name: 'Transactions Ledger', count: ledgerData.length },
   ];
 
   const renderSkeleton = () => (
@@ -384,14 +413,24 @@ export const AccountingHub = () => {
           <p className="text-sm text-gray-500 mt-1">Manage, reconcile, and audit the financial statements and cashflows.</p>
         </div>
         
-        <Button 
-          variant="primary" 
-          onClick={() => setShowModal(true)}
-          icon={FileSpreadsheet}
-          className="shadow-md shrink-0"
-        >
-          Generate Landlord Statements
-        </Button>
+        <div className="flex gap-3 shrink-0">
+          <Button
+            variant="secondary"
+            onClick={openPaymentModal}
+            icon={Banknote}
+            className="shadow-md"
+          >
+            Record Rent Payment
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => navigate('/statements')}
+            icon={FileSpreadsheet}
+            className="shadow-md"
+          >
+            Generate Landlord Statements
+          </Button>
+        </div>
       </div>
 
       {/* Tabs Header Navigation */}
@@ -458,27 +497,21 @@ export const AccountingHub = () => {
             />
           )
         )}
-        {activeTab === 'approve' && (
-          /* TODO: Phase 3 - Connect to real payouts approval backend */
-          <DataTable 
-            columns={approveColumns} 
-            data={approveData} 
-          />
-        )}
         {activeTab === 'payouts' && (
           loading['payouts'] ? renderSkeleton() : (
-            <DataTable 
-              columns={payoutsColumns} 
-              data={payoutsDataState} 
+            <DataTable
+              columns={payoutsColumns}
+              data={payoutsDataState}
             />
           )
         )}
-        {activeTab === 'failed' && (
-          /* TODO: Phase 3 - Connect to real failed payouts backend */
-          <DataTable 
-            columns={failedPayoutsColumns} 
-            data={failedData} 
-          />
+        {activeTab === 'ledger' && (
+          loading['ledger'] ? renderSkeleton() : (
+            <DataTable
+              columns={ledgerColumns}
+              data={ledgerData}
+            />
+          )
         )}
         {activeTab === 'landlords' && (
           loading['landlords'] ? renderSkeleton() : (
@@ -498,57 +531,83 @@ export const AccountingHub = () => {
         )}
       </div>
 
-      {/* Statement Generation Modal */}
-      {showModal && (
+      {/* Record Rent Payment Modal */}
+      {showPaymentModal && (
         <div className="fixed inset-0 bg-brand-primary/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-border-color overflow-hidden">
             <div className="bg-brand-primary text-white p-5 font-bold flex items-center gap-2 select-none">
-              <Calendar size={18} />
-              <span>Generate Landlord Statements</span>
+              <Banknote size={18} />
+              <span>Record Rent Payment</span>
             </div>
 
-            <form onSubmit={handleGenerateStatements} className="p-6 flex flex-col gap-5">
+            <form onSubmit={handleRecordPayment} className="p-6 flex flex-col gap-5">
               <p className="text-xs text-gray-500 leading-snug">
-                Select the start and end dates for the statement accounting period. This will generate and dispatch statements for all landlords with active balances.
+                Log a rent payment received from a tenant. If the amount matches an outstanding schedule it is reconciled automatically.
               </p>
 
-              <Input 
-                label="Accounting Period Start"
-                id="startDate"
-                type="date"
-                required
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+              <Dropdown
+                label="Tenancy"
+                options={tenanciesList}
+                value={paymentForm.tenancy_id}
+                onChange={(val) => setPaymentForm({ ...paymentForm, tenancy_id: val })}
+                placeholder={loadingTenancies ? 'Loading tenancies…' : 'Select a tenancy…'}
+                searchable
               />
 
-              <Input 
-                label="Accounting Period End"
-                id="endDate"
+              <Input
+                label="Date Received"
+                id="paymentReceivedAt"
                 type="date"
                 required
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                value={paymentForm.received_at}
+                onChange={(e) => setPaymentForm({ ...paymentForm, received_at: e.target.value })}
+              />
+
+              <Input
+                label="Amount (£)"
+                id="paymentAmount"
+                type="number"
+                step="0.01"
+                min="0.01"
+                required
+                value={paymentForm.amount}
+                onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+              />
+
+              <Dropdown
+                label="Method"
+                options={[
+                  { value: 'bank_transfer', label: 'Bank Transfer' },
+                  { value: 'standing_order', label: 'Standing Order' },
+                  { value: 'card', label: 'Card' },
+                  { value: 'cash', label: 'Cash' },
+                  { value: 'other', label: 'Other' }
+                ]}
+                value={paymentForm.method}
+                onChange={(val) => setPaymentForm({ ...paymentForm, method: val })}
+              />
+
+              <Input
+                label="Reference (optional)"
+                id="paymentReference"
+                value={paymentForm.reference}
+                onChange={(e) => setPaymentForm({ ...paymentForm, reference: e.target.value })}
               />
 
               <div className="flex justify-end gap-3 mt-2">
-                <Button 
-                  type="button" 
-                  variant="secondary" 
+                <Button
+                  type="button"
+                  variant="secondary"
                   onClick={() => {
-                    setShowModal(false);
-                    setStartDate('');
-                    setEndDate('');
+                    setShowPaymentModal(false);
+                    setPaymentForm(emptyPayment);
                   }}
-                  disabled={modalLoading}
+                  disabled={paymentSaving}
                 >
                   Cancel
                 </Button>
-                <Button 
-                  type="submit" 
-                  variant="primary" 
-                  disabled={modalLoading}
-                >
-                  {modalLoading ? 'Generating...' : 'Generate Statements'}
+                <Button type="submit" variant="primary" disabled={paymentSaving}>
+                  {paymentSaving ? 'Saving…' : 'Record Payment'}
                 </Button>
               </div>
             </form>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Folder, FolderOpen, FileText, Upload, Trash2, CheckCircle2, ChevronRight, ChevronDown } from 'lucide-react';
+import { Folder, FolderOpen, FileText, Upload, Trash2, CheckCircle2, ChevronRight, ChevronDown, Download } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
@@ -25,7 +25,8 @@ export const DocumentLibrary = () => {
         setFolders(response.data.data);
       }
     } catch (err) {
-      console.warn('Real folders endpoint not available, falling back to mock folders:', err.message);
+      console.error(err);
+      addToast(err.response?.data?.message || 'Failed to load document folders', 'error');
     }
   };
 
@@ -119,36 +120,14 @@ export const DocumentLibrary = () => {
       });
       addToast('Document uploaded successfully!', 'success');
       await fetchFolders();
+      // Reset only on success so a failed upload can be retried as-is.
+      setUploadedFile(null);
+      setScope('');
+      setEntityId('');
     } catch (err) {
       console.error(err);
-      addToast(`Uploaded ${uploadedFile.name} to ${scope} #${entityId} (Dev Fallback)`, 'success');
-      
-      const newFileNode = {
-        id: `d-${Date.now()}`,
-        name: uploadedFile.name,
-        size: uploadedFile.size,
-        date: new Date().toISOString().split('T')[0],
-        scope: scope,
-        entityId: entityId,
-      };
-
-      setFolders(prev =>
-        prev.map(f => {
-          if (f.id === selectedFolderId) {
-            return {
-              ...f,
-              children: [...f.children, newFileNode],
-            };
-          }
-          return f;
-        })
-      );
+      addToast(err.response?.data?.message || `Failed to upload ${uploadedFile.name}`, 'error');
     }
-
-    // Reset Form
-    setUploadedFile(null);
-    setScope('');
-    setEntityId('');
   };
 
   const handleDeleteFile = async (fileId) => {
@@ -159,6 +138,31 @@ export const DocumentLibrary = () => {
     } catch (err) {
       console.error(err);
       addToast(err.response?.data?.message || 'Failed to delete document', 'error');
+    }
+  };
+
+  const handleDownloadFile = async (file) => {
+    try {
+      const response = await api.get(`/documents/${file.id}/download`, {
+        responseType: 'blob',
+        skipInterceptorError: true
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', file.name || `document-${file.id}`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      let msg = 'Failed to download document';
+      if (err.response?.data instanceof Blob) {
+        try { msg = JSON.parse(await err.response.data.text())?.message || msg; } catch { /* keep default */ }
+      } else {
+        msg = err.response?.data?.message || msg;
+      }
+      addToast(msg, 'error');
     }
   };
 
@@ -287,13 +291,22 @@ export const DocumentLibrary = () => {
                         </div>
                       </div>
                     </div>
-                    <button 
-                      onClick={() => handleDeleteFile(file.id)}
-                      className="p-2 text-gray-400 hover:text-status-danger hover:bg-status-danger/5 rounded-lg transition-colors border border-transparent hover:border-status-danger/10 self-end sm:self-center cursor-pointer"
-                      title="Delete document"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <div className="flex items-center gap-1 self-end sm:self-center">
+                      <button
+                        onClick={() => handleDownloadFile(file)}
+                        className="p-2 text-gray-400 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors border border-transparent hover:border-brand-accent/10 cursor-pointer"
+                        title="Download document"
+                      >
+                        <Download size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteFile(file.id)}
+                        className="p-2 text-gray-400 hover:text-status-danger hover:bg-status-danger/5 rounded-lg transition-colors border border-transparent hover:border-status-danger/10 cursor-pointer"
+                        title="Delete document"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
                 ))}
                 {selectedFolder?.children.length === 0 && (

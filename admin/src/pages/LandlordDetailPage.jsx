@@ -1,14 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Hash, Mail, Phone, Globe, MapPin, 
-  Building2, Flag, Calendar, ShieldCheck, Banknote, Home, 
-  CheckCircle2, AlertTriangle, Clock, FileText, Users, Briefcase
+  Hash, Mail, Phone, Globe, MapPin,
+  Building2, Flag, Calendar, ShieldCheck, Banknote, Home,
+  CheckCircle2, AlertTriangle, Clock, FileText, User
 } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
 import { DataRow, Card, DetailContainer, DetailSkeleton, DetailHeader, DetailTabs } from '../components/UI/DetailComponents';
 import {StatusPill} from "../components/UI/StatusPill"
+import { Input } from '../components/UI/Input';
+import { Button } from '../components/UI/Button';
 import api from '../utilities/api';
 
 
@@ -21,6 +23,15 @@ export const LandlordDetailPage = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+
+  // Bank details modal state
+  const [isBankModalOpen, setIsBankModalOpen] = useState(false);
+  const [bankForm, setBankForm] = useState({ bank_name: '', account_name: '', account_number: '', sort_code: '', iban_bic: '' });
+  const [bankSaving, setBankSaving] = useState(false);
+
+  // Bump to re-fetch after a mutation (verify / bank-details update).
+  const [reloadKey, setReloadKey] = useState(0);
+  const refetchLandlord = () => setReloadKey((k) => k + 1);
 
   useEffect(() => {
     const fetchLandlord = async () => {
@@ -35,7 +46,49 @@ export const LandlordDetailPage = () => {
       }
     };
     fetchLandlord();
-  }, [id, navigate, addToast]);
+  }, [id, navigate, addToast, reloadKey]);
+
+  const handleVerifyBankDetails = async () => {
+    const ok = await confirm({
+      title: 'Verify Bank Details',
+      message: `Confirm you have independently verified the bank details for ${data.name} (e.g. by calling the landlord on a known number). Payouts will use these details.`,
+      confirmText: 'Mark as Verified',
+    });
+    if (!ok) return;
+    try {
+      await api.patch(`/landlords/${id}/payment-details/verify`);
+      addToast('Bank details verified', 'success');
+      refetchLandlord();
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to verify bank details', 'error');
+    }
+  };
+
+  const openBankModal = () => {
+    setBankForm({
+      bank_name: data.bank_name || '',
+      account_name: data.account_name || '',
+      account_number: data.account_number || '',
+      sort_code: data.sort_code || '',
+      iban_bic: data.iban_bic || '',
+    });
+    setIsBankModalOpen(true);
+  };
+
+  const handleBankSubmit = async (e) => {
+    e.preventDefault();
+    setBankSaving(true);
+    try {
+      await api.put(`/landlords/${id}/payment-details`, bankForm);
+      addToast('Bank details submitted for verification', 'success');
+      setIsBankModalOpen(false);
+      refetchLandlord();
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to update bank details', 'error');
+    } finally {
+      setBankSaving(false);
+    }
+  };
 
   const handleDelete = async () => {
     const ok = await confirm({
@@ -205,13 +258,48 @@ export const LandlordDetailPage = () => {
               <Card title="Bank Details">
                 {data.bank_name ? (
                   <div className="space-y-1">
+                    <div className="flex items-center justify-between mb-3">
+                      {data.change_pending ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-bold rounded-full border tracking-wide uppercase bg-status-warning/10 text-status-warning border-status-warning/20">
+                          <AlertTriangle size={12} /> Pending Verification
+                        </span>
+                      ) : data.verified_at ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-bold rounded-full border tracking-wide uppercase bg-status-success/10 text-status-success border-status-success/20">
+                          <CheckCircle2 size={12} /> Verified {new Date(data.verified_at).toLocaleDateString('en-GB')}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[11px] font-bold rounded-full border tracking-wide uppercase bg-status-danger/10 text-status-danger border-status-danger/20">
+                          <AlertTriangle size={12} /> Never Verified
+                        </span>
+                      )}
+                    </div>
                     <DataRow icon={Banknote} label="Bank Name" value={data.bank_name} />
                     <DataRow icon={User} label="Account Name" value={data.account_name} />
                     <DataRow icon={Hash} label="Account No." value={data.account_number ? `****${String(data.account_number).slice(-4)}` : '—'} />
                     <DataRow icon={Hash} label="Sort Code" value={data.sort_code} />
+                    {data.change_pending && data.change_requested_at ? (
+                      <p className="text-xs text-gray-400 pt-2">
+                        Change requested {new Date(data.change_requested_at).toLocaleDateString('en-GB')}
+                      </p>
+                    ) : null}
+                    <div className="flex gap-2 pt-3">
+                      {data.change_pending || !data.verified_at ? (
+                        <Button type="button" variant="primary" onClick={handleVerifyBankDetails}>
+                          Verify Details
+                        </Button>
+                      ) : null}
+                      <Button type="button" variant="ghost" onClick={openBankModal}>
+                        Update Details
+                      </Button>
+                    </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-400 italic">No bank details recorded.</p>
+                  <div>
+                    <p className="text-sm text-gray-400 italic mb-3">No bank details recorded.</p>
+                    <Button type="button" variant="ghost" onClick={openBankModal}>
+                      Add Bank Details
+                    </Button>
+                  </div>
                 )}
               </Card>
             </div>
@@ -265,6 +353,62 @@ export const LandlordDetailPage = () => {
           </div>
         )}
       </div>
+
+      {/* Update Bank Details Modal */}
+      {isBankModalOpen && (
+        <div className="fixed inset-0 bg-brand-primary/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-border-color">
+            <h3 className="text-lg font-bold text-[#1A1A1A] mb-1">Update Bank Details</h3>
+            <p className="text-xs text-gray-500 mb-4">Changes are held as pending until verified by an administrator. Payouts should not be made against unverified details.</p>
+
+            <form onSubmit={handleBankSubmit} className="flex flex-col gap-4">
+              <Input
+                label="Bank Name"
+                id="bank_name"
+                required
+                value={bankForm.bank_name}
+                onChange={(e) => setBankForm({ ...bankForm, bank_name: e.target.value })}
+              />
+              <Input
+                label="Account Name"
+                id="account_name"
+                required
+                value={bankForm.account_name}
+                onChange={(e) => setBankForm({ ...bankForm, account_name: e.target.value })}
+              />
+              <Input
+                label="Account Number"
+                id="account_number"
+                required
+                value={bankForm.account_number}
+                onChange={(e) => setBankForm({ ...bankForm, account_number: e.target.value })}
+              />
+              <Input
+                label="Sort Code"
+                id="sort_code"
+                required
+                value={bankForm.sort_code}
+                onChange={(e) => setBankForm({ ...bankForm, sort_code: e.target.value })}
+              />
+              <Input
+                label="IBAN / BIC (optional)"
+                id="iban_bic"
+                value={bankForm.iban_bic}
+                onChange={(e) => setBankForm({ ...bankForm, iban_bic: e.target.value })}
+              />
+
+              <div className="flex gap-3 justify-end mt-2">
+                <Button type="button" variant="ghost" onClick={() => setIsBankModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary" disabled={bankSaving}>
+                  {bankSaving ? 'Saving…' : 'Submit for Verification'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </DetailContainer>
   );
 };

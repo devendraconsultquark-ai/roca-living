@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
-import { 
+import {
   LayoutDashboard, Users, Home, Calendar, UserCheck, ShieldAlert,
   Wallet, FileSpreadsheet, Receipt, Wrench, UserCog, PiggyBank, Droplet,
-  FolderOpen, BarChart3, Settings, Menu, X, Bell, User, ChevronLeft, ChevronRight
+  FolderOpen, BarChart3, Settings, Menu, X, Bell, User, ChevronLeft, ChevronRight,
+  ClipboardCheck
 } from 'lucide-react';
 import { Logo } from '../UI/Logo';
 
@@ -26,6 +27,7 @@ export const AdminLayout = () => {
     { name: 'Maintenance', path: '/maintenance', icon: Wrench },
     { name: 'Contractors', path: '/contractors', icon: UserCog },
     { name: 'Deposits', path: '/deposits', icon: PiggyBank },
+    { name: 'Inspections', path: '/inspections', icon: ClipboardCheck },
     { name: 'Utilities', path: '/utilities', icon: Droplet },
     { name: 'Documents', path: '/documents', icon: FolderOpen },
     { name: 'Reports', path: '/reports', icon: BarChart3 },

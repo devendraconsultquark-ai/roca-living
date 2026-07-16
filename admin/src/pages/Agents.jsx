@@ -11,6 +11,7 @@ import api from '../utilities/api';
 
 const formatAgent = (c) => ({
   id: `AGT-${c.id.toString().padStart(3, '0')}`,
+  rawId: c.id,
   name: c.company_name,
   email: c.email || '—',
   role: c.contact_name || '—',

@@ -1,14 +1,152 @@
-import React from 'react';
-import { BarChart3, TrendingUp, DollarSign, Home, Percent } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { BarChart3, DollarSign, Home, AlertTriangle, PiggyBank } from 'lucide-react';
 import { Button } from '../components/UI/Button';
+import { DataTable } from '../components/UI/DataTable';
+import { useToast } from '../components/UI/ToastContext';
+import api from '../utilities/api';
+
+const toCsv = (rows, headers) => {
+  const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  return [
+    headers.map((h) => escape(h.label)).join(','),
+    ...rows.map((r) => headers.map((h) => escape(r[h.key])).join(','))
+  ].join('\n');
+};
 
 export const Reports = () => {
-  const reports = [
-    { name: 'YTD Collected Rent', value: '£348,450.00', icon: DollarSign, change: '+14% YTD growth', type: 'success' },
-    { name: 'Average Management Fee Revenue', value: '£41,814.00', icon: TrendingUp, change: '12% average commission rate', type: 'success' },
-    { name: 'Portfolio Occupancy Rate', value: '96.4%', icon: Home, change: '82 of 86 units currently occupied', type: 'success' },
-    { name: 'Gross Yield Average', value: '6.8%', icon: Percent, change: '+0.4% from last quarter', type: 'info' },
+  const [pipeline, setPipeline] = useState(null);
+  const [arrears, setArrears] = useState({ landlord_summary: [], overdue_schedules: [] });
+  const [expiries, setExpiries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { addToast } = useToast();
+
+  useEffect(() => {
+    const fetchReports = async () => {
+      setLoading(true);
+      try {
+        const [pipelineRes, arrearsRes, expiriesRes] = await Promise.all([
+          api.get('/reports/pipeline'),
+          api.get('/reports/arrears'),
+          api.get('/reports/compliance-expiries'),
+        ]);
+        setPipeline(pipelineRes.data.data || null);
+        setArrears(arrearsRes.data.data || { landlord_summary: [], overdue_schedules: [] });
+        setExpiries(expiriesRes.data.data || []);
+      } catch (err) {
+        addToast(err.response?.data?.message || 'Failed to load reports', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchReports();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleExportArrears = () => {
+    if (!arrears.overdue_schedules.length) {
+      addToast('No overdue rent to export', 'info');
+      return;
+    }
+    const csv = toCsv(arrears.overdue_schedules, [
+      { key: 'tenancy_id', label: 'Tenancy ID' },
+      { key: 'landlord_name', label: 'Landlord' },
+      { key: 'property_address', label: 'Property' },
+      { key: 'due_date', label: 'Due Date' },
+      { key: 'amount', label: 'Amount (£)' },
+    ]);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'arrears-report.csv');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    addToast(`Exported ${arrears.overdue_schedules.length} overdue schedules to CSV`, 'success');
+  };
+
+  const occupancy = pipeline && pipeline.total_properties > 0
+    ? Math.round((pipeline.let / pipeline.total_properties) * 100)
+    : 0;
+
+  const tiles = pipeline ? [
+    {
+      name: 'YTD Collected Rent',
+      value: `£${parseFloat(pipeline.ytd_revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+      icon: DollarSign,
+      change: 'Reconciled rent received this calendar year',
+      type: 'success'
+    },
+    {
+      name: 'Portfolio Occupancy Rate',
+      value: `${occupancy}%`,
+      icon: Home,
+      change: `${pipeline.let} of ${pipeline.total_properties} units currently let`,
+      type: 'success'
+    },
+    {
+      name: 'Rent Overdue',
+      value: `£${parseFloat(pipeline.rent_overdue_total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+      icon: AlertTriangle,
+      change: `${pipeline.rent_overdue_count} overdue schedule(s)`,
+      type: pipeline.rent_overdue_count > 0 ? 'danger' : 'success'
+    },
+    {
+      name: 'Deposits Pending Registration',
+      value: `${pipeline.deposits_pending_registration}`,
+      icon: PiggyBank,
+      change: `${pipeline.statements_pending} draft statement(s) awaiting dispatch`,
+      type: pipeline.deposits_pending_registration > 0 ? 'danger' : 'success'
+    },
+  ] : [];
+
+  const arrearsColumns = [
+    { header: 'Landlord', accessor: 'landlord_name', sortable: true },
+    {
+      header: 'Total Arrears',
+      accessor: 'total_arrears',
+      align: 'right',
+      sortable: true,
+      renderCell: (row) => (
+        <span className="text-status-danger font-bold">£{parseFloat(row.total_arrears).toFixed(2)}</span>
+      )
+    },
+    { header: 'Properties Affected', accessor: 'properties_affected', align: 'center', sortable: true },
+    { header: 'Oldest Overdue', accessor: 'oldest_overdue_date', sortable: true },
   ];
+
+  const expiriesColumns = [
+    { header: 'Certificate', accessor: 'cert_type', sortable: true },
+    { header: 'Property', accessor: 'property_address', sortable: true },
+    { header: 'Landlord', accessor: 'landlord_name', sortable: true },
+    { header: 'Expires On', accessor: 'expires_at', sortable: true },
+    {
+      header: 'Days Left',
+      accessor: 'expires_in_days',
+      align: 'center',
+      sortable: true,
+      renderCell: (row) => (
+        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
+          row.expires_in_days < 0
+            ? 'bg-status-danger/10 text-status-danger border-status-danger/20'
+            : row.expires_in_days <= 30
+              ? 'bg-status-warning/10 text-status-warning border-status-warning/20'
+              : 'bg-status-success/10 text-status-success border-status-success/20'
+        }`}>
+          {row.expires_in_days < 0 ? `Expired ${Math.abs(row.expires_in_days)}d ago` : `${row.expires_in_days} days`}
+        </span>
+      )
+    },
+  ];
+
+  const renderSkeleton = () => (
+    <div className="space-y-4 py-4">
+      <div className="h-10 bg-gray-100/80 rounded-lg animate-pulse w-full" />
+      <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+      <div className="h-16 bg-gray-50/80 rounded-lg animate-pulse w-full" />
+    </div>
+  );
 
   return (
     <div className="py-6 max-w-7xl mx-auto px-4 flex flex-col gap-6">
@@ -16,34 +154,68 @@ export const Reports = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-[#1A1A1A]">Reports Hub</h2>
-          <p className="text-sm text-gray-500 mt-1">Analyze portfolio yields, fee incomes, occupancy trends, and business performance metrics.</p>
+          <p className="text-sm text-gray-500 mt-1">Portfolio revenue, occupancy, arrears, and compliance expiries — live from the ledger.</p>
         </div>
-        <Button variant="primary" icon={BarChart3} className="shadow-sm">
-          Export Annual Financials
+        <Button variant="primary" icon={BarChart3} className="shadow-sm" onClick={handleExportArrears}>
+          Export Arrears CSV
         </Button>
       </div>
 
       {/* Reports Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {reports.map((rep, idx) => {
-          const Icon = rep.icon;
-          return (
-            <div key={idx} className="bg-white border border-border-color/60 rounded-2xl p-6 shadow-sm flex flex-col gap-4">
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{rep.name}</span>
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                  rep.type === 'success' ? 'bg-status-success/10 text-status-success' : 'bg-brand-accent/10 text-brand-accent'
-                }`}>
-                  <Icon size={16} />
+        {loading ? (
+          [...Array(4)].map((_, idx) => (
+            <div key={idx} className="bg-white border border-border-color/60 rounded-2xl p-6 shadow-sm h-28 animate-pulse" />
+          ))
+        ) : (
+          tiles.map((rep, idx) => {
+            const Icon = rep.icon;
+            return (
+              <div key={idx} className="bg-white border border-border-color/60 rounded-2xl p-6 shadow-sm flex flex-col gap-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{rep.name}</span>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                    rep.type === 'success'
+                      ? 'bg-status-success/10 text-status-success'
+                      : rep.type === 'danger'
+                        ? 'bg-status-danger/10 text-status-danger'
+                        : 'bg-brand-accent/10 text-brand-accent'
+                  }`}>
+                    <Icon size={16} />
+                  </div>
+                </div>
+                <div>
+                  <span className="text-2xl font-black text-[#1A1A1A]">{rep.value}</span>
+                  <p className="text-xs text-gray-400 mt-1.5 font-semibold">{rep.change}</p>
                 </div>
               </div>
-              <div>
-                <span className="text-2xl font-black text-[#1A1A1A]">{rep.value}</span>
-                <p className="text-xs text-gray-400 mt-1.5 font-semibold">{rep.change}</p>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
+      </div>
+
+      {/* Arrears by Landlord */}
+      <div className="bg-white rounded-2xl border border-border-color/60 p-4 shadow-sm">
+        <h3 className="text-sm font-bold text-[#1A1A1A] uppercase tracking-wider px-2 pt-2 pb-4">Arrears by Landlord</h3>
+        {loading ? renderSkeleton() : (
+          arrears.landlord_summary.length === 0 ? (
+            <div className="text-center py-8 text-sm text-gray-400 font-medium">No rent arrears — all schedules up to date.</div>
+          ) : (
+            <DataTable columns={arrearsColumns} data={arrears.landlord_summary} />
+          )
+        )}
+      </div>
+
+      {/* Compliance Expiries */}
+      <div className="bg-white rounded-2xl border border-border-color/60 p-4 shadow-sm">
+        <h3 className="text-sm font-bold text-[#1A1A1A] uppercase tracking-wider px-2 pt-2 pb-4">Compliance Expiries (Next 90 Days)</h3>
+        {loading ? renderSkeleton() : (
+          expiries.length === 0 ? (
+            <div className="text-center py-8 text-sm text-gray-400 font-medium">No certificates expiring in the next 90 days.</div>
+          ) : (
+            <DataTable columns={expiriesColumns} data={expiries} />
+          )
+        )}
       </div>
     </div>
   );

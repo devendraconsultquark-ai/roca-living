@@ -27,6 +27,7 @@ import { Invoices } from './pages/Invoices';
 import { Contractors } from './pages/Contractors';
 import { ContractorDetailPage } from './pages/ContractorDetailPage';
 import { Deposits } from './pages/Deposits';
+import { Inspections } from './pages/Inspections';
 import { Utilities } from './pages/Utilities';
 import { Reports } from './pages/Reports';
 import { Settings } from './pages/Settings';
@@ -78,6 +79,7 @@ function App() {
               <Route path="/contractors" element={<Contractors />} />
               <Route path="/contractors/:id" element={<ContractorDetailPage />} />
               <Route path="/deposits" element={<Deposits />} />
+              <Route path="/inspections" element={<Inspections />} />
               <Route path="/utilities" element={<Utilities />} />
               <Route path="/documents" element={<DocumentLibrary />} />
               <Route path="/reports" element={<Reports />} />

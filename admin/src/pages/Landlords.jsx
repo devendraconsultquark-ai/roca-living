@@ -97,7 +97,9 @@ export const Landlords = () => {
         name: info.name || '',
         email: info.email || '',
         phone: info.phone || '',
-        address: info.address || ''
+        address: info.address || '',
+        initials: info.initials || '',
+        nrl_hmrc_ref: info.nrl_hmrc_ref || ''
       });
       setIsEditModalOpen(true);
     } catch (err) {
@@ -388,7 +390,25 @@ export const Landlords = () => {
                 onChange={(e) => setEditingLandlord({ ...editingLandlord, address: e.target.value })}
                 error={formErrors.address}
               />
-              
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  label="Initials (statements)"
+                  id="edit_initials"
+                  placeholder="e.g. RB/GH"
+                  value={editingLandlord.initials}
+                  onChange={(e) => setEditingLandlord({ ...editingLandlord, initials: e.target.value })}
+                  error={formErrors.initials}
+                />
+                <Input
+                  label="NRL Number (HMRC)"
+                  id="edit_nrl_hmrc_ref"
+                  placeholder="e.g. NL945005"
+                  value={editingLandlord.nrl_hmrc_ref}
+                  onChange={(e) => setEditingLandlord({ ...editingLandlord, nrl_hmrc_ref: e.target.value })}
+                  error={formErrors.nrl_hmrc_ref}
+                />
+              </div>
+
               <div className="flex gap-3 justify-end mt-2">
                 <Button 
                   type="button" 
