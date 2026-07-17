@@ -176,6 +176,12 @@ body {
   scrollbar-width: none;  /* Firefox */
 }
 
+/* Card surface — used as a bare `card-bg` class across pages and modals.
+   Without this rule those elements have NO background (transparent modals). */
+.card-bg {
+  background-color: var(--card-bg);
+}
+
 /* ── Public Website Styling Isolation ── */
 html.public-route {
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
