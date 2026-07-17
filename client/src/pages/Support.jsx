@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   Users,
   Home,
@@ -8,10 +8,10 @@ import {
   Search,
 } from "lucide-react";
 import { CirclePoundIcon } from "../components/UI/CirclePoundIcon";
-import { Button } from "../components/UI/Button";
 
 export const Support = () => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [openTopic, setOpenTopic] = useState(null);
 
   const topicsData = [
     {
@@ -19,38 +19,96 @@ export const Support = () => {
       description: "Learn the basics of navigating and using your portal.",
       icon: Users,
       isCustomIcon: false,
+      articles: [
+        {
+          q: "Finding your way around",
+          a: "Use the sidebar on the left to move between Dashboard, Properties, Financials, Compliance, Maintenance and Documents. The Dashboard gives you a live overview of your whole portfolio — occupancy, compliance, latest statement figures and any alerts that need your attention.",
+        },
+        {
+          q: "Viewing a single property",
+          a: "Use the property selector in the top-right of the header to switch between \"All Properties\" and an individual property. Every page then scopes its figures and lists to your selection.",
+        },
+      ],
     },
     {
       title: "Property",
       description: "Manage your property details and information.",
       icon: Home,
       isCustomIcon: false,
+      articles: [
+        {
+          q: "Checking property performance",
+          a: "The Properties page lists every property with its tenant, rent and certificate status. Click \"View Property\" for the full picture — tenancy, financial summary, compliance and open maintenance issues.",
+        },
+        {
+          q: "Keeping details up to date",
+          a: "Property details are maintained by your property manager. If anything looks wrong — bedrooms, rent, address — get in touch and we'll correct it.",
+        },
+      ],
     },
     {
       title: "Finances",
       description: "Understand your balances, payments and statements.",
       icon: CirclePoundIcon,
       isCustomIcon: true,
+      articles: [
+        {
+          q: "Statements",
+          a: "Statements are generated monthly and listed under Statements, where each one can be downloaded as a PDF. \"Download All\" fetches every statement in your current filter.",
+        },
+        {
+          q: "Transactions and invoices",
+          a: "The Financials page shows every transaction with a running balance, an income-vs-expenses chart, and an Invoices tab where you can download invoice PDFs.",
+        },
+        {
+          q: "Rent arrears",
+          a: "Overdue rent appears on your Dashboard alerts and in the Properties \"Rent Arrears\" filter. Your property manager chases arrears on your behalf.",
+        },
+      ],
     },
     {
       title: "Documents",
-      description: "Upload, view and manage your important documents.",
+      description: "View and download your important documents.",
       icon: FileText,
       isCustomIcon: false,
+      articles: [
+        {
+          q: "Finding a document",
+          a: "The Documents page holds everything your property manager has filed for you — statements, certificates and compliance paperwork. Filter by category or search by name, then use the Download action on any row.",
+        },
+        {
+          q: "Certificates",
+          a: "Compliance certificates (Gas Safety, EPC, EICR) live under Compliance → Certificates. Rows with a document attached have a View button that downloads the file.",
+        },
+      ],
     },
     {
       title: "Support",
       description: "How to contact us and get further assistance.",
       icon: Headphones,
       isCustomIcon: false,
+      articles: [
+        {
+          q: "Contacting your property manager",
+          a: "For anything about your tenancy, property or statements, your property manager is the first port of call — reply to any email from us, or use the contact form on our website's Contact page.",
+        },
+        {
+          q: "Reporting a problem with the portal",
+          a: "If something in the portal looks wrong or won't load, let us know via the contact form and include the page you were on — we'll investigate.",
+        },
+      ],
     },
   ];
 
-  // Dynamic search filtering
+  // Dynamic search filtering — matches topic names and article content.
+  const q = searchQuery.toLowerCase();
   const filteredTopics = topicsData.filter(
     (topic) =>
-      topic.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      topic.description.toLowerCase().includes(searchQuery.toLowerCase()),
+      topic.title.toLowerCase().includes(q) ||
+      topic.description.toLowerCase().includes(q) ||
+      topic.articles.some(
+        (a) => a.q.toLowerCase().includes(q) || a.a.toLowerCase().includes(q),
+      ),
   );
 
   return (
@@ -125,31 +183,51 @@ export const Support = () => {
         </h4>
 
         <div className="card-bg border border-card-border rounded-card shadow-xs overflow-hidden divide-y divide-gray-50">
-          {filteredTopics.map((topic, idx) => {
+          {filteredTopics.map((topic) => {
             const IconComponent = topic.icon;
+            const isOpen = openTopic === topic.title;
             return (
-              <div
-                key={idx}
-                className="flex items-center justify-between p-4 hover:bg-surface-light/50 transition-colors cursor-pointer group"
-              >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-8 h-8 rounded-full bg-status-info-bg text-status-info flex items-center justify-center shrink-0">
-                    <IconComponent size={14} className="shrink-0" />
+              <div key={topic.title}>
+                <button
+                  type="button"
+                  onClick={() => setOpenTopic(isOpen ? null : topic.title)}
+                  aria-expanded={isOpen}
+                  className="w-full flex items-center justify-between p-4 hover:bg-surface-light/50 transition-colors cursor-pointer group text-left"
+                >
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-8 h-8 rounded-full bg-status-info-bg text-status-info flex items-center justify-center shrink-0">
+                      <IconComponent size={14} className="shrink-0" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-xs-portal font-semibold text-brand-primary group-hover:text-status-info transition-colors leading-tight">
+                        {topic.title}
+                      </span>
+                      <span className="text-2xs text-gray-400 font-semibold mt-1 leading-none">
+                        {topic.description}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex flex-col">
-                    <span className="text-xs-portal font-semibold text-brand-primary group-hover:text-status-info transition-colors leading-tight">
-                      {topic.title}
-                    </span>
-                    <span className="text-2xs text-gray-400 font-semibold mt-1 leading-none">
-                      {topic.description}
-                    </span>
-                  </div>
-                </div>
 
-                <ChevronRight
-                  size={13}
-                  className="text-sidebar-text-muted group-hover:text-status-info transition-colors"
-                />
+                  <ChevronRight
+                    size={13}
+                    className={`text-sidebar-text-muted group-hover:text-status-info transition-transform ${isOpen ? "rotate-90" : ""}`}
+                  />
+                </button>
+
+                {isOpen && (
+                  <div className="px-4 pb-4 pt-1 flex flex-col gap-4 bg-surface-light/30">
+                    {topic.articles.map((article) => (
+                      <div key={article.q} className="flex flex-col pl-11">
+                        <span className="text-xs-portal font-bold text-brand-primary leading-tight">
+                          {article.q}
+                        </span>
+                        <p className="text-2xs text-gray-400 font-semibold mt-1.5 leading-relaxed">
+                          {article.a}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}

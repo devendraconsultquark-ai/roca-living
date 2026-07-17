@@ -5,8 +5,6 @@ import {
   ArrowUp,
   Calendar,
   Download,
-  Filter,
-  MoreVertical,
   ChevronRight,
   CheckCircle2,
 } from "lucide-react";
@@ -28,12 +26,18 @@ export const Financials = () => {
     invoiceStats,
     invoiceRows,
     handleDownloadInvoicePDF,
+    statements,
+    handleDownloadStatementPDF,
     transactions,
+    filteredTransactions,
     paginatedTransactions,
+    exportTransactionsCsv,
     chartData,
     chartMax,
     loading,
     error,
+    typeFilter,
+    setTypeFilter,
     tabs,
     activeTab,
     setActiveTab,
@@ -44,14 +48,20 @@ export const Financials = () => {
   } = useFinancials();
 
   const { addToast } = useToast();
-  const comingSoon = () => addToast("This feature is coming soon.", "info");
 
-  // Genuinely-local, ephemeral UI state (single-option display selectors) — no
-  // data depends on it yet, so it stays in the component.
-  const [statementPeriod] = useState("June 2026");
-  const [summaryFilter, setSummaryFilter] = useState("All Time");
-  const [chartFilter, setChartFilter] = useState("Last 6 Months");
-  const [invoiceFilter, setInvoiceFilter] = useState("All Time");
+  // Which statement the "Download Statement" card downloads; defaults to the
+  // most recent one once statements have loaded.
+  const [statementChoice, setStatementChoice] = useState(null);
+  const selectedStatementId = statementChoice ?? statements[0]?.id ?? null;
+
+  const handleDownloadSelectedStatement = () => {
+    const chosen = statements.find((s) => s.id === selectedStatementId);
+    if (!chosen) {
+      addToast("No statements available to download yet.", "info");
+      return;
+    }
+    handleDownloadStatementPDF(chosen.id, chosen.period);
+  };
 
   if (loading) {
     return (
@@ -93,18 +103,7 @@ export const Financials = () => {
             {/* Left Side: Summary & Account Balance (7 Columns) */}
             <div className="lg:col-span-7 flex flex-col gap-6">
               {/* Financial Summary */}
-              <PortalCard
-                title="Financial Summary"
-                headerActions={
-                  <Dropdown
-                    size="sm"
-                    className="w-28"
-                    value={summaryFilter}
-                    onChange={setSummaryFilter}
-                    options={[{ value: "All Time", label: "All Time" }]}
-                  />
-                }
-              >
+              <PortalCard title="Financial Summary" subtitle="(All Time)">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2 select-none text-left">
                   <div className="flex flex-col">
                     <span className="text-2xs text-gray-400 font-bold uppercase tracking-tight">
@@ -118,13 +117,6 @@ export const Financials = () => {
                             minimumFractionDigits: 2,
                           })}
                     </span>
-                    <Button
-                      variant="link"
-                      className="text-2xs font-bold text-status-info hover:underline text-left mt-2.5"
-                      onClick={comingSoon}
-                    >
-                      View Breakdown
-                    </Button>
                   </div>
 
                   <div className="flex flex-col border-l border-card-border pl-4">
@@ -139,13 +131,6 @@ export const Financials = () => {
                             minimumFractionDigits: 2,
                           })}
                     </span>
-                    <Button
-                      variant="link"
-                      className="text-2xs font-bold text-status-info hover:underline text-left mt-2.5"
-                      onClick={comingSoon}
-                    >
-                      View Breakdown
-                    </Button>
                   </div>
 
                   <div className="flex flex-col border-l border-card-border pl-4">
@@ -174,13 +159,6 @@ export const Financials = () => {
                             minimumFractionDigits: 2,
                           })}
                     </span>
-                    <Button
-                      variant="link"
-                      className="text-2xs font-bold text-status-info hover:underline text-left mt-2.5"
-                      onClick={comingSoon}
-                    >
-                      View Year to Date
-                    </Button>
                   </div>
                 </div>
               </PortalCard>
@@ -235,16 +213,8 @@ export const Financials = () => {
             <div className="lg:col-span-5 flex flex-col gap-6">
               <PortalCard
                 title="Income vs Expenses"
+                subtitle="(Last 6 Months)"
                 className="h-full"
-                headerActions={
-                  <Dropdown
-                    size="sm"
-                    className="w-28"
-                    value={chartFilter}
-                    onChange={setChartFilter}
-                    options={[{ value: "Last 6 Months", label: "Last 6 Months" }]}
-                  />
-                }
               >
                 {/* Legend */}
                 <div className="flex gap-4 justify-end text-2xs font-semibold text-status-muted select-none">
@@ -324,20 +294,23 @@ export const Financials = () => {
               <PortalCard
                 title="Recent Transactions"
                 headerActions={
-                  <div className="flex items-center gap-4 text-2xs font-extrabold text-brand-primary">
+                  <div className="flex items-center gap-3 text-2xs font-extrabold text-brand-primary">
+                    <Dropdown
+                      size="sm"
+                      className="w-28"
+                      value={typeFilter}
+                      onChange={setTypeFilter}
+                      options={[
+                        { value: "All", label: "All Types" },
+                        { value: "Income", label: "Income" },
+                        { value: "Expense", label: "Expenses" },
+                      ]}
+                    />
                     <Button
                       variant="icon-only"
                       size="sm"
                       className="flex items-center gap-1 cursor-pointer hover:underline"
-                      onClick={comingSoon}
-                    >
-                      <Filter size={11} /> Filters
-                    </Button>
-                    <Button
-                      variant="icon-only"
-                      size="sm"
-                      className="flex items-center gap-1 cursor-pointer hover:underline"
-                      onClick={comingSoon}
+                      onClick={exportTransactionsCsv}
                     >
                       <Download size={11} /> Download
                     </Button>
@@ -355,16 +328,19 @@ export const Financials = () => {
                         <th className="py-3 px-2">Type</th>
                         <th className="py-3 px-2">Amount</th>
                         <th className="py-3 px-2">Balance</th>
-                        <th className="py-3 px-2 text-center"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50 text-xs-portal">
-                      {loading || transactions.length === 0 ? (
+                      {loading || filteredTransactions.length === 0 ? (
                         <TableEmptyState
-                          colSpan={7}
+                          colSpan={6}
                           loading={loading}
                           loadingText="Loading transactions..."
-                          emptyText="No transactions recorded."
+                          emptyText={
+                            transactions.length === 0
+                              ? "No transactions recorded."
+                              : "No transactions match the selected filter."
+                          }
                         />
                       ) : (
                         paginatedTransactions.map((tr, index) => {
@@ -440,17 +416,6 @@ export const Financials = () => {
                               <td className="py-3 px-2 font-bold font-mono text-brand-primary">
                                 £{tr.balance.toFixed(2)}
                               </td>
-
-                              <td className="py-3 px-2 text-center text-sidebar-text-muted">
-                                <Button
-                                  variant="icon-only"
-                                  size="sm"
-                                  className="p-1 hover:text-brand-primary rounded cursor-pointer"
-                                  onClick={comingSoon}
-                                >
-                                  <MoreVertical size={14} />
-                                </Button>
-                              </td>
                             </tr>
                           );
                         })
@@ -463,7 +428,7 @@ export const Financials = () => {
                   currentPage={currentPage}
                   totalPages={totalPages}
                   onPageChange={setCurrentPage}
-                  totalItems={transactions.length}
+                  totalItems={filteredTransactions.length}
                   pageSize={pageSize}
                 />
               </PortalCard>
@@ -482,10 +447,21 @@ export const Financials = () => {
                     <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider leading-none">
                       Statement Period
                     </span>
-                    <div className="flex items-center justify-between border border-card-border rounded-card p-3 text-xs-portal font-bold text-brand-primary select-none card-bg cursor-pointer hover:border-gray-300">
-                      <span>{statementPeriod}</span>
-                      <Calendar size={14} className="text-gray-400" />
-                    </div>
+                    {statements.length > 0 ? (
+                      <Dropdown
+                        value={selectedStatementId}
+                        onChange={setStatementChoice}
+                        options={statements.map((s) => ({
+                          value: s.id,
+                          label: s.period,
+                        }))}
+                      />
+                    ) : (
+                      <div className="flex items-center justify-between border border-card-border rounded-card p-3 text-xs-portal font-bold text-gray-400 select-none card-bg">
+                        <span>No statements yet</span>
+                        <Calendar size={14} className="text-gray-400" />
+                      </div>
+                    )}
                   </div>
 
                   <Button
@@ -494,7 +470,8 @@ export const Financials = () => {
                     icon={Download}
                     iconPosition="right"
                     className="w-full"
-                    onClick={comingSoon}
+                    disabled={statements.length === 0}
+                    onClick={handleDownloadSelectedStatement}
                   >
                     Download Statement
                   </Button>
@@ -502,18 +479,7 @@ export const Financials = () => {
               </PortalCard>
 
               {/* Invoice Summary */}
-              <PortalCard
-                title="Invoice Summary"
-                headerActions={
-                  <Dropdown
-                    size="sm"
-                    className="w-28"
-                    value={invoiceFilter}
-                    onChange={setInvoiceFilter}
-                    options={[{ value: "All Time", label: "All Time" }]}
-                  />
-                }
-              >
+              <PortalCard title="Invoice Summary" subtitle="(All Time)">
                 <div className="grid grid-cols-2 gap-y-4 gap-x-6 mt-1 pb-4 border-b border-card-border text-left select-none">
                   <div className="flex flex-col">
                     <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider">

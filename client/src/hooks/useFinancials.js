@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { usePropertyContext } from "../context/PropertyContext";
 import { filterByProperty } from "../utilities/propertyFilter";
+import { downloadBlob } from "../utilities/download";
 import { useStatements } from "./useStatements";
 import { useTransactions } from "./useTransactions";
 import { useInvoices } from "./useInvoices";
@@ -19,7 +20,9 @@ import { useInvoices } from "./useInvoices";
  * icon and colour for each row are presentation and are derived in the page.
  */
 
-const TABS = ["Overview", "Transactions", "Statements", "Payouts", "Invoices"];
+// Only tabs with real content — Transactions live on Overview and Statements
+// have their own page in the nav.
+const TABS = ["Overview", "Invoices"];
 const PAGE_SIZE = 10;
 
 const CATEGORY_BY_TYPE = {
@@ -54,6 +57,7 @@ export const useFinancials = () => {
     statements,
     loading: statementsLoading,
     error,
+    handleDownloadPDF: handleDownloadStatementPDF,
   } = useStatements();
   const { transactions: apiTransactions, loading: transactionsLoading } =
     useTransactions();
@@ -63,17 +67,19 @@ export const useFinancials = () => {
 
   const [activeTab, setActiveTab] = useState("Overview");
   const [currentPage, setCurrentPage] = useState(1);
+  const [typeFilter, setTypeFilter] = useState("All");
 
-  // Reset to the first page when the property or tab changes. Done *during
-  // render* by comparing against the previous values — React's recommended
-  // alternative to a setState-in-useEffect for this kind of derived reset
-  // (avoids the extra render pass; see react.dev "You Might Not Need an Effect").
-  const [prevReset, setPrevReset] = useState({ selectedProperty, activeTab });
+  // Reset to the first page when the property, tab or filter changes. Done
+  // *during render* by comparing against the previous values — React's
+  // recommended alternative to a setState-in-useEffect for this kind of derived
+  // reset (avoids the extra render pass; see react.dev "You Might Not Need an Effect").
+  const [prevReset, setPrevReset] = useState({ selectedProperty, activeTab, typeFilter });
   if (
     prevReset.selectedProperty !== selectedProperty ||
-    prevReset.activeTab !== activeTab
+    prevReset.activeTab !== activeTab ||
+    prevReset.typeFilter !== typeFilter
   ) {
-    setPrevReset({ selectedProperty, activeTab });
+    setPrevReset({ selectedProperty, activeTab, typeFilter });
     setCurrentPage(1);
   }
 
@@ -200,14 +206,38 @@ export const useFinancials = () => {
     [scopedInvoices],
   );
 
-  const totalPages = Math.ceil(transactions.length / PAGE_SIZE);
+  // The header type filter (All / Income / Expense) narrows the table rows.
+  const filteredTransactions = useMemo(
+    () =>
+      typeFilter === "All"
+        ? transactions
+        : transactions.filter((r) => r.type === typeFilter),
+    [transactions, typeFilter],
+  );
+
+  // Client-side CSV export of the (filtered) transaction rows.
+  const exportTransactionsCsv = () => {
+    const escapeCell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const header = ["Date", "Description", "Detail", "Category", "Type", "Amount", "Balance"];
+    const lines = [header.join(",")].concat(
+      filteredTransactions.map((r) =>
+        [r.date, r.desc, r.detail, r.category, r.type, r.amount.toFixed(2), r.balance.toFixed(2)]
+          .map(escapeCell)
+          .join(","),
+      ),
+    );
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    downloadBlob(blob, "ROCA_Transactions.csv");
+  };
+
+  const totalPages = Math.ceil(filteredTransactions.length / PAGE_SIZE);
   const paginatedTransactions = useMemo(
     () =>
-      transactions.slice(
+      filteredTransactions.slice(
         (currentPage - 1) * PAGE_SIZE,
         currentPage * PAGE_SIZE,
       ),
-    [transactions, currentPage],
+    [filteredTransactions, currentPage],
   );
 
   return {
@@ -216,12 +246,19 @@ export const useFinancials = () => {
     invoiceStats,
     invoiceRows,
     handleDownloadInvoicePDF: handleDownloadPDF,
+    statements: scopedStatements,
+    handleDownloadStatementPDF,
     transactions,
+    filteredTransactions,
     paginatedTransactions,
+    exportTransactionsCsv,
     chartData,
     chartMax,
     loading,
     error,
+    // filters
+    typeFilter,
+    setTypeFilter,
     // tabs
     tabs: TABS,
     activeTab,

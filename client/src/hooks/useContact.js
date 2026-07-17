@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useToast } from '../components/UI/ToastContext';
+import api from '../utilities/api';
 
 export function useContact() {
   const [formData, setFormData] = useState({
@@ -62,9 +63,8 @@ export function useContact() {
 
     setSubmitting(true);
     try {
-      // Simulate API submit delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      addToast('Message sent successfully! We will contact you soon.', 'success');
+      const res = await api.post('/contact', formData);
+      addToast(res.data?.message || 'Message sent successfully! We will contact you soon.', 'success');
       setFormData({
         firstName: '',
         lastName: '',
@@ -77,7 +77,11 @@ export function useContact() {
       });
       setErrors({});
     } catch (err) {
-      addToast('Failed to send message. Please try again.', 'error');
+      const fieldErrors = err.response?.data?.errors;
+      if (Array.isArray(fieldErrors)) {
+        setErrors(fieldErrors.reduce((acc, e) => ({ ...acc, [e.field]: e.message }), {}));
+      }
+      addToast(err.response?.data?.message || 'Failed to send message. Please try again.', 'error');
     } finally {
       setSubmitting(false);
     }

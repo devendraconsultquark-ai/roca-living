@@ -1,15 +1,14 @@
+import { useState, useRef } from "react";
 import {
   Users,
   ArrowUpRight,
-  ChevronRight,
   Info,
-  Settings,
-  MoreVertical,
   RefreshCw,
   LogOut,
   Home,
   FileText,
   Check,
+  X,
 } from "lucide-react";
 import { useTenancyLifecycle } from "../hooks/useTenancyLifecycle";
 import { PortalMetricCard } from "../components/UI/PortalMetricCard";
@@ -17,7 +16,13 @@ import { Button } from "../components/UI/Button";
 import { DonutChart } from "../components/UI/DonutChart";
 import { TableEmptyState } from "../components/UI/TableEmptyState";
 import { Skeleton } from "../components/UI/Skeleton";
-import { useToast } from "../components/UI/ToastContext";
+
+const TENANCY_STATUS_CHIPS = {
+  active: "text-status-success bg-status-success-bg border-status-success/15",
+  pending: "text-status-warning bg-status-warning/10 border-status-warning/15",
+  notice: "text-status-info bg-status-info-bg border-status-info/15",
+  ended: "text-status-muted bg-surface-light border-card-border",
+};
 
 export const TenancyLifecycle = () => {
   // All statistics and the upcoming-renewals table are derived in the hook;
@@ -35,11 +40,34 @@ export const TenancyLifecycle = () => {
     moveOutsCount,
     moveOutsPct,
     formattedRenewals,
+    formattedTenancies,
     deposits,
   } = useTenancyLifecycle();
 
-  const { addToast } = useToast();
-  const comingSoon = () => addToast("This feature is coming soon.", "info");
+  // Metric cards filter the tenancies table below and scroll to it.
+  const [lifecycleFilter, setLifecycleFilter] = useState("All");
+  const [renewalDetail, setRenewalDetail] = useState(null);
+  const tenanciesTableRef = useRef(null);
+
+  const applyLifecycleFilter = (value) => {
+    setLifecycleFilter(value);
+    tenanciesTableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const filteredTenancies = formattedTenancies.filter((t) => {
+    switch (lifecycleFilter) {
+      case "Active":
+        return t.isActive;
+      case "Move Ins":
+        return t.isMoveIn;
+      case "Renewals":
+        return t.isRenewal;
+      case "Move Outs":
+        return t.isMoveOut;
+      default:
+        return true;
+    }
+  });
 
   if (loading) {
     return (
@@ -78,15 +106,15 @@ export const TenancyLifecycle = () => {
           icon={Users}
           variant="info"
           actionText="View Tenancies"
-          onActionClick={comingSoon}
+          onActionClick={() => applyLifecycleFilter("Active")}
         />
         <PortalMetricCard
-          label="Move Ins (This Month)"
+          label="Pending Move Ins"
           value={loading ? "..." : pendingMoveInCount}
           icon={ArrowUpRight}
           variant="success"
           actionText="View Move Ins"
-          onActionClick={comingSoon}
+          onActionClick={() => applyLifecycleFilter("Move Ins")}
         />
         <PortalMetricCard
           label="Upcoming Renewals"
@@ -94,15 +122,15 @@ export const TenancyLifecycle = () => {
           icon={RefreshCw}
           variant="warning"
           actionText="View Renewals"
-          onActionClick={comingSoon}
+          onActionClick={() => applyLifecycleFilter("Renewals")}
         />
         <PortalMetricCard
-          label="Move Outs (This Month)"
+          label="Ended Tenancies"
           value={loading ? "..." : moveOutsCount}
           icon={LogOut}
           variant="danger"
           actionText="View Move Outs"
-          onActionClick={comingSoon}
+          onActionClick={() => applyLifecycleFilter("Move Outs")}
         />
       </div>
 
@@ -209,19 +237,94 @@ export const TenancyLifecycle = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left column (9 Columns) */}
         <div className="lg:col-span-8 flex flex-col gap-6">
+          {/* Tenancies Table — filtered by the metric cards above */}
+          <div
+            ref={tenanciesTableRef}
+            className="card-bg border border-card-border rounded-card p-5 shadow-xs flex flex-col overflow-hidden scroll-mt-28"
+          >
+            <div className="flex justify-between items-center pb-3 border-b border-card-border select-none">
+              <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider">
+                {lifecycleFilter === "All"
+                  ? "All Tenancies"
+                  : `Tenancies — ${lifecycleFilter}`}
+              </h3>
+              {lifecycleFilter !== "All" && (
+                <Button
+                  variant="link"
+                  className="text-xs-portal font-bold text-status-info hover:underline cursor-pointer"
+                  onClick={() => setLifecycleFilter("All")}
+                >
+                  View All
+                </Button>
+              )}
+            </div>
+
+            <div className="overflow-x-auto w-full mt-3">
+              <table className="w-full text-left border-collapse text-xs-portal">
+                <thead>
+                  <tr className="border-b border-card-border text-2xs text-gray-400 font-bold uppercase tracking-wider">
+                    <th className="py-3 px-2">Tenancy</th>
+                    <th className="py-3 px-2">Property</th>
+                    <th className="py-3 px-2">Tenant</th>
+                    <th className="py-3 px-2">Start Date</th>
+                    <th className="py-3 px-2">End Date</th>
+                    <th className="py-3 px-2">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {loading || filteredTenancies.length === 0 ? (
+                    <TableEmptyState
+                      colSpan={6}
+                      loading={loading}
+                      loadingText="Loading tenancies..."
+                      emptyText={
+                        formattedTenancies.length === 0
+                          ? "No tenancies found."
+                          : "No tenancies in this stage."
+                      }
+                    />
+                  ) : (
+                    filteredTenancies.map((row, idx) => (
+                      <tr
+                        key={idx}
+                        className="hover:bg-surface-light/50 transition-colors"
+                      >
+                        <td className="py-3 px-2 font-bold text-brand-primary">
+                          {row.ref}
+                        </td>
+                        <td className="py-3 px-2 text-status-muted font-semibold">
+                          {row.property}
+                        </td>
+                        <td className="py-3 px-2 font-semibold text-status-muted">
+                          {row.tenant}
+                        </td>
+                        <td className="py-3 px-2 font-semibold text-brand-primary">
+                          {row.start}
+                        </td>
+                        <td className="py-3 px-2 font-semibold text-brand-primary">
+                          {row.end}
+                        </td>
+                        <td className="py-3 px-2">
+                          <span
+                            className={`px-2 py-0.5 text-2xs font-bold rounded-sm border select-none inline-block capitalize ${TENANCY_STATUS_CHIPS[row.status] || TENANCY_STATUS_CHIPS.ended}`}
+                          >
+                            {row.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           {/* Upcoming Renewals Table */}
           <div className="card-bg border border-card-border rounded-card p-5 shadow-xs flex flex-col justify-between overflow-hidden min-h-[300px]">
             <div className="flex justify-between items-center pb-3 border-b border-card-border select-none">
               <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider">
                 Upcoming Renewals
               </h3>
-              <Button
-                variant="link"
-                className="text-xs-portal font-bold text-status-info hover:underline cursor-pointer"
-                onClick={comingSoon}
-              >
-                View All Renewals
-              </Button>
             </div>
 
             <div className="overflow-x-auto w-full mt-3">
@@ -274,17 +377,9 @@ export const TenancyLifecycle = () => {
                             <Button
                               variant="secondary"
                               className="!py-0.5 !px-2.5 text-2xs font-bold card-bg"
-                              onClick={comingSoon}
+                              onClick={() => setRenewalDetail(row)}
                             >
                               Review Renewal
-                            </Button>
-                            <Button
-                              variant="icon-only"
-                              size="sm"
-                              className="p-0.5 text-sidebar-text-muted hover:text-brand-primary cursor-pointer"
-                              onClick={comingSoon}
-                            >
-                              <MoreVertical size={13} />
                             </Button>
                           </div>
                         </td>
@@ -298,16 +393,8 @@ export const TenancyLifecycle = () => {
             {/* Footer */}
             <div className="border-t border-card-border pt-4 mt-4 flex justify-between items-center select-none text-xs-portal text-gray-400 font-bold">
               <span>
-                Showing 1 to {formattedRenewals.length} of {renewalsCount}{" "}
-                renewals
+                Showing {formattedRenewals.length} of {renewalsCount} renewals
               </span>
-              <Button
-                variant="link"
-                className="text-xs-portal font-bold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
-                onClick={comingSoon}
-              >
-                View All Renewals <ChevronRight size={12} />
-              </Button>
             </div>
           </div>
 
@@ -380,13 +467,6 @@ export const TenancyLifecycle = () => {
               </div>
             </div>
 
-            <Button
-              variant="link"
-              className="text-xs-portal font-bold text-status-info hover:underline text-left mt-2 flex items-center gap-0.5 cursor-pointer"
-              onClick={comingSoon}
-            >
-              View Full Report <ChevronRight size={10} />
-            </Button>
           </div>
 
           {/* Deposit Protection */}
@@ -430,41 +510,92 @@ export const TenancyLifecycle = () => {
             </div>
           </div>
 
-          {/* Tasks & Actions */}
-          <div className="card-bg border border-card-border rounded-card p-5 shadow-xs flex flex-col gap-4">
-            <div className="flex justify-between items-baseline border-b border-card-border pb-2">
-              <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider">
-                Tasks & Actions
-              </h3>
-              <Button
-                variant="link"
-                className="text-xs-portal font-bold text-status-info hover:underline cursor-pointer"
-                onClick={comingSoon}
-              >
-                View All Tasks
-              </Button>
-            </div>
-
-            <div className="flex flex-col gap-3 mt-1">
-              <div className="text-xs-portal text-gray-400 font-semibold py-2">
-                No pending tasks or actions
-              </div>
-            </div>
-          </div>
-
-          {/* Tenancy Lifecycle Settings */}
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={Settings}
-            iconPosition="left"
-            className="w-full font-bold card-bg text-xs-portal h-9"
-            onClick={comingSoon}
-          >
-            Tenancy Lifecycle Settings
-          </Button>
         </div>
       </div>
+
+      {/* Renewal review modal */}
+      {renewalDetail && (
+        <div className="fixed inset-0 bg-brand-primary/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="card-bg rounded-card p-6 w-full max-w-lg shadow-premium border border-card-border max-h-[90vh] overflow-y-auto text-left">
+            <div className="flex justify-between items-center mb-1">
+              <h3 className="text-base-portal font-bold text-brand-primary">
+                Tenancy Renewal
+              </h3>
+              <button
+                onClick={() => setRenewalDetail(null)}
+                className="text-gray-400 hover:text-brand-primary cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <p className="text-2xs text-gray-400 font-semibold mb-4">
+              {renewalDetail.tenancy} • {renewalDetail.property}
+            </p>
+
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-xs-portal mb-4">
+              <div className="flex flex-col">
+                <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider">
+                  Tenant
+                </span>
+                <span className="font-bold text-brand-primary mt-1">
+                  {renewalDetail.tenant}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider">
+                  Monthly Rent
+                </span>
+                <span className="font-bold text-brand-primary mt-1 font-mono">
+                  {renewalDetail.rent != null
+                    ? `£${renewalDetail.rent.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                    : "—"}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider">
+                  Tenancy Started
+                </span>
+                <span className="font-bold text-brand-primary mt-1">
+                  {renewalDetail.startDate}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider">
+                  Current Term Ends
+                </span>
+                <span className="font-bold text-brand-primary mt-1">
+                  {renewalDetail.date}{" "}
+                  <span className="text-status-warning">({renewalDetail.countdown})</span>
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider">
+                  Deposit
+                </span>
+                <span className="font-bold text-brand-primary mt-1">
+                  {renewalDetail.depositStatus}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-2xs text-gray-400 font-semibold leading-relaxed mb-5">
+              Renewals are arranged by your property manager. If you would like
+              to renew, change the terms, or end this tenancy, contact your
+              property manager before the current term ends.
+            </p>
+
+            <div className="flex justify-end">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setRenewalDetail(null)}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

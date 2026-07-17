@@ -128,15 +128,14 @@ export const login = catchAsync(async (req, res, next) => {
       logger.error(`Error building login alert email: ${emailErr.message}`);
     }
 
+    // Return the same full payload as GET /auth/me so the frontends don't
+    // render blank profile fields until the next page reload.
+    const payload = await getUserPayload(user.id, user.role);
+
     res.json({
         success: true,
         message: "Login successful",
-        data: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role
-        }
+        data: payload
     });
 });
 

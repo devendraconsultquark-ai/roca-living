@@ -21,7 +21,6 @@ import { TableEmptyState } from "../components/UI/TableEmptyState";
 import { DonutChart } from "../components/UI/DonutChart";
 import { StatusPill } from "../components/UI/StatusPill";
 import { Skeleton } from "../components/UI/Skeleton";
-import { useToast } from "../components/UI/ToastContext";
 import { usePropertyContext } from "../context/PropertyContext";
 import { filterByProperty } from "../utilities/propertyFilter";
 
@@ -47,8 +46,6 @@ export const Maintenance = () => {
     handleSubmitIssue,
     getTicketImages,
   } = useMaintenance();
-  const { addToast } = useToast();
-  const comingSoon = () => addToast("This feature is coming soon.", "info");
 
   // Report-issue modal
   const [isReportOpen, setIsReportOpen] = useState(false);
@@ -580,34 +577,6 @@ export const Maintenance = () => {
               </div>
             </div>
 
-            <Button
-              variant="link"
-              className="text-xs-portal font-bold text-status-info hover:underline text-left mt-2 flex items-center gap-0.5 cursor-pointer"
-              onClick={comingSoon}
-            >
-              View Full Report <ChevronRight size={10} />
-            </Button>
-          </div>
-
-          {/* Top Maintenance Categories */}
-          <div className="card-bg border border-card-border rounded-card p-5 shadow-xs flex flex-col gap-4">
-            <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider pb-2 border-b border-card-border">
-              Top Maintenance Categories
-            </h3>
-
-            <div className="flex flex-col gap-3 mt-1">
-              <div className="text-xs-portal text-gray-400 font-semibold py-2">
-                No category data available
-              </div>
-            </div>
-
-            <Button
-              variant="link"
-              className="text-xs-portal font-bold text-status-info hover:underline text-left mt-1 flex items-center gap-0.5 cursor-pointer"
-              onClick={comingSoon}
-            >
-              View All Categories <ChevronRight size={10} />
-            </Button>
           </div>
 
           {/* Need to Report an Issue? */}

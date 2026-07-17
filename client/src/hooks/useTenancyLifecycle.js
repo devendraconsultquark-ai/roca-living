@@ -54,6 +54,35 @@ export const useTenancyLifecycle = () => {
         date: t.end_date ? new Date(t.end_date).toLocaleDateString('en-GB') : '—',
         countdown: `In ${diffDays} Days`,
         statusColor: 'text-status-warning bg-status-warning/10 border-status-warning/15',
+        rent: t.rent_pcm != null ? parseFloat(t.rent_pcm) : null,
+        startDate: t.start_date ? new Date(t.start_date).toLocaleDateString('en-GB') : '—',
+        depositStatus: t.deposit_registered_at || t.deposit_status === 'registered'
+          ? 'Registered'
+          : t.deposit_amount != null
+            ? 'Pending Registration'
+            : '—',
+      };
+    });
+
+    // Full tenancy list for the lifecycle table; each row carries its stage
+    // flags so the metric cards can filter it.
+    const formattedTenancies = scoped.map((t) => {
+      const isMoveIn =
+        t.status === 'pending' || (t.start_date && new Date(t.start_date) > new Date());
+      const endDiff = t.end_date ? new Date(t.end_date) - new Date() : null;
+      const isRenewal = endDiff !== null && endDiff > 0 && endDiff <= 90 * DAY_MS;
+      const isMoveOut = t.status === 'ended' || t.status === 'closed';
+      return {
+        ref: `TEN-${String(t.id).padStart(5, '0')}`,
+        property: t.address_line1 ? `${t.address_line1}, ${t.city}` : `Property #${t.property_id}`,
+        tenant: t.lead_tenant_name || '—',
+        start: t.start_date ? new Date(t.start_date).toLocaleDateString('en-GB') : '—',
+        end: t.end_date ? new Date(t.end_date).toLocaleDateString('en-GB') : '—',
+        status: t.status,
+        isActive: t.status === 'active',
+        isMoveIn,
+        isRenewal,
+        isMoveOut,
       };
     });
 
@@ -104,6 +133,7 @@ export const useTenancyLifecycle = () => {
       moveOutsCount,
       moveOutsPct: pct(moveOutsCount),
       formattedRenewals,
+      formattedTenancies,
     };
   }, [scoped]);
 

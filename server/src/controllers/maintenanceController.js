@@ -482,6 +482,9 @@ export const getTicketImages = catchAsync(async (req, res, next) => {
     data: images.map(img => ({
       id: img.id,
       ticket_id: img.ticket_id,
+      // The user's original filename isn't stored on the row — expose the
+      // stored file's name so viewers get a real label instead of undefined.
+      original_name: img.document_path ? path.basename(img.document_path) : null,
       created_at: img.created_at ? new Date(img.created_at).toISOString() : null
     }))
   });

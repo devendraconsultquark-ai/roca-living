@@ -67,11 +67,40 @@ export const useStatements = () => {
     }
   };
 
+  // Download every statement in `list` (defaults to all loaded statements) as
+  // individual PDFs, with a single start/finish toast instead of one per file.
+  const handleDownloadAll = async (list) => {
+    const items = list ?? statements;
+    if (items.length === 0) {
+      addToast('No statements available to download.', 'info');
+      return;
+    }
+    addToast(`Downloading ${items.length} statement PDF${items.length > 1 ? 's' : ''}...`, 'info');
+    let downloaded = 0;
+    let failed = 0;
+    for (const s of items) {
+      try {
+        const response = await api.get(`/statements/${s.id}/pdf`, { responseType: 'blob' });
+        downloadBlob(response.data, `ROCA_Statement_${String(s.period).replace(/\s+/g, '_')}.pdf`);
+        downloaded++;
+      } catch (err) {
+        console.error(err);
+        failed++;
+      }
+    }
+    if (failed === 0) {
+      addToast(`Downloaded ${downloaded} statement PDF${downloaded > 1 ? 's' : ''}.`, 'success');
+    } else {
+      addToast(`Downloaded ${downloaded}; ${failed} failed.`, 'error');
+    }
+  };
+
   return {
     statements,
     loading,
     error,
     fetchStatements,
-    handleDownloadPDF
+    handleDownloadPDF,
+    handleDownloadAll
   };
 };

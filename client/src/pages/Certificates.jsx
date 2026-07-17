@@ -1,10 +1,10 @@
+import { useNavigate } from "react-router-dom";
 import {
   FileText,
   Calendar,
   AlertCircle,
   ShieldCheck,
   ChevronRight,
-  PlusCircle,
 } from "lucide-react";
 import { PortalMetricCard } from "../components/UI/PortalMetricCard";
 import { Button } from "../components/UI/Button";
@@ -14,9 +14,9 @@ import { TableEmptyState } from "../components/UI/TableEmptyState";
 import { StatusPill } from "../components/UI/StatusPill";
 import { Skeleton } from "../components/UI/Skeleton";
 import { useCertificates } from "../hooks/useCertificates";
-import { useToast } from "../components/UI/ToastContext";
 
 export const Certificates = () => {
+  const navigate = useNavigate();
   // Certificate derivation, filtering, pagination and stats all live in the
   // hook; the page wires the (real-data) filter options and renders.
   const {
@@ -46,9 +46,6 @@ export const Certificates = () => {
     handleViewCertificate,
   } = useCertificates();
 
-  const { addToast } = useToast();
-  const comingSoon = () => addToast("This feature is coming soon.", "info");
-
   const filtersConfig = [
     {
       label: "Filter by Property",
@@ -72,12 +69,6 @@ export const Certificates = () => {
       width: "w-32",
     },
   ];
-
-  const actionConfig = {
-    label: "Request Certificate",
-    icon: PlusCircle,
-    onClick: comingSoon,
-  };
 
   if (loading) {
     return (
@@ -132,7 +123,7 @@ export const Certificates = () => {
           icon={Calendar}
           variant="warning"
           actionText="View Expiring"
-          onActionClick={comingSoon}
+          onActionClick={() => setFilterStatus("Expiring Soon")}
         />
         <PortalMetricCard
           label="Expired"
@@ -149,7 +140,7 @@ export const Certificates = () => {
         {/* Left Side: Table & Filter Ribbon (9 Columns) */}
         <div className="lg:col-span-9 flex flex-col gap-5">
           {/* Ribbon Filters */}
-          <FilterRibbon filters={filtersConfig} action={actionConfig} />
+          <FilterRibbon filters={filtersConfig} />
 
           {/* Table Container Card */}
           <div className="card-bg border border-card-border rounded-card p-5 shadow-xs flex flex-col justify-between overflow-hidden min-h-[300px]">
@@ -321,8 +312,8 @@ export const Certificates = () => {
                   Need a New Certificate?
                 </h4>
                 <p className="text-2xs text-gray-400 font-semibold mt-2.5 leading-relaxed">
-                  Request a new compliance inspection and certification for your
-                  rental property.
+                  Contact your property manager to arrange a new compliance
+                  inspection and certification for your rental property.
                 </p>
               </div>
             </div>
@@ -333,9 +324,9 @@ export const Certificates = () => {
               icon={ChevronRight}
               iconPosition="right"
               className="w-full font-bold card-bg text-xs-portal"
-              onClick={comingSoon}
+              onClick={() => navigate("/support")}
             >
-              Request Inspection
+              Contact Support
             </Button>
           </div>
         </div>

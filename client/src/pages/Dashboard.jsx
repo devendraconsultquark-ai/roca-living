@@ -15,12 +15,9 @@ import { TimelineItem } from "../components/UI/TimelineItem";
 import { Button } from "../components/UI/Button";
 import { Dropdown } from "../components/UI/Dropdown";
 import { Skeleton } from "../components/UI/Skeleton";
-import { useToast } from "../components/UI/ToastContext";
 
 export const Dashboard = () => {
   const navigate = useNavigate();
-  const { addToast } = useToast();
-  const comingSoon = () => addToast("This feature is coming soon.", "info");
 
   // Everything data/derived — financial figures, compliance score, key dates,
   // the activity feed and the alerts list — lives in the hook; this component
@@ -31,25 +28,26 @@ export const Dashboard = () => {
     properties,
     error,
     loading,
-    rentReceived,
-    netIncome,
-    expenditure,
-    deductions,
+    financialsByPeriod,
+    handleDownloadLatestStatement,
     expiredCertifications,
     overallCompliancePct,
+    complianceBreakdown,
     keyDates,
     activities,
     alertsList,
     activeAlertsCount,
   } = useDashboard();
 
-  // Local, ephemeral UI state (the period selector doesn't drive data yet).
-  const [selectedPeriod, setSelectedPeriod] = useState("this_month");
+  // The period selector picks which statement window the financial card shows.
+  const [selectedPeriod, setSelectedPeriod] = useState("latest");
   const periodOptions = [
-    { value: "this_month", label: "This Month" },
-    { value: "last_month", label: "Last Month" },
+    { value: "latest", label: "Latest Statement" },
+    { value: "previous", label: "Previous Statement" },
     { value: "ytd", label: "Year to Date" },
   ];
+  const { rentReceived, netIncome, expenditure, deductions } =
+    financialsByPeriod[selectedPeriod] || financialsByPeriod.latest;
 
   if (loading) {
     return (
@@ -208,35 +206,41 @@ export const Dashboard = () => {
             </div>
             <div className="flex justify-between items-center py-2 border-b border-card-border">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-status-success shrink-0" />
+                <CheckCircle2
+                  className={`w-4 h-4 shrink-0 ${complianceBreakdown.moveIn < 100 ? "text-status-warning" : "text-status-success"}`}
+                />
                 <span className="text-sm-portal font-bold text-brand-primary">
-                  Tenant Compliance
+                  Move-In Compliance
                 </span>
               </div>
               <span className="text-sm-portal font-bold text-brand-primary font-mono">
-                100%
+                {complianceBreakdown.moveIn}%
               </span>
             </div>
             <div className="flex justify-between items-center py-2 border-b border-card-border">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-status-success shrink-0" />
+                <CheckCircle2
+                  className={`w-4 h-4 shrink-0 ${complianceBreakdown.documentation < 100 ? "text-status-warning" : "text-status-success"}`}
+                />
                 <span className="text-sm-portal font-bold text-brand-primary">
                   Documentation Compliance
                 </span>
               </div>
               <span className="text-sm-portal font-bold text-brand-primary font-mono">
-                100%
+                {complianceBreakdown.documentation}%
               </span>
             </div>
             <div className="flex justify-between items-center py-2 border-b border-card-border">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-status-success shrink-0" />
+                <CheckCircle2
+                  className={`w-4 h-4 shrink-0 ${complianceBreakdown.deposit < 100 ? "text-status-warning" : "text-status-success"}`}
+                />
                 <span className="text-sm-portal font-bold text-brand-primary">
                   Deposit Compliance
                 </span>
               </div>
               <span className="text-sm-portal font-bold text-brand-primary font-mono">
-                100%
+                {complianceBreakdown.deposit}%
               </span>
             </div>
           </div>
@@ -247,14 +251,14 @@ export const Dashboard = () => {
               Overall Compliance
             </span>
             <span
-              className={`text-3xl font-extrabold mt-0.5 leading-none ${expiredCertifications > 0 ? "text-status-danger" : "text-status-success"}`}
+              className={`text-3xl font-extrabold mt-0.5 leading-none ${expiredCertifications > 0 || complianceBreakdown.overall < 100 ? "text-status-danger" : "text-status-success"}`}
             >
-              {overallCompliancePct}%
+              {complianceBreakdown.overall}%
             </span>
             <span
-              className={`text-2xs font-bold mt-1 uppercase tracking-wider ${expiredCertifications > 0 ? "text-status-danger" : "text-status-success"}`}
+              className={`text-2xs font-bold mt-1 uppercase tracking-wider ${expiredCertifications > 0 || complianceBreakdown.overall < 100 ? "text-status-danger" : "text-status-success"}`}
             >
-              {expiredCertifications > 0
+              {expiredCertifications > 0 || complianceBreakdown.overall < 100
                 ? "Action Required"
                 : "Fully Compliant"}
             </span>
@@ -360,6 +364,7 @@ export const Dashboard = () => {
               size="sm"
               icon={Download}
               iconPosition="right"
+              onClick={handleDownloadLatestStatement}
             >
               Download Statement
             </Button>
@@ -576,11 +581,11 @@ export const Dashboard = () => {
               variant="light"
               size="sm"
               fullWidth
-              onClick={comingSoon}
+              onClick={() => navigate("/contact")}
               icon={ChevronRight}
               iconPosition="right"
             >
-              Upgrade Now
+              Enquire Now
             </Button>
           </div>
         </div>

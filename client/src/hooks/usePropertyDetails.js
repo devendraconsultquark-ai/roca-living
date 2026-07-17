@@ -6,6 +6,7 @@ import { useInspections } from './useInspections';
 import { useStatements } from './useStatements';
 import { useDocuments } from './useDocuments';
 import { useUtilities } from './useUtilities';
+import { useCertificates } from './useCertificates';
 
 // ── Pure derivation helpers (unit-testable without React) ───────────────────
 
@@ -181,16 +182,18 @@ export const usePropertyDetails = (id) => {
     statements,
     loading: statementsLoading,
     error: statementsError,
+    handleDownloadPDF: handleDownloadStatementPDF,
   } = useStatements();
-  const { documents } = useDocuments();
+  const { documents, handleDownload: handleDownloadDocument } = useDocuments();
   const { utilities } = useUtilities();
+  const { certificatesData, handleViewCertificate } = useCertificates();
 
   const p = useMemo(() => property || {}, [property]);
   const activeT = useMemo(() => p.active_tenancy || null, [p]);
   const propTickets = useMemo(() => p.maintenance_tickets || [], [p]);
 
   const propStatements = useMemo(
-    () => statements.filter((s) => String(s.source_property_id) === String(id)),
+    () => statements.filter((s) => String(s.property_id) === String(id)),
     [statements, id],
   );
 
@@ -258,6 +261,57 @@ export const usePropertyDetails = (id) => {
     [propStatements, propInspections, propTickets, documents, utilities, details.address, p],
   );
 
+  // ── Per-tab view models ────────────────────────────────────────────────────
+
+  // Tenant & Tenancy tab — the active tenancy's full record, render-ready.
+  const tenancy = useMemo(() => {
+    if (!activeT) return null;
+    const isRegistered =
+      !!activeT.deposit_registered_at || activeT.deposit_status === 'registered';
+    return {
+      ref: `TEN-${String(activeT.id).padStart(5, '0')}`,
+      tenant: activeT.lead_tenant_name || '—',
+      start: activeT.start_date ? gb(activeT.start_date) : '—',
+      end: activeT.end_date ? gb(activeT.end_date) : 'Periodic / rolling',
+      rentPcm: activeT.rent_pcm != null ? parseFloat(activeT.rent_pcm) : null,
+      rentFrequency: activeT.rent_frequency || 'monthly',
+      deposit: activeT.deposit_amount != null ? parseFloat(activeT.deposit_amount) : null,
+      depositScheme: activeT.deposit_scheme || '—',
+      depositStatus: isRegistered
+        ? 'Registered'
+        : activeT.deposit_amount != null
+          ? 'Pending Registration'
+          : '—',
+      depositRegisteredAt: activeT.deposit_registered_at
+        ? gb(activeT.deposit_registered_at)
+        : '—',
+      status: activeT.status,
+    };
+  }, [activeT]);
+
+  // Compliance tab — this property's certificates (from the shared hook, which
+  // also owns the view/download handler).
+  const propCertificates = useMemo(
+    () => certificatesData.filter((c) => String(c.property_id) === String(id)),
+    [certificatesData, id],
+  );
+
+  // Utilities & Access tab.
+  const propUtilities = useMemo(
+    () => (utilities || []).filter((u) => String(u.property_id) === String(id)),
+    [utilities, id],
+  );
+
+  // Documents tab — documents reference properties via their `related` label
+  // (a display string like "Apartment 9, Parsons House" or "Tenancy at …").
+  const propDocuments = useMemo(() => {
+    const keys = [p.property_reference, p.name, p.address_line1].filter(Boolean);
+    return (documents || []).filter((d) => {
+      const rel = d.related || '';
+      return keys.some((k) => rel.includes(k));
+    });
+  }, [documents, p]);
+
   return {
     loading: loading || inspectionsLoading || statementsLoading,
     error: propertyError || inspectionsError || statementsError,
@@ -267,5 +321,16 @@ export const usePropertyDetails = (id) => {
     firstOpenTicket,
     nextInspection,
     activities,
+    // tab content + handlers
+    tenancy,
+    propStatements,
+    propTickets,
+    propInspections,
+    propCertificates,
+    propUtilities,
+    propDocuments,
+    handleDownloadStatementPDF,
+    handleDownloadDocument,
+    handleViewCertificate,
   };
 };

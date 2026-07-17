@@ -27,6 +27,7 @@ import invoiceRouter from './src/routes/invoiceRoutes.js';
 import settingsRouter from './src/routes/settingsRoutes.js';
 import previewRouter from './src/routes/previewRoutes.js';
 import transactionRouter from './src/routes/transactionRoutes.js';
+import contactRouter from './src/routes/contactRoutes.js';
 
 
 const app = express();
@@ -128,6 +129,7 @@ app.use('/api/v1/documents', documentRouter);
 app.use('/api/v1/invoices', invoiceRouter);
 app.use('/api/v1/settings', settingsRouter);
 app.use('/api/v1/transactions', transactionRouter);
+app.use('/api/v1/contact', contactRouter);
 
 
 // DEV-ONLY: Live HTML preview for PDF templates — never mounted in production

@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Calendar, Wallet, Clock, Wrench, AlertCircle } from 'lucide-react';
 import api from '../utilities/api';
+import { useToast } from '../components/UI/ToastContext';
+import { downloadBlob } from '../utilities/download';
 import { useProperties } from './useProperties';
 import { useInspections } from './useInspections';
 import { useMaintenance } from './useMaintenance';
@@ -259,8 +261,10 @@ const buildAlerts = ({ expiredCertifications, inspections, quotes, activeTenancy
 
 export const useDashboard = () => {
   const { selectedProperty } = usePropertyContext();
+  const { addToast } = useToast();
   const [statementsList, setStatementsList] = useState([]);
   const [tenanciesList, setTenanciesList] = useState([]);
+  const [checklist, setChecklist] = useState({ landlord: [], property: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -268,11 +272,19 @@ export const useDashboard = () => {
     const fetchDashboardData = async () => {
       setLoading(true);
       try {
-        const stmtRes = await api.get('/statements/my');
+        const [stmtRes, tenancyRes, checklistRes] = await Promise.all([
+          api.get('/statements/my'),
+          api.get('/tenancies/my'),
+          api.get('/landlords/my/checklist').catch(() => null),
+        ]);
         setStatementsList(stmtRes.data.data || []);
-
-        const tenancyRes = await api.get('/tenancies/my');
         setTenanciesList(tenancyRes.data.data || []);
+        if (checklistRes) {
+          setChecklist({
+            landlord: checklistRes.data.data?.landlord || [],
+            property: checklistRes.data.data?.property || [],
+          });
+        }
 
         setError(null);
       } catch (err) {
@@ -331,14 +343,40 @@ export const useDashboard = () => {
   const latestStatement = scopedStatements[0] || null;
   const activeTenancy = scopedTenancies[0] || null;
 
+  // Everything withheld between gross and net (deductions, fees, NRL) is
+  // derived from the gross-to-net gap because the statement generator does not
+  // itemise fee columns (they are always 0.00).
+  const buildFigures = (stmts) => {
+    const rentReceived = stmts.reduce((sum, s) => sum + parseFloat(s.gross_rent || 0), 0);
+    const netIncome = stmts.reduce((sum, s) => sum + parseFloat(s.net_paid || 0), 0);
+    const deductions = stmts.reduce(
+      (sum, s) => sum + parseFloat(s.deductions || 0) + parseFloat(s.nrl_withheld || 0),
+      0,
+    );
+    return {
+      rentReceived,
+      netIncome,
+      deductions,
+      expenditure: stmts.length > 0 ? Math.max(0, rentReceived - netIncome) : 0.0,
+    };
+  };
+
+  // Figures per selectable period — the header dropdown picks one of these.
+  const financialsByPeriod = useMemo(
+    () => ({
+      latest: buildFigures(scopedStatements.slice(0, 1)),
+      previous: buildFigures(scopedStatements.slice(1, 2)),
+      ytd: buildFigures(
+        scopedStatements.filter(
+          (s) => s.period_start && new Date(s.period_start).getFullYear() === new Date().getFullYear(),
+        ),
+      ),
+    }),
+    [scopedStatements],
+  );
+
   // Financial figures derived from the latest statement & tenancy.
-  const rentReceived = latestStatement ? parseFloat(latestStatement.gross_rent || 0) : 0.0;
-  const netIncome = latestStatement ? parseFloat(latestStatement.net_paid || 0) : 0.0;
-  const deductions = latestStatement ? parseFloat(latestStatement.deductions || 0) + parseFloat(latestStatement.nrl_withheld || 0) : 0.0;
-  // Everything withheld between gross and net (deductions, fees, NRL). Derived
-  // from the gross-to-net gap because the statement generator does not itemise
-  // fee columns (they are always 0.00).
-  const expenditure = latestStatement ? Math.max(0, rentReceived - netIncome) : 0.0;
+  const { rentReceived, netIncome, deductions, expenditure } = financialsByPeriod.latest;
 
   const hasActiveTenancy = !!activeTenancy;
   const occupancyPct = hasActiveTenancy ? '100%' : '0%';
@@ -385,6 +423,71 @@ export const useDashboard = () => {
     [scopedProperties],
   );
 
+  // Percentage of checklist items that are complete (or not applicable).
+  const checklistPct = (items) => {
+    const applicable = items.filter((i) => i.applicable !== 0 && i.applicable !== false);
+    if (applicable.length === 0) return 100;
+    const done = applicable.filter(
+      (i) => i.status === 'complete' || i.status === 'not_applicable',
+    ).length;
+    return Math.round((done / applicable.length) * 100);
+  };
+
+  // Real per-area compliance scores replacing the old hardcoded "100%" rows.
+  const complianceBreakdown = useMemo(() => {
+    const scopedPropertyItems = filterByProperty(
+      checklist.property,
+      selectedProperty,
+      (i) => i.property_id,
+    );
+
+    const activeWithDeposit = scopedTenancies.filter(
+      (t) => t.status === 'active' && parseFloat(t.deposit_amount || 0) > 0,
+    );
+    const depositPct =
+      activeWithDeposit.length === 0
+        ? 100
+        : Math.round(
+            (activeWithDeposit.filter((t) => t.deposit_status === 'registered').length /
+              activeWithDeposit.length) *
+              100,
+          );
+
+    const moveInPct = checklistPct(scopedPropertyItems);
+    const documentationPct = checklistPct(checklist.landlord);
+
+    return {
+      property: overallCompliancePct,
+      moveIn: moveInPct,
+      documentation: documentationPct,
+      deposit: depositPct,
+      overall: Math.round(
+        (overallCompliancePct + moveInPct + documentationPct + depositPct) / 4,
+      ),
+    };
+  }, [checklist, scopedTenancies, selectedProperty, overallCompliancePct]);
+
+  // Download the most recent statement's PDF (used by the dashboard card CTA).
+  const handleDownloadLatestStatement = async () => {
+    if (!latestStatement) {
+      addToast('No statements available to download yet.', 'info');
+      return;
+    }
+    try {
+      const response = await api.get(`/statements/${latestStatement.id}/pdf`, {
+        responseType: 'blob',
+      });
+      const period = latestStatement.period_start
+        ? new Date(latestStatement.period_start).toLocaleDateString('en-GB')
+        : latestStatement.id;
+      downloadBlob(response.data, `ROCA_Statement_${String(period).replace(/[/\s]+/g, '_')}.pdf`);
+      addToast('Latest statement downloaded.', 'success');
+    } catch (err) {
+      console.error(err);
+      addToast(err.response?.data?.message || 'Failed to download statement PDF', 'error');
+    }
+  };
+
   const keyDates = useMemo(
     () => buildKeyDates(activeTenancy, scopedInspections),
     [activeTenancy, scopedInspections],
@@ -429,6 +532,8 @@ export const useDashboard = () => {
     netIncome,
     deductions,
     expenditure,
+    financialsByPeriod,
+    handleDownloadLatestStatement,
     // occupancy / gauge (retained for existing consumers)
     hasActiveTenancy,
     occupancyPct,
@@ -444,6 +549,7 @@ export const useDashboard = () => {
     // compliance + view-model lists
     expiredCertifications,
     overallCompliancePct,
+    complianceBreakdown,
     keyDates,
     activities,
     alertsList,

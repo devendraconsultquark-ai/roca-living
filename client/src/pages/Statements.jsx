@@ -7,7 +7,6 @@ import {
   Calendar,
   ChevronRight,
   Info,
-  MoreVertical,
 } from "lucide-react";
 import { PortalCard } from "../components/UI/PortalCard";
 import { PortalMetricCard } from "../components/UI/PortalMetricCard";
@@ -26,10 +25,10 @@ import { filterByProperty } from "../utilities/propertyFilter";
 
 export const Statements = () => {
   const navigate = useNavigate();
-  const { statements, loading, error, handleDownloadPDF } = useStatements();
+  const { statements, loading, error, handleDownloadPDF, handleDownloadAll } =
+    useStatements();
 
   const { addToast } = useToast();
-  const comingSoon = () => addToast("This feature is coming soon.", "info");
 
   const { selectedProperty } = usePropertyContext();
   // Scope to the globally-selected property (no-op when "All Properties").
@@ -90,6 +89,28 @@ export const Statements = () => {
     setAppliedFromDate(fromDate);
     setAppliedToDate(toDate);
     setCurrentPage(1);
+  };
+
+  // Metric-card action: scope the table to the current year so the yearly
+  // totals shown on the card are broken down row by row below.
+  const applyCurrentYearBreakdown = () => {
+    const currentYear = new Date().getFullYear();
+    setFilterPeriod("Current Year");
+    setFromDate(`${currentYear}-01-01`);
+    setToDate(`${currentYear}-12-31`);
+    setAppliedPeriod("Current Year");
+    setAppliedFromDate(`${currentYear}-01-01`);
+    setAppliedToDate(`${currentYear}-12-31`);
+    setCurrentPage(1);
+  };
+
+  const handleDownloadLatest = () => {
+    const latest = scopedStatements[0];
+    if (!latest) {
+      addToast("No statements available to download yet.", "info");
+      return;
+    }
+    handleDownloadPDF(latest.id, latest.period);
   };
 
   // Filter statements dynamically based on applied dates
@@ -175,7 +196,7 @@ export const Statements = () => {
           icon={CirclePoundIcon}
           variant="success"
           actionText="View Breakdown"
-          onActionClick={comingSoon}
+          onActionClick={applyCurrentYearBreakdown}
         />
         <PortalMetricCard
           label="Total Expenses (This Year)"
@@ -187,7 +208,7 @@ export const Statements = () => {
           icon={ArrowDown}
           variant="danger"
           actionText="View Breakdown"
-          onActionClick={comingSoon}
+          onActionClick={applyCurrentYearBreakdown}
         />
         <PortalMetricCard
           label="Net Income (This Year)"
@@ -199,7 +220,7 @@ export const Statements = () => {
           icon={Wallet}
           variant="info"
           actionText="View Breakdown"
-          onActionClick={comingSoon}
+          onActionClick={applyCurrentYearBreakdown}
         />
         <PortalMetricCard
           label="Last Statement"
@@ -207,7 +228,7 @@ export const Statements = () => {
           icon={Calendar}
           variant="warning"
           actionText="Download Statement"
-          onActionClick={comingSoon}
+          onActionClick={handleDownloadLatest}
         />
       </div>
 
@@ -345,14 +366,6 @@ export const Statements = () => {
                                 <span>Download</span>
                                 <Download size={11} className="shrink-0" />
                               </Button>
-                              <Button
-                                variant="icon-only"
-                                size="sm"
-                                className="p-1 hover:text-brand-primary rounded cursor-pointer text-sidebar-text-muted"
-                                onClick={comingSoon}
-                              >
-                                <MoreVertical size={14} />
-                              </Button>
                             </div>
                           </td>
                         </tr>
@@ -469,12 +482,7 @@ export const Statements = () => {
                 icon={Download}
                 iconPosition="right"
                 className="w-full font-bold card-bg text-xs-portal h-9 border border-card-border"
-                onClick={() =>
-                  addToast(
-                    "Downloading all statements as a ZIP file...",
-                    "success",
-                  )
-                }
+                onClick={() => handleDownloadAll(filteredStatements)}
               >
                 Download All
               </Button>

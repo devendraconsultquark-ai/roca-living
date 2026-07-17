@@ -4,13 +4,10 @@ import {
   Mail,
   Phone,
   Shield,
-  Bell,
   Trash,
   Download,
   ChevronRight,
   KeyRound,
-  Wrench,
-  FileText,
   Home,
   Calendar,
   MapPin,
@@ -27,7 +24,6 @@ import { useProfile } from "../hooks/useProfile";
 import { usePropertyContext } from "../context/PropertyContext";
 import { Button } from "../components/UI/Button";
 import { PortalCard } from "../components/UI/PortalCard";
-import { Toggle as ToggleSwitch } from "../components/UI/Toggle";
 
 export const Profile = () => {
   const {
@@ -52,6 +48,17 @@ export const Profile = () => {
 
   const { properties } = usePropertyContext();
 
+  // Each editable card opens independently — editingCard scopes the shared
+  // isEditing flag from the hook to the card whose Edit button was clicked.
+  const [editingCard, setEditingCard] = useState(null);
+  const startEdit = (card) => {
+    setEditingCard(card);
+    setIsEditing(true);
+  };
+  const editingAccount = isEditing && editingCard === "account";
+  const editingPayment = isEditing && editingCard === "payment";
+  const editingTax = isEditing && editingCard === "tax";
+
   const [isEditingPassword, setIsEditingPassword] = useState(false);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -70,13 +77,6 @@ export const Profile = () => {
     }
   };
 
-  // Switch states
-  const [prefPortal, setPrefPortal] = useState(true);
-  const [prefEmail, setPrefEmail] = useState(true);
-  const [prefSms, setPrefSms] = useState(false);
-  const [prefStatements, setPrefStatements] = useState(true);
-  const [prefMaintenance, setPrefMaintenance] = useState(true);
-
   return (
     <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8 font-sans text-brand-primary">
       {/* 2x2 Layout Grid */}
@@ -85,7 +85,7 @@ export const Profile = () => {
         <PortalCard
           title="Account Information"
           headerActions={
-            isEditing ? (
+            editingAccount ? (
               <div className="flex gap-2">
                 <Button
                   variant="ghost"
@@ -110,7 +110,7 @@ export const Profile = () => {
                 variant="ghost"
                 size="sm"
                 className="text-xs-portal font-bold text-status-info hover:underline"
-                onClick={() => setIsEditing(true)}
+                onClick={() => startEdit("account")}
               >
                 Edit
               </Button>
@@ -163,7 +163,7 @@ export const Profile = () => {
                 <span className="text-status-muted font-bold w-24 shrink-0">
                   Full Name
                 </span>
-                {isEditing ? (
+                {editingAccount ? (
                   <input
                     type="text"
                     id="name"
@@ -181,7 +181,7 @@ export const Profile = () => {
                   </span>
                 )}
               </div>
-              {isEditing && errors.name && (
+              {editingAccount && errors.name && (
                 <span className="text-2xs text-status-danger font-bold ml-28 text-left">
                   {errors.name}
                 </span>
@@ -194,7 +194,7 @@ export const Profile = () => {
                 <span className="text-status-muted font-bold w-24 shrink-0">
                   Email Address
                 </span>
-                {isEditing ? (
+                {editingAccount ? (
                   <input
                     type="email"
                     id="email"
@@ -212,7 +212,7 @@ export const Profile = () => {
                   </span>
                 )}
               </div>
-              {isEditing && errors.email && (
+              {editingAccount && errors.email && (
                 <span className="text-2xs text-status-danger font-bold ml-28 text-left">
                   {errors.email}
                 </span>
@@ -225,7 +225,7 @@ export const Profile = () => {
                 <span className="text-status-muted font-bold w-24 shrink-0">
                   Phone Number
                 </span>
-                {isEditing ? (
+                {editingAccount ? (
                   <input
                     type="text"
                     id="phone"
@@ -243,7 +243,7 @@ export const Profile = () => {
                   </span>
                 )}
               </div>
-              {isEditing && errors.phone && (
+              {editingAccount && errors.phone && (
                 <span className="text-2xs text-status-danger font-bold ml-28 text-left">
                   {errors.phone}
                 </span>
@@ -256,7 +256,7 @@ export const Profile = () => {
                 <span className="text-status-muted font-bold w-24 shrink-0">
                   Address
                 </span>
-                {isEditing ? (
+                {editingAccount ? (
                   <input
                     type="text"
                     id="address"
@@ -274,129 +274,13 @@ export const Profile = () => {
                   </span>
                 )}
               </div>
-              {isEditing && errors.address && (
+              {editingAccount && errors.address && (
                 <span className="text-2xs text-status-danger font-bold ml-28 text-left">
                   {errors.address}
                 </span>
               )}
             </div>
           </div>
-        </PortalCard>
-
-        {/* Card 2: Notification Preferences */}
-        <PortalCard
-          title="Notification Preferences"
-          subtitle="Choose how you'd like to receive updates and alerts."
-        >
-          {/* List of Toggles */}
-          <div className="flex flex-col gap-3.5 mt-2 text-xs-portal">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-status-info-bg text-status-info flex items-center justify-center shrink-0">
-                  <Bell size={13} />
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-bold text-brand-primary">
-                    Portal Notifications
-                  </span>
-                  <span className="text-2xs text-gray-400 font-semibold mt-0.5">
-                    Receive notifications within the portal
-                  </span>
-                </div>
-              </div>
-              <ToggleSwitch
-                checked={prefPortal}
-                onChange={() => setPrefPortal(!prefPortal)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between border-t border-card-border pt-3">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-status-success-bg text-status-success flex items-center justify-center shrink-0">
-                  <Mail size={13} />
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-bold text-brand-primary">
-                    Email Notifications
-                  </span>
-                  <span className="text-2xs text-gray-400 font-semibold mt-0.5">
-                    Receive important updates via email
-                  </span>
-                </div>
-              </div>
-              <ToggleSwitch
-                checked={prefEmail}
-                onChange={() => setPrefEmail(!prefEmail)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between border-t border-card-border pt-3">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-                  <Mail size={13} />
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-bold text-brand-primary">
-                    SMS Notifications
-                  </span>
-                  <span className="text-2xs text-gray-400 font-semibold mt-0.5">
-                    Receive urgent alerts via SMS
-                  </span>
-                </div>
-              </div>
-              <ToggleSwitch
-                checked={prefSms}
-                onChange={() => setPrefSms(!prefSms)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between border-t border-card-border pt-3">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
-                  <FileText size={13} />
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-bold text-brand-primary">
-                    Statement Available
-                  </span>
-                  <span className="text-2xs text-gray-400 font-semibold mt-0.5">
-                    Get notified when new statements are ready
-                  </span>
-                </div>
-              </div>
-              <ToggleSwitch
-                checked={prefStatements}
-                onChange={() => setPrefStatements(!prefStatements)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between border-t border-card-border pt-3">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-status-danger-bg text-status-danger flex items-center justify-center shrink-0">
-                  <Wrench size={13} />
-                </div>
-                <div className="flex flex-col">
-                  <span className="font-bold text-brand-primary">
-                    Maintenance Updates
-                  </span>
-                  <span className="text-2xs text-gray-400 font-semibold mt-0.5">
-                    Receive updates about maintenance requests
-                  </span>
-                </div>
-              </div>
-              <ToggleSwitch
-                checked={prefMaintenance}
-                onChange={() => setPrefMaintenance(!prefMaintenance)}
-              />
-            </div>
-          </div>
-
-          <Button
-            variant="link"
-            className="text-xs-portal font-bold text-status-info hover:underline text-left mt-4 flex items-center gap-0.5 cursor-pointer"
-          >
-            Manage Notification Settings <ChevronRight size={10} />
-          </Button>
         </PortalCard>
 
         {/* Card 3: About You */}
@@ -451,7 +335,7 @@ export const Profile = () => {
           title="Payment Details"
           subtitle="Your bank details for receiving payouts."
           headerActions={
-            isEditing ? (
+            editingPayment ? (
               <div className="flex gap-2">
                 <Button
                   variant="ghost"
@@ -476,7 +360,7 @@ export const Profile = () => {
                 variant="ghost"
                 size="sm"
                 className="text-xs-portal font-bold text-status-info hover:underline"
-                onClick={() => setIsEditing(true)}
+                onClick={() => startEdit("payment")}
               >
                 Edit
               </Button>
@@ -508,7 +392,7 @@ export const Profile = () => {
                 <span className="text-status-muted font-bold w-24 shrink-0">
                   Bank Name
                 </span>
-                {isEditing ? (
+                {editingPayment ? (
                   <input
                     type="text"
                     id="bankName"
@@ -530,7 +414,7 @@ export const Profile = () => {
                 <span className="text-status-muted font-bold w-24 shrink-0">
                   Account Name
                 </span>
-                {isEditing ? (
+                {editingPayment ? (
                   <input
                     type="text"
                     id="accountName"
@@ -552,7 +436,7 @@ export const Profile = () => {
                 <span className="text-status-muted font-bold w-24 shrink-0">
                   Account Number
                 </span>
-                {isEditing ? (
+                {editingPayment ? (
                   <input
                     type="text"
                     id="accountNumber"
@@ -574,7 +458,7 @@ export const Profile = () => {
                 <span className="text-status-muted font-bold w-24 shrink-0">
                   Sort Code
                 </span>
-                {isEditing ? (
+                {editingPayment ? (
                   <input
                     type="text"
                     id="sortCode"
@@ -597,7 +481,7 @@ export const Profile = () => {
           title="Tax & Compliance"
           subtitle="Your business and tax compliance details."
           headerActions={
-            isEditing ? (
+            editingTax ? (
               <div className="flex gap-2">
                 <Button
                   variant="ghost"
@@ -622,7 +506,7 @@ export const Profile = () => {
                 variant="ghost"
                 size="sm"
                 className="text-xs-portal font-bold text-status-info hover:underline"
-                onClick={() => setIsEditing(true)}
+                onClick={() => startEdit("tax")}
               >
                 Edit
               </Button>
@@ -636,7 +520,7 @@ export const Profile = () => {
                 <span className="text-status-muted font-bold w-24 shrink-0">
                   Company Name
                 </span>
-                {isEditing ? (
+                {editingTax ? (
                   <input
                     type="text"
                     id="companyName"
@@ -658,7 +542,7 @@ export const Profile = () => {
                 <span className="text-status-muted font-bold w-24 shrink-0">
                   Overseas Landlord
                 </span>
-                {isEditing ? (
+                {editingTax ? (
                   <input
                     type="checkbox"
                     id="isOverseas"
@@ -680,7 +564,7 @@ export const Profile = () => {
                 <span className="text-status-muted font-bold w-24 shrink-0">
                   NRL HMRC Approved
                 </span>
-                {isEditing ? (
+                {editingTax ? (
                   <input
                     type="checkbox"
                     id="nrlHmrcApproved"
@@ -702,7 +586,7 @@ export const Profile = () => {
                 <span className="text-status-muted font-bold w-24 shrink-0">
                   HMRC Reference
                 </span>
-                {isEditing ? (
+                {editingTax ? (
                   <input
                     type="text"
                     id="nrlHmrcRef"

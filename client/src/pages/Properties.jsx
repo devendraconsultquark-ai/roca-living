@@ -9,7 +9,6 @@ import {
   Search,
   Grid,
   List,
-  MoreVertical,
   ChevronRight,
 } from "lucide-react";
 import { usePropertiesPage } from "../hooks/usePropertiesPage";
@@ -41,6 +40,9 @@ export const Properties = () => {
     setActiveFilter,
     searchQuery,
     setSearchQuery,
+    financialSummary,
+    complianceSummary,
+    avgTenancyMonths,
   } = usePropertiesPage();
 
   const [viewMode, setViewMode] = useState("card"); // card | table
@@ -438,14 +440,6 @@ export const Properties = () => {
                   >
                     View Property
                   </Button>
-                  <Button
-                    variant="icon-only"
-                    size="sm"
-                    className="p-1.5 rounded hover:bg-surface-light border border-card-border text-gray-400 hover:text-status-muted cursor-pointer"
-                    p-1
-                  >
-                    <MoreVertical size={16} />
-                  </Button>
                 </div>
               </div>
             ))}
@@ -456,40 +450,42 @@ export const Properties = () => {
       {/* 4. Bottom Grid: Financial, Compliance & Tenancy Summaries */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
         {/* Card 1: Financial Summary */}
-        <PortalCard title="financial summary (this month)">
+        <PortalCard title="financial summary (latest statements)">
           <div className="flex-grow flex flex-col text-xs-portal gap-2.5 mt-2">
             <div className="flex justify-between items-center border-b border-card-border pb-1.5">
               <span className="text-gray-400 font-medium">
                 Monthly Rent Roll
               </span>
               <span className="font-mono font-bold text-brand-primary">
-                £9,540
-              </span>
-            </div>
-            <div className="flex justify-between items-center border-b border-card-border pb-1.5">
-              <span className="text-gray-400 font-medium">Net Income</span>
-              <span className="font-mono font-bold text-brand-primary">
-                £8,145
+                £{monthlyGrossYield.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </span>
             </div>
             <div className="flex justify-between items-center border-b border-card-border pb-1.5">
               <span className="text-gray-400 font-medium">
-                Maintenance Spend
+                Gross Rent Invoiced
               </span>
               <span className="font-mono font-bold text-brand-primary">
-                £620
+                £{financialSummary.grossInvoiced.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+            <div className="flex justify-between items-center border-b border-card-border pb-1.5">
+              <span className="text-gray-400 font-medium">
+                Deductions &amp; Fees
+              </span>
+              <span className="font-mono font-bold text-brand-primary">
+                £{financialSummary.deductions.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </span>
             </div>
             <div className="flex justify-between items-center pb-1">
-              <span className="text-gray-400 font-medium">Management Fees</span>
+              <span className="text-gray-400 font-medium">Net Income</span>
               <span className="font-mono font-bold text-brand-primary">
-                £775
+                £{financialSummary.netIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </span>
             </div>
           </div>
           <div className="mt-auto pt-4 flex items-center">
             <Button
-              onClick={() => navigate("/statements")}
+              onClick={() => navigate("/financials")}
               className="text-xs-portal font-bold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
             >
               View Financials <ChevronRight size={12} />
@@ -505,7 +501,7 @@ export const Properties = () => {
                 Properties Compliant
               </span>
               <span className="font-mono font-bold text-brand-primary">
-                11 (92%)
+                {complianceSummary.compliantCount} ({complianceSummary.compliantPct}%)
               </span>
             </div>
             <div className="flex justify-between items-center border-b border-card-border pb-1.5">
@@ -514,18 +510,20 @@ export const Properties = () => {
               </span>
               <div className="flex items-center gap-1.5">
                 <span className="font-mono font-bold text-status-warning">
-                  2
+                  {complianceSummary.expiringCerts}
                 </span>
-                <span className="text-2xs text-gray-400">Within 60 days</span>
+                <span className="text-2xs text-gray-400">Expiring soon</span>
               </div>
             </div>
             <div className="flex justify-between items-center pb-1">
-              <span className="text-gray-400 font-medium">Inspections Due</span>
+              <span className="text-gray-400 font-medium">
+                Certificates Expired
+              </span>
               <div className="flex items-center gap-1.5">
-                <span className="font-mono font-bold text-status-warning">
-                  3
+                <span className="font-mono font-bold text-status-danger">
+                  {complianceSummary.expiredCerts}
                 </span>
-                <span className="text-2xs text-gray-400">Within 30 days</span>
+                <span className="text-2xs text-gray-400">Need renewal</span>
               </div>
             </div>
           </div>
@@ -545,13 +543,13 @@ export const Properties = () => {
             <div className="flex justify-between items-center border-b border-card-border pb-1.5">
               <span className="text-gray-400 font-medium">Occupied</span>
               <span className="font-mono font-bold text-brand-primary">
-                11 (92%)
+                {occupiedCount} ({occupiedPct}%)
               </span>
             </div>
             <div className="flex justify-between items-center border-b border-card-border pb-1.5">
               <span className="text-gray-400 font-medium">Vacant</span>
               <span className="font-mono font-bold text-brand-primary">
-                1 (8%)
+                {vacantCount} ({vacantPct}%)
               </span>
             </div>
             <div className="flex justify-between items-center pb-1">
@@ -559,13 +557,13 @@ export const Properties = () => {
                 Average Tenancy Length
               </span>
               <span className="font-mono font-bold text-brand-primary">
-                18.6 months
+                {avgTenancyMonths != null ? `${avgTenancyMonths.toFixed(1)} months` : "—"}
               </span>
             </div>
           </div>
           <div className="mt-auto pt-4 flex items-center">
             <Button
-              onClick={() => navigate("/tenancy/overview")}
+              onClick={() => navigate("/tenancy")}
               className="text-xs-portal font-bold text-status-info hover:underline flex items-center gap-0.5 cursor-pointer"
             >
               View Tenancy Lifecycle <ChevronRight size={12} />

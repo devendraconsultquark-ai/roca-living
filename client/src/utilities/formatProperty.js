@@ -18,9 +18,10 @@ export const formatProperty = (p, t = null, openTicketsCount = 0) => {
     // API joined tenancy/compliance details (replaces hardcoded Parsons/Random Street mocks)
     tenant_name: t ? t.lead_tenant_name : '-',
     tenancy_type: t ? 'Assured Shorthold Tenancy' : '-',
-    start_date: t && t.start_date 
-      ? new Date(t.start_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) 
+    start_date: t && t.start_date
+      ? new Date(t.start_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
       : '-',
+    tenancy_start_raw: t && t.start_date ? t.start_date : null,
     next_review: '-', // TODO: backend needs to return next rent review date
     deposit_amount: t && t.deposit_amount ? parseFloat(t.deposit_amount) : 0,
     deposit_status: t ? 'Protected' : '-',

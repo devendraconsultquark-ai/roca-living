@@ -1,12 +1,12 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ClipboardList,
   ShieldCheck,
   Calendar,
   AlertCircle,
-  Plus,
   ChevronRight,
-  MoreVertical,
+  X,
 } from "lucide-react";
 import { useInspections } from "../hooks/useInspections";
 import { PortalMetricCard } from "../components/UI/PortalMetricCard";
@@ -16,14 +16,15 @@ import { Pagination } from "../components/UI/Pagination";
 import { TableEmptyState } from "../components/UI/TableEmptyState";
 import { StatusPill } from "../components/UI/StatusPill";
 import { Skeleton } from "../components/UI/Skeleton";
-import { useToast } from "../components/UI/ToastContext";
 import { usePropertyContext } from "../context/PropertyContext";
 import { filterByProperty } from "../utilities/propertyFilter";
 
 export const Inspections = () => {
+  const navigate = useNavigate();
   const { inspections, loading, error } = useInspections();
-  const { addToast } = useToast();
-  const comingSoon = () => addToast("This feature is coming soon.", "info");
+
+  // Row-level "View Report / View Details" opens this inspection in a modal.
+  const [detailInspection, setDetailInspection] = useState(null);
 
   const { selectedProperty } = usePropertyContext();
   // Scope to the globally-selected property (no-op when "All Properties").
@@ -126,6 +127,11 @@ export const Inspections = () => {
           ? "bg-status-danger-bg text-status-danger"
           : "bg-status-info-bg text-status-info",
       icon: hasBeenCompleted ? ShieldCheck : isOverdue ? AlertCircle : Calendar,
+      rating: i.rating,
+      comments: i.comments,
+      nextDue: i.next_inspection_due
+        ? new Date(i.next_inspection_due).toLocaleDateString("en-GB")
+        : "—",
     };
   });
 
@@ -231,12 +237,6 @@ export const Inspections = () => {
     },
   ];
 
-  const actionConfig = {
-    label: "Schedule Inspection",
-    icon: Plus,
-    onClick: comingSoon,
-  };
-
   if (loading) {
     return (
       <div className="py-6 flex flex-col gap-6 max-w-[1440px] mx-auto px-8">
@@ -307,7 +307,7 @@ export const Inspections = () => {
         {/* Left Side: Table & Filter Ribbon (9 Columns) */}
         <div className="lg:col-span-9 flex flex-col gap-5">
           {/* Ribbon Filters */}
-          <FilterRibbon filters={filtersConfig} action={actionConfig} />
+          <FilterRibbon filters={filtersConfig} />
 
           {/* Table Container Card */}
           <div className="card-bg border border-card-border rounded-card p-5 shadow-xs flex flex-col justify-between overflow-hidden min-h-[300px]">
@@ -391,17 +391,9 @@ export const Inspections = () => {
                               <Button
                                 variant="secondary"
                                 className="!py-0.5 !px-2.5 text-2xs font-bold card-bg"
-                                onClick={comingSoon}
+                                onClick={() => setDetailInspection(row)}
                               >
                                 {row.action}
-                              </Button>
-                              <Button
-                                variant="icon-only"
-                                size="sm"
-                                className="p-0.5 text-sidebar-text-muted hover:text-brand-primary cursor-pointer"
-                                onClick={comingSoon}
-                              >
-                                <MoreVertical size={13} />
                               </Button>
                             </div>
                           </td>
@@ -433,13 +425,6 @@ export const Inspections = () => {
               <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider">
                 Upcoming Inspections
               </h3>
-              <Button
-                variant="link"
-                className="text-xs-portal font-bold text-status-info hover:underline cursor-pointer"
-                onClick={comingSoon}
-              >
-                View Calendar
-              </Button>
             </div>
             <div className="flex flex-col gap-3">
               {loading ? (
@@ -488,7 +473,7 @@ export const Inspections = () => {
               variant="secondary"
               size="sm"
               className="w-full font-bold card-bg text-xs-portal mt-1"
-              onClick={comingSoon}
+              onClick={() => setFilterStatus("Scheduled")}
             >
               View All Scheduled
             </Button>
@@ -503,7 +488,7 @@ export const Inspections = () => {
               <Button
                 variant="link"
                 className="text-xs-portal font-bold text-status-info hover:underline cursor-pointer"
-                onClick={comingSoon}
+                onClick={() => setFilterStatus("Overdue")}
               >
                 View All
               </Button>
@@ -564,7 +549,8 @@ export const Inspections = () => {
                   Need to Schedule an Inspection?
                 </h4>
                 <p className="text-2xs text-gray-400 font-semibold mt-2.5 leading-relaxed">
-                  Schedule a new inspection for your property or communal areas.
+                  Contact your property manager to arrange an inspection for
+                  your property or communal areas.
                 </p>
               </div>
             </div>
@@ -575,13 +561,100 @@ export const Inspections = () => {
               icon={ChevronRight}
               iconPosition="right"
               className="w-full font-bold card-bg text-xs-portal"
-              onClick={comingSoon}
+              onClick={() => navigate("/support")}
             >
-              Schedule Inspection
+              Contact Support
             </Button>
           </div>
         </div>
       </div>
+
+      {/* Inspection detail / report modal */}
+      {detailInspection && (
+        <div className="fixed inset-0 bg-brand-primary/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="card-bg rounded-card p-6 w-full max-w-lg shadow-premium border border-card-border max-h-[90vh] overflow-y-auto text-left">
+            <div className="flex justify-between items-center mb-1">
+              <h3 className="text-base-portal font-bold text-brand-primary">
+                {detailInspection.item}
+              </h3>
+              <button
+                onClick={() => setDetailInspection(null)}
+                className="text-gray-400 hover:text-brand-primary cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <p className="text-2xs text-gray-400 font-semibold mb-4">
+              {detailInspection.ref} • {detailInspection.property}
+            </p>
+
+            <div className="flex items-center gap-2 mb-4">
+              <StatusPill
+                status={detailInspection.status}
+                size="sm"
+                rounded="sm"
+                showIcon={false}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-xs-portal mb-4">
+              <div className="flex flex-col">
+                <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider">
+                  Inspector
+                </span>
+                <span className="font-bold text-brand-primary mt-1">
+                  {detailInspection.inspector}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider">
+                  {detailInspection.status === "Completed"
+                    ? "Inspected On"
+                    : "Scheduled For"}
+                </span>
+                <span className="font-bold text-brand-primary mt-1">
+                  {detailInspection.date}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider">
+                  Rating
+                </span>
+                <span className="font-bold text-brand-primary mt-1">
+                  {detailInspection.rating || "—"}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider">
+                  Next Inspection Due
+                </span>
+                <span className="font-bold text-brand-primary mt-1">
+                  {detailInspection.nextDue}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col mb-5">
+              <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider">
+                Inspector Notes
+              </span>
+              <p className="text-xs-portal font-semibold text-brand-primary mt-1.5 leading-relaxed whitespace-pre-wrap">
+                {detailInspection.comments}
+              </p>
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setDetailInspection(null)}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

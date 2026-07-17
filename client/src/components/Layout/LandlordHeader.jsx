@@ -1,6 +1,6 @@
 import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Menu, Bell, MessageCircle, User } from "lucide-react";
+import { Menu, User } from "lucide-react";
 import { PropertyDropdown } from "./PropertyDropdown";
 import { usePropertyContext } from "../../context/PropertyContext";
 import { Button } from "../UI/Button";
@@ -8,7 +8,7 @@ import { Button } from "../UI/Button";
 export const LandlordHeader = ({ setMobileMenuOpen }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { selectedProperty } = usePropertyContext();
+  const { selectedProperty, properties } = usePropertyContext();
 
   const getHeaderDetails = () => {
     const path = location.pathname;
@@ -19,20 +19,43 @@ export const LandlordHeader = ({ setMobileMenuOpen }) => {
           ? "All Properties Overview"
           : selectedProperty?.name ||
             selectedProperty?.address_line1 ||
-            "Apartment 19, Parsons House";
+            "Dashboard";
+
+      // Live indicators derived from the loaded portfolio (or the selected
+      // property) rather than hardcoded claims.
+      const props = properties || [];
+      let occupancy;
+      let compliancePct;
+      if (selectedProperty === "all" || !selectedProperty) {
+        const occupiedCount = props.filter((p) => p.status === "let").length;
+        occupancy = {
+          text: `${occupiedCount}/${props.length} Occupied`,
+          variant: occupiedCount === props.length && props.length > 0 ? "success" : "info",
+        };
+        compliancePct =
+          props.length > 0
+            ? Math.round(
+                (props.filter((p) => p.compliance_pct === 100).length / props.length) * 100,
+              )
+            : 100;
+      } else {
+        occupancy = {
+          text: selectedProperty?.status === "let" ? "Occupied" : "Vacant",
+          variant: selectedProperty?.status === "let" ? "success" : "info",
+        };
+        compliancePct = selectedProperty?.compliance_pct ?? 100;
+      }
+
       return {
         title,
         subTitle: "performance overview",
         indicators: [
-          {
-            text:
-              selectedProperty === "all" || selectedProperty?.status === "let"
-                ? "Occupied"
-                : "Vacant",
-            variant: "success",
-          },
+          occupancy,
           { text: "Fully Managed", variant: "info" },
-          { text: "100% Compliant", variant: "success" },
+          {
+            text: `${compliancePct}% Compliant`,
+            variant: compliancePct === 100 ? "success" : "warning",
+          },
         ],
       };
     }
@@ -208,7 +231,9 @@ export const LandlordHeader = ({ setMobileMenuOpen }) => {
                         className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                           ind.variant === "success"
                             ? "bg-status-success"
-                            : "bg-status-info"
+                            : ind.variant === "warning"
+                              ? "bg-status-warning"
+                              : "bg-status-info"
                         }`}
                       />
                       {ind.text}
@@ -227,22 +252,6 @@ export const LandlordHeader = ({ setMobileMenuOpen }) => {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Notifications (with blue count badge) */}
-            <button className="w-11 h-11 rounded-full border border-card-border bg-white text-brand-primary flex items-center justify-center relative hover:border-gray-300 hover:shadow-xs cursor-pointer transition-all duration-150">
-              <Bell size={20} className="text-brand-primary" />
-              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-status-info border-2 border-white text-2xs font-bold text-white flex items-center justify-center">
-                3
-              </span>
-            </button>
-
-            {/* Message Chats (with blue count badge) */}
-            <button className="w-11 h-11 rounded-full border border-card-border bg-white text-brand-primary flex items-center justify-center relative hover:border-gray-300 hover:shadow-xs cursor-pointer transition-all duration-150">
-              <MessageCircle size={20} className="text-brand-primary" />
-              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-status-info border-2 border-white text-2xs font-bold text-white flex items-center justify-center">
-                2
-              </span>
-            </button>
-
             {/* User Profile outline */}
             <button
               onClick={() => navigate("/profile")}

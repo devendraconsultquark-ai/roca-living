@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ShieldCheck,
   AlertCircle,
@@ -7,7 +8,6 @@ import {
   ChevronRight,
   User,
   Building,
-  MoreVertical,
 } from "lucide-react";
 import { PortalMetricCard } from "../components/UI/PortalMetricCard";
 import { Button } from "../components/UI/Button";
@@ -17,9 +17,11 @@ import { TableEmptyState } from "../components/UI/TableEmptyState";
 import { StatusPill } from "../components/UI/StatusPill";
 import { Skeleton } from "../components/UI/Skeleton";
 import { useComplianceOverview } from "../hooks/useComplianceOverview";
-import { useToast } from "../components/UI/ToastContext";
 
 export const ComplianceOverview = () => {
+  const navigate = useNavigate();
+  // Anchor for the ribbon's "Review Compliance Checklist" shortcut.
+  const landlordSectionRef = useRef(null);
   // All data + derivations (certificate lists, compliance stats, tenant
   // compliance rows) live in the hook; this component only renders.
   const {
@@ -33,9 +35,6 @@ export const ComplianceOverview = () => {
     propertyManagement,
     handleViewCertificate,
   } = useComplianceOverview();
-
-  const { addToast } = useToast();
-  const comingSoon = () => addToast("This feature is coming soon.", "info");
 
   // Filter states
   const [filterProperty, setFilterProperty] = useState("All Properties");
@@ -112,7 +111,11 @@ export const ComplianceOverview = () => {
     label: "Review Compliance Checklist",
     icon: ChevronRight,
     iconPosition: "right",
-    onClick: comingSoon,
+    onClick: () =>
+      landlordSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      }),
   };
 
   if (loading) {
@@ -182,7 +185,7 @@ export const ComplianceOverview = () => {
           icon={Calendar}
           variant="warning"
           actionText="View Expiring"
-          onActionClick={comingSoon}
+          onActionClick={() => setFilterStatus("Expiring Soon")}
         />
         <PortalMetricCard
           label="Up to Date"
@@ -285,17 +288,9 @@ export const ComplianceOverview = () => {
                                 <Button
                                   variant="secondary"
                                   className="!py-0.5 !px-2 text-2xs font-bold card-bg"
-                                  onClick={comingSoon}
+                                  onClick={() => navigate("/tenancy")}
                                 >
                                   {row.action}
-                                </Button>
-                                <Button
-                                  variant="icon-only"
-                                  size="sm"
-                                  className="p-0.5 text-sidebar-text-muted hover:text-brand-primary cursor-pointer"
-                                  onClick={comingSoon}
-                                >
-                                  <MoreVertical size={13} />
                                 </Button>
                               </div>
                             </td>
@@ -366,17 +361,9 @@ export const ComplianceOverview = () => {
                                 <Button
                                   variant="secondary"
                                   className="!py-0.5 !px-2 text-2xs font-bold card-bg"
-                                  onClick={comingSoon}
+                                  onClick={() => navigate("/tenancy")}
                                 >
                                   {row.action}
-                                </Button>
-                                <Button
-                                  variant="icon-only"
-                                  size="sm"
-                                  className="p-0.5 text-sidebar-text-muted hover:text-brand-primary cursor-pointer"
-                                  onClick={comingSoon}
-                                >
-                                  <MoreVertical size={13} />
                                 </Button>
                               </div>
                             </td>
@@ -391,7 +378,7 @@ export const ComplianceOverview = () => {
           </div>
 
           {/* RIGHT: Landlord Compliance */}
-          <div className="flex flex-col gap-6">
+          <div ref={landlordSectionRef} className="flex flex-col gap-6 scroll-mt-28">
             {/* Header Panel */}
             <div className="card-bg border border-card-border rounded-card p-5 shadow-xs flex items-center justify-between">
               <div className="flex items-center gap-3.5 min-w-0 text-left">
