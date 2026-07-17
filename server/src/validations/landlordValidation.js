@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { UK_PHONE_REGEX, UK_PHONE_MESSAGE } from "./common.js";
 
 const requiredString = (message) => z.string({
   error: (issue) => issue.input === undefined ? message : "Must be a valid string"
@@ -13,7 +14,7 @@ export const createLandlordSchema = z.object({
     .transform(val => val.toLowerCase()),
 
   phone: requiredString("Phone number is required")
-    .min(5, "Phone number is required"),
+    .regex(UK_PHONE_REGEX, UK_PHONE_MESSAGE),
 
   address: z.string().optional().default(''),
   company_name: z.string().optional(),
@@ -24,6 +25,15 @@ export const createLandlordSchema = z.object({
   nrl_hmrc_ref: z.string().max(100).optional(),
   nrl_withhold_pct: z.number().min(0).max(100).optional(),
   initials: z.string().max(20).optional()
+});
+
+// Partial update — only the identity fields are typed here; everything else
+// (NRL, ToB, ownership, initials…) passes through loose to the controller,
+// which handles its own coercion. looseObject keeps unknown keys intact.
+export const updateLandlordSchema = z.looseObject({
+  name: z.string().min(2, "Name must be at least 2 characters").optional(),
+  email: z.string().email("Invalid email format").optional(),
+  phone: z.string().regex(UK_PHONE_REGEX, UK_PHONE_MESSAGE).optional()
 });
 
 // Columns bank_name/account_name/account_number/sort_code are NOT NULL in
@@ -43,5 +53,9 @@ export const updatePaymentDetailsSchema = z.object({
   sort_code: requiredString("Sort code is required")
     .regex(/^\d{2}-?\d{2}-?\d{2}$/, "Sort code must be in the format 00-00-00"),
 
-  iban_bic: z.string().max(50, "IBAN/BIC is too long").optional().nullable()
+  iban_bic: z.string()
+    .max(50, "IBAN/BIC is too long")
+    .regex(/^[A-Za-z0-9 ]*$/, "IBAN/BIC may only contain letters, numbers and spaces")
+    .optional()
+    .nullable()
 });

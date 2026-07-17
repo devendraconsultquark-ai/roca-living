@@ -193,7 +193,7 @@ export const ComplianceOverview = () => {
           icon={CheckCircle2}
           variant="info"
           actionText="View All"
-          onActionClick={() => setFilterStatus("Valid")}
+          onActionClick={() => setFilterStatus("Compliant")}
         />
       </div>
 

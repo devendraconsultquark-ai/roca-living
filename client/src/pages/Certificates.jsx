@@ -115,7 +115,7 @@ export const Certificates = () => {
           icon={ShieldCheck}
           variant="success"
           actionText="View Compliant"
-          onActionClick={() => setFilterStatus("Valid")}
+          onActionClick={() => setFilterStatus("Compliant")}
         />
         <PortalMetricCard
           label="Expiring Soon"

@@ -135,7 +135,7 @@ export const Dashboard = () => {
                   </span>
                   <span className="text-sm-portal font-bold text-brand-primary mt-1.5 leading-none">
                     {activeTenancy?.rent_pcm
-                      ? `£${parseFloat(activeTenancy.rent_pcm).toFixed(0)}`
+                      ? `£${parseFloat(activeTenancy.rent_pcm).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                       : "—"}
                   </span>
                   <span className="text-2xs text-gray-400 mt-1 leading-none">
@@ -148,7 +148,7 @@ export const Dashboard = () => {
                   </span>
                   <span className="text-sm-portal font-bold text-brand-primary mt-1.5 leading-none">
                     {activeTenancy?.deposit_amount
-                      ? `£${parseFloat(activeTenancy.deposit_amount).toFixed(0)}`
+                      ? `£${parseFloat(activeTenancy.deposit_amount).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                       : "—"}
                   </span>
                   <span className="text-2xs text-gray-400 mt-1 leading-none">

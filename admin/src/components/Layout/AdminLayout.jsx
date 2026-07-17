@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Home, Calendar, UserCheck, ShieldAlert,
@@ -20,8 +20,8 @@ const HEADERS = {
   tenants: { title: 'Tenants CRM', subtitle: 'Manage tenant communications, contact directory, and ledger account balances.' },
   agents: { title: 'Letting Agents', subtitle: 'Review internal staff portfolios, active roles, branches, and client managers.' },
   accounting: { title: 'Accounting Hub', subtitle: 'Manage, reconcile, and audit the financial statements and cashflows.' },
-  statements: { title: 'Landlord Statements Library', subtitle: 'Audit, export, and review statements issued to landlord partners.' },
-  invoices: { title: 'Landlord Invoices', subtitle: 'Audit, export, and manage service charge invoices issued to landlord partners.' },
+  statements: { title: 'Landlord Statements Library', subtitle: 'Audit, export, and review statements issued to landlords.' },
+  invoices: { title: 'Landlord Invoices', subtitle: 'Audit, export, and manage service charge invoices issued to landlords.' },
   maintenance: { title: 'Maintenance Board', subtitle: 'Drag and drop tickets to manage their progress lifecycle.' },
   contractors: { title: 'Contractors Directory', subtitle: 'Review contact records, active insurance statuses, and ratings of maintenance contractors.' },
   deposits: { title: 'Deposit Protection', subtitle: 'Track deposit scheme registrations and outstanding protection deadlines.' },

@@ -255,21 +255,15 @@ export const Properties = () => {
       sortable: true,
       renderCell: (row) => {
         const rentVal = typeof row.rent === 'number' ? row.rent : parseFloat(row.rent);
-        return rentVal !== null && rentVal !== undefined && !isNaN(rentVal) && rentVal > 0 
-          ? `£${rentVal.toFixed(2)}` 
+        return rentVal !== null && rentVal !== undefined && !isNaN(rentVal) && rentVal > 0
+          ? `£${rentVal.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
           : '-';
       }
     },
     { 
       header: 'Tenancy Status', 
       accessor: 'status',
-      renderCell: (row) => {
-        let pillStatus = 'draft';
-        if (row.status === 'let') pillStatus = 'active';
-        else if (row.status === 'vacant') pillStatus = 'pending';
-        else if (row.status === 'onboarding') pillStatus = 'draft';
-        return <StatusPill status={pillStatus} />;
-      }
+      renderCell: (row) => <StatusPill status={row.status} />
     },
     {
       header: 'Gas Certificate',

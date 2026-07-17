@@ -115,6 +115,12 @@ export const useFinancials = () => {
     const sum = (key) =>
       scopedStatements.reduce((acc, s) => acc + (s[key] || 0), 0);
     const netPaid = sum("payout");
+    // Real year-to-date: only statements whose period starts in the current
+    // year (netPaid above is all-time — the two are different figures).
+    const currentYear = new Date().getFullYear();
+    const ytdNet = scopedStatements
+      .filter((s) => s.rawStartDate && new Date(s.rawStartDate).getFullYear() === currentYear)
+      .reduce((acc, s) => acc + (s.payout || 0), 0);
     const pendingPayouts = scopedStatements
       .filter((s) => s.status !== "Paid")
       .reduce((acc, s) => acc + (s.payout || 0), 0);
@@ -122,7 +128,7 @@ export const useFinancials = () => {
       totalIncome: sum("invoiced"),
       totalExpenses: sum("fees"),
       netPaid,
-      ytdNet: netPaid,
+      ytdNet,
       pendingPayouts,
       unpaidInvoices: invoiceStats.outstanding,
     };

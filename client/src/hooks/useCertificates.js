@@ -22,7 +22,7 @@ const CERT_LABELS = {
 };
 
 const STATUS_LABELS = {
-  compliant: 'Valid',
+  compliant: 'Compliant',
   expiring_soon: 'Expiring Soon',
   expired: 'Expired',
   not_uploaded: 'Not Uploaded',
@@ -67,7 +67,7 @@ const buildCertificates = (certs) =>
           ? 'bg-red-50 text-red-500'
           : status === 'Expiring Soon'
             ? 'bg-status-warning/10 text-status-warning'
-            : status === 'Valid'
+            : status === 'Compliant'
               ? 'bg-status-success-bg text-status-success'
               : 'bg-gray-100 text-gray-400',
     };
@@ -181,7 +181,7 @@ export const useCertificates = () => {
   );
 
   // Stats reflect the whole data set (metric cards are totals, not filtered).
-  const compliantCount = certificatesData.filter((c) => c.status === 'Valid').length;
+  const compliantCount = certificatesData.filter((c) => c.status === 'Compliant').length;
   const expiredCount = certificatesData.filter((c) => c.status === 'Expired').length;
   const expiringSoonCount = certificatesData.filter((c) => c.status === 'Expiring Soon').length;
 

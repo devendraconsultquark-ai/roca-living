@@ -10,6 +10,7 @@ import { StatusPill } from '../components/UI/StatusPill';
 import { Skeleton } from '../components/UI/Skeleton';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
+import { ActivationLinkModal } from '../components/UI/ActivationLinkModal';
 import api from '../utilities/api';
 
 export const Landlords = () => {
@@ -36,6 +37,9 @@ export const Landlords = () => {
   };
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newLandlord, setNewLandlord] = useState(emptyLandlord);
+
+  // One-time set-password link returned after registration ({ name, link, expiresAt })
+  const [activationInfo, setActivationInfo] = useState(null);
 
   // Edit Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -74,13 +78,12 @@ export const Landlords = () => {
     setFormErrors({});
 
     try {
-      await api.post('/landlords', {
+      const res = await api.post('/landlords', {
         name: newLandlord.name,
         email: newLandlord.email,
         phone: newLandlord.phone,
         address: newLandlord.address,
         company_name: newLandlord.company_name || undefined,
-        initials: newLandlord.initials || undefined,
         is_overseas: newLandlord.is_overseas === 'yes',
         nrl_hmrc_ref: newLandlord.nrl_hmrc_ref || undefined,
         nrl_hmrc_approved: newLandlord.nrl_hmrc_approved === 'yes',
@@ -90,6 +93,13 @@ export const Landlords = () => {
       });
       addToast('Landlord registered successfully!', 'success');
       setIsModalOpen(false);
+      if (res.data.data?.activation_link) {
+        setActivationInfo({
+          name: newLandlord.name,
+          link: res.data.data.activation_link,
+          expiresAt: res.data.data.activation_expires_at
+        });
+      }
       setNewLandlord(emptyLandlord);
       fetchLandlords(search);
     } catch (err) {
@@ -215,13 +225,7 @@ export const Landlords = () => {
     { 
       header: 'Disbursement Status', 
       accessor: 'kyc_status',
-      renderCell: (row) => {
-        let pillStatus = 'draft';
-        if (row.kyc_status === 'passed') pillStatus = 'active';
-        else if (row.kyc_status === 'pending') pillStatus = 'pending';
-        else if (row.kyc_status === 'failed') pillStatus = 'danger';
-        return <StatusPill status={pillStatus} />;
-      }
+      renderCell: (row) => <StatusPill status={row.kyc_status || 'not_started'} />
     },
     {
       header: 'Actions',
@@ -352,6 +356,7 @@ export const Landlords = () => {
                   label="Contact Phone"
                   id="phone"
                   required
+                  placeholder="e.g. 07123 456789"
                   value={newLandlord.phone}
                   onChange={(e) => setNewLandlord({ ...newLandlord, phone: e.target.value })}
                   error={formErrors.phone}
@@ -369,14 +374,6 @@ export const Landlords = () => {
                   value={newLandlord.company_name}
                   onChange={(e) => setNewLandlord({ ...newLandlord, company_name: e.target.value })}
                   error={formErrors.company_name}
-                />
-                <Input
-                  label="Initials (statements)"
-                  id="initials"
-                  placeholder="e.g. RB/GH"
-                  value={newLandlord.initials}
-                  onChange={(e) => setNewLandlord({ ...newLandlord, initials: e.target.value })}
-                  error={formErrors.initials}
                 />
                 <Dropdown
                   label="Residency"
@@ -493,6 +490,7 @@ export const Landlords = () => {
                   label="Contact Phone"
                   id="edit_phone"
                   required
+                  placeholder="e.g. 07123 456789"
                   value={editingLandlord.phone}
                   onChange={(e) => setEditingLandlord({ ...editingLandlord, phone: e.target.value })}
                   error={formErrors.phone}
@@ -603,6 +601,8 @@ export const Landlords = () => {
           </div>
         </div>
       )}
+
+      <ActivationLinkModal info={activationInfo} onClose={() => setActivationInfo(null)} />
     </div>
   );
 };

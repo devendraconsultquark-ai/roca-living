@@ -268,6 +268,15 @@ export const usePropertyDetails = (id) => {
     if (!activeT) return null;
     const isRegistered =
       !!activeT.deposit_registered_at || activeT.deposit_status === 'registered';
+    // Same vocabulary as the admin Deposits page — end-states must not read
+    // as "Registered"/"Pending Registration".
+    const depositStatusLabels = {
+      pending_registration: 'Pending Registration',
+      registered: 'Registered',
+      returned: 'Returned to Tenant',
+      disputed: 'In Dispute',
+      deducted: 'Deductions Made',
+    };
     return {
       ref: `TEN-${String(activeT.id).padStart(5, '0')}`,
       tenant: activeT.lead_tenant_name || '—',
@@ -277,11 +286,12 @@ export const usePropertyDetails = (id) => {
       rentFrequency: activeT.rent_frequency || 'monthly',
       deposit: activeT.deposit_amount != null ? parseFloat(activeT.deposit_amount) : null,
       depositScheme: activeT.deposit_scheme || '—',
-      depositStatus: isRegistered
-        ? 'Registered'
-        : activeT.deposit_amount != null
-          ? 'Pending Registration'
-          : '—',
+      depositStatus: depositStatusLabels[activeT.deposit_status]
+        || (isRegistered
+          ? 'Registered'
+          : activeT.deposit_amount != null
+            ? 'Pending Registration'
+            : '—'),
       depositRegisteredAt: activeT.deposit_registered_at
         ? gb(activeT.deposit_registered_at)
         : '—',

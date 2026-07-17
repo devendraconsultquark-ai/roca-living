@@ -55,7 +55,7 @@ export const Properties = () => {
 
   // Table Columns
   const tableColumns = [
-    { header: "Property Ref", accessor: "property_reference", sortable: true },
+    { header: "Property Reference", accessor: "property_reference", sortable: true },
     { header: "Property Address", accessor: "address", sortable: true },
     { header: "Current Tenant", accessor: "tenant_name", sortable: true },
     {
@@ -63,22 +63,13 @@ export const Properties = () => {
       accessor: "rent",
       align: "right",
       sortable: true,
-      renderCell: (row) => `£${row.rent.toLocaleString()}`,
+      renderCell: (row) =>
+        `£${Number(row.rent).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     },
     {
       header: "Occupancy",
       accessor: "status",
-      renderCell: (row) => {
-        let pillStatus = "draft";
-        if (row.status === "let") pillStatus = "active";
-        else if (row.status === "vacant") pillStatus = "pending";
-        return (
-          <StatusPill
-            status={pillStatus}
-            customLabel={row.status === "let" ? "Occupied" : "Vacant"}
-          />
-        );
-      },
+      renderCell: (row) => <StatusPill status={row.status} />,
     },
     {
       header: "Gas Certificate",
@@ -294,9 +285,19 @@ export const Properties = () => {
                       </span>
                       <span className="text-xs-portal font-bold text-brand-primary mt-1 leading-none flex items-center gap-1.5">
                         <span
-                          className={`w-1.5 h-1.5 rounded-full ${p.status === "let" ? "bg-status-success" : "bg-status-warning"}`}
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            p.status === "let"
+                              ? "bg-status-success"
+                              : p.status === "onboarding"
+                                ? "bg-status-info"
+                                : "bg-status-warning"
+                          }`}
                         />
-                        {p.status === "let" ? "Occupied" : "Vacant"}
+                        {p.status === "let"
+                          ? "Occupied"
+                          : p.status === "onboarding"
+                            ? "Onboarding"
+                            : "Vacant"}
                       </span>
                     </div>
 
@@ -351,7 +352,7 @@ export const Properties = () => {
                         Monthly Rent
                       </span>
                       <span className="text-sm-portal font-bold text-brand-primary mt-1.5 block leading-none">
-                        £{p.rent.toLocaleString()}
+                        £{Number(p.rent).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                       {p.status === "let" && (
                         <span className="text-2xs text-status-success font-semibold mt-1 block leading-none">
@@ -384,7 +385,7 @@ export const Properties = () => {
                         Deposit Held
                       </span>
                       <span className="text-sm-portal font-bold text-brand-primary mt-1.5 block leading-none">
-                        £{p.deposit_amount.toLocaleString()}
+                        £{Number(p.deposit_amount).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                       <span className="text-2xs text-status-success font-semibold mt-1 block leading-none">
                         {p.deposit_status}
@@ -395,7 +396,7 @@ export const Properties = () => {
                         Net Paid This Month
                       </span>
                       <span className="text-sm-portal font-bold text-brand-primary mt-1.5 block leading-none">
-                        £{p.net_paid.toLocaleString()}
+                        £{Number(p.net_paid).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
                   </div>

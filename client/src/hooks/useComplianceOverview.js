@@ -185,7 +185,7 @@ export const useComplianceOverview = () => {
     overall: certCompliancePct,
     actionRequired: expiredCertifications + pendingChecklistCount,
     expiringSoon: expiringSoonCount,
-    upToDate: certificatesData.filter((c) => c.status === 'Valid').length,
+    upToDate: certificatesData.filter((c) => c.status === 'Compliant').length,
     tenantCompliance: tenantCompliancePct,
     landlordCompliance: landlordCompliancePct,
   };

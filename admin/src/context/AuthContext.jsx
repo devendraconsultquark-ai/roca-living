@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import { createContext, useContext, useReducer, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../utilities/api';
 
@@ -47,7 +47,7 @@ export const AuthProvider = ({ children }) => {
       try {
         const response = await api.get('/auth/me?portal=admin');
         dispatch({ type: 'AUTH_SUCCESS', payload: response.data.data });
-      } catch (error) {
+      } catch {
         dispatch({ type: 'AUTH_FAILURE' });
       }
     };
@@ -66,6 +66,17 @@ export const AuthProvider = ({ children }) => {
     navigate('/login');
   };
 
+  // Re-fetch the user after profile mutations so the header/profile page
+  // reflect saved changes without a re-login.
+  const refreshUser = async () => {
+    try {
+      const response = await api.get('/auth/me?portal=admin');
+      dispatch({ type: 'AUTH_SUCCESS', payload: response.data.data });
+    } catch {
+      // Keep current state — the session stays valid until an API call rejects it.
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -74,6 +85,7 @@ export const AuthProvider = ({ children }) => {
         isAuthenticated: state.isAuthenticated,
         login,
         logout,
+        refreshUser,
       }}
     >
       {children}

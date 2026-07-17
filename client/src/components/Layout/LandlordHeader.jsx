@@ -173,7 +173,7 @@ export const LandlordHeader = ({ setMobileMenuOpen }) => {
 
     if (path.startsWith("/support")) {
       return {
-        title: "Help",
+        title: "Support",
         subTitle: "Get help with using the ROCA Living portal.",
         indicators: [],
       };

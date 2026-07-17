@@ -105,10 +105,18 @@ export const generateInvoice = catchAsync(async (req, res, next) => {
 
   let invoiceId;
   await db.transaction(async (trx) => {
-    // 1. Insert document record
+    // 1. Insert document record — filed under a global 'Invoices' folder so
+    // generated invoices show up in the admin document views (which only
+    // render folder children). Find-or-create, same idiom as documentController.
+    let invoicesFolder = await trx('folders').where('name', 'Invoices').first();
+    if (!invoicesFolder) {
+      const [folderId] = await trx('folders').insert({ name: 'Invoices', owner_type: 'global' });
+      invoicesFolder = { id: folderId, name: 'Invoices' };
+    }
+
     const tempDocRef = `TEMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const [docId] = await trx('documents').insert({
-      folder_id: null,
+      folder_id: invoicesFolder.id,
       // Unattributed invoices are 'global' documents — never owned by the
       // generating admin's user id (owner_id is NOT NULL, so 0 = none).
       owner_type: landlordId ? 'landlord' : 'global',

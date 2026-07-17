@@ -94,6 +94,18 @@ export const createTenancy = catchAsync(async (req, res, next) => {
     deposit
   } = req.body;
 
+  if (!property_id) {
+    throw new ApiError(400, 'property_id is required');
+  }
+
+  if (!start_date || Number.isNaN(new Date(start_date).getTime())) {
+    throw new ApiError(400, 'A valid start_date is required');
+  }
+
+  if (rent_pcm === undefined || rent_pcm === null || rent_pcm === '' || Number.isNaN(parseFloat(rent_pcm))) {
+    throw new ApiError(400, 'A valid rent_pcm is required');
+  }
+
   const property = await db('properties').where('id', property_id).first();
   if (!property) {
     throw new ApiError(404, 'Property not found');
@@ -103,7 +115,11 @@ export const createTenancy = catchAsync(async (req, res, next) => {
     throw new ApiError(400, 'At least one tenant is required');
   }
 
-  if (!deposit || !deposit.amount || !deposit.received_at) {
+  if (tenants.some(t => !t || !t.name)) {
+    throw new ApiError(400, 'Every tenant must have a name');
+  }
+
+  if (!deposit || !deposit.amount || Number.isNaN(parseFloat(deposit.amount)) || !deposit.received_at) {
     throw new ApiError(400, 'Deposit amount and received date are required');
   }
 

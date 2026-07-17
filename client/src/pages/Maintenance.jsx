@@ -115,35 +115,52 @@ export const Maintenance = () => {
     ? Math.round((pendingCount / totalCount) * 100)
     : 0;
 
-  // Priority mapping values
+  // Urgency mapping — mirrors the DB enum (emergency | urgent | routine)
   const getPriorityInfo = (urgency) => {
     if (urgency === "emergency") {
       return {
-        label: "High",
+        label: "Emergency",
         style: "text-status-danger bg-status-danger-bg border-status-danger/15",
+      };
+    } else if (urgency === "urgent") {
+      return {
+        label: "Urgent",
+        style:
+          "text-status-warning bg-status-warning/10 border-status-warning/15",
       };
     } else {
       return {
-        label: "Medium",
+        label: "Routine",
         style:
-          "text-status-warning bg-status-warning/10 border-status-warning/15",
+          "text-status-success bg-status-success-bg border-status-success/15",
       };
     }
   };
 
-  // Status label mapping
+  // Status label mapping — mirrors the DB enum, no stages collapsed
   const getStatusInfo = (status) => {
     switch (status) {
       case "complete":
         return {
-          label: "Completed",
+          label: "Complete",
           style:
             "text-status-success bg-status-success-bg border-status-success/15",
         };
-      case "new":
+      case "triaged":
         return {
-          label: "Pending",
-          style: "text-gray-400 bg-surface-hover border-card-border",
+          label: "Triaged",
+          style: "text-status-info bg-status-info-bg border-status-info/15",
+        };
+      case "awaiting_approval":
+        return {
+          label: "Awaiting Approval",
+          style:
+            "text-status-warning bg-status-warning/10 border-status-warning/15",
+        };
+      case "in_progress":
+        return {
+          label: "In Progress",
+          style: "text-status-info bg-status-info-bg border-status-info/15",
         };
       case "cancelled":
         return {
@@ -153,7 +170,7 @@ export const Maintenance = () => {
         };
       default:
         return {
-          label: "In Progress",
+          label: "New",
           style: "text-status-info bg-status-info-bg border-status-info/15",
         };
     }
@@ -168,7 +185,7 @@ export const Maintenance = () => {
       ref: `Ref: MAI-${String(t.id).padStart(5, "0")}`,
       item: t.title || "Maintenance Request",
       property: t.property_address || "—",
-      category: t.urgency === "emergency" ? "Emergency" : "Routine",
+      category: priority.label,
       priority: priority.label,
       priorityColor: priority.style,
       status: status.label,
@@ -334,7 +351,7 @@ export const Maintenance = () => {
           icon={ShieldCheck}
           variant="success"
           actionText="View Completed"
-          onActionClick={() => setFilterStatus("Completed")}
+          onActionClick={() => setFilterStatus("Complete")}
         />
         <PortalMetricCard
           label="In Progress"
@@ -352,7 +369,7 @@ export const Maintenance = () => {
           icon={AlertCircle}
           variant="danger"
           actionText="View Overdue"
-          onActionClick={() => setFilterStatus("Pending")}
+          onActionClick={() => setFilterStatus("New")}
         />
       </div>
 

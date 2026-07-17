@@ -4,6 +4,7 @@ import {
   getLandlordById,
   getMyChecklist,
   createLandlord,
+  generateActivationLink,
   updateLandlordKyc,
   updatePaymentDetails,
   verifyPaymentDetails,
@@ -13,7 +14,7 @@ import {
 import { protect } from '../middlewares/protect.js';
 import { restrictTo } from '../middlewares/restrictTo.js';
 import { validate } from '../middlewares/validate.js';
-import { createLandlordSchema, updatePaymentDetailsSchema } from '../validations/landlordValidation.js';
+import { createLandlordSchema, updateLandlordSchema, updatePaymentDetailsSchema } from '../validations/landlordValidation.js';
 
 const landlordRouter = Router();
 
@@ -27,10 +28,11 @@ landlordRouter.use(protect('admin'), restrictTo('ADMIN'));
 landlordRouter.get('/', getAllLandlords);
 landlordRouter.post('/', validate(createLandlordSchema), createLandlord);
 landlordRouter.get('/:id', getLandlordById);
+landlordRouter.post('/:id/activation-link', generateActivationLink);
 landlordRouter.patch('/:id/kyc', updateLandlordKyc);
 landlordRouter.put('/:id/payment-details', validate(updatePaymentDetailsSchema), updatePaymentDetails);
 landlordRouter.patch('/:id/payment-details/verify', verifyPaymentDetails);
-landlordRouter.patch('/:id', updateLandlord);
+landlordRouter.patch('/:id', validate(updateLandlordSchema), updateLandlord);
 landlordRouter.delete('/:id', deleteLandlord);
 
 export default landlordRouter;

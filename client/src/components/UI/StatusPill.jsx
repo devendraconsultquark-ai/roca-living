@@ -15,7 +15,11 @@ export const StatusPill = ({
   rounded = "full", // sm, full
   showIcon = true,
 }) => {
-  // Map backend statuses to design system concepts and icons
+  // Map backend statuses to design system concepts and icons. Keys are the
+  // canonical underscore_lowercase form; incoming statuses are normalized
+  // (trimmed, lowercased, spaces/hyphens collapsed to underscores) before the
+  // lookup, so "Awaiting Approval", "awaiting-approval" and "awaiting_approval"
+  // all resolve to the same entry.
   const statusConfig = {
     // 1. Success States (Green, CheckCircle2)
     active: {
@@ -26,12 +30,6 @@ export const StatusPill = ({
     },
     compliant: {
       text: "Compliant",
-      classes:
-        "bg-status-success-bg text-status-success border-status-success/15",
-      icon: CheckCircle2,
-    },
-    "fully compliant": {
-      text: "Fully Compliant",
       classes:
         "bg-status-success-bg text-status-success border-status-success/15",
       icon: CheckCircle2,
@@ -54,14 +52,44 @@ export const StatusPill = ({
         "bg-status-success-bg text-status-success border-status-success/15",
       icon: CheckCircle2,
     },
+    passed: {
+      text: "Verified",
+      classes:
+        "bg-status-success-bg text-status-success border-status-success/15",
+      icon: CheckCircle2,
+    },
     paid: {
       text: "Paid",
       classes:
         "bg-status-success-bg text-status-success border-status-success/15",
       icon: CheckCircle2,
     },
+    complete: {
+      text: "Complete",
+      classes:
+        "bg-status-success-bg text-status-success border-status-success/15",
+      icon: CheckCircle2,
+    },
     completed: {
       text: "Completed",
+      classes:
+        "bg-status-success-bg text-status-success border-status-success/15",
+      icon: CheckCircle2,
+    },
+    let: {
+      text: "Occupied",
+      classes:
+        "bg-status-success-bg text-status-success border-status-success/15",
+      icon: CheckCircle2,
+    },
+    occupied: {
+      text: "Occupied",
+      classes:
+        "bg-status-success-bg text-status-success border-status-success/15",
+      icon: CheckCircle2,
+    },
+    routine: {
+      text: "Routine",
       classes:
         "bg-status-success-bg text-status-success border-status-success/15",
       icon: CheckCircle2,
@@ -80,26 +108,26 @@ export const StatusPill = ({
         "bg-status-warning/10 text-status-warning border-status-warning/15",
       icon: AlertTriangle,
     },
-    "expiring soon": {
-      text: "Expiring Soon",
-      classes:
-        "bg-status-warning/10 text-status-warning border-status-warning/15",
-      icon: AlertTriangle,
-    },
     expiring_soon: {
       text: "Expiring Soon",
       classes:
         "bg-status-warning/10 text-status-warning border-status-warning/15",
       icon: AlertTriangle,
     },
-    "awaiting approval": {
+    awaiting_approval: {
       text: "Awaiting Approval",
       classes:
         "bg-status-warning/10 text-status-warning border-status-warning/15",
       icon: AlertTriangle,
     },
-    awaiting_approval: {
-      text: "Awaiting Approval",
+    vacant: {
+      text: "Vacant",
+      classes:
+        "bg-status-warning/10 text-status-warning border-status-warning/15",
+      icon: AlertTriangle,
+    },
+    urgent: {
+      text: "Urgent",
       classes:
         "bg-status-warning/10 text-status-warning border-status-warning/15",
       icon: AlertTriangle,
@@ -137,13 +165,18 @@ export const StatusPill = ({
       classes: "bg-status-danger-bg text-status-danger border-status-danger/15",
       icon: XCircle,
     },
-    "action required": {
+    disputed: {
+      text: "Disputed",
+      classes: "bg-status-danger-bg text-status-danger border-status-danger/15",
+      icon: XCircle,
+    },
+    action_required: {
       text: "Action Required",
       classes: "bg-status-danger-bg text-status-danger border-status-danger/15",
       icon: AlertTriangle,
     },
-    action_required: {
-      text: "Action Required",
+    emergency: {
+      text: "Emergency",
       classes: "bg-status-danger-bg text-status-danger border-status-danger/15",
       icon: AlertTriangle,
     },
@@ -154,8 +187,8 @@ export const StatusPill = ({
     },
 
     // 4. Info States (Blue, Clock / Calendar)
-    "in progress": {
-      text: "In Progress",
+    new: {
+      text: "New",
       classes: "bg-status-info-bg text-status-info border-status-info/15",
       icon: Clock,
     },
@@ -165,7 +198,17 @@ export const StatusPill = ({
       icon: Clock,
     },
     triaged: {
-      text: "In Progress",
+      text: "Triaged",
+      classes: "bg-status-info-bg text-status-info border-status-info/15",
+      icon: Clock,
+    },
+    sent: {
+      text: "Sent",
+      classes: "bg-status-info-bg text-status-info border-status-info/15",
+      icon: Clock,
+    },
+    onboarding: {
+      text: "Onboarding",
       classes: "bg-status-info-bg text-status-info border-status-info/15",
       icon: Clock,
     },
@@ -176,23 +219,13 @@ export const StatusPill = ({
     },
 
     // 5. Muted States (Grey, Circle)
-    onboarding: {
-      text: "Onboarding",
-      classes: "bg-surface-hover text-gray-400 border-card-border",
-      icon: Circle,
-    },
     draft: {
       text: "Draft",
       classes: "bg-surface-hover text-gray-400 border-card-border",
       icon: Circle,
     },
-    "not started": {
+    not_started: {
       text: "Not Started",
-      classes: "bg-surface-hover text-gray-400 border-card-border",
-      icon: Circle,
-    },
-    "not uploaded": {
-      text: "Not Uploaded",
       classes: "bg-surface-hover text-gray-400 border-card-border",
       icon: Circle,
     },
@@ -201,11 +234,21 @@ export const StatusPill = ({
       classes: "bg-surface-hover text-gray-400 border-card-border",
       icon: Circle,
     },
+    not_applicable: {
+      text: "N/A",
+      classes: "bg-surface-hover text-gray-400 border-card-border",
+      icon: Circle,
+    },
+    "n/a": {
+      text: "N/A",
+      classes: "bg-surface-hover text-gray-400 border-card-border",
+      icon: Circle,
+    },
   };
 
-  // Normalize input status string to lowercase
+  // Normalize input status to the canonical underscore_lowercase key form
   const normalizedStatus = status
-    ? String(status).toLowerCase().trim()
+    ? String(status).trim().toLowerCase().replace(/[\s-]+/g, "_")
     : "draft";
 
   // Find match, or default to grey draft status

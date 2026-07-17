@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { User, Shield, Phone, Mail, Building, Save, LogOut } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { User, Shield, Save, LogOut } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
 import { Input } from '../components/UI/Input';
 import { Button } from '../components/UI/Button';
@@ -9,10 +8,10 @@ import api from '../utilities/api';
 
 export const Profile = () => {
   const { addToast } = useToast();
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [profileErrors, setProfileErrors] = useState({});
 
   const [profileData, setProfileData] = useState({
     name: '',
@@ -24,6 +23,7 @@ export const Profile = () => {
 
   const handleCancel = () => {
     setIsEditing(false);
+    setProfileErrors({});
     if (user) {
       setProfileData(prev => ({
         ...prev,
@@ -52,23 +52,39 @@ export const Profile = () => {
   const handleChange = (e) => {
     const { id, value } = e.target;
     setProfileData(prev => ({ ...prev, [id]: value }));
+    if (profileErrors[id]) {
+      setProfileErrors(prev => ({ ...prev, [id]: '' }));
+    }
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
     setLoading(true);
-    
+    setProfileErrors({});
+
     try {
-      await api.patch('/auth/profile', {
-        name: profileData.name,
-        email: profileData.email,
-        phone: profileData.phone,
-        address: profileData.address
-      }, { skipInterceptorError: true });
+      // Omit empty fields — this is a partial update, and the API rejects
+      // empty strings (e.g. address has a 5-character minimum).
+      const payload = {};
+      ['name', 'email', 'phone', 'address'].forEach((field) => {
+        if (profileData[field] !== '') payload[field] = profileData[field];
+      });
+      await api.patch('/auth/profile', payload, { skipInterceptorError: true });
       addToast('Profile updated successfully!', 'success');
       setIsEditing(false);
+      refreshUser();
     } catch (err) {
-      addToast(err.response?.data?.message || 'Failed to update profile', 'error');
+      const errorMessages = err.response?.data?.errors;
+      if (Array.isArray(errorMessages) && errorMessages.length > 0) {
+        const errorsMap = {};
+        errorMessages.forEach((m) => {
+          errorsMap[m.field] = m.message;
+        });
+        setProfileErrors(errorsMap);
+        addToast(err.response?.data?.message || 'Validation failed', 'error');
+      } else {
+        addToast(err.response?.data?.message || 'Failed to update profile', 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -178,6 +194,7 @@ export const Profile = () => {
                 id="name"
                 required
                 value={profileData.name}
+                error={profileErrors.name}
                 onChange={handleChange}
                 disabled={!isEditing}
               />
@@ -187,6 +204,7 @@ export const Profile = () => {
                 type="email"
                 required
                 value={profileData.email}
+                error={profileErrors.email}
                 onChange={handleChange}
                 disabled={!isEditing}
               />
@@ -194,7 +212,9 @@ export const Profile = () => {
                 label="Contact Phone"
                 id="phone"
                 required
+                placeholder="e.g. 07123 456789"
                 value={profileData.phone}
+                error={profileErrors.phone}
                 onChange={handleChange}
                 disabled={!isEditing}
               />
@@ -203,6 +223,7 @@ export const Profile = () => {
                 id="address"
                 required
                 value={profileData.address}
+                error={profileErrors.address}
                 onChange={handleChange}
                 disabled={!isEditing}
               />

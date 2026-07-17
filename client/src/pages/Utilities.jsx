@@ -91,14 +91,18 @@ export const Utilities = () => {
                     <td className="py-4">
                       <span
                         className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-bold ${
-                          u.status === "active"
+                          u.status === "completed"
                             ? "bg-status-success-bg text-status-success"
-                            : u.status === "pending"
-                            ? "bg-status-warning-bg text-status-warning"
-                            : "bg-status-info-bg text-status-info"
+                            : u.status === "disputed"
+                            ? "bg-status-danger-bg text-status-danger"
+                            : "bg-status-warning/10 text-status-warning"
                         }`}
                       >
-                        {u.status}
+                        {u.status === "completed"
+                          ? "Completed"
+                          : u.status === "disputed"
+                          ? "Disputed"
+                          : "Pending"}
                       </span>
                     </td>
                   </tr>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Users, Home, Wrench, Wallet, ArrowRight, UserPlus, PlusCircle } from 'lucide-react';
 import { Button } from '../components/UI/Button';
@@ -39,7 +39,7 @@ export const Dashboard = () => {
     },
     { 
       name: 'Active Landlords', 
-      value: pipeline ? `${pipeline.total_landlords} Partners` : '0 Partners', 
+      value: pipeline ? `${pipeline.total_landlords} Landlords` : '0 Landlords',
       icon: Users, 
       color: 'text-brand-primary bg-surface-hover',
       valueColor: 'text-brand-primary' 

@@ -12,6 +12,8 @@ import {StatusPill} from "../components/UI/StatusPill"
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
 import { Button } from '../components/UI/Button';
+import { ActivationLinkModal } from '../components/UI/ActivationLinkModal';
+import { DocumentUploadModal } from '../components/UI/DocumentUploadModal';
 import api from '../utilities/api';
 
 
@@ -28,11 +30,23 @@ export const LandlordDetailPage = () => {
   // Bank details modal state
   const [isBankModalOpen, setIsBankModalOpen] = useState(false);
   const [bankForm, setBankForm] = useState({ bank_name: '', account_name: '', account_number: '', sort_code: '', iban_bic: '' });
+  const [bankErrors, setBankErrors] = useState({});
   const [bankSaving, setBankSaving] = useState(false);
 
+  const handleBankChange = (field) => (e) => {
+    setBankForm((f) => ({ ...f, [field]: e.target.value }));
+    if (bankErrors[field]) {
+      setBankErrors((prev) => ({ ...prev, [field]: '' }));
+    }
+  };
+
   // KYC update state
-  const [kycForm, setKycForm] = useState({ kyc_status: 'not_started', kyc_ref: '' });
+  const [kycForm, setKycForm] = useState({ kyc_status: 'not_started', kyc_ref: '', sanctions_checked: 'no' });
   const [kycSaving, setKycSaving] = useState(false);
+
+  // One-time set-password link ({ name, link, expiresAt })
+  const [activationInfo, setActivationInfo] = useState(null);
+  const [activationLoading, setActivationLoading] = useState(false);
 
   // Edit profile modal state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -51,7 +65,7 @@ export const LandlordDetailPage = () => {
   // Documents tab data
   const [allDocs, setAllDocs] = useState([]);
   const [docsReloadKey, setDocsReloadKey] = useState(0);
-  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [pendingUpload, setPendingUpload] = useState(null);
   const fileInputRef = useRef(null);
 
   // Bump to re-fetch after a mutation (verify / bank-details update).
@@ -66,6 +80,7 @@ export const LandlordDetailPage = () => {
         setKycForm({
           kyc_status: res.data.data.kyc_status || 'not_started',
           kyc_ref: res.data.data.kyc_ref || '',
+          sanctions_checked: res.data.data.sanctions_checked ? 'yes' : 'no',
         });
       } catch (err) {
         addToast(err.response?.data?.message || 'Failed to load landlord', 'error');
@@ -194,34 +209,24 @@ export const LandlordDetailPage = () => {
     }
   };
 
-  const handleUploadFileChange = async (e) => {
+  // Picking a file only stages it — the upload happens from the review modal,
+  // where the admin sees the file and chooses its folder first.
+  const handleUploadFileChange = (e) => {
     const file = e.target.files && e.target.files[0];
+    if (fileInputRef.current) fileInputRef.current.value = '';
     if (!file) return;
-    setUploadingDoc(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('scope', 'landlord');
-    formData.append('entityId', String(id));
-    try {
-      await api.post('/documents/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      addToast('Document uploaded successfully!', 'success');
-      setDocsReloadKey((k) => k + 1);
-    } catch (err) {
-      console.error(err);
-      addToast(err.response?.data?.message || `Failed to upload ${file.name}`, 'error');
-    } finally {
-      setUploadingDoc(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
+    setPendingUpload(file);
   };
 
   const handleKycSubmit = async (e) => {
     e.preventDefault();
     setKycSaving(true);
     try {
-      await api.patch(`/landlords/${id}/kyc`, kycForm);
+      await api.patch(`/landlords/${id}/kyc`, {
+        kyc_status: kycForm.kyc_status,
+        kyc_ref: kycForm.kyc_ref,
+        sanctions_checked: kycForm.sanctions_checked === 'yes',
+      });
       addToast('KYC status updated', 'success');
       refetchLandlord();
     } catch (err) {
@@ -247,6 +252,41 @@ export const LandlordDetailPage = () => {
     }
   };
 
+  const handleGenerateActivationLink = async () => {
+    setActivationLoading(true);
+    try {
+      const res = await api.post(`/landlords/${id}/activation-link`);
+      setActivationInfo({
+        name: data.name,
+        link: res.data.data.activation_link,
+        expiresAt: res.data.data.activation_expires_at
+      });
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to generate activation link', 'error');
+    } finally {
+      setActivationLoading(false);
+    }
+  };
+
+  const handleToggleOwnership = async () => {
+    const confirming = !data.ownership_confirmed;
+    const ok = await confirm({
+      title: confirming ? 'Confirm Ownership' : 'Revoke Ownership Confirmation',
+      message: confirming
+        ? `Confirm you have verified that ${data.name} owns the properties under management (e.g. via a Land Registry title check).`
+        : `Mark ownership for ${data.name} as unconfirmed? The compliance checklist item will return to pending.`,
+      confirmText: confirming ? 'Confirm Ownership' : 'Mark Unconfirmed',
+    });
+    if (!ok) return;
+    try {
+      await api.patch(`/landlords/${id}`, { ownership_confirmed: confirming });
+      addToast(confirming ? 'Ownership confirmed' : 'Ownership confirmation revoked', 'success');
+      refetchLandlord();
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to update ownership confirmation', 'error');
+    }
+  };
+
   const openBankModal = () => {
     setBankForm({
       bank_name: data.bank_name || '',
@@ -255,19 +295,31 @@ export const LandlordDetailPage = () => {
       sort_code: data.sort_code || '',
       iban_bic: data.iban_bic || '',
     });
+    setBankErrors({});
     setIsBankModalOpen(true);
   };
 
   const handleBankSubmit = async (e) => {
     e.preventDefault();
     setBankSaving(true);
+    setBankErrors({});
     try {
       await api.put(`/landlords/${id}/payment-details`, bankForm);
       addToast('Bank details submitted for verification', 'success');
       setIsBankModalOpen(false);
       refetchLandlord();
     } catch (err) {
-      addToast(err.response?.data?.message || 'Failed to update bank details', 'error');
+      const errorMessages = err.response?.data?.errors;
+      if (Array.isArray(errorMessages) && errorMessages.length > 0) {
+        const errorsMap = {};
+        errorMessages.forEach((m) => {
+          errorsMap[m.field] = m.message;
+        });
+        setBankErrors(errorsMap);
+        addToast(err.response?.data?.message || 'Validation failed', 'error');
+      } else {
+        addToast(err.response?.data?.message || 'Failed to update bank details', 'error');
+      }
     } finally {
       setBankSaving(false);
     }
@@ -306,7 +358,13 @@ export const LandlordDetailPage = () => {
     { id: 'communication', label: 'Communication', icon: Mail }
   ];
 
-  const isVerified = data.kyc_status === 'passed' || data.kyc_status === 'approved';
+  const isVerified = data.kyc_status === 'passed';
+  const kycBadge = {
+    passed: { label: 'Verified', classes: 'bg-status-success-bg text-status-success border-status-success/15' },
+    pending: { label: 'Pending', classes: 'bg-status-warning/10 text-status-warning border-status-warning/15' },
+    failed: { label: 'Failed', classes: 'bg-status-danger-bg text-status-danger border-status-danger/15' },
+    not_started: { label: 'Not Started', classes: 'bg-surface-hover text-gray-400 border-card-border' },
+  }[data.kyc_status] || { label: 'Not Started', classes: 'bg-surface-hover text-gray-400 border-card-border' };
 
   // Financial summary derived from the transactions ledger.
   const currentYear = new Date().getFullYear();
@@ -334,12 +392,8 @@ export const LandlordDetailPage = () => {
         backLabel="Back to Landlords"
         title={data.name}
         badge={
-          <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border tracking-wider uppercase ${
-            isVerified ? 'bg-status-success-bg text-status-success border-status-success/15' :
-            data.kyc_status === 'pending' ? 'bg-status-warning/10 text-status-warning border-status-warning/15' :
-            'bg-status-danger-bg text-status-danger border-status-danger/15'
-          }`}>
-            {isVerified ? 'Verified' : data.kyc_status}
+          <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border tracking-wider uppercase ${kycBadge.classes}`}>
+            {kycBadge.label}
           </span>
         }
         subtitle={`${data.is_overseas ? 'OVERSEAS' : 'PERSONAL'} • Joined ${new Date(data.created_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`}
@@ -354,11 +408,11 @@ export const LandlordDetailPage = () => {
       <div className="w-full">
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-2 space-y-6">
               <Card title="Landlord Summary">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-1">
                   <div>
-                    <DataRow icon={Hash} label="Reference ID" value={data.landlord_reference || `REM-LND-${data.id.toString().padStart(3, '0')}`} />
+                    <DataRow icon={Hash} label="Landlord ID" value={data.landlord_reference || `REM-LND-${data.id.toString().padStart(3, '0')}`} />
                     <DataRow icon={Mail} label="Email Address" value={data.email} />
                     <DataRow icon={Phone} label="Phone Number" value={data.phone} />
                     <DataRow icon={MapPin} label="Full Address" value={data.address} />
@@ -368,6 +422,29 @@ export const LandlordDetailPage = () => {
                     <DataRow icon={Flag} label="Country" value={data.is_overseas ? 'Overseas' : 'United Kingdom'} />
                     <DataRow icon={Building2} label="Company Name" value={data.company_name || '—'} />
                     <DataRow icon={Hash} label="Ownership Share" value={data.ownership_share != null ? `${data.ownership_share}%` : '—'} />
+                  </div>
+                </div>
+              </Card>
+
+              <Card title="Tax & Terms">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-1">
+                  <div>
+                    <DataRow
+                      icon={FileText}
+                      label="Terms of Business"
+                      value={
+                        data.tob_status === 'signed'
+                          ? `Signed${data.tob_signed_at ? ` on ${new Date(data.tob_signed_at).toLocaleDateString('en-GB')}` : ''}`
+                          : data.tob_status === 'sent' ? 'Sent' : 'Not Sent'
+                      }
+                    />
+                    <DataRow icon={Hash} label="Statement Initials" value={data.initials || '—'} />
+                    <DataRow icon={ShieldCheck} label="Sanctions Check" value={data.sanctions_checked ? 'Completed' : 'Not completed'} />
+                  </div>
+                  <div>
+                    <DataRow icon={Flag} label="NRL Number (HMRC)" value={data.nrl_hmrc_ref || '—'} />
+                    <DataRow icon={CheckCircle2} label="NRL HMRC Approved" value={data.nrl_hmrc_approved ? 'Yes' : 'No'} />
+                    <DataRow icon={Hash} label="NRL Withholding" value={data.nrl_withhold_pct != null ? `${data.nrl_withhold_pct}%` : '—'} />
                   </div>
                 </div>
               </Card>
@@ -411,10 +488,46 @@ export const LandlordDetailPage = () => {
                     value={kycForm.kyc_ref}
                     onChange={(e) => setKycForm(f => ({ ...f, kyc_ref: e.target.value }))}
                   />
+                  <Dropdown
+                    label="Sanctions Check"
+                    id="sanctions-checked"
+                    options={[
+                      { value: 'no', label: 'Not Completed' },
+                      { value: 'yes', label: 'Completed' },
+                    ]}
+                    value={kycForm.sanctions_checked}
+                    onChange={(val) => setKycForm(f => ({ ...f, sanctions_checked: val }))}
+                  />
                   <Button type="submit" variant="primary" disabled={kycSaving}>
                     {kycSaving ? 'Saving…' : 'Update KYC Status'}
                   </Button>
                 </form>
+
+                {/* Ownership confirmation — an explicit admin decision, separate from KYC */}
+                <div className="mt-4 pt-4 border-t border-card-border flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold text-brand-primary">Ownership Confirmed</p>
+                    <p className="text-2xs text-status-muted mt-0.5">
+                      {data.ownership_confirmed ? 'Confirmed by administrator' : 'Not yet confirmed'}
+                    </p>
+                  </div>
+                  <Button variant={data.ownership_confirmed ? 'ghost' : 'primary'} onClick={handleToggleOwnership}>
+                    {data.ownership_confirmed ? 'Revoke' : 'Confirm'}
+                  </Button>
+                </div>
+
+                {/* Portal access — a fresh link invalidates any previous one */}
+                <div className="mt-4 pt-4 border-t border-card-border flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold text-brand-primary">Portal Access</p>
+                    <p className="text-2xs text-status-muted mt-0.5">
+                      One-time set-password link to share with the landlord
+                    </p>
+                  </div>
+                  <Button variant="ghost" onClick={handleGenerateActivationLink} disabled={activationLoading}>
+                    {activationLoading ? 'Generating…' : 'Generate Link'}
+                  </Button>
+                </div>
               </Card>
             </div>
           </div>
@@ -424,7 +537,7 @@ export const LandlordDetailPage = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
               <Card title="Managed Properties">
-                <p className="text-sm font-semibold text-status-muted mb-4">{data.properties?.length || 0} Property{data.properties?.length !== 1 ? 'ies' : ''}</p>
+                <p className="text-sm font-semibold text-status-muted mb-4">{data.properties?.length || 0} {data.properties?.length === 1 ? 'Property' : 'Properties'}</p>
                 <div className="flex flex-col gap-3">
                   {data.properties?.length > 0 ? data.properties.map(p => (
                     <div key={p.id} onClick={() => navigate(`/properties/${p.id}`)} className="flex items-center justify-between p-4 bg-gray-50/50 border border-card-border rounded-xl hover:border-brand-accent cursor-pointer transition-colors group">
@@ -437,7 +550,7 @@ export const LandlordDetailPage = () => {
                           <p className="text-xs font-semibold text-status-muted mt-0.5">{p.property_reference || `Property #${p.id}`} • {p.city}, {p.postcode} • {p.property_type}</p>
                         </div>
                       </div>
-                      <StatusPill status={p.status === 'let' ? 'active' : p.status === 'vacant' ? 'pending' : 'draft'} />
+                      <StatusPill status={p.status} />
                     </div>
                   )) : <p className="text-sm text-gray-400 italic">No properties managed.</p>}
                 </div>
@@ -588,10 +701,9 @@ export const LandlordDetailPage = () => {
                       <Button
                         type="button"
                         variant="ghost"
-                        disabled={uploadingDoc}
                         onClick={() => fileInputRef.current?.click()}
                       >
-                        {uploadingDoc ? 'Uploading…' : 'Upload Document'}
+                        Upload Document
                       </Button>
                     </div>
                     {landlordDocs.map((file) => (
@@ -635,10 +747,9 @@ export const LandlordDetailPage = () => {
                     <p className="text-xs text-gray-400 mt-1">Contracts, IDs, and agreements will appear here.</p>
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      disabled={uploadingDoc}
                       className="mt-4 px-4 py-2 bg-white border border-card-border rounded-lg text-sm font-bold text-brand-primary hover:bg-surface-hover transition-colors shadow-sm cursor-pointer"
                     >
-                      {uploadingDoc ? 'Uploading…' : 'Upload Document'}
+                      Upload Document
                     </button>
                   </div>
                 )}
@@ -707,6 +818,7 @@ export const LandlordDetailPage = () => {
                   label="Contact Phone"
                   id="edit_phone"
                   required
+                  placeholder="e.g. 07123 456789"
                   value={editForm.phone}
                   onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
                   error={editErrors.phone}
@@ -830,35 +942,45 @@ export const LandlordDetailPage = () => {
                 label="Bank Name"
                 id="bank_name"
                 required
+                placeholder="e.g. Barclays"
                 value={bankForm.bank_name}
-                onChange={(e) => setBankForm({ ...bankForm, bank_name: e.target.value })}
+                error={bankErrors.bank_name}
+                onChange={handleBankChange('bank_name')}
               />
               <Input
                 label="Account Name"
                 id="account_name"
                 required
+                placeholder="Name on the account"
                 value={bankForm.account_name}
-                onChange={(e) => setBankForm({ ...bankForm, account_name: e.target.value })}
+                error={bankErrors.account_name}
+                onChange={handleBankChange('account_name')}
               />
               <Input
                 label="Account Number"
                 id="account_number"
                 required
+                placeholder="e.g. 12345678"
                 value={bankForm.account_number}
-                onChange={(e) => setBankForm({ ...bankForm, account_number: e.target.value })}
+                error={bankErrors.account_number}
+                onChange={handleBankChange('account_number')}
               />
               <Input
                 label="Sort Code"
                 id="sort_code"
                 required
+                placeholder="e.g. 12-34-56"
                 value={bankForm.sort_code}
-                onChange={(e) => setBankForm({ ...bankForm, sort_code: e.target.value })}
+                error={bankErrors.sort_code}
+                onChange={handleBankChange('sort_code')}
               />
               <Input
                 label="IBAN / BIC (optional)"
                 id="iban_bic"
+                placeholder="e.g. GB29NWBK60161331926819"
                 value={bankForm.iban_bic}
-                onChange={(e) => setBankForm({ ...bankForm, iban_bic: e.target.value })}
+                error={bankErrors.iban_bic}
+                onChange={handleBankChange('iban_bic')}
               />
 
               <div className="flex gap-3 justify-end mt-2">
@@ -873,6 +995,19 @@ export const LandlordDetailPage = () => {
           </div>
         </div>
       )}
+
+      <ActivationLinkModal info={activationInfo} onClose={() => setActivationInfo(null)} />
+
+      <DocumentUploadModal
+        file={pendingUpload}
+        scope="landlord"
+        entityId={id}
+        onClose={() => setPendingUpload(null)}
+        onUploaded={() => {
+          setPendingUpload(null);
+          setDocsReloadKey((k) => k + 1);
+        }}
+      />
     </DetailContainer>
   );
 };

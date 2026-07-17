@@ -16,6 +16,7 @@ export const DocumentLibrary = () => {
   // Upload Form State
   const [scope, setScope] = useState('');
   const [entityId, setEntityId] = useState('');
+  const [uploadFolderId, setUploadFolderId] = useState('');
   const [formErrors, setFormErrors] = useState({});
 
   const fetchFolders = async () => {
@@ -114,6 +115,9 @@ export const DocumentLibrary = () => {
     }
     formDataPayload.append('scope', scope);
     formDataPayload.append('entityId', entityId);
+    if (uploadFolderId) {
+      formDataPayload.append('folderId', uploadFolderId);
+    }
 
     try {
       await api.post('/documents/upload', formDataPayload, {
@@ -127,6 +131,7 @@ export const DocumentLibrary = () => {
       setUploadedFile(null);
       setScope('');
       setEntityId('');
+      setUploadFolderId('');
     } catch (err) {
       console.error(err);
       addToast(err.response?.data?.message || `Failed to upload ${uploadedFile.name}`, 'error');
@@ -422,6 +427,17 @@ export const DocumentLibrary = () => {
                     setEntityId(e.target.value);
                     if (formErrors.entityId) setFormErrors(prev => ({ ...prev, entityId: '' }));
                   }}
+                />
+
+                <Dropdown
+                  label="Folder"
+                  id="uploadFolder"
+                  value={uploadFolderId}
+                  onChange={(val) => setUploadFolderId(val || '')}
+                  options={[
+                    { value: '', label: 'Auto (based on scope)' },
+                    ...folders.map((f) => ({ value: String(f.id), label: f.name })),
+                  ]}
                 />
               </div>
 

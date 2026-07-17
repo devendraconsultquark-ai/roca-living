@@ -18,6 +18,17 @@ const parseEntityId = (idStr) => {
   return match ? parseInt(match[0], 10) : parseInt(idStr, 10);
 };
 
+// The folder an admin files a document under drives the landlord-visible
+// category (getMyDocuments derives category from doc_type). Folder names not
+// in this map fall back to the scope default in DOC_TYPES.
+const FOLDER_TO_DOC_TYPE = {
+  'Landlord Compliance Documents': 'kyc_document',
+  'Property Gas & Safety Certs': 'property_certificate',
+  'Tenancy Agreements & Deposits': 'tenancy_agreement',
+  'Statements': 'landlord_statement',
+  'Invoices': 'landlord_invoice'
+};
+
 export const getFolders = catchAsync(async (req, res, next) => {
   // Ensure default folders exist
   let foldersList = await db('folders').select('*');
@@ -87,7 +98,7 @@ export const uploadDocument = catchAsync(async (req, res, next) => {
     throw new ApiError(400, 'No file uploaded');
   }
 
-  const { scope, entityId } = req.body;
+  const { scope, entityId, folderId } = req.body;
   if (!scope || !entityId) {
     throw new ApiError(400, 'Scope and Entity ID are required');
   }
@@ -113,7 +124,16 @@ export const uploadDocument = catchAsync(async (req, res, next) => {
     throw new ApiError(404, `No ${scope} found with ID ${parsedOwnerId}`);
   }
 
-  // Determine correct folder
+  // Explicit folder choice wins; otherwise fall back to the scope default.
+  let chosenFolder = null;
+  if (folderId) {
+    chosenFolder = await db('folders').where({ id: parseInt(folderId, 10) || 0 }).first();
+    if (!chosenFolder) {
+      await fs.promises.unlink(req.file.path).catch(() => {});
+      throw new ApiError(400, 'Selected folder does not exist');
+    }
+  }
+
   let folderName = 'Landlord Compliance Documents';
   if (scope === 'property') {
     folderName = 'Property Gas & Safety Certs';
@@ -127,19 +147,25 @@ export const uploadDocument = catchAsync(async (req, res, next) => {
   let documentId;
   try {
     await db.transaction(async (trx) => {
-      let folder = await trx('folders').where('name', folderName).first();
+      let folder = chosenFolder;
+      if (!folder) {
+        folder = await trx('folders').where('name', folderName).first();
+      }
       if (!folder) {
         const [fid] = await trx('folders').insert({ name: folderName, owner_type: 'global' });
         folder = { id: fid, name: folderName };
       }
 
       const DOC_TYPES = { landlord: 'kyc_document', property: 'property_certificate', tenancy: 'tenancy_agreement' };
+      // The resolved folder (explicit choice or scope default) drives doc_type,
+      // so the admin's folder choice sets the landlord-visible category.
+      const docType = FOLDER_TO_DOC_TYPE[folder.name] || DOC_TYPES[scope];
       const tempRef = `TEMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       [documentId] = await trx('documents').insert({
         folder_id: folder.id,
         owner_type: scope,
         owner_id: parsedOwnerId,
-        doc_type: DOC_TYPES[scope],
+        doc_type: docType,
         filename: req.file.filename,
         original_name: req.file.originalname,
         mime_type: req.file.mimetype,

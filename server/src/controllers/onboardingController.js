@@ -6,6 +6,8 @@ import crypto from 'crypto';
 import { addDays, addMonths, getLastDayOfCurrentMonth } from '../utils/dateHelpers.js';
 import { ensureLandlordSetup } from '../utils/landlordSetup.js';
 import { getSetting } from '../utils/settings.js';
+import { UK_PHONE_REGEX, UK_PHONE_MESSAGE } from '../validations/common.js';
+import { createActivationLink } from '../utils/activationLink.js';
 
 const BCRYPT_COST = parseInt(process.env.BCRYPT_COST || '12', 10);
 
@@ -36,11 +38,17 @@ export const completeOnboarding = catchAsync(async (req, res, next) => {
     throw new ApiError(400, 'Missing required onboarding form fields');
   }
 
+  // Same phone rule as every other landlord entry path.
+  if (!UK_PHONE_REGEX.test(landlordPhone)) {
+    throw new ApiError(400, `Landlord phone: ${UK_PHONE_MESSAGE}`);
+  }
+
   const result = await db.transaction(async (trx) => {
     // 1. Create user record for landlord (role=LANDLORD) — or find existing by email
     const normalizedEmail = landlordEmail.toLowerCase().trim();
     let landlordUser = await trx('users').where('email', normalizedEmail).first();
     let landlordId;
+    let activation = null;
 
     if (landlordUser) {
       landlordId = landlordUser.id;
@@ -61,6 +69,10 @@ export const completeOnboarding = catchAsync(async (req, res, next) => {
         role: 'LANDLORD'
       });
       landlordId = newLandlordId;
+
+      // New account: give the admin a one-time set-password link to share
+      // directly (no email is sent). Existing accounts keep their credentials.
+      activation = await createActivationLink(trx, landlordId);
     }
 
     // 2. Create/Update landlord_profile + landlord compliance checklist via the
@@ -321,7 +333,8 @@ export const completeOnboarding = catchAsync(async (req, res, next) => {
       landlord_id: landlordId,
       property_id: propertyId,
       tenancy_id: tenancyId,
-      statement_due_date: getLastDayOfCurrentMonth()
+      statement_due_date: getLastDayOfCurrentMonth(),
+      ...(activation || {})
     };
   });
 

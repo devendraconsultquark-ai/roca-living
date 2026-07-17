@@ -297,14 +297,14 @@ export const Statements = () => {
       accessor: 'invoiced', 
       align: 'right', 
       sortable: true,
-      renderCell: (row) => `£${row.invoiced.toFixed(2)}`
+      renderCell: (row) => `£${row.invoiced.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     },
     {
       header: 'Deductions',
       accessor: 'fees',
       align: 'right',
       sortable: true,
-      renderCell: (row) => `-£${row.fees.toFixed(2)}`
+      renderCell: (row) => `-£${row.fees.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     },
     { 
       header: 'Net Payout', 
@@ -313,7 +313,7 @@ export const Statements = () => {
       sortable: true,
       renderCell: (row) => (
         <span className="font-bold text-brand-primary">
-          £{row.payout.toFixed(2)}
+          £{row.payout.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </span>
       )
     },
@@ -321,7 +321,7 @@ export const Statements = () => {
       header: 'Payout Status',
       accessor: 'status',
       renderCell: (row) => {
-        let style = 'bg-status-warning/10 text-status-warning border-status-warning/15';
+        let style = 'bg-surface-hover text-gray-400 border-card-border';
         if (row.status === 'Paid') {
           style = 'bg-status-success-bg text-status-success border-status-success/15';
         } else if (row.status === 'Sent') {

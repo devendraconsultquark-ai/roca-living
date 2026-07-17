@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, CheckCircle2, AlertTriangle, Edit, X, Trash2, Eye } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
@@ -188,7 +188,7 @@ export const Tenants = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <StatCard
           label="Total Tenants"
-          value={loading ? '...' : `${totalTenants} Residents`}
+          value={loading ? '...' : `${totalTenants} Tenants`}
           icon={Users}
           iconColor="text-brand-primary bg-brand-primary/10"
         />

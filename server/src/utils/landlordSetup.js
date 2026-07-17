@@ -4,6 +4,8 @@
 // compliance checklist. Phase 13 migration backfills accounts created before
 // this existed.
 
+import { deriveInitials } from './initials.js';
+
 export const LANDLORD_CHECKLIST_ITEMS = [
   { item_code: 'KYC_PENDING', item_label: 'KYC Passed' },
   { item_code: 'TOB_SIGNED', item_label: 'Terms of Business Signed' },
@@ -22,6 +24,14 @@ export const landlordReferenceFor = (userId) => `REM-LND-${String(userId).padSta
  */
 export const ensureLandlordSetup = async (trx, userId, profileFields = {}) => {
   const existingProfile = await trx('landlord_profiles').where({ user_id: userId }).first();
+
+  // Statement initials always live in the DB: when none are supplied and the
+  // profile has none, derive them from the user's name.
+  if (!profileFields.initials && !existingProfile?.initials) {
+    const user = await trx('users').where({ id: userId }).first('name');
+    const derived = deriveInitials(user?.name);
+    if (derived) profileFields = { ...profileFields, initials: derived };
+  }
 
   if (existingProfile) {
     const updates = { ...profileFields };

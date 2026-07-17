@@ -6,6 +6,8 @@ import crypto from 'crypto';
 import logger from '../utils/logger.js';
 import { deletePropertyInternal } from './propertyController.js';
 import { ensureLandlordSetup } from '../utils/landlordSetup.js';
+import { deriveInitials } from '../utils/initials.js';
+import { createActivationLink } from '../utils/activationLink.js';
 import fs from 'fs';
 
 const BCRYPT_COST = parseInt(process.env.BCRYPT_COST || '12', 10);
@@ -228,11 +230,19 @@ export const createLandlord = catchAsync(async (req, res, next) => {
       is_overseas: is_overseas ? 1 : 0,
       ownership_share: ownership_share !== undefined ? ownership_share : null,
       tob_status: tob_status || 'not_sent',
+      ...(tob_status === 'signed' ? { tob_signed_at: trx.fn.now() } : {}),
       ...(nrl_hmrc_approved !== undefined ? { nrl_hmrc_approved: nrl_hmrc_approved ? 1 : 0 } : {}),
       ...(nrl_hmrc_ref ? { nrl_hmrc_ref } : {}),
       ...(nrl_withhold_pct !== undefined ? { nrl_withhold_pct } : {}),
       ...(initials ? { initials } : {})
     });
+
+    // Terms signed at creation completes the checklist item, same as onboarding.
+    if (tob_status === 'signed') {
+      await trx('compliance_checklist')
+        .where({ scope: 'landlord', entity_id: userId, item_code: 'TOB_SIGNED' })
+        .update({ status: 'complete', verified_at: trx.fn.now(), verified_by: req.user.id });
+    }
 
     await trx('audit_log').insert({
       actor_id: req.user.id,
@@ -244,7 +254,11 @@ export const createLandlord = catchAsync(async (req, res, next) => {
       ip_address: req.ip || null
     });
 
-    return { id: userId, name, email };
+    // No credentials are emailed — the admin shares this one-time link so the
+    // landlord can set their own password and sign in.
+    const activation = await createActivationLink(trx, userId);
+
+    return { id: userId, name, email, ...activation };
   });
 
   logger.info(`Landlord created: ${result.id} (${result.name})`);
@@ -255,9 +269,42 @@ export const createLandlord = catchAsync(async (req, res, next) => {
   });
 });
 
+// Regenerate a one-time set-password link for an existing landlord (expired
+// link, lost message, or accounts created before this flow existed).
+export const generateActivationLink = catchAsync(async (req, res, next) => {
+  const { id } = req.params;
+
+  const landlord = await db('users').where({ id, role: 'LANDLORD' }).first();
+  if (!landlord) {
+    throw new ApiError(404, 'Landlord not found');
+  }
+
+  const result = await db.transaction(async (trx) => {
+    const activation = await createActivationLink(trx, id);
+
+    await trx('audit_log').insert({
+      actor_id: req.user.id,
+      actor_role: req.user.role,
+      action: 'LANDLORD_ACTIVATION_LINK_GENERATED',
+      entity_type: 'landlord',
+      entity_id: id,
+      // The link itself is a live credential — log only the expiry.
+      meta: JSON.stringify({ expires_at: activation.activation_expires_at }),
+      ip_address: req.ip || null
+    });
+
+    return activation;
+  });
+
+  res.json({
+    success: true,
+    data: result
+  });
+});
+
 export const updateLandlordKyc = catchAsync(async (req, res, next) => {
   const { id } = req.params;
-  const { kyc_status, kyc_ref, kyc_provider } = req.body;
+  const { kyc_status, kyc_ref, kyc_provider, sanctions_checked } = req.body;
 
   const landlordExists = await db('users').where({ id, role: 'LANDLORD' }).first();
   if (!landlordExists) {
@@ -268,18 +315,22 @@ export const updateLandlordKyc = catchAsync(async (req, res, next) => {
   if (kyc_status !== undefined) updateData.kyc_status = kyc_status;
   if (kyc_ref !== undefined) updateData.kyc_ref = kyc_ref;
   if (kyc_provider !== undefined) updateData.kyc_provider = kyc_provider;
+  if (sanctions_checked !== undefined) updateData.sanctions_checked = sanctions_checked ? 1 : 0;
 
   await db.transaction(async (trx) => {
+    const existingProfile = await trx('landlord_profiles').where({ user_id: id }).first();
     await trx('landlord_profiles').where({ user_id: id }).update(updateData);
 
-    if (kyc_status === 'passed') {
+    // Keep the checklist item in step with KYC status — complete on pass,
+    // back to pending if a pass is later revoked. Only on a real change, so
+    // saving the form (which always sends kyc_status) doesn't re-stamp who
+    // verified it and when.
+    if (kyc_status !== undefined && kyc_status !== existingProfile?.kyc_status) {
       await trx('compliance_checklist')
         .where({ scope: 'landlord', entity_id: id, item_code: 'KYC_PENDING' })
-        .update({
-          status: 'complete',
-          verified_at: trx.fn.now(),
-          verified_by: req.user.id
-        });
+        .update(kyc_status === 'passed'
+          ? { status: 'complete', verified_at: trx.fn.now(), verified_by: req.user.id }
+          : { status: 'pending', verified_at: null, verified_by: null });
     }
 
     await trx('audit_log').insert({
@@ -420,7 +471,11 @@ export const updateLandlord = catchAsync(async (req, res, next) => {
   if (kyc_status !== undefined) profileUpdates.kyc_status = kyc_status;
   if (tob_status !== undefined) profileUpdates.tob_status = tob_status;
   if (ownership_share !== undefined) profileUpdates.ownership_share = ownership_share !== '' ? parseFloat(ownership_share).toFixed(2) : null;
-  if (initials !== undefined) profileUpdates.initials = initials || null;
+  // Initials always exist in the DB: an explicit value wins; clearing the
+  // field re-derives them from the (possibly updated) name.
+  if (initials !== undefined) {
+    profileUpdates.initials = initials || deriveInitials(name !== undefined ? name : landlord.name) || null;
+  }
   // Ownership confirmation is an explicit admin decision — never inferred from
   // KYC passing (they verify different things).
   if (ownership_confirmed !== undefined) profileUpdates.ownership_confirmed = ownership_confirmed ? 1 : 0;
@@ -430,8 +485,22 @@ export const updateLandlord = catchAsync(async (req, res, next) => {
       await trx('users').where({ id }).update(userUpdates);
     }
 
+    let tobChanged = false;
     if (Object.keys(profileUpdates).length > 0) {
       const profile = await trx('landlord_profiles').where({ user_id: id }).first();
+
+      // Keep the signed timestamp in step with ToB status from any path, not
+      // just the onboarding wizard: stamp on first transition to 'signed',
+      // clear when moved back off it.
+      if (tob_status !== undefined) {
+        tobChanged = (profile?.tob_status || 'not_sent') !== tob_status;
+        if (tob_status === 'signed') {
+          if (!profile?.tob_signed_at) profileUpdates.tob_signed_at = trx.fn.now();
+        } else {
+          profileUpdates.tob_signed_at = null;
+        }
+      }
+
       if (profile) {
         await trx('landlord_profiles').where({ user_id: id }).update(profileUpdates);
       } else {
@@ -440,6 +509,17 @@ export const updateLandlord = catchAsync(async (req, res, next) => {
           ...profileUpdates
         });
       }
+    }
+
+    // Keep the checklist item in step with the ToB status. Only on a real
+    // change — the edit forms send tob_status on every save, and an unrelated
+    // edit must not re-stamp verified_at/verified_by.
+    if (tobChanged) {
+      await trx('compliance_checklist')
+        .where({ scope: 'landlord', entity_id: id, item_code: 'TOB_SIGNED' })
+        .update(tob_status === 'signed'
+          ? { status: 'complete', verified_at: trx.fn.now(), verified_by: req.user.id }
+          : { status: 'pending', verified_at: null, verified_by: null });
     }
 
     // Keep the checklist item in step with an explicit ownership confirmation.

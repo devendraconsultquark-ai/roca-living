@@ -10,6 +10,7 @@ import { DataRow, Card, DetailContainer, DetailSkeleton, DetailHeader, DetailTab
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
 import { Button } from '../components/UI/Button';
+import { DocumentUploadModal } from '../components/UI/DocumentUploadModal';
 import api from '../utilities/api';
 
 export const PropertyDetailPage = () => {
@@ -50,7 +51,7 @@ export const PropertyDetailPage = () => {
 
   // Documents tab
   const [documents, setDocuments] = useState([]);
-  const [uploading, setUploading] = useState(false);
+  const [pendingUpload, setPendingUpload] = useState(null);
   const fileInputRef = useRef(null);
   const [docsReloadKey, setDocsReloadKey] = useState(0);
 
@@ -160,25 +161,12 @@ export const PropertyDetailPage = () => {
     }
   };
 
-  const handleDocUpload = async (file) => {
+  // Picking a file only stages it — the upload happens from the review modal,
+  // where the admin sees the file and chooses its folder first.
+  const handleDocUpload = (file) => {
+    if (fileInputRef.current) fileInputRef.current.value = '';
     if (!file) return;
-    setUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('scope', 'property');
-    formData.append('entityId', String(id));
-    try {
-      await api.post('/documents/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      addToast('Document uploaded successfully!', 'success');
-      setDocsReloadKey((k) => k + 1);
-    } catch (err) {
-      addToast(err.response?.data?.message || 'Failed to upload document', 'error');
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
+    setPendingUpload(file);
   };
 
   const handleChecklistToggle = async (item) => {
@@ -340,7 +328,7 @@ export const PropertyDetailPage = () => {
                 <div className="flex flex-col gap-4">
                   <div className="flex items-center justify-between pb-3 border-b border-gray-50">
                     <span className="text-sm font-medium text-status-muted">Current Occupancy</span>
-                    <span className="text-sm font-bold text-brand-primary">{data.status === 'let' ? 'Occupied' : 'Vacant'}</span>
+                    <span className="text-sm font-bold text-brand-primary">{data.status === 'let' ? 'Occupied' : data.status === 'onboarding' ? 'Onboarding' : 'Vacant'}</span>
                   </div>
                   <div className="flex items-center justify-between pb-3 border-b border-gray-50">
                     <span className="text-sm font-medium text-status-muted">Active Tickets</span>
@@ -526,9 +514,8 @@ export const PropertyDetailPage = () => {
                         variant="secondary"
                         icon={Upload}
                         onClick={() => fileInputRef.current?.click()}
-                        disabled={uploading}
                       >
-                        {uploading ? 'Uploading…' : 'Upload Document'}
+                        Upload Document
                       </Button>
                     </div>
                     {documents.map((doc) => (
@@ -568,10 +555,9 @@ export const PropertyDetailPage = () => {
                     <p className="text-xs text-gray-400 mt-1">Leases, floor plans, and instructions will appear here.</p>
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      disabled={uploading}
-                      className="mt-4 px-4 py-2 bg-white border border-card-border rounded-lg text-sm font-bold text-brand-primary hover:bg-surface-hover transition-colors shadow-sm cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                      className="mt-4 px-4 py-2 bg-white border border-card-border rounded-lg text-sm font-bold text-brand-primary hover:bg-surface-hover transition-colors shadow-sm cursor-pointer"
                     >
-                      {uploading ? 'Uploading…' : 'Upload Document'}
+                      Upload Document
                     </button>
                   </div>
                 )}
@@ -803,6 +789,17 @@ export const PropertyDetailPage = () => {
           </div>
         </div>
       )}
+
+      <DocumentUploadModal
+        file={pendingUpload}
+        scope="property"
+        entityId={id}
+        onClose={() => setPendingUpload(null)}
+        onUploaded={() => {
+          setPendingUpload(null);
+          setDocsReloadKey((k) => k + 1);
+        }}
+      />
     </DetailContainer>
   );
 };

@@ -103,11 +103,11 @@ export const Financials = () => {
             {/* Left Side: Summary & Account Balance (7 Columns) */}
             <div className="lg:col-span-7 flex flex-col gap-6">
               {/* Financial Summary */}
-              <PortalCard title="Financial Summary" subtitle="(All Time)">
+              <PortalCard title="Financial Summary">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2 select-none text-left">
                   <div className="flex flex-col">
                     <span className="text-2xs text-gray-400 font-bold uppercase tracking-tight">
-                      Total Income
+                      Total Income (All Time)
                     </span>
                     <span className="text-sm-portal font-extrabold text-brand-primary mt-2 font-mono">
                       £
@@ -135,7 +135,7 @@ export const Financials = () => {
 
                   <div className="flex flex-col border-l border-card-border pl-4">
                     <span className="text-2xs text-gray-400 font-bold uppercase tracking-tight">
-                      Net Paid
+                      Net Paid (All Time)
                     </span>
                     <span className="text-sm-portal font-extrabold text-brand-primary mt-2 font-mono">
                       £

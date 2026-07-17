@@ -24,6 +24,14 @@ const TENANCY_STATUS_CHIPS = {
   ended: "text-status-muted bg-surface-light border-card-border",
 };
 
+// Display labels for the tenancies.status DB enum (matches the admin portal).
+const TENANCY_STATUS_LABELS = {
+  active: "Active",
+  pending: "Pending",
+  notice: "Notice Served",
+  ended: "Ended",
+};
+
 export const TenancyLifecycle = () => {
   // All statistics and the upcoming-renewals table are derived in the hook;
   // this component only renders.
@@ -125,7 +133,7 @@ export const TenancyLifecycle = () => {
           onActionClick={() => applyLifecycleFilter("Renewals")}
         />
         <PortalMetricCard
-          label="Ended Tenancies"
+          label="Move Outs"
           value={loading ? "..." : moveOutsCount}
           icon={LogOut}
           variant="danger"
@@ -308,7 +316,7 @@ export const TenancyLifecycle = () => {
                           <span
                             className={`px-2 py-0.5 text-2xs font-bold rounded-sm border select-none inline-block capitalize ${TENANCY_STATUS_CHIPS[row.status] || TENANCY_STATUS_CHIPS.ended}`}
                           >
-                            {row.status}
+                            {TENANCY_STATUS_LABELS[row.status] || row.status}
                           </span>
                         </td>
                       </tr>

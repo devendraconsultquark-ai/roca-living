@@ -84,8 +84,10 @@ export const Documents = () => {
   const categoriesCount = {
     Tenancy: documentsData.filter(d => d.category === 'Tenancy').length,
     Statements: documentsData.filter(d => d.category === 'Statements').length,
+    Invoices: documentsData.filter(d => d.category === 'Invoices').length,
     Certificates: documentsData.filter(d => d.category === 'Certificates').length,
     Compliance: documentsData.filter(d => d.category === 'Compliance').length,
+    Other: documentsData.filter(d => d.category === 'Other').length,
   };
 
   const recentUploads = [...documentsData]
@@ -270,6 +272,20 @@ export const Documents = () => {
                   {categoriesCount.Compliance}
                 </span>
               </div>
+              <div className="flex justify-between items-center border-t border-card-border pt-2.5">
+                <span>Invoices</span>
+                <span className="px-2 py-0.5 rounded-full bg-status-info-bg text-status-info text-2xs font-extrabold">
+                  {categoriesCount.Invoices}
+                </span>
+              </div>
+              {categoriesCount.Other > 0 && (
+                <div className="flex justify-between items-center border-t border-card-border pt-2.5">
+                  <span>Other</span>
+                  <span className="px-2 py-0.5 rounded-full bg-status-info-bg text-status-info text-2xs font-extrabold">
+                    {categoriesCount.Other}
+                  </span>
+                </div>
+              )}
             </div>
 
             <Button

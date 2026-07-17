@@ -5,6 +5,29 @@ import { filterByProperty } from '../utilities/propertyFilter';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// Display labels for the deposits.status DB enum (matches the admin portal).
+const DEPOSIT_STATUS_LABELS = {
+  pending_registration: 'Pending Registration',
+  registered: 'Registered',
+  returned: 'Returned to Tenant',
+  disputed: 'In Dispute',
+  deducted: 'Deductions Made',
+};
+
+const DEPOSIT_STATUS_COLORS = {
+  pending_registration: 'text-status-warning bg-status-warning/10 border-status-warning/15',
+  registered: 'text-status-success bg-status-success-bg border-status-success/15',
+  returned: 'text-status-muted bg-surface-light border-card-border',
+  disputed: 'text-status-danger bg-status-danger/10 border-status-danger/15',
+  deducted: 'text-status-warning bg-status-warning/10 border-status-warning/15',
+};
+
+// The real deposit status, falling back to the registration timestamp for
+// older rows that predate the status column.
+const depositStatusOf = (t) =>
+  t.deposit_status ||
+  (t.deposit_registered_at ? 'registered' : 'pending_registration');
+
 /**
  * useTenancyLifecycle — derives the lifecycle statistics (active / move-in /
  * renewal / move-out counts + percentages) and the upcoming-renewals table from
@@ -40,8 +63,9 @@ export const useTenancyLifecycle = () => {
     });
     const renewalsCount = renewals.length;
 
+    // Move-out stage covers tenancies under notice as well as ended ones.
     const moveOutsCount = scoped.filter(
-      (t) => t.status === 'ended' || t.status === 'closed',
+      (t) => t.status === 'ended' || t.status === 'notice',
     ).length;
 
     const formattedRenewals = renewals.map((t) => {
@@ -56,11 +80,9 @@ export const useTenancyLifecycle = () => {
         statusColor: 'text-status-warning bg-status-warning/10 border-status-warning/15',
         rent: t.rent_pcm != null ? parseFloat(t.rent_pcm) : null,
         startDate: t.start_date ? new Date(t.start_date).toLocaleDateString('en-GB') : '—',
-        depositStatus: t.deposit_registered_at || t.deposit_status === 'registered'
-          ? 'Registered'
-          : t.deposit_amount != null
-            ? 'Pending Registration'
-            : '—',
+        depositStatus: t.deposit_amount != null
+          ? DEPOSIT_STATUS_LABELS[depositStatusOf(t)] || depositStatusOf(t)
+          : '—',
       };
     });
 
@@ -71,7 +93,7 @@ export const useTenancyLifecycle = () => {
         t.status === 'pending' || (t.start_date && new Date(t.start_date) > new Date());
       const endDiff = t.end_date ? new Date(t.end_date) - new Date() : null;
       const isRenewal = endDiff !== null && endDiff > 0 && endDiff <= 90 * DAY_MS;
-      const isMoveOut = t.status === 'ended' || t.status === 'closed';
+      const isMoveOut = t.status === 'ended' || t.status === 'notice';
       return {
         ref: `TEN-${String(t.id).padStart(5, '0')}`,
         property: t.address_line1 ? `${t.address_line1}, ${t.city}` : `Property #${t.property_id}`,
@@ -91,9 +113,9 @@ export const useTenancyLifecycle = () => {
     const deposits = scoped
       .filter((t) => t.deposit_amount != null)
       .map((t) => {
-        const isRegistered = !!t.deposit_registered_at || t.deposit_status === 'registered';
+        const depositStatus = depositStatusOf(t);
         const isOverdue =
-          !isRegistered &&
+          depositStatus === 'pending_registration' &&
           t.deposit_register_due &&
           new Date(t.deposit_register_due) < new Date();
         return {
@@ -101,23 +123,20 @@ export const useTenancyLifecycle = () => {
           tenant: t.lead_tenant_name || '—',
           amount: parseFloat(t.deposit_amount || 0),
           scheme: t.deposit_scheme || '—',
-          statusLabel: isRegistered
-            ? 'Registered'
-            : isOverdue
-              ? 'Registration Overdue'
-              : 'Pending Registration',
-          statusDate: isRegistered
-            ? t.deposit_registered_at
-              ? new Date(t.deposit_registered_at).toLocaleDateString('en-GB')
-              : '—'
-            : t.deposit_register_due
+          statusLabel: isOverdue
+            ? 'Registration Overdue'
+            : DEPOSIT_STATUS_LABELS[depositStatus] || depositStatus,
+          statusDate: depositStatus === 'pending_registration'
+            ? t.deposit_register_due
               ? `Due ${new Date(t.deposit_register_due).toLocaleDateString('en-GB')}`
+              : '—'
+            : t.deposit_registered_at
+              ? new Date(t.deposit_registered_at).toLocaleDateString('en-GB')
               : '—',
-          statusColor: isRegistered
-            ? 'text-status-success bg-status-success-bg border-status-success/15'
-            : isOverdue
-              ? 'text-status-danger bg-status-danger/10 border-status-danger/15'
-              : 'text-status-warning bg-status-warning/10 border-status-warning/15',
+          statusColor: isOverdue
+            ? 'text-status-danger bg-status-danger/10 border-status-danger/15'
+            : DEPOSIT_STATUS_COLORS[depositStatus] ||
+              DEPOSIT_STATUS_COLORS.pending_registration,
         };
       });
 

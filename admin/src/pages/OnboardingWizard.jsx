@@ -260,6 +260,39 @@ export const OnboardingWizard = () => {
             </div>
           </div>
 
+          {/* New landlord account: one-time set-password link for the admin to
+              share directly — no email is sent. Absent when the landlord already existed. */}
+          {createdIds?.activation_link && (
+            <div className="bg-surface-light rounded-card p-6 text-left w-full max-w-lg border border-card-border">
+              <p className="text-gray-400 font-semibold text-xs">LANDLORD PORTAL ACCESS</p>
+              <p className="text-xs text-status-muted mt-1 leading-relaxed">
+                Share this one-time link with {formData.landlordName} so they can set their password
+                and sign in{createdIds.activation_expires_at ? ` (valid until ${new Date(createdIds.activation_expires_at).toLocaleDateString('en-GB')})` : ''}.
+              </p>
+              <div className="mt-3 flex items-center gap-2">
+                <input
+                  readOnly
+                  value={createdIds.activation_link}
+                  onFocus={(e) => e.target.select()}
+                  className="flex-1 text-xs font-mono border border-card-border rounded-lg px-3 py-2.5 bg-white text-brand-primary min-w-0"
+                />
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(createdIds.activation_link);
+                      addToast('Activation link copied to clipboard', 'success');
+                    } catch {
+                      addToast('Could not copy automatically — select the link and copy it manually', 'error');
+                    }
+                  }}
+                >
+                  Copy
+                </Button>
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-4">
             <Button variant="secondary" onClick={() => navigate('/dashboard')}>

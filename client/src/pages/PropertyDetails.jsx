@@ -24,7 +24,7 @@ const TICKET_STATUS_CHIPS = {
 };
 
 const UTILITY_STATUS_CHIPS = {
-  complete: "text-status-success bg-status-success-bg border-status-success/15",
+  completed: "text-status-success bg-status-success-bg border-status-success/15",
   disputed: "text-status-danger bg-status-danger/10 border-status-danger/15",
 };
 
@@ -116,10 +116,7 @@ export const PropertyDetails = () => {
               <div className="flex-grow flex flex-col justify-between py-0.5">
                 <div>
                   <StatusPill
-                    status={details.status === "let" ? "active" : "pending"}
-                    customLabel={
-                      details.status === "let" ? "Occupied" : "Vacant"
-                    }
+                    status={details.status}
                     size="sm"
                     showIcon={false}
                   />
@@ -197,7 +194,7 @@ export const PropertyDetails = () => {
                     Monthly Rent
                   </span>
                   <span className="text-base-portal font-bold text-brand-primary mt-1.5 block leading-none">
-                    £{details.rent.toLocaleString()}
+                    £{Number(details.rent).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                   {details.status === "let" && (
                     <span className="text-2xs text-status-success font-semibold mt-1 block leading-none">
@@ -210,7 +207,7 @@ export const PropertyDetails = () => {
                     Deposit Held
                   </span>
                   <span className="text-base-portal font-bold text-brand-primary mt-1.5 block leading-none">
-                    £{details.deposit.toLocaleString()}
+                    £{Number(details.deposit).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                   {details.status === "let" && (
                     <span className="text-2xs text-status-success font-semibold mt-1 block leading-none">
@@ -267,7 +264,7 @@ export const PropertyDetails = () => {
                     Net Paid This Month
                   </span>
                   <span className="text-base-portal font-bold text-brand-primary mt-1.5 block leading-none">
-                    £{details.netPaid.toLocaleString()}
+                    £{Number(details.netPaid).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>

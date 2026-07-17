@@ -3,6 +3,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
 import { generatePortraitPDFWithPuppeteer } from '../utils/puppeteerGenerator.js';
 import { generateStandaloneStatementHTML } from '../templates/statementInvoiceTemplate.js';
+import { deriveInitials } from '../utils/initials.js';
 import logger from '../utils/logger.js';
 import fs from 'fs';
 import path from 'path';
@@ -140,10 +141,18 @@ export const generateStatements = catchAsync(async (req, res, next) => {
 
   let statementId;
   await db.transaction(async (trx) => {
-    // 1. Insert document record
+    // 1. Insert document record — filed under a global 'Statements' folder so
+    // generated statements show up in the admin document views (which only
+    // render folder children). Find-or-create, same idiom as documentController.
+    let statementsFolder = await trx('folders').where('name', 'Statements').first();
+    if (!statementsFolder) {
+      const [folderId] = await trx('folders').insert({ name: 'Statements', owner_type: 'global' });
+      statementsFolder = { id: folderId, name: 'Statements' };
+    }
+
     const tempDocRef = `TEMP-DOC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const [docId] = await trx('documents').insert({
-      folder_id: null,
+      folder_id: statementsFolder.id,
       // Unattributed statements (EM-sourced / no landlord match) are 'global'
       // documents — never owned by the generating admin's user id.
       owner_type: landlordId ? 'landlord' : 'global',
@@ -257,7 +266,8 @@ export const generateStatements = catchAsync(async (req, res, next) => {
       period_end,
       gross_rent: parseFloat(rent_received || 0).toFixed(2),
       net_paid: parseFloat(net_paid || 0).toFixed(2),
-      status: 'generated'
+      // Matches what was actually stored — 'generated' is not a valid status.
+      status: 'draft'
     }]
   });
 
@@ -509,21 +519,11 @@ export const getAutofillMetadata = catchAsync(async (req, res, next) => {
     return match ? match[1] : '';
   };
 
+  // Initials are stored on the profile at creation now; deriving from the name
+  // remains as a fallback for legacy rows and external (rocaem) properties.
   const parseInitials = (name, initialsDb) => {
     if (initialsDb) return initialsDb;
-    if (!name) return 'RL';
-    const clean = name.replace(/(Mr|Mrs|Ms|Dr|Prof|Messrs)\.?\s+/gi, '');
-    const parts = clean.split(/\s+&\s+|\s+and\s+/i);
-    const initialsList = parts.map(part => {
-      const words = part.split(/\s+/).filter(w => w.length > 0);
-      if (words.length >= 2) {
-        return (words[0][0] + words[words.length - 1][0]).toUpperCase();
-      } else if (words.length === 1) {
-        return words[0].substring(0, 2).toUpperCase();
-      }
-      return '';
-    }).filter(Boolean);
-    return initialsList.join('/');
+    return deriveInitials(name) || 'RL';
   };
 
   const formatDate = (dateValue) => {
