@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Hash, Mail, Phone, Globe, MapPin,
+  Hash, Mail, Phone, MapPin,
   Building2, Flag, Calendar, ShieldCheck, Banknote, Home,
-  CheckCircle2, AlertTriangle, Clock, FileText, User
+  CheckCircle2, AlertTriangle, Clock, FileText, User, Download
 } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
@@ -34,6 +34,26 @@ export const LandlordDetailPage = () => {
   const [kycForm, setKycForm] = useState({ kyc_status: 'not_started', kyc_ref: '' });
   const [kycSaving, setKycSaving] = useState(false);
 
+  // Edit profile modal state
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: '', email: '', phone: '', address: '', company_name: '', initials: '',
+    is_overseas: 'no', nrl_hmrc_ref: '', nrl_hmrc_approved: 'no',
+    nrl_withhold_pct: '', ownership_share: '', tob_status: 'not_sent',
+  });
+  const [editErrors, setEditErrors] = useState({});
+  const [editSaving, setEditSaving] = useState(false);
+
+  // Financials tab data
+  const [transactions, setTransactions] = useState([]);
+  const [pendingPayout, setPendingPayout] = useState(0);
+
+  // Documents tab data
+  const [allDocs, setAllDocs] = useState([]);
+  const [docsReloadKey, setDocsReloadKey] = useState(0);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const fileInputRef = useRef(null);
+
   // Bump to re-fetch after a mutation (verify / bank-details update).
   const [reloadKey, setReloadKey] = useState(0);
   const refetchLandlord = () => setReloadKey((k) => k + 1);
@@ -56,6 +76,146 @@ export const LandlordDetailPage = () => {
     };
     fetchLandlord();
   }, [id, navigate, addToast, reloadKey]);
+
+  useEffect(() => {
+    const fetchFinancials = async () => {
+      try {
+        const [txRes, stRes] = await Promise.all([
+          api.get('/transactions', { params: { landlord_id: id } }),
+          api.get('/statements'),
+        ]);
+        setTransactions(txRes.data.data || []);
+        const statements = stRes.data.data || [];
+        const pending = statements
+          .filter((s) => String(s.landlord_id) === String(id) && s.status !== 'paid')
+          .reduce((sum, s) => sum + (parseFloat(s.net_paid) || 0), 0);
+        setPendingPayout(pending);
+      } catch (err) {
+        console.error(err);
+        addToast(err.response?.data?.message || 'Failed to load financial data', 'error');
+      }
+    };
+    fetchFinancials();
+  }, [id, addToast]);
+
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      try {
+        const res = await api.get('/documents/folders');
+        const folders = res.data?.data || [];
+        setAllDocs(folders.flatMap((f) => f.children || []));
+      } catch (err) {
+        console.error(err);
+        addToast(err.response?.data?.message || 'Failed to load documents', 'error');
+      }
+    };
+    fetchDocuments();
+  }, [addToast, docsReloadKey]);
+
+  const openEditModal = () => {
+    setEditForm({
+      name: data.name || '',
+      email: data.email || '',
+      phone: data.phone || '',
+      address: data.address || '',
+      company_name: data.company_name || '',
+      initials: data.initials || '',
+      is_overseas: data.is_overseas ? 'yes' : 'no',
+      nrl_hmrc_ref: data.nrl_hmrc_ref || '',
+      nrl_hmrc_approved: data.nrl_hmrc_approved ? 'yes' : 'no',
+      nrl_withhold_pct: data.nrl_withhold_pct != null ? String(data.nrl_withhold_pct) : '',
+      ownership_share: data.ownership_share != null ? String(data.ownership_share) : '',
+      tob_status: data.tob_status || 'not_sent',
+    });
+    setEditErrors({});
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setEditErrors({});
+    setEditSaving(true);
+    try {
+      await api.patch(`/landlords/${id}`, {
+        name: editForm.name,
+        email: editForm.email,
+        phone: editForm.phone,
+        address: editForm.address,
+        company_name: editForm.company_name || undefined,
+        initials: editForm.initials || undefined,
+        is_overseas: editForm.is_overseas === 'yes',
+        nrl_hmrc_ref: editForm.nrl_hmrc_ref || undefined,
+        nrl_hmrc_approved: editForm.nrl_hmrc_approved === 'yes',
+        nrl_withhold_pct: editForm.nrl_withhold_pct !== '' ? parseFloat(editForm.nrl_withhold_pct) : undefined,
+        ownership_share: editForm.ownership_share !== '' ? parseFloat(editForm.ownership_share) : undefined,
+        tob_status: editForm.tob_status,
+      });
+      addToast('Landlord details updated successfully!', 'success');
+      setIsEditModalOpen(false);
+      refetchLandlord();
+    } catch (err) {
+      console.error(err);
+      if (err.response?.data?.errors) {
+        const errorsObj = {};
+        err.response.data.errors.forEach((er) => {
+          errorsObj[er.field] = er.message;
+        });
+        setEditErrors(errorsObj);
+      } else {
+        addToast(err.response?.data?.message || 'Failed to update landlord details', 'error');
+      }
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleDownloadDocument = async (file) => {
+    try {
+      const response = await api.get(`/documents/${file.id}/download`, {
+        responseType: 'blob',
+        skipInterceptorError: true,
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', file.name || `document-${file.id}`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      let msg = 'Failed to download document';
+      if (err.response?.data instanceof Blob) {
+        try { msg = JSON.parse(await err.response.data.text())?.message || msg; } catch { /* keep default */ }
+      } else {
+        msg = err.response?.data?.message || msg;
+      }
+      addToast(msg, 'error');
+    }
+  };
+
+  const handleUploadFileChange = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setUploadingDoc(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('scope', 'landlord');
+    formData.append('entityId', String(id));
+    try {
+      await api.post('/documents/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      addToast('Document uploaded successfully!', 'success');
+      setDocsReloadKey((k) => k + 1);
+    } catch (err) {
+      console.error(err);
+      addToast(err.response?.data?.message || `Failed to upload ${file.name}`, 'error');
+    } finally {
+      setUploadingDoc(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const handleKycSubmit = async (e) => {
     e.preventDefault();
@@ -148,6 +308,25 @@ export const LandlordDetailPage = () => {
 
   const isVerified = data.kyc_status === 'passed' || data.kyc_status === 'approved';
 
+  // Financial summary derived from the transactions ledger.
+  const currentYear = new Date().getFullYear();
+  const ytdIncome = transactions
+    .filter((t) => t.type === 'rent_in' && new Date(t.transaction_date).getFullYear() === currentYear)
+    .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+  const ytdExpenses = transactions
+    .filter((t) => t.type !== 'rent_in' && t.type !== 'landlord_payout' && new Date(t.transaction_date).getFullYear() === currentYear)
+    .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+  const recentTransactions = [...transactions]
+    .sort((a, b) => new Date(b.transaction_date) - new Date(a.transaction_date))
+    .slice(0, 10);
+  const formatMoney = (n) => `£${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const typeLabel = (type) => (type || '—').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+  // This landlord's documents from the flattened folder tree.
+  const landlordDocs = allDocs.filter(
+    (d) => d.scope === 'landlord' && (d.entityId === data.landlord_reference || d.entityId === `LND-${id}`)
+  );
+
   return (
     <DetailContainer>
       <DetailHeader
@@ -165,6 +344,7 @@ export const LandlordDetailPage = () => {
         }
         subtitle={`${data.is_overseas ? 'OVERSEAS' : 'PERSONAL'} • Joined ${new Date(data.created_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`}
         editLabel="Edit Profile"
+        onEdit={() => openEditModal()}
         onDelete={handleDelete}
       />
 
@@ -181,14 +361,13 @@ export const LandlordDetailPage = () => {
                     <DataRow icon={Hash} label="Reference ID" value={data.landlord_reference || `REM-LND-${data.id.toString().padStart(3, '0')}`} />
                     <DataRow icon={Mail} label="Email Address" value={data.email} />
                     <DataRow icon={Phone} label="Phone Number" value={data.phone} />
-                    <DataRow icon={Globe} label="Nationality" value="—" />
                     <DataRow icon={MapPin} label="Full Address" value={data.address} />
                   </div>
                   <div>
                     <DataRow icon={Building2} label="Ownership Type" value={data.is_overseas ? 'Overseas' : 'Personal'} />
-                    <DataRow icon={Flag} label="Country" value="United Kingdom" />
-                    <DataRow icon={Hash} label="Postcode" value="—" />
-                    <DataRow icon={Calendar} label="Date Of Birth" value="—" />
+                    <DataRow icon={Flag} label="Country" value={data.is_overseas ? 'Overseas' : 'United Kingdom'} />
+                    <DataRow icon={Building2} label="Company Name" value={data.company_name || '—'} />
+                    <DataRow icon={Hash} label="Ownership Share" value={data.ownership_share != null ? `${data.ownership_share}%` : '—'} />
                   </div>
                 </div>
               </Card>
@@ -280,27 +459,65 @@ export const LandlordDetailPage = () => {
                 <div className="grid grid-cols-3 gap-4 mb-8">
                   <div className="bg-surface-light p-4 rounded-card border border-card-border">
                     <p className="text-2xs font-bold text-gray-400 uppercase tracking-wider mb-1">YTD Income</p>
-                    <p className="text-2xl font-bold text-brand-primary">£0.00</p>
+                    <p className="text-2xl font-bold text-brand-primary">{formatMoney(ytdIncome)}</p>
                   </div>
                   <div className="bg-surface-light p-4 rounded-card border border-card-border">
                     <p className="text-2xs font-bold text-gray-400 uppercase tracking-wider mb-1">YTD Expenses</p>
-                    <p className="text-2xl font-bold text-brand-primary">£0.00</p>
+                    <p className="text-2xl font-bold text-brand-primary">{formatMoney(ytdExpenses)}</p>
                   </div>
                   <div className="bg-surface-light p-4 rounded-card border border-card-border">
                     <p className="text-2xs font-bold text-gray-400 uppercase tracking-wider mb-1">Pending Payout</p>
-                    <p className="text-2xl font-bold text-brand-primary">£0.00</p>
+                    <p className="text-2xl font-bold text-brand-primary">{formatMoney(pendingPayout)}</p>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center justify-between mb-4">
                   <h4 className="font-bold text-brand-primary">Recent Transactions</h4>
-                  <button className="text-xs font-bold text-brand-accent hover:underline">View All</button>
+                  <button
+                    onClick={() => navigate('/accounting')}
+                    className="text-xs font-bold text-brand-accent hover:underline cursor-pointer"
+                  >
+                    View All
+                  </button>
                 </div>
-                <div className="flex flex-col items-center justify-center p-8 bg-surface-light rounded-card border border-dashed border-card-border">
-                  <Banknote size={32} className="text-gray-300 mb-3" />
-                  <p className="text-sm font-semibold text-status-muted">No transactions found</p>
-                  <p className="text-xs text-gray-400 mt-1">Rent payments and payouts will appear here.</p>
-                </div>
+                {recentTransactions.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-card-border">
+                          <th className="text-left py-2 pr-3 text-2xs font-bold text-gray-400 uppercase tracking-wider">Date</th>
+                          <th className="text-left py-2 pr-3 text-2xs font-bold text-gray-400 uppercase tracking-wider">Description</th>
+                          <th className="text-left py-2 pr-3 text-2xs font-bold text-gray-400 uppercase tracking-wider">Property</th>
+                          <th className="text-left py-2 pr-3 text-2xs font-bold text-gray-400 uppercase tracking-wider">Type</th>
+                          <th className="text-right py-2 text-2xs font-bold text-gray-400 uppercase tracking-wider">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {recentTransactions.map((t, idx) => (
+                          <tr key={t.id ?? idx} className="border-b border-gray-50 last:border-0">
+                            <td className="py-2.5 pr-3 text-xs font-semibold text-status-muted whitespace-nowrap">
+                              {t.transaction_date ? new Date(t.transaction_date).toLocaleDateString('en-GB') : '—'}
+                            </td>
+                            <td className="py-2.5 pr-3 text-xs font-semibold text-brand-primary">{t.description || '—'}</td>
+                            <td className="py-2.5 pr-3 text-xs text-status-muted">{t.property_address || '—'}</td>
+                            <td className="py-2.5 pr-3 text-xs text-status-muted whitespace-nowrap">{typeLabel(t.type)}</td>
+                            <td className={`py-2.5 text-xs font-bold text-right whitespace-nowrap ${
+                              t.type === 'rent_in' ? 'text-status-success' : 'text-status-danger'
+                            }`}>
+                              {t.type === 'rent_in' ? '' : '-'}£{(parseFloat(t.amount) || 0).toFixed(2)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center p-8 bg-surface-light rounded-card border border-dashed border-card-border">
+                    <Banknote size={32} className="text-gray-300 mb-3" />
+                    <p className="text-sm font-semibold text-status-muted">No transactions found</p>
+                    <p className="text-xs text-gray-400 mt-1">Rent payments and payouts will appear here.</p>
+                  </div>
+                )}
               </Card>
             </div>
             <div className="lg:col-span-1">
@@ -359,14 +576,72 @@ export const LandlordDetailPage = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
               <Card title="Uploaded Documents">
-                <div className="flex flex-col items-center justify-center p-12 bg-surface-light rounded-card border border-dashed border-card-border">
-                  <FileText size={32} className="text-gray-300 mb-3" />
-                  <p className="text-sm font-semibold text-status-muted">No documents uploaded</p>
-                  <p className="text-xs text-gray-400 mt-1">Contracts, IDs, and agreements will appear here.</p>
-                  <button className="mt-4 px-4 py-2 bg-white border border-card-border rounded-lg text-sm font-bold text-brand-primary hover:bg-surface-hover transition-colors shadow-sm">
-                    Upload Document
-                  </button>
-                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={handleUploadFileChange}
+                />
+                {landlordDocs.length > 0 ? (
+                  <div className="flex flex-col gap-3">
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={uploadingDoc}
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        {uploadingDoc ? 'Uploading…' : 'Upload Document'}
+                      </Button>
+                    </div>
+                    {landlordDocs.map((file) => (
+                      <div
+                        key={file.id}
+                        className="flex items-center justify-between p-3.5 bg-surface-light/50 border border-card-border rounded-card hover:bg-surface-light transition-colors gap-3"
+                      >
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="card-bg p-2 rounded-lg border border-card-border text-brand-accent shrink-0">
+                            <FileText size={18} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs sm:text-sm font-bold text-brand-primary truncate">{file.name}</p>
+                            <div className="flex flex-wrap items-center gap-2 text-2xs text-gray-400 font-semibold mt-1">
+                              {file.doc_reference && (
+                                <>
+                                  <span className="text-brand-primary font-bold bg-surface-hover px-1.5 py-0.5 rounded-sm border border-card-border">{file.doc_reference}</span>
+                                  <span>•</span>
+                                </>
+                              )}
+                              <span>Uploaded: {file.date}</span>
+                              <span>•</span>
+                              <span>Size: {file.size}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleDownloadDocument(file)}
+                          className="p-2 text-gray-400 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors border border-transparent hover:border-brand-accent/10 cursor-pointer shrink-0"
+                          title="Download document"
+                        >
+                          <Download size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center p-12 bg-surface-light rounded-card border border-dashed border-card-border">
+                    <FileText size={32} className="text-gray-300 mb-3" />
+                    <p className="text-sm font-semibold text-status-muted">No documents uploaded</p>
+                    <p className="text-xs text-gray-400 mt-1">Contracts, IDs, and agreements will appear here.</p>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingDoc}
+                      className="mt-4 px-4 py-2 bg-white border border-card-border rounded-lg text-sm font-bold text-brand-primary hover:bg-surface-hover transition-colors shadow-sm cursor-pointer"
+                    >
+                      {uploadingDoc ? 'Uploading…' : 'Upload Document'}
+                    </button>
+                  </div>
+                )}
               </Card>
             </div>
             <div className="lg:col-span-1">
@@ -402,6 +677,146 @@ export const LandlordDetailPage = () => {
           </div>
         )}
       </div>
+
+      {/* Edit Profile Modal */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-xl mx-4 border border-card-border max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold text-brand-primary mb-4">Edit Landlord Details</h3>
+
+            <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Full Name"
+                  id="edit_name"
+                  required
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  error={editErrors.name}
+                />
+                <Input
+                  label="Email Address"
+                  id="edit_email"
+                  type="email"
+                  required
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                  error={editErrors.email}
+                />
+                <Input
+                  label="Contact Phone"
+                  id="edit_phone"
+                  required
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                  error={editErrors.phone}
+                />
+                <Input
+                  label="Address"
+                  id="edit_address"
+                  value={editForm.address}
+                  onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                  error={editErrors.address}
+                />
+                <Input
+                  label="Company Name (optional)"
+                  id="edit_company_name"
+                  value={editForm.company_name}
+                  onChange={(e) => setEditForm({ ...editForm, company_name: e.target.value })}
+                  error={editErrors.company_name}
+                />
+                <Input
+                  label="Initials (statements)"
+                  id="edit_initials"
+                  placeholder="e.g. RB/GH"
+                  value={editForm.initials}
+                  onChange={(e) => setEditForm({ ...editForm, initials: e.target.value })}
+                  error={editErrors.initials}
+                />
+                <Dropdown
+                  label="Residency"
+                  id="edit_is_overseas"
+                  options={[
+                    { value: 'no', label: 'UK Resident' },
+                    { value: 'yes', label: 'Overseas (NRL)' }
+                  ]}
+                  value={editForm.is_overseas}
+                  onChange={(val) => setEditForm({ ...editForm, is_overseas: val })}
+                />
+                <Input
+                  label="NRL Withholding (%)"
+                  id="edit_nrl_withhold_pct"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  placeholder="20.00"
+                  value={editForm.nrl_withhold_pct}
+                  onChange={(e) => setEditForm({ ...editForm, nrl_withhold_pct: e.target.value })}
+                  error={editErrors.nrl_withhold_pct}
+                />
+                <Input
+                  label="NRL Number (HMRC)"
+                  id="edit_nrl_hmrc_ref"
+                  placeholder="e.g. NL945005"
+                  value={editForm.nrl_hmrc_ref}
+                  onChange={(e) => setEditForm({ ...editForm, nrl_hmrc_ref: e.target.value })}
+                  error={editErrors.nrl_hmrc_ref}
+                />
+                <Dropdown
+                  label="NRL HMRC Approved"
+                  id="edit_nrl_hmrc_approved"
+                  options={[
+                    { value: 'no', label: 'No' },
+                    { value: 'yes', label: 'Yes' }
+                  ]}
+                  value={editForm.nrl_hmrc_approved}
+                  onChange={(val) => setEditForm({ ...editForm, nrl_hmrc_approved: val })}
+                />
+                <Input
+                  label="Ownership Share (%)"
+                  id="edit_ownership_share"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  placeholder="100.00"
+                  value={editForm.ownership_share}
+                  onChange={(e) => setEditForm({ ...editForm, ownership_share: e.target.value })}
+                  error={editErrors.ownership_share}
+                />
+                <Dropdown
+                  label="Terms of Business"
+                  id="edit_tob_status"
+                  options={[
+                    { value: 'not_sent', label: 'Not Sent' },
+                    { value: 'sent', label: 'Sent' },
+                    { value: 'signed', label: 'Signed' }
+                  ]}
+                  value={editForm.tob_status}
+                  onChange={(val) => setEditForm({ ...editForm, tob_status: val })}
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end mt-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setIsEditModalOpen(false);
+                    setEditErrors({});
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary" disabled={editSaving}>
+                  {editSaving ? 'Saving…' : 'Save Changes'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Update Bank Details Modal */}
       {isBankModalOpen && (

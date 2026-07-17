@@ -29,6 +29,20 @@ export const AgentDetailPage = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [reloadKey, setReloadKey] = useState(0);
 
+  // Edit Profile modal
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    company_name: '',
+    contact_name: '',
+    email: '',
+    phone: '',
+    redress_scheme: '',
+    cmp_provider: '',
+    status: 'active',
+  });
+  const [editFormErrors, setEditFormErrors] = useState({});
+  const [editSaving, setEditSaving] = useState(false);
+
   // New Instruction modal
   const emptyInstruction = {
     property_id: '',
@@ -161,6 +175,43 @@ export const AgentDetailPage = () => {
     }
   };
 
+  const handleEditClick = () => {
+    setEditForm({
+      company_name: data.company_name || '',
+      contact_name: data.contact_name || '',
+      email: data.email || '',
+      phone: data.phone || '',
+      redress_scheme: data.redress_scheme || '',
+      cmp_provider: data.cmp_provider || '',
+      status: data.status || 'active',
+    });
+    setEditFormErrors({});
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    const errs = {};
+    if (!editForm.company_name.trim()) errs.company_name = 'Company name is required';
+    if (Object.keys(errs).length > 0) {
+      setEditFormErrors(errs);
+      return;
+    }
+
+    setEditFormErrors({});
+    setEditSaving(true);
+    try {
+      await api.patch(`/agents/${id}`, editForm);
+      addToast('Letting agent details updated successfully!', 'success');
+      setIsEditModalOpen(false);
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to update letting agent details', 'error');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const handleDelete = async () => {
     const ok = await confirm({
       title: 'Delete Letting Agent',
@@ -209,6 +260,7 @@ export const AgentDetailPage = () => {
         }
         subtitle={`AGENCY • Added ${new Date(data.created_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`}
         editLabel="Edit Profile"
+        onEdit={handleEditClick}
         onDelete={handleDelete}
       />
 
@@ -380,6 +432,83 @@ export const AgentDetailPage = () => {
           </div>
         )}
       </div>
+
+      {/* Edit Agent Modal */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-brand-primary">Edit Agent Details</h3>
+              <button onClick={() => { setIsEditModalOpen(false); setEditFormErrors({}); }} className="text-gray-400 hover:text-brand-primary cursor-pointer">
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
+              <Input
+                label="Company Name"
+                id="edit-a-company"
+                required
+                value={editForm.company_name}
+                onChange={(e) => setEditForm(f => ({ ...f, company_name: e.target.value }))}
+                error={editFormErrors.company_name}
+              />
+              <Input
+                label="Contact Name"
+                id="edit-a-contact"
+                value={editForm.contact_name}
+                onChange={(e) => setEditForm(f => ({ ...f, contact_name: e.target.value }))}
+              />
+              <Input
+                label="Email Address"
+                id="edit-a-email"
+                type="email"
+                value={editForm.email}
+                onChange={(e) => setEditForm(f => ({ ...f, email: e.target.value }))}
+              />
+              <Input
+                label="Phone Number"
+                id="edit-a-phone"
+                value={editForm.phone}
+                onChange={(e) => setEditForm(f => ({ ...f, phone: e.target.value }))}
+              />
+              <Input
+                label="Redress Scheme"
+                id="edit-a-redress"
+                placeholder="e.g. The Property Ombudsman"
+                value={editForm.redress_scheme}
+                onChange={(e) => setEditForm(f => ({ ...f, redress_scheme: e.target.value }))}
+              />
+              <Input
+                label="CMP Provider"
+                id="edit-a-cmp"
+                placeholder="e.g. Client Money Protect"
+                value={editForm.cmp_provider}
+                onChange={(e) => setEditForm(f => ({ ...f, cmp_provider: e.target.value }))}
+              />
+              <Dropdown
+                label="Agent Status"
+                id="edit-a-status"
+                options={[
+                  { value: 'active', label: 'Active' },
+                  { value: 'suspended', label: 'Suspended' }
+                ]}
+                value={editForm.status}
+                onChange={(val) => setEditForm(f => ({ ...f, status: val }))}
+              />
+
+              <div className="flex gap-3 justify-end mt-1">
+                <Button type="button" variant="ghost" onClick={() => { setIsEditModalOpen(false); setEditFormErrors({}); }} disabled={editSaving}>
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary" disabled={editSaving}>
+                  {editSaving ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* New Instruction Modal */}
       {isInstructionModalOpen && (

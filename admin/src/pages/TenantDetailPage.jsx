@@ -1,12 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   User, Users, Phone, Mail, ShieldCheck,
-  Home, CreditCard, Clock, AlertTriangle, Hash, Calendar, FileText
+  Home, CreditCard, Clock, AlertTriangle, Hash, FileText, X, Download, Upload
 } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
 import { DataRow, Card, DetailContainer, DetailSkeleton, DetailHeader, DetailTabs } from '../components/UI/DetailComponents';
+import { Input } from '../components/UI/Input';
+import { Dropdown } from '../components/UI/Dropdown';
+import { Button } from '../components/UI/Button';
 import api from '../utilities/api';
 
 const rtrColors = {
@@ -27,6 +30,27 @@ export const TenantDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
 
+  // Edit profile modal
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    right_to_rent_status: 'pending',
+    right_to_rent_expiry: ''
+  });
+  const [formErrors, setFormErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+
+  // Documents tab
+  const [documents, setDocuments] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
+  const [docsReloadKey, setDocsReloadKey] = useState(0);
+
+  // Bump to re-fetch after a mutation (profile edit).
+  const [reloadKey, setReloadKey] = useState(0);
+
   useEffect(() => {
     const fetchTenant = async () => {
       try {
@@ -40,7 +64,105 @@ export const TenantDetailPage = () => {
       }
     };
     fetchTenant();
-  }, [id, navigate, addToast]);
+  }, [id, navigate, addToast, reloadKey]);
+
+  // Documents linked to this tenant's tenancy (entityId is "TCY-<id>" or "TCY-<id> @ <property ref>").
+  const tenancyId = data?.tenancy?.id;
+  useEffect(() => {
+    if (!tenancyId) return;
+    const fetchDocuments = async () => {
+      try {
+        const res = await api.get('/documents/folders', { skipInterceptorError: true });
+        const allDocs = (res.data?.data || []).flatMap((folder) => folder.children || []);
+        setDocuments(allDocs.filter((d) =>
+          d.scope === 'tenancy' &&
+          typeof d.entityId === 'string' &&
+          (d.entityId === `TCY-${tenancyId}` || d.entityId.startsWith(`TCY-${tenancyId} `))
+        ));
+      } catch (err) {
+        addToast(err.response?.data?.message || 'Failed to load documents', 'error');
+      }
+    };
+    fetchDocuments();
+  }, [tenancyId, addToast, docsReloadKey]);
+
+  const openEditModal = () => {
+    setEditForm({
+      name: data.name || '',
+      email: data.email || '',
+      phone: data.phone || '',
+      right_to_rent_status: data.right_to_rent_status || 'pending',
+      right_to_rent_expiry: data.right_to_rent_expiry || ''
+    });
+    setFormErrors({});
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    const errs = {};
+    if (!editForm.name.trim()) errs.name = 'Full name is required';
+    if (Object.keys(errs).length > 0) { setFormErrors(errs); return; }
+
+    setFormErrors({});
+    setSubmitting(true);
+    try {
+      await api.patch(`/tenancies/tenants/${id}`, editForm);
+      addToast('Tenant details updated successfully!', 'success');
+      setIsEditModalOpen(false);
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to update tenant details', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDocDownload = async (file) => {
+    try {
+      const response = await api.get(`/documents/${file.id}/download`, {
+        responseType: 'blob',
+        skipInterceptorError: true
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', file.name || `document-${file.id}`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      let msg = 'Failed to download document';
+      if (err.response?.data instanceof Blob) {
+        try { msg = JSON.parse(await err.response.data.text())?.message || msg; } catch { /* keep default */ }
+      } else {
+        msg = err.response?.data?.message || msg;
+      }
+      addToast(msg, 'error');
+    }
+  };
+
+  const handleDocUpload = async (file) => {
+    if (!file || !tenancyId) return;
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('scope', 'tenancy');
+    formData.append('entityId', String(tenancyId));
+    try {
+      await api.post('/documents/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      addToast('Document uploaded successfully!', 'success');
+      setDocsReloadKey((k) => k + 1);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to upload document', 'error');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const handleDelete = async () => {
     const ok = await confirm({
@@ -91,6 +213,7 @@ export const TenantDetailPage = () => {
         }
         subtitle={`${data.is_lead_tenant ? 'LEAD TENANT' : 'CO-TENANT'} • Added ${new Date(data.created_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`}
         editLabel="Edit Profile"
+        onEdit={openEditModal}
         onDelete={handleDelete}
       />
 
@@ -233,19 +356,145 @@ export const TenantDetailPage = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
               <Card title="Tenant Documents">
-                <div className="flex flex-col items-center justify-center p-12 bg-surface-light rounded-xl border border-dashed border-card-border">
-                  <FileText size={32} className="text-gray-300 mb-3" />
-                  <p className="text-sm font-semibold text-status-muted">No documents uploaded</p>
-                  <p className="text-xs text-gray-400 mt-1">IDs, references, and agreements will appear here.</p>
-                  <button className="mt-4 px-4 py-2 bg-white border border-card-border rounded-lg text-sm font-bold text-brand-primary hover:bg-surface-hover transition-colors shadow-sm">
-                    Upload Document
-                  </button>
-                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => handleDocUpload(e.target.files?.[0])}
+                />
+                {documents.length > 0 ? (
+                  <div className="flex flex-col gap-3">
+                    <div className="flex justify-end">
+                      <Button
+                        variant="secondary"
+                        icon={Upload}
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                      >
+                        {uploading ? 'Uploading…' : 'Upload Document'}
+                      </Button>
+                    </div>
+                    {documents.map((doc) => (
+                      <div
+                        key={doc.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-surface-light/50 border border-card-border rounded-card hover:bg-surface-light transition-colors gap-3"
+                      >
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="card-bg p-2 rounded-lg border border-card-border text-brand-accent shrink-0">
+                            <FileText size={18} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs sm:text-sm font-bold text-brand-primary truncate">{doc.name}</p>
+                            <div className="flex flex-wrap items-center gap-2 text-2xs text-gray-400 font-semibold mt-1">
+                              <span>Uploaded: {doc.date}</span>
+                              <span>•</span>
+                              <span>Size: {doc.size}</span>
+                              <span>•</span>
+                              <span className="text-brand-accent">Tenancy</span>
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleDocDownload(doc)}
+                          className="p-2 text-gray-400 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors border border-transparent hover:border-brand-accent/10 cursor-pointer self-end sm:self-center"
+                          title="Download document"
+                        >
+                          <Download size={16} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center p-12 bg-surface-light rounded-xl border border-dashed border-card-border">
+                    <FileText size={32} className="text-gray-300 mb-3" />
+                    <p className="text-sm font-semibold text-status-muted">No documents uploaded</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {tenancyId
+                        ? 'IDs, references, and agreements will appear here.'
+                        : 'This tenant has no tenancy, so documents cannot be uploaded yet.'}
+                    </p>
+                    {tenancyId && (
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                        className="mt-4 px-4 py-2 bg-white border border-card-border rounded-lg text-sm font-bold text-brand-primary hover:bg-surface-hover transition-colors shadow-sm cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {uploading ? 'Uploading…' : 'Upload Document'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </Card>
             </div>
           </div>
         )}
       </div>
+
+      {/* Edit Tenant Modal */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-brand-primary">Edit Tenant Details</h3>
+              <button onClick={() => { setIsEditModalOpen(false); setFormErrors({}); }} className="text-gray-400 hover:text-brand-primary cursor-pointer">
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
+              <Input
+                label="Full Name"
+                id="edit-t-name"
+                required
+                value={editForm.name}
+                onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))}
+                error={formErrors.name}
+              />
+              <Input
+                label="Email Address"
+                id="edit-t-email"
+                type="email"
+                value={editForm.email}
+                onChange={(e) => setEditForm(f => ({ ...f, email: e.target.value }))}
+              />
+              <Input
+                label="Phone Number"
+                id="edit-t-phone"
+                value={editForm.phone}
+                onChange={(e) => setEditForm(f => ({ ...f, phone: e.target.value }))}
+              />
+              <Dropdown
+                label="Right to Rent Status"
+                id="edit-t-rtr-status"
+                placeholder="Select status"
+                value={editForm.right_to_rent_status}
+                onChange={(val) => setEditForm(f => ({ ...f, right_to_rent_status: val }))}
+                options={[
+                  { value: 'pending', label: 'Pending' },
+                  { value: 'verified', label: 'Approved (Verified)' },
+                  { value: 'failed', label: 'Rejected (Failed)' }
+                ]}
+              />
+              <Input
+                label="Right to Rent Expiry"
+                id="edit-t-rtr-expiry"
+                type="date"
+                value={editForm.right_to_rent_expiry}
+                onChange={(e) => setEditForm(f => ({ ...f, right_to_rent_expiry: e.target.value }))}
+              />
+
+              <div className="flex gap-3 justify-end mt-1">
+                <Button type="button" variant="ghost" onClick={() => { setIsEditModalOpen(false); setFormErrors({}); }}>
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary" disabled={submitting}>
+                  {submitting ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </DetailContainer>
   );
 };

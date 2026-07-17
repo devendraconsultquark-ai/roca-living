@@ -79,7 +79,7 @@ export const DetailHeader = ({
       </div>
 
       <div className="flex items-center gap-3">
-        {editLabel && (
+        {editLabel && onEdit && (
           <button
             onClick={onEdit}
             className="flex items-center gap-2 px-4 py-2 card-bg border border-card-border text-ink rounded-card hover:bg-gray-50 transition-colors text-sm-portal font-semibold shadow-xs cursor-pointer"

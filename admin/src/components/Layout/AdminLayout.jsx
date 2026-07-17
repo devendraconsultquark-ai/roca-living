@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Home, Calendar, UserCheck, ShieldAlert,
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Logo } from '../UI/Logo';
 import { useAuth } from '../../context/AuthContext';
+import api from '../../utilities/api';
 
 // The single page header: each page's title/subtitle lives HERE (pages no
 // longer render their own title block — this is the only header).
@@ -39,6 +40,36 @@ export const AdminLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  // Notifications dropdown (header bell)
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifItems, setNotifItems] = useState(null); // null = not fetched yet
+  const [notifLoading, setNotifLoading] = useState(false);
+  const notifRef = useRef(null);
+
+  // Close the notifications panel on outside click (same pattern as UI/Dropdown)
+  useEffect(() => {
+    if (!notifOpen) return;
+    const handler = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [notifOpen]);
+
+  const handleBellClick = () => {
+    setNotifOpen((open) => !open);
+    // Fetch once, on first open this session
+    if (notifItems === null && !notifLoading) {
+      setNotifLoading(true);
+      api.get('/reports/recent-activity')
+        .then((res) => setNotifItems(res.data.data || []))
+        .catch(() => setNotifItems([]))
+        .finally(() => setNotifLoading(false));
+    }
+  };
 
   // Navigation configuration - All sections matching the Design Guide
   const navItems = [
@@ -204,10 +235,47 @@ export const AdminLayout = () => {
             {/* Right Section: Quick Actions */}
             <div className="flex items-center gap-3 shrink-0">
               {/* Notifications */}
-              <button className="w-11 h-11 rounded-full border border-card-border bg-white text-brand-primary flex items-center justify-center relative hover:border-gray-300 hover:shadow-xs cursor-pointer transition-all duration-150">
-                <Bell size={20} className="text-brand-primary" />
-                <span className="absolute top-2 right-2.5 w-2 h-2 rounded-full bg-status-danger"></span>
-              </button>
+              <div className="relative" ref={notifRef}>
+                <button
+                  onClick={handleBellClick}
+                  className="w-11 h-11 rounded-full border border-card-border bg-white text-brand-primary flex items-center justify-center relative hover:border-gray-300 hover:shadow-xs cursor-pointer transition-all duration-150"
+                  title="Recent activity"
+                >
+                  <Bell size={20} className="text-brand-primary" />
+                </button>
+
+                {notifOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-80 card-bg border border-card-border rounded-card shadow-premium max-h-96 overflow-y-auto z-50">
+                    <div className="px-4 py-3 border-b border-card-border sticky top-0 card-bg">
+                      <h4 className="text-xs-portal font-bold text-brand-primary uppercase tracking-wider select-none">Recent Activity</h4>
+                    </div>
+                    {notifLoading ? (
+                      <p className="text-xs text-gray-400 font-semibold px-4 py-6 text-center">Loading activity...</p>
+                    ) : !notifItems || notifItems.length === 0 ? (
+                      <p className="text-xs text-gray-400 font-semibold px-4 py-6 text-center">No recent activity.</p>
+                    ) : (
+                      <div className="divide-y divide-gray-50">
+                        {notifItems.map((act) => (
+                          <div key={act.id} className="px-4 py-3 hover:bg-surface-light/50 transition-colors">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-2.5 min-w-0">
+                                <span className={`w-2 h-2 rounded-full mt-1 shrink-0 ${
+                                  act.type === 'success' ? 'bg-status-success' : act.type === 'danger' ? 'bg-status-danger' : 'bg-brand-accent'
+                                }`} />
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold text-brand-primary leading-tight">{act.title}</p>
+                                  <p className="text-2xs text-gray-400 font-semibold mt-1">{act.desc}</p>
+                                </div>
+                              </div>
+                              <span className="text-2xs font-bold text-gray-400 shrink-0">{act.time}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {/* User Profile outline */}
               <button

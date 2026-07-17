@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  UserCog, Wrench, AlertTriangle, CheckCircle2, Clock, Mail, Phone, Star, Building2, ShieldCheck, MapPin, Calendar
+import {
+  UserCog, Wrench, AlertTriangle, CheckCircle2, Clock, Mail, Phone, Star, Building2, ShieldCheck, MapPin, Calendar, X
 } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
 import { DataRow, Card, DetailContainer, DetailSkeleton, DetailHeader, DetailTabs, urgencyColor, ticketStatusIcon } from '../components/UI/DetailComponents';
+import { Button } from '../components/UI/Button';
+import { Input } from '../components/UI/Input';
+import { Dropdown } from '../components/UI/Dropdown';
 import api from '../utilities/api';
 
 export const ContractorDetailPage = () => {
@@ -17,6 +20,13 @@ export const ContractorDetailPage = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  const [reloadKey, setReloadKey] = useState(0);
+
+  // Edit Contractor modal
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ company_name: '', contact_name: '', trade: '', email: '', phone: '', insurance_expiry: '', rating: '', preferred: 'no', status: 'active' });
+  const [editFormErrors, setEditFormErrors] = useState({});
+  const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
     const fetchContractor = async () => {
@@ -31,7 +41,48 @@ export const ContractorDetailPage = () => {
       }
     };
     fetchContractor();
-  }, [id, navigate, addToast]);
+  }, [id, navigate, addToast, reloadKey]);
+
+  const handleEditClick = () => {
+    setEditForm({
+      company_name: data.company_name || '',
+      contact_name: data.contact_name || '',
+      trade: data.trade || '',
+      email: data.email || '',
+      phone: data.phone || '',
+      insurance_expiry: data.insurance_expiry ? data.insurance_expiry.split('T')[0] : '',
+      rating: data.rating != null ? String(data.rating) : '',
+      preferred: data.preferred ? 'yes' : 'no',
+      status: data.status || 'active'
+    });
+    setEditFormErrors({});
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    const errs = {};
+    if (!editForm.company_name.trim()) errs.company_name = 'Company name is required';
+    if (!editForm.trade.trim()) errs.trade = 'Trade is required';
+    if (Object.keys(errs).length > 0) { setEditFormErrors(errs); return; }
+
+    setEditFormErrors({});
+    setEditSaving(true);
+    try {
+      await api.patch(`/maintenance/contractors/${id}`, {
+        ...editForm,
+        rating: editForm.rating !== '' ? parseFloat(editForm.rating) : undefined,
+        preferred: editForm.preferred === 'yes'
+      });
+      addToast('Contractor updated successfully!', 'success');
+      setIsEditModalOpen(false);
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to update contractor', 'error');
+    } finally {
+      setEditSaving(false);
+    }
+  };
 
   const handleDelete = async () => {
     const ok = await confirm({
@@ -83,6 +134,7 @@ export const ContractorDetailPage = () => {
         }
         subtitle={`${data.trade} • Added ${new Date(data.created_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`}
         editLabel="Edit Contractor"
+        onEdit={handleEditClick}
         onDelete={handleDelete}
       />
 
@@ -202,6 +254,110 @@ export const ContractorDetailPage = () => {
           </div>
         )}
       </div>
+
+      {/* Edit Contractor Modal */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-brand-primary">Edit Contractor Details</h3>
+              <button onClick={() => { setIsEditModalOpen(false); setEditFormErrors({}); }} className="text-gray-400 hover:text-brand-primary cursor-pointer">
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Company Name"
+                  id="edit-c-company"
+                  required
+                  value={editForm.company_name}
+                  onChange={(e) => setEditForm(f => ({ ...f, company_name: e.target.value }))}
+                  error={editFormErrors.company_name}
+                />
+                <Input
+                  label="Contact Name"
+                  id="edit-c-contact"
+                  placeholder="e.g. Dave Miller"
+                  value={editForm.contact_name}
+                  onChange={(e) => setEditForm(f => ({ ...f, contact_name: e.target.value }))}
+                />
+                <Input
+                  label="Trade Specialty"
+                  id="edit-c-trade"
+                  required
+                  placeholder="e.g. Plumbing & Leaks"
+                  value={editForm.trade}
+                  onChange={(e) => setEditForm(f => ({ ...f, trade: e.target.value }))}
+                  error={editFormErrors.trade}
+                />
+                <Input
+                  label="Email Address"
+                  id="edit-c-email"
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm(f => ({ ...f, email: e.target.value }))}
+                />
+                <Input
+                  label="Phone Number"
+                  id="edit-c-phone"
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm(f => ({ ...f, phone: e.target.value }))}
+                />
+                <Input
+                  label="Insurance Expiry Date"
+                  id="edit-c-insurance"
+                  type="date"
+                  value={editForm.insurance_expiry}
+                  onChange={(e) => setEditForm(f => ({ ...f, insurance_expiry: e.target.value }))}
+                />
+                <Input
+                  label="Rating (0-5)"
+                  id="edit-c-rating"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="5"
+                  placeholder="e.g. 4.5"
+                  value={editForm.rating}
+                  onChange={(e) => setEditForm(f => ({ ...f, rating: e.target.value }))}
+                />
+                <Dropdown
+                  label="Preferred Contractor"
+                  id="edit-c-preferred"
+                  options={[
+                    { value: 'no', label: 'No' },
+                    { value: 'yes', label: 'Yes' }
+                  ]}
+                  value={editForm.preferred}
+                  onChange={(val) => setEditForm(f => ({ ...f, preferred: val }))}
+                />
+                <Dropdown
+                  label="Contractor Status"
+                  id="edit-c-status"
+                  placeholder="Select status"
+                  value={editForm.status}
+                  onChange={(val) => setEditForm(f => ({ ...f, status: val }))}
+                  options={[
+                    { value: 'active', label: 'Active' },
+                    { value: 'suspended', label: 'Suspended / Inactive' }
+                  ]}
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end mt-1">
+                <Button type="button" variant="ghost" onClick={() => { setIsEditModalOpen(false); setEditFormErrors({}); }} disabled={editSaving}>
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary" disabled={editSaving}>
+                  {editSaving ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </DetailContainer>
   );
 };

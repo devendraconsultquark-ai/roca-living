@@ -179,8 +179,8 @@ export const Tenants = () => {
     <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
       {/* Page actions (title lives in the layout header) */}
       <div className="flex justify-end">
-        <Button variant="primary" icon={Users}>
-          Add New Tenant
+        <Button variant="primary" icon={Users} onClick={() => navigate('/onboarding')}>
+          New Onboarding
         </Button>
       </div>
 

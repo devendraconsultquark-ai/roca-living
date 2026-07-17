@@ -8,7 +8,7 @@ import api from '../utilities/api';
 
 export const DocumentLibrary = () => {
   const [folders, setFolders] = useState([]);
-  const [selectedFolderId, setSelectedFolderId] = useState('f1');
+  const [selectedFolderId, setSelectedFolderId] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const [uploadedFile, setUploadedFile] = useState(null);
   const { addToast } = useToast();
@@ -22,7 +22,10 @@ export const DocumentLibrary = () => {
     try {
       const response = await api.get('/documents/folders', { skipInterceptorError: true });
       if (response.data?.data) {
-        setFolders(response.data.data);
+        const list = response.data.data;
+        setFolders(list);
+        // Default the selection to the first folder once folders load
+        setSelectedFolderId((prev) => (prev == null && list.length > 0 ? list[0].id : prev));
       }
     } catch (err) {
       console.error(err);
