@@ -571,7 +571,7 @@ export const Inspections = () => {
 
       {/* Inspection detail / report modal */}
       {detailInspection && (
-        <div className="fixed inset-0 bg-brand-primary/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="card-bg rounded-card p-6 w-full max-w-lg shadow-premium border border-card-border max-h-[90vh] overflow-y-auto text-left">
             <div className="flex justify-between items-center mb-1">
               <h3 className="text-base-portal font-bold text-brand-primary">

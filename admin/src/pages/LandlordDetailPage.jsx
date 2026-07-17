@@ -680,7 +680,7 @@ export const LandlordDetailPage = () => {
 
       {/* Edit Profile Modal */}
       {isEditModalOpen && (
-        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-xl mx-4 border border-card-border max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-brand-primary mb-4">Edit Landlord Details</h3>
 
@@ -820,7 +820,7 @@ export const LandlordDetailPage = () => {
 
       {/* Update Bank Details Modal */}
       {isBankModalOpen && (
-        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
             <h3 className="text-lg font-bold text-brand-primary mb-1">Update Bank Details</h3>
             <p className="text-xs text-status-muted mb-4">Changes are held as pending until verified by an administrator. Payouts should not be made against unverified details.</p>

@@ -46,7 +46,7 @@ export const ConfirmProvider = ({ children }) => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => handleClose(false)}
-              className="absolute inset-0 bg-sidebar-bg/40 backdrop-blur-xs"
+              className="absolute inset-0 bg-overlay backdrop-blur-sm"
             />
             {/* Modal Body */}
             <motion.div

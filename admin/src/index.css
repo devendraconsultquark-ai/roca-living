@@ -50,6 +50,8 @@
   --status-info: var(--primitive-blue);
   --status-info-bg: var(--primitive-blue-light);
   --status-muted: var(--primitive-grey-500);
+  /* Modal / drawer backdrop — one canonical dim so overlays read as a layer */
+  --overlay-bg: rgba(12, 15, 21, 0.6);
 
   /* ── PORTAL TYPE SCALE ── */
   --portal-text-2xs: 12px;      /* timestamps, badges, uppercase labels */
@@ -80,6 +82,7 @@
   --color-surface-light: var(--surface-light);
   --color-surface-hover: var(--surface-hover);
   --color-skeleton: var(--skeleton);
+  --color-overlay: var(--overlay-bg);
   --color-brand-primary: var(--brand-primary);
   --color-ink: var(--interactive-ink);
   --color-ink-hover: var(--interactive-ink-hover);

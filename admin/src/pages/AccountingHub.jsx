@@ -527,7 +527,7 @@ export const AccountingHub = () => {
 
       {/* Record Rent Payment Modal */}
       {showPaymentModal && (
-        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-card-border overflow-hidden">
             <div className="bg-brand-primary text-white p-5 font-bold flex items-center gap-2 select-none">
               <Banknote size={18} />

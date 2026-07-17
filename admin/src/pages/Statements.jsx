@@ -405,7 +405,7 @@ export const Statements = () => {
 
       {/* Statement Generation Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl border border-card-border overflow-hidden my-8">
             <div className="bg-brand-primary text-white p-5 font-bold flex items-center gap-2 select-none shrink-0">
               <Calendar size={18} />

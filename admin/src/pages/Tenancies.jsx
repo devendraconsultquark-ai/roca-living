@@ -227,7 +227,7 @@ export const Tenancies = () => {
 
       {/* End Tenancy Modal */}
       {endTarget && (
-        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl border border-card-border">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-brand-primary">End Tenancy</h3>

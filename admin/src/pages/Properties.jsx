@@ -386,7 +386,7 @@ export const Properties = () => {
 
       {/* Add New Property Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-brand-primary mb-4">Add New Property</h3>
             
@@ -565,7 +565,7 @@ export const Properties = () => {
 
       {/* Edit Property Modal */}
       {isEditModalOpen && (
-        <div className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-brand-primary mb-4">Edit Property Details</h3>
             

@@ -293,7 +293,7 @@ export const Sidebar = ({
       {/* 2. MOBILE DRAWER OVERLAY */}
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 bg-sidebar-bg/40 backdrop-blur-xs z-50 md:hidden"
+          className="fixed inset-0 bg-overlay backdrop-blur-sm z-50 md:hidden"
           onClick={() => setMobileMenuOpen(false)}
         >
           <div
