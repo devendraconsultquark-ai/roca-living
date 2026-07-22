@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AdminLayout } from './components/Layout/AdminLayout';
 import { ToastProvider } from './components/UI/ToastContext';
@@ -30,6 +29,10 @@ import { Deposits } from './pages/Deposits';
 import { Inspections } from './pages/Inspections';
 import { Utilities } from './pages/Utilities';
 import { Reports } from './pages/Reports';
+import { RentReviews } from './pages/RentReviews';
+import { Arrears } from './pages/Arrears';
+import { Compliance } from './pages/Compliance';
+import { CalendarPage } from './pages/CalendarPage';
 import { Settings } from './pages/Settings';
 import { Profile } from './pages/Profile';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
@@ -83,6 +86,10 @@ function App() {
               <Route path="/utilities" element={<Utilities />} />
               <Route path="/documents" element={<DocumentLibrary />} />
               <Route path="/reports" element={<Reports />} />
+              <Route path="/rent-reviews" element={<RentReviews />} />
+              <Route path="/arrears" element={<Arrears />} />
+              <Route path="/compliance" element={<Compliance />} />
+              <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/profile" element={<Profile />} />
             </Route>

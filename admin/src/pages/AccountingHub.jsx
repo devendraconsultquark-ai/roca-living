@@ -7,6 +7,7 @@ import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
 import { Skeleton } from '../components/UI/Skeleton';
+import { CashflowOverview } from '../components/UI/CashflowOverview';
 import api from '../utilities/api';
 
 export const AccountingHub = () => {
@@ -132,7 +133,13 @@ export const AccountingHub = () => {
   };
 
   useEffect(() => {
-    fetchTabData(activeTab);
+    // Kick off in a microtask so no state is set synchronously inside the
+    // effect body (react-hooks/set-state-in-effect).
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (!cancelled) fetchTabData(activeTab);
+    });
+    return () => { cancelled = true; };
   }, [activeTab]);
 
   const handleSelectionChange = (selectedIds) => {
@@ -426,6 +433,9 @@ export const AccountingHub = () => {
           </Button>
         </div>
       </div>
+
+      {/* Cash-flow overview (12-month ledger charts) */}
+      <CashflowOverview />
 
       {/* Tabs Header Navigation */}
       <div className="border-b border-card-border overflow-x-auto w-full scrollbar-none">
