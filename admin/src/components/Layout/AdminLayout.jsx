@@ -1,19 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, Home, Calendar, UserCheck, ShieldAlert,
-  Wallet, FileSpreadsheet, Receipt, Wrench, UserCog, PiggyBank, Droplet,
+  LayoutDashboard, Users, Home, UserCheck,
+  Wallet, Wrench, PiggyBank, Droplet,
   FolderOpen, BarChart3, Settings, Menu, X, Bell, User, ChevronLeft, ChevronRight,
-  ClipboardCheck
+  ChevronDown, LogOut, ClipboardCheck, Landmark, ShieldCheck, CalendarDays
 } from 'lucide-react';
 import { Logo } from '../UI/Logo';
+import { GlobalSearch } from './GlobalSearch';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utilities/api';
 
 // The single page header: each page's title/subtitle lives HERE (pages no
 // longer render their own title block — this is the only header).
 const HEADERS = {
-  dashboard: { title: null, subtitle: 'Here is a summary of your ROCA Living portfolios and ongoing workflows.' }, // title is user-aware, built below
+  dashboard: { title: 'Dashboard', subtitle: 'Overview of your managed portfolio and business performance.' },
   landlords: { title: 'Landlords Directory', subtitle: 'Review contact records, active portfolios, and compliance details for registered landlords.' },
   properties: { title: 'Properties Portfolio', subtitle: 'Manage standard parameters, safety compliance certificates, and occupancies.' },
   tenancies: { title: 'Tenancy Agreements', subtitle: 'Review active leases, rental terms, and upcoming expiries. New tenancies are created via the onboarding wizard.' },
@@ -32,14 +33,96 @@ const HEADERS = {
   settings: { title: 'System Settings', subtitle: 'Configure global fee values, deposit parameters, and client templates.' },
   profile: { title: 'Admin Profile', subtitle: 'Manage your administrative user information and profile settings.' },
   onboarding: { title: 'New-Let Onboarding Wizard', subtitle: 'Complete the 6 onboarding stages to register the landlord, property, and move-in details.' },
+  'rent-reviews': { title: 'Rent Reviews', subtitle: 'Track, manage and process rent reviews across all tenancies.' },
+  arrears: { title: 'Arrears', subtitle: 'Monitor and manage rent arrears across all tenancies.' },
+  compliance: { title: 'Compliance', subtitle: 'Track safety certificates and compliance requirements across all properties.' },
+  calendar: { title: 'Operations Calendar', subtitle: 'Key dates, deadlines and renewals across your portfolio — live from the system.' },
 };
+
+// Navigation configuration — grouped sections with sub-tabs per the approved
+// design spec. Every entry maps to a page that actually exists; spec groups
+// whose pages don't exist yet (Communications, Tasks & Alerts, …) are omitted
+// rather than rendered as dead links.
+const NAV_ITEMS = [
+  { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+  {
+    name: 'Landlords', icon: Users,
+    children: [
+      { name: 'All Landlords', path: '/landlords' },
+      { name: 'Onboarding', path: '/onboarding' },
+      { name: 'Letting Agents', path: '/agents' },
+    ],
+  },
+  { name: 'Properties', path: '/properties', icon: Home },
+  {
+    name: 'Tenants & Tenancies', icon: UserCheck,
+    children: [
+      { name: 'All Tenants', path: '/tenants' },
+      { name: 'Tenancies', path: '/tenancies' },
+      { name: 'Rent Reviews', path: '/rent-reviews' },
+      { name: 'Arrears', path: '/arrears' },
+    ],
+  },
+  { heading: 'Accounting' },
+  {
+    name: 'Accounting', icon: Wallet,
+    children: [
+      { name: 'Overview', path: '/accounting' },
+      { name: 'Invoices', path: '/invoices' },
+      { name: 'Statements', path: '/statements' },
+    ],
+  },
+  { name: 'Deposits', path: '/deposits', icon: PiggyBank },
+  { heading: 'Compliance' },
+  { name: 'Compliance', path: '/compliance', icon: ShieldCheck },
+  { heading: 'Operations' },
+  {
+    name: 'Maintenance', icon: Wrench,
+    children: [
+      { name: 'Maintenance Board', path: '/maintenance' },
+      { name: 'Contractors', path: '/contractors' },
+    ],
+  },
+  { name: 'Calendar', path: '/calendar', icon: CalendarDays },
+  { name: 'Inspections', path: '/inspections', icon: ClipboardCheck },
+  { name: 'Utilities & Access', path: '/utilities', icon: Droplet },
+  { name: 'Documents', path: '/documents', icon: FolderOpen },
+  { heading: 'Administration' },
+  { name: 'Reports', path: '/reports', icon: BarChart3 },
+  {
+    name: 'System Administration', icon: Settings,
+    children: [
+      { name: 'Settings', path: '/settings' },
+      { name: 'My Profile', path: '/profile' },
+    ],
+  },
+];
 
 export const AdminLayout = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+
+  // User chip dropdown (header right)
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef(null);
+
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const handler = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [userMenuOpen]);
+
+  const userInitials = user?.name
+    ? user.name.split(' ').map((n) => n[0]).join('').substring(0, 2)
+    : 'A';
 
   // Notifications dropdown (header bell)
   const [notifOpen, setNotifOpen] = useState(false);
@@ -71,64 +154,161 @@ export const AdminLayout = () => {
     }
   };
 
-  // Navigation configuration - All sections matching the Design Guide
-  const navItems = [
-    { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
-    { name: 'Landlords', path: '/landlords', icon: Users },
-    { name: 'Properties', path: '/properties', icon: Home },
-    { name: 'Tenancies', path: '/tenancies', icon: Calendar },
-    { name: 'Tenants', path: '/tenants', icon: UserCheck },
-    { name: 'Agents', path: '/agents', icon: ShieldAlert },
-    { name: 'Accounting', path: '/accounting', icon: Wallet },
-    { name: 'Statements', path: '/statements', icon: FileSpreadsheet },
-    { name: 'Invoices', path: '/invoices', icon: Receipt },
-    { name: 'Maintenance', path: '/maintenance', icon: Wrench },
-    { name: 'Contractors', path: '/contractors', icon: UserCog },
-    { name: 'Deposits', path: '/deposits', icon: PiggyBank },
-    { name: 'Inspections', path: '/inspections', icon: ClipboardCheck },
-    { name: 'Utilities', path: '/utilities', icon: Droplet },
-    { name: 'Documents', path: '/documents', icon: FolderOpen },
-    { name: 'Reports', path: '/reports', icon: BarChart3 },
-    { name: 'Settings', path: '/settings', icon: Settings },
-    { name: 'Profile', path: '/profile', icon: User },
-  ];
+  // Collapsible nav groups. Open state is DERIVED: a group is open when the
+  // user explicitly toggled it (override) or, absent an override, when it
+  // contains the active route — so the current section's group auto-opens
+  // without any state syncing in effects.
+  const [groupOverrides, setGroupOverrides] = useState({});
+
+  const isGroupOpen = (item) =>
+    groupOverrides[item.name] ?? item.children.some((c) => location.pathname.startsWith(c.path));
+
+  const handleGroupClick = (item) => {
+    // In icon-only mode a group has nowhere to show its children — expand first.
+    if (collapsed) {
+      setCollapsed(false);
+      setGroupOverrides((g) => ({ ...g, [item.name]: true }));
+      return;
+    }
+    setGroupOverrides((g) => ({ ...g, [item.name]: !isGroupOpen(item) }));
+  };
+
+  // Management Fee Account tile (sidebar footer) — live YTD fees from the ledger
+  const [feeAccount, setFeeAccount] = useState(null);
+  const [feeTileOpen, setFeeTileOpen] = useState(true);
+
+  useEffect(() => {
+    api.get('/reports/mgmt-fee-account')
+      .then((res) => setFeeAccount(res.data.data))
+      .catch(() => setFeeAccount(null));
+  }, []);
 
   // Header title/subtitle derived from the current route (client-portal pattern)
   const sectionKey = location.pathname.split('/')[1] || 'dashboard';
-  const activeItem = navItems.find((item) => location.pathname.startsWith(item.path));
+  const flatNav = NAV_ITEMS
+    .filter((item) => !item.heading)
+    .flatMap((item) => (item.children ? item.children : [item]));
+  const activeItem = flatNav.find((item) => location.pathname.startsWith(item.path));
+
+  // Breadcrumb trail for nested routes (e.g. Landlords / #12)
+  const pathSegments = location.pathname.split('/').filter(Boolean);
+  const crumbs = pathSegments.length > 1
+    ? pathSegments.map((seg, i) => {
+        const path = '/' + pathSegments.slice(0, i + 1).join('/');
+        const navMatch = flatNav.find((item) => item.path === path);
+        const label = navMatch?.name
+          || (/^\d+$/.test(seg) ? `#${seg}` : seg.charAt(0).toUpperCase() + seg.slice(1).replace(/-/g, ' '));
+        return { path, label, isLast: i === pathSegments.length - 1 };
+      })
+    : null;
   const headerEntry = HEADERS[sectionKey];
-  const headerTitle = sectionKey === 'dashboard'
-    ? `Welcome back, ${user?.name?.split(' ')[0] || 'Admin'}`
-    : headerEntry?.title || activeItem?.name || (sectionKey.charAt(0).toUpperCase() + sectionKey.slice(1).replace(/-/g, ' '));
+  const headerTitle = headerEntry?.title || activeItem?.name || (sectionKey.charAt(0).toUpperCase() + sectionKey.slice(1).replace(/-/g, ' '));
   const headerSubtitle = headerEntry?.subtitle || 'Staff portal overview.';
 
-  // Render a single navigation link
-  const renderNavLink = (item, isMobile = false) => {
+  // Render one nav entry: a section heading, a plain link, or a collapsible group
+  const renderNavItem = (item, isMobile = false) => {
+    if (item.heading) {
+      return (
+        <p
+          key={`heading-${item.heading}`}
+          className={`px-6 pt-4 pb-1 text-2xs font-bold text-sidebar-text-muted/70 tracking-widest select-none ${
+            isMobile ? 'block' : (collapsed ? 'hidden' : 'hidden lg:block')
+          }`}
+          style={{ textTransform: 'uppercase' }}
+        >
+          {item.heading}
+        </p>
+      );
+    }
+
     const Icon = item.icon;
     const isCollapsedState = !isMobile && collapsed;
+    const labelClass = isMobile ? 'block' : (isCollapsedState ? 'hidden' : 'hidden lg:block');
+    // Icon-only rows (collapsed toggle, or md screens where labels are hidden)
+    // center their icon; label mode left-aligns with the usual padding.
+    const rowLayout = isMobile
+      ? 'justify-start px-3.5'
+      : isCollapsedState
+        ? 'justify-center px-2'
+        : 'justify-center px-2 lg:justify-start lg:px-3.5';
+
+    if (!item.children) {
+      return (
+        <NavLink
+          key={item.name}
+          to={item.path}
+          onClick={() => isMobile && setMobileMenuOpen(false)}
+          className={({ isActive }) => `
+            relative flex items-center gap-3 mx-3 py-2.5 rounded-lg text-sm-portal transition-all duration-100 group border ${rowLayout}
+            ${isActive
+              ? 'bg-brand-accent/20 text-white border-brand-accent/40'
+              : 'text-sidebar-text-muted hover:text-sidebar-text hover:bg-sidebar-hover border-transparent'
+            }
+          `}
+        >
+          {({ isActive }) => (
+            <>
+              {isActive && (
+                <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-brand-accent rounded-r-full" />
+              )}
+              <Icon size={18} className="shrink-0" />
+              <span className={labelClass}>{item.name}</span>
+            </>
+          )}
+        </NavLink>
+      );
+    }
+
+    const isOpen = isGroupOpen(item);
+    const childActive = item.children.some((c) => location.pathname.startsWith(c.path));
+    const showChildren = isOpen && (isMobile || !collapsed);
+
     return (
-      <NavLink
-        key={item.name}
-        to={item.path}
-        onClick={() => isMobile && setMobileMenuOpen(false)}
-        className={({ isActive }) => `
-          relative flex items-center gap-3 px-4 py-2.5 rounded-r-lg rounded-l-none text-sm-portal transition-all duration-100 group
-          ${isActive
-            ? 'bg-sidebar-hover text-sidebar-text'
-            : 'text-sidebar-text-muted hover:text-sidebar-text hover:bg-sidebar-hover'
-          }
-        `}
-      >
-        {({ isActive }) => (
-          <>
-            {isActive && (
-              <span className="absolute left-0 top-[0%] bottom-[0%] w-[3.5px] bg-status-info rounded-r-full" />
-            )}
-            <Icon size={18} className="shrink-0" />
-            <span className={isMobile ? 'block' : (isCollapsedState ? 'hidden' : 'hidden lg:block')}>{item.name}</span>
-          </>
+      <div key={item.name} className="flex flex-col gap-0.5">
+        <button
+          onClick={() => (isMobile
+            ? setGroupOverrides((g) => ({ ...g, [item.name]: !isOpen }))
+            : handleGroupClick(item))}
+          className={`
+            relative flex items-center gap-3 mx-3 py-2.5 rounded-lg text-sm-portal transition-all duration-100 border cursor-pointer text-left ${rowLayout}
+            ${childActive && !showChildren
+              ? 'bg-brand-accent/20 text-white border-brand-accent/40'
+              : 'text-sidebar-text-muted hover:text-sidebar-text hover:bg-sidebar-hover border-transparent'
+            }
+          `}
+        >
+          {childActive && !showChildren && (
+            <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-brand-accent rounded-r-full" />
+          )}
+          <Icon size={18} className="shrink-0" />
+          <span className={`flex-1 ${labelClass}`}>{item.name}</span>
+          <ChevronDown
+            size={14}
+            className={`shrink-0 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''} ${labelClass}`}
+          />
+        </button>
+
+        {showChildren && (
+          <div className={`flex-col gap-0.5 ${isMobile ? 'flex' : 'hidden lg:flex'}`}>
+            {item.children.map((child) => (
+              <NavLink
+                key={child.name}
+                to={child.path}
+                onClick={() => isMobile && setMobileMenuOpen(false)}
+                className={({ isActive }) => `
+                  flex items-center mx-3 pl-11 pr-3.5 py-2 rounded-lg text-xs-portal transition-all duration-100 border
+                  ${isActive
+                    ? 'bg-brand-accent/20 text-white border-brand-accent/40'
+                    : 'text-sidebar-text-muted hover:text-sidebar-text hover:bg-sidebar-hover border-transparent'
+                  }
+                `}
+              >
+                {child.name}
+              </NavLink>
+            ))}
+          </div>
         )}
-      </NavLink>
+      </div>
     );
   };
 
@@ -155,8 +335,45 @@ export const AdminLayout = () => {
 
         {/* Navigation list */}
         <nav className="flex-grow flex flex-col gap-0.5 py-3 pr-3 overflow-y-auto no-scrollbar">
-          {navItems.map(item => renderNavLink(item, false))}
+          {NAV_ITEMS.map(item => renderNavItem(item, false))}
         </nav>
+
+        {/* Management Fee Account tile (live YTD ledger figure) */}
+        {!collapsed && feeAccount && (
+          <div className="hidden lg:block px-3 pb-3 shrink-0">
+            <div className="bg-sidebar-help-bg border border-sidebar-accent rounded-xl p-4">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2 text-2xs font-bold text-sidebar-text-muted min-w-0">
+                  <Landmark size={13} className="shrink-0" />
+                  <span className="truncate">Management Fee Account</span>
+                </span>
+                <button
+                  onClick={() => setFeeTileOpen((o) => !o)}
+                  className="p-1 rounded hover:bg-sidebar-hover text-sidebar-text-muted hover:text-sidebar-text transition-colors cursor-pointer shrink-0"
+                  title={feeTileOpen ? 'Collapse' : 'Expand'}
+                >
+                  <ChevronDown size={14} className={`transition-transform duration-150 ${feeTileOpen ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
+              {feeTileOpen && (
+                <>
+                  <p className="text-lg font-bold text-white mt-2 leading-none">
+                    £{Number(feeAccount.total).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                  <p className="text-2xs text-sidebar-text-muted font-semibold mt-1.5">
+                    Fees {feeAccount.year} · as at {new Date(feeAccount.as_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </p>
+                  <NavLink
+                    to="/accounting"
+                    className="mt-3 block text-center bg-white/10 hover:bg-white/20 text-white text-2xs font-bold rounded-lg py-2 transition-colors"
+                  >
+                    View Account
+                  </NavLink>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Sidebar Footer Profile */}
         <div className={`p-4 border-t border-sidebar-accent ${collapsed ? 'flex justify-center' : 'flex items-center justify-between'} shrink-0`}>
@@ -201,8 +418,46 @@ export const AdminLayout = () => {
               </button>
             </div>
             <nav className="flex-grow flex flex-col gap-1 overflow-y-auto pr-2 no-scrollbar">
-              {navItems.map(item => renderNavLink(item, true))}
+              {NAV_ITEMS.map(item => renderNavItem(item, true))}
             </nav>
+
+            {/* Management Fee Account tile (mobile drawer) */}
+            {feeAccount && (
+              <div className="pt-3 shrink-0">
+                <div className="bg-sidebar-help-bg border border-sidebar-accent rounded-xl p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 text-2xs font-bold text-sidebar-text-muted min-w-0">
+                      <Landmark size={13} className="shrink-0" />
+                      <span className="truncate">Management Fee Account</span>
+                    </span>
+                    <button
+                      onClick={() => setFeeTileOpen((o) => !o)}
+                      className="p-1 rounded hover:bg-sidebar-hover text-sidebar-text-muted hover:text-sidebar-text transition-colors cursor-pointer shrink-0"
+                      title={feeTileOpen ? 'Collapse' : 'Expand'}
+                    >
+                      <ChevronDown size={14} className={`transition-transform duration-150 ${feeTileOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
+                  {feeTileOpen && (
+                    <>
+                      <p className="text-lg font-bold text-white mt-2 leading-none">
+                        £{Number(feeAccount.total).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                      <p className="text-2xs text-sidebar-text-muted font-semibold mt-1.5">
+                        Fees {feeAccount.year} · as at {new Date(feeAccount.as_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </p>
+                      <NavLink
+                        to="/accounting"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="mt-3 block text-center bg-white/10 hover:bg-white/20 text-white text-2xs font-bold rounded-lg py-2 transition-colors"
+                      >
+                        View Account
+                      </NavLink>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -223,6 +478,24 @@ export const AdminLayout = () => {
               </button>
 
               <div className="flex flex-col min-w-0">
+                {crumbs && (
+                  <nav className="flex items-center gap-1 text-2xs font-semibold text-status-muted mb-0.5 min-w-0">
+                    {crumbs.map((c) => (
+                      <span key={c.path} className="flex items-center gap-1 min-w-0">
+                        {c.isLast ? (
+                          <span className="text-brand-primary font-bold truncate">{c.label}</span>
+                        ) : (
+                          <>
+                            <NavLink to={c.path} className="hover:text-brand-accent transition-colors truncate">
+                              {c.label}
+                            </NavLink>
+                            <span className="text-gray-400">/</span>
+                          </>
+                        )}
+                      </span>
+                    ))}
+                  </nav>
+                )}
                 <h1 className="text-base-portal font-medium text-brand-primary leading-tight tracking-tight">
                   {headerTitle}
                 </h1>
@@ -232,13 +505,18 @@ export const AdminLayout = () => {
               </div>
             </div>
 
+            {/* Center Section: Global search (design-spec header) */}
+            <div className="hidden md:block flex-1 max-w-md mx-8">
+              <GlobalSearch />
+            </div>
+
             {/* Right Section: Quick Actions */}
             <div className="flex items-center gap-3 shrink-0">
               {/* Notifications */}
               <div className="relative" ref={notifRef}>
                 <button
                   onClick={handleBellClick}
-                  className="w-11 h-11 rounded-full border border-card-border bg-white text-brand-primary flex items-center justify-center relative hover:border-gray-300 hover:shadow-xs cursor-pointer transition-all duration-150"
+                  className="p-2 rounded-lg text-brand-primary relative hover:bg-surface-hover cursor-pointer transition-colors duration-150"
                   title="Recent activity"
                 >
                   <Bell size={20} className="text-brand-primary" />
@@ -277,15 +555,39 @@ export const AdminLayout = () => {
                 )}
               </div>
 
-              {/* User Profile outline */}
-              <button
-                onClick={() => navigate('/profile')}
-                className="w-11 h-11 rounded-full border border-card-border bg-white flex items-center justify-center relative hover:border-gray-300 hover:shadow-xs cursor-pointer transition-all duration-150 shrink-0"
-              >
-                <div className="w-9 h-9 rounded-full bg-surface-light flex items-center justify-center text-status-muted">
-                  <User size={18} />
-                </div>
-              </button>
+              {/* User identity chip (design-spec header) */}
+              <div className="relative" ref={userMenuRef}>
+                <button
+                  onClick={() => setUserMenuOpen((open) => !open)}
+                  className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-surface-hover cursor-pointer transition-colors duration-150"
+                >
+                  <span className="w-9 h-9 rounded-full bg-brand-accent text-white flex items-center justify-center text-xs font-bold uppercase shrink-0">
+                    {userInitials}
+                  </span>
+                  <span className="hidden sm:flex flex-col text-left leading-tight">
+                    <span className="text-xs font-bold text-brand-primary">{user?.name || 'Admin'}</span>
+                    <span className="text-2xs text-status-muted font-semibold">Administrator</span>
+                  </span>
+                  <ChevronDown size={14} className={`text-status-muted transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {userMenuOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-44 card-bg border border-card-border rounded-card shadow-premium z-50 py-1">
+                    <button
+                      onClick={() => { setUserMenuOpen(false); navigate('/profile'); }}
+                      className="w-full text-left px-4 py-2.5 text-xs font-bold text-brand-primary hover:bg-surface-light flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <User size={15} className="text-status-muted" /> My Profile
+                    </button>
+                    <button
+                      onClick={logout}
+                      className="w-full text-left px-4 py-2.5 text-xs font-bold text-status-danger hover:bg-status-danger-bg/60 flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <LogOut size={15} /> Log Out
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </header>

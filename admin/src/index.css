@@ -22,6 +22,11 @@
   --primitive-blue-light: #E7F0FD;
   --primitive-red: #C62828;
   --primitive-red-light: #FFEBEE;
+  /* Admin brand accent per client-approved design spec (RL_Admin_Portal Design).
+     The landlord portal keeps the black/blue accent — same components, its own tokens. */
+  --primitive-indigo: #4F46E5;
+  --primitive-indigo-hover: #4338CA;
+  --primitive-indigo-light: #EEF2FF;
 
   /* ── TIER 2: RUNTIME VARIABLES (No '--color-' prefix to prevent cycles) ── */
   --sidebar-bg: var(--primitive-pure-black);
@@ -37,11 +42,13 @@
   --surface-hover: #F3F4F6;
   --skeleton: #EBEDF0;   /* single canonical loading-placeholder fill */
   --brand-primary: var(--primitive-pure-black);
-  --interactive-ink: var(--primitive-ink);
-  --interactive-ink-hover: var(--primitive-ink-hover);
+  /* Interactive elements (primary buttons, accent text) are indigo; body text
+     stays near-black via --color-text-primary mapping straight to the primitive. */
+  --interactive-ink: var(--primitive-indigo);
+  --interactive-ink-hover: var(--primitive-indigo-hover);
   --interactive-ink-muted: var(--primitive-ink-muted);
-  --brand-accent: var(--primitive-blue);
-  --brand-accent-hover: #084caE;
+  --brand-accent: var(--primitive-indigo);
+  --brand-accent-hover: var(--primitive-indigo-hover);
   --status-success: var(--primitive-green);
   --status-success-bg: var(--primitive-green-light);
   --status-warning: var(--primitive-orange);
@@ -59,7 +66,7 @@
   --portal-text-sm: 14px;       /* table primary text, button labels */
   --portal-text-base: 16px;     /* card titles, body */
 
-  --primary: var(--primitive-blue);
+  --primary: var(--primitive-indigo);
 }
 
 /* ── TIER 3: TAILWIND REGISTERING ── */
@@ -106,11 +113,11 @@
   --color-header-bg: var(--surface-light);
   --color-section-tile: var(--surface-hover);
   --color-payment-panel: var(--primitive-charcoal);
-  --color-text-primary: var(--interactive-ink);
+  --color-text-primary: var(--primitive-ink);
   --color-text-secondary: var(--primitive-grey-500);
   --color-text-muted: var(--primitive-ink-muted);
   --color-text-white: #FFFFFF;
-  --color-accent-blue: var(--primitive-blue);
+  --color-accent-blue: var(--primitive-indigo);
   --color-chart-green: #3A7D44;
   --color-chart-orange: #E8A020;
   --color-chart-red: var(--primitive-red);
