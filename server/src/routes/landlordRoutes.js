@@ -9,7 +9,9 @@ import {
   updatePaymentDetails,
   verifyPaymentDetails,
   updateLandlord,
-  deleteLandlord
+  deleteLandlord,
+  getManagers,
+  getLandlordActivity
 } from '../controllers/landlordController.js';
 import { protect } from '../middlewares/protect.js';
 import { restrictTo } from '../middlewares/restrictTo.js';
@@ -27,7 +29,10 @@ landlordRouter.use(protect('admin'), restrictTo('ADMIN'));
 
 landlordRouter.get('/', getAllLandlords);
 landlordRouter.post('/', validate(createLandlordSchema), createLandlord);
+// Static path must precede '/:id' so 'managers' is never parsed as an id
+landlordRouter.get('/managers', getManagers);
 landlordRouter.get('/:id', getLandlordById);
+landlordRouter.get('/:id/activity', getLandlordActivity);
 landlordRouter.post('/:id/activation-link', generateActivationLink);
 landlordRouter.patch('/:id/kyc', updateLandlordKyc);
 landlordRouter.put('/:id/payment-details', validate(updatePaymentDetailsSchema), updatePaymentDetails);

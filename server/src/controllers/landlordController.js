@@ -80,12 +80,91 @@ export const getAllLandlords = catchAsync(async (req, res, next) => {
   });
 });
 
+// Admin users, for the account-manager assignment dropdown.
+export const getManagers = catchAsync(async (req, res, next) => {
+  const admins = await db('users')
+    .where('role', 'ADMIN')
+    .select('id', 'name', 'email')
+    .orderBy('name', 'asc');
+  res.json({ success: true, data: admins });
+});
+
+// Audit-log activity scoped to a landlord and their properties/tenancies —
+// powers the detail page Timeline tab and Recent Activity card.
+export const getLandlordActivity = catchAsync(async (req, res, next) => {
+  const { id } = req.params;
+
+  const landlord = await db('users').where({ id, role: 'LANDLORD' }).first();
+  if (!landlord) {
+    throw new ApiError(404, 'Landlord not found');
+  }
+
+  const propertyIds = (await db('properties').where('landlord_id', id).select('id')).map((p) => p.id);
+  const tenancyIds = propertyIds.length
+    ? (await db('tenancies').whereIn('property_id', propertyIds).select('id')).map((t) => t.id)
+    : [];
+
+  const logs = await db('audit_log')
+    .where(function () {
+      this.where(function () {
+        this.whereIn('entity_type', ['landlord', 'user']).andWhere('entity_id', id);
+      });
+      if (propertyIds.length) {
+        this.orWhere(function () {
+          this.where('entity_type', 'property').whereIn('entity_id', propertyIds);
+        });
+      }
+      if (tenancyIds.length) {
+        this.orWhere(function () {
+          this.where('entity_type', 'tenancy').whereIn('entity_id', tenancyIds);
+        });
+      }
+    })
+    .orderBy('created_at', 'desc')
+    .limit(30);
+
+  const formatted = logs.map((log) => {
+    let title = String(log.action || '').replace(/_/g, ' ').toLowerCase();
+    title = title.charAt(0).toUpperCase() + title.slice(1);
+    let desc = log.entity_type ? `${log.entity_type} #${log.entity_id}` : '';
+    try {
+      if (log.meta) {
+        const meta = typeof log.meta === 'string' ? JSON.parse(log.meta) : log.meta;
+        if (meta.amount) desc = `£${parseFloat(meta.amount).toFixed(2)} — ${desc}`;
+      }
+    } catch { /* meta stays basic */ }
+
+    const diffMs = new Date() - new Date(log.created_at);
+    const mins = Math.floor(diffMs / 60000);
+    const hours = Math.floor(mins / 60);
+    const days = Math.floor(hours / 24);
+    const time = days > 0 ? `${days} day${days > 1 ? 's' : ''} ago`
+      : hours > 0 ? `${hours} hour${hours > 1 ? 's' : ''} ago`
+      : mins > 0 ? `${mins} min${mins > 1 ? 's' : ''} ago`
+      : 'Just now';
+
+    return {
+      id: log.id,
+      title,
+      desc,
+      time,
+      date: new Date(log.created_at).toISOString(),
+      type: /overdue|expired|failed|delete/i.test(log.action) ? 'danger'
+        : /created|completed|verified|signed|paid|recorded/i.test(log.action) ? 'success'
+        : 'info'
+    };
+  });
+
+  res.json({ success: true, data: formatted });
+});
+
 export const getLandlordById = catchAsync(async (req, res, next) => {
   const { id } = req.params;
 
   const landlord = await db('users')
     .leftJoin('landlord_profiles', 'users.id', 'landlord_profiles.user_id')
     .leftJoin('landlord_payment_details', 'users.id', 'landlord_payment_details.user_id')
+    .leftJoin('users as managers', 'landlord_profiles.account_manager_id', 'managers.id')
     .select(
       'users.id',
       'users.name',
@@ -108,6 +187,11 @@ export const getLandlordById = catchAsync(async (req, res, next) => {
       'landlord_profiles.tob_signed_at',
       'landlord_profiles.ownership_confirmed',
       'landlord_profiles.ownership_share',
+      'landlord_profiles.notes',
+      'landlord_profiles.account_manager_id',
+      'managers.name as account_manager_name',
+      'managers.email as account_manager_email',
+      'users.last_login_at',
       'landlord_payment_details.bank_name',
       'landlord_payment_details.account_name',
       'landlord_payment_details.account_number',
@@ -128,7 +212,12 @@ export const getLandlordById = catchAsync(async (req, res, next) => {
     throw new ApiError(404, 'Landlord not found');
   }
 
-  const properties = await db('properties').where('landlord_id', id);
+  const properties = await db('properties')
+    .where('landlord_id', id)
+    .select(
+      'properties.*',
+      db.raw(`(SELECT id FROM property_images WHERE property_id = properties.id AND image_type = 'photo' ORDER BY is_primary DESC, created_at ASC LIMIT 1) as primary_image_id`)
+    );
   const formattedProperties = properties.map((p) => ({
     ...p,
     rent_pcm: p.rent_pcm !== null && p.rent_pcm !== undefined ? parseFloat(p.rent_pcm).toFixed(2) : null,
@@ -448,7 +537,7 @@ export const updateLandlord = catchAsync(async (req, res, next) => {
   const {
     name, email, phone, address,
     company_name, is_overseas, nrl_hmrc_approved, nrl_hmrc_ref, nrl_withhold_pct, kyc_status, tob_status, ownership_share,
-    ownership_confirmed, initials
+    ownership_confirmed, initials, notes, account_manager_id
   } = req.body;
 
   const landlord = await db('users').where({ id, role: 'LANDLORD' }).first();
@@ -479,6 +568,18 @@ export const updateLandlord = catchAsync(async (req, res, next) => {
   // Ownership confirmation is an explicit admin decision — never inferred from
   // KYC passing (they verify different things).
   if (ownership_confirmed !== undefined) profileUpdates.ownership_confirmed = ownership_confirmed ? 1 : 0;
+  if (notes !== undefined) profileUpdates.notes = notes || null;
+  if (account_manager_id !== undefined) {
+    if (account_manager_id === null || account_manager_id === '') {
+      profileUpdates.account_manager_id = null;
+    } else {
+      const manager = await db('users').where({ id: account_manager_id, role: 'ADMIN' }).first();
+      if (!manager) {
+        throw new ApiError(400, 'account_manager_id must reference an admin user');
+      }
+      profileUpdates.account_manager_id = manager.id;
+    }
+  }
 
   await db.transaction(async (trx) => {
     if (Object.keys(userUpdates).length > 0) {

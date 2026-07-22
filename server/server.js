@@ -14,6 +14,9 @@ import { runPhase10Migrations } from './src/db/migrations/phase10_landlord_refer
 import { runPhase11Migrations } from './src/db/migrations/phase11_unique_references.js';
 import { runPhase12Migrations } from './src/db/migrations/phase12_performance_indexes.js';
 import { runPhase13Migrations } from './src/db/migrations/phase13_data_consistency.js';
+import { runPhase14Migrations } from './src/db/migrations/phase14_rent_reviews_news.js';
+import { runPhase15Migrations } from './src/db/migrations/phase15_landlord_detail.js';
+import { runPhase16Migrations } from './src/db/migrations/phase16_property_images.js';
 import { startScheduler } from './src/jobs/scheduler.js';
 import { ensurePuppeteerDependencies } from './src/utils/puppeteerGenerator.js';
 const PORT = Number(process.env.PORT) || 9000;
@@ -70,6 +73,15 @@ const startServer = async () => {
 
   await runPhase13Migrations();
   logger.info('Phase 13 migrations complete');
+
+  await runPhase14Migrations();
+  logger.info('Phase 14 migrations complete');
+
+  await runPhase15Migrations();
+  logger.info('Phase 15 migrations complete');
+
+  await runPhase16Migrations();
+  logger.info('Phase 16 migrations complete');
 
   await ensurePuppeteerDependencies();
 

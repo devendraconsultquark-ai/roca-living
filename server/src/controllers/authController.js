@@ -97,6 +97,9 @@ export const login = catchAsync(async (req, res, next) => {
         { expiresIn: "7d" }
     );
 
+    // Stamp last login (best-effort; never blocks the login itself)
+    await db('users').where('id', user.id).update({ last_login_at: db.fn.now() }).catch(() => {});
+
     const cookieName = user.role === "ADMIN" ? "jwt_admin" : "jwt_landlord";
 
     res.cookie(cookieName, token, {
