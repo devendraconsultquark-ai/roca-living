@@ -40,6 +40,8 @@ const formatTenancy = (t) => {
     roca_letting_fee: t.roca_letting_fee !== null && t.roca_letting_fee !== undefined ? parseFloat(t.roca_letting_fee).toFixed(2) : null,
     start_date: t.start_date ? new Date(t.start_date).toISOString().split('T')[0] : null,
     end_date: t.end_date ? new Date(t.end_date).toISOString().split('T')[0] : null,
+    rent_review_date: t.rent_review_date ? new Date(t.rent_review_date).toISOString().split('T')[0] : null,
+    proposed_rent: t.proposed_rent !== null && t.proposed_rent !== undefined ? parseFloat(t.proposed_rent).toFixed(2) : null,
     created_at: t.created_at ? new Date(t.created_at).toISOString() : null,
     updated_at: t.updated_at ? new Date(t.updated_at).toISOString() : null
   };
@@ -248,6 +250,74 @@ const TENANCY_TRANSITIONS = {
   notice: ['active', 'ended'],
   ended: []
 };
+
+// Rent review lifecycle: 'none' (cleared) → 'scheduled' → 'in_progress' → 'completed'.
+// "Review Due" is derived client-side (scheduled/in_progress with a past review date).
+export const updateRentReview = catchAsync(async (req, res, next) => {
+  const { id } = req.params;
+  const { rent_review_date, proposed_rent, rent_review_status } = req.body;
+
+  const tenancy = await db('tenancies').where('id', id).first();
+  if (!tenancy) {
+    throw new ApiError(404, 'Tenancy not found');
+  }
+
+  const status = rent_review_status ?? 'scheduled';
+  if (!['none', 'scheduled', 'in_progress', 'completed'].includes(status)) {
+    throw new ApiError(400, 'rent_review_status must be none, scheduled, in_progress or completed');
+  }
+
+  const updates = { rent_review_status: status };
+
+  if (status === 'none') {
+    // Clearing a review removes its date and proposal.
+    updates.rent_review_date = null;
+    updates.proposed_rent = null;
+  } else {
+    if (rent_review_date !== undefined) {
+      if (rent_review_date && isNaN(new Date(rent_review_date).getTime())) {
+        throw new ApiError(400, 'rent_review_date must be a valid date');
+      }
+      updates.rent_review_date = rent_review_date || null;
+    }
+    const effectiveDate = updates.rent_review_date !== undefined ? updates.rent_review_date : tenancy.rent_review_date;
+    if (!effectiveDate) {
+      throw new ApiError(400, 'A review date is required to schedule a rent review');
+    }
+    if (proposed_rent !== undefined) {
+      if (proposed_rent === null || proposed_rent === '') {
+        updates.proposed_rent = null;
+      } else {
+        const rent = parseFloat(proposed_rent);
+        if (isNaN(rent) || rent <= 0) {
+          throw new ApiError(400, 'proposed_rent must be a positive amount');
+        }
+        updates.proposed_rent = rent.toFixed(2);
+      }
+    }
+  }
+
+  await db('tenancies').where('id', id).update({
+    ...updates,
+    updated_at: db.fn.now()
+  });
+
+  await db('audit_log').insert({
+    actor_id: req.user.id,
+    actor_role: req.user.role,
+    action: 'RENT_REVIEW_UPDATED',
+    entity_type: 'tenancy',
+    entity_id: id,
+    meta: JSON.stringify(updates),
+    ip_address: req.ip || null
+  });
+
+  const updated = await db('tenancies').where('id', id).first();
+  res.json({
+    success: true,
+    data: formatTenancy(updated)
+  });
+});
 
 export const updateTenancy = catchAsync(async (req, res, next) => {
   const { id } = req.params;

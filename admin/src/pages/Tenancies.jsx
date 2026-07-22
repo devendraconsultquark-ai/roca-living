@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle2, Clock, AlertCircle, X } from 'lucide-react';
+import { CheckCircle2, Clock, AlertCircle, X, RefreshCw, TrendingUp } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { StatCard } from '../components/UI/StatCard';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
+import { Dropdown } from '../components/UI/Dropdown';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
 import { Skeleton } from '../components/UI/Skeleton';
@@ -37,6 +38,11 @@ export const Tenancies = () => {
   const [endDate, setEndDate] = useState('');
   const [ending, setEnding] = useState(false);
 
+  // Rent-review modal state
+  const [reviewTarget, setReviewTarget] = useState(null);
+  const [reviewForm, setReviewForm] = useState({ date: '', proposed: '', status: 'scheduled' });
+  const [savingReview, setSavingReview] = useState(false);
+
   useEffect(() => {
     const fetchTenancies = async () => {
       setLoading(true);
@@ -53,6 +59,9 @@ export const Tenancies = () => {
           rent: parseFloat(t.rent_pcm || 0),
           rawStatus: t.status,
           rawEndDate: t.end_date,
+          rawReviewDate: t.rent_review_date,
+          rawProposedRent: t.proposed_rent,
+          rawReviewStatus: t.rent_review_status,
         }));
         setTenancies(formatted);
       } catch (err) {
@@ -115,6 +124,58 @@ export const Tenancies = () => {
     if (ok) setEndTarget(null);
   };
 
+  const openReviewModal = (row) => {
+    setReviewTarget(row);
+    setReviewForm({
+      date: row.rawReviewDate || '',
+      proposed: row.rawProposedRent || '',
+      status: row.rawReviewStatus && row.rawReviewStatus !== 'none' ? row.rawReviewStatus : 'scheduled',
+    });
+  };
+
+  const handleReviewSubmit = async (e) => {
+    e.preventDefault();
+    if (!reviewForm.date) {
+      addToast('Review date is required', 'warning');
+      return;
+    }
+    setSavingReview(true);
+    try {
+      await api.patch(`/tenancies/${reviewTarget.rawId}/rent-review`, {
+        rent_review_date: reviewForm.date,
+        proposed_rent: reviewForm.proposed === '' ? null : reviewForm.proposed,
+        rent_review_status: reviewForm.status,
+      });
+      addToast(`Rent review saved for ${reviewTarget.id}`, 'success');
+      setReviewTarget(null);
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to save rent review', 'error');
+    } finally {
+      setSavingReview(false);
+    }
+  };
+
+  const handleReviewClear = async () => {
+    const ok = await confirm({
+      title: 'Remove Rent Review',
+      message: `Remove the scheduled rent review for ${reviewTarget.id}? The review date and proposed rent will be cleared.`,
+      confirmText: 'Remove Review',
+    });
+    if (!ok) return;
+    setSavingReview(true);
+    try {
+      await api.patch(`/tenancies/${reviewTarget.rawId}/rent-review`, { rent_review_status: 'none' });
+      addToast(`Rent review removed for ${reviewTarget.id}`, 'success');
+      setReviewTarget(null);
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to remove rent review', 'error');
+    } finally {
+      setSavingReview(false);
+    }
+  };
+
   const expiringSoon = (t) => {
     if (!t.rawEndDate || t.rawStatus !== 'active') return false;
     const diff = new Date(t.rawEndDate) - new Date();
@@ -124,6 +185,19 @@ export const Tenancies = () => {
   const activeCount = tenancies.filter((t) => t.rawStatus === 'active').length;
   const expiringCount = tenancies.filter(expiringSoon).length;
   const pendingCount = tenancies.filter((t) => t.rawStatus === 'pending').length;
+
+  // Renewals due: live tenancies whose end date falls within the next 90 days
+  const renewalsDue = tenancies.filter((t) => {
+    if (!t.rawEndDate || !['active', 'notice'].includes(t.rawStatus)) return false;
+    const diff = new Date(t.rawEndDate) - new Date();
+    return diff > 0 && diff <= 90 * DAY_MS;
+  }).length;
+
+  // Average tenancy length (months) across tenancies with a start and end date
+  const withTerm = tenancies.filter((t) => t.start !== '—' && t.rawEndDate);
+  const avgMonths = withTerm.length
+    ? withTerm.reduce((s, t) => s + (new Date(t.rawEndDate) - new Date(t.start)) / (DAY_MS * 30.44), 0) / withTerm.length
+    : null;
 
   const columns = [
     { header: 'Tenancy ID', accessor: 'id', sortable: true },
@@ -176,6 +250,11 @@ export const Tenancies = () => {
             </Button>
           )}
           {(row.rawStatus === 'active' || row.rawStatus === 'notice') && (
+            <Button variant="ghost" size="sm" onClick={() => openReviewModal(row)}>
+              {row.rawReviewStatus && row.rawReviewStatus !== 'none' ? 'Rent Review…' : 'Rent Review'}
+            </Button>
+          )}
+          {(row.rawStatus === 'active' || row.rawStatus === 'notice') && (
             <Button variant="ghost" size="sm" className="text-status-danger" onClick={() => openEndModal(row)}>
               End Tenancy
             </Button>
@@ -188,7 +267,7 @@ export const Tenancies = () => {
   return (
     <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
       {/* Metrics Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-4">
         <StatCard
           label="Active Tenancies"
           value={loading ? '…' : `${activeCount} Contracts`}
@@ -208,6 +287,18 @@ export const Tenancies = () => {
           icon={Clock}
           iconColor="text-status-warning bg-status-warning/10"
           valueColor="text-status-warning"
+        />
+        <StatCard
+          label="Renewals Due (90 Days)"
+          value={loading ? '…' : String(renewalsDue)}
+          icon={RefreshCw}
+          iconColor="text-brand-accent bg-brand-accent/10"
+        />
+        <StatCard
+          label="Average Tenancy Length"
+          value={loading ? '…' : (avgMonths !== null ? `${avgMonths.toFixed(1)} months` : '—')}
+          icon={TrendingUp}
+          iconColor="text-status-info bg-status-info-bg"
         />
       </div>
 
@@ -259,6 +350,74 @@ export const Tenancies = () => {
                 <Button type="submit" variant="danger" disabled={ending}>
                   {ending ? 'Ending…' : 'End Tenancy'}
                 </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Rent Review Modal */}
+      {reviewTarget && (
+        <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl border border-card-border">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-brand-primary">Rent Review</h3>
+              <button onClick={() => setReviewTarget(null)} className="text-gray-400 hover:text-brand-primary cursor-pointer">
+                <X size={20} />
+              </button>
+            </div>
+
+            <p className="text-xs text-status-muted mb-4 leading-snug">
+              Schedule or update the rent review for {reviewTarget.id} ({reviewTarget.tenant} at {reviewTarget.property}).
+              Current rent: £{reviewTarget.rent.toFixed(2)} pcm. Mark it completed once the new rent has been agreed
+              and applied to the tenancy.
+            </p>
+
+            <form onSubmit={handleReviewSubmit} className="flex flex-col gap-4">
+              <Input
+                label="Review Date"
+                id="review-date"
+                type="date"
+                required
+                value={reviewForm.date}
+                onChange={(e) => setReviewForm((f) => ({ ...f, date: e.target.value }))}
+              />
+              <Input
+                label="Proposed Rent (£ pcm, optional)"
+                id="review-proposed"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="e.g. 2100.00"
+                value={reviewForm.proposed}
+                onChange={(e) => setReviewForm((f) => ({ ...f, proposed: e.target.value }))}
+              />
+              <Dropdown
+                id="review-status"
+                label="Review Status"
+                options={[
+                  { value: 'scheduled', label: 'Scheduled' },
+                  { value: 'in_progress', label: 'In Progress' },
+                  { value: 'completed', label: 'Completed' },
+                ]}
+                value={reviewForm.status}
+                onChange={(val) => setReviewForm((f) => ({ ...f, status: val }))}
+              />
+
+              <div className="flex gap-3 justify-between mt-1">
+                {reviewTarget.rawReviewStatus && reviewTarget.rawReviewStatus !== 'none' ? (
+                  <Button type="button" variant="ghost" className="text-status-danger" onClick={handleReviewClear} disabled={savingReview}>
+                    Remove Review
+                  </Button>
+                ) : <span />}
+                <div className="flex gap-3">
+                  <Button type="button" variant="ghost" onClick={() => setReviewTarget(null)} disabled={savingReview}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" variant="primary" disabled={savingReview}>
+                    {savingReview ? 'Saving…' : 'Save Review'}
+                  </Button>
+                </div>
               </div>
             </form>
           </div>

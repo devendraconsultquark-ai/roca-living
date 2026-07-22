@@ -6,6 +6,7 @@ import {
   getMyRentSchedule,
   getTenancyById,
   updateTenancy,
+  updateRentReview,
   recordRentPayment,
   getRentPayments,
   getAllTenants,
@@ -31,6 +32,7 @@ tenancyRouter.post('/', protect('admin'), restrictTo('ADMIN'), createTenancy);
 tenancyRouter.get('/', protect('admin'), restrictTo('ADMIN'), getAllTenancies);
 tenancyRouter.get('/:id', protect('admin'), restrictTo('ADMIN'), getTenancyById);
 tenancyRouter.patch('/:id', protect('admin'), restrictTo('ADMIN'), updateTenancy);
+tenancyRouter.patch('/:id/rent-review', protect('admin'), restrictTo('ADMIN'), updateRentReview);
 tenancyRouter.post('/:id/rent-payments', protect('admin'), restrictTo('ADMIN'), recordRentPayment);
 tenancyRouter.get('/:id/rent-payments', protect('admin'), restrictTo('ADMIN'), getRentPayments);
 
