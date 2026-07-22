@@ -53,7 +53,8 @@ export const getAllProperties = catchAsync(async (req, res, next) => {
       'users.name as landlord_name',
       db.raw(`(SELECT status FROM property_certificates WHERE property_id = properties.id AND cert_type = 'GAS' LIMIT 1) as gasCompliance`),
       db.raw(`(SELECT status FROM property_certificates WHERE property_id = properties.id AND cert_type = 'EPC' LIMIT 1) as epcCompliance`),
-      db.raw(`(SELECT status FROM property_certificates WHERE property_id = properties.id AND cert_type = 'EICR' LIMIT 1) as eicrCompliance`)
+      db.raw(`(SELECT status FROM property_certificates WHERE property_id = properties.id AND cert_type = 'EICR' LIMIT 1) as eicrCompliance`),
+      db.raw(`(SELECT id FROM property_images WHERE property_id = properties.id AND image_type = 'photo' ORDER BY is_primary DESC, created_at ASC LIMIT 1) as primary_image_id`)
     );
 
   if (landlord_id) {
@@ -148,12 +149,17 @@ export const getPropertyById = catchAsync(async (req, res, next) => {
     .orderBy('maintenance_tickets.created_at', 'desc')
     .limit(5);
 
+  const propertyImages = await db('property_images')
+    .where('property_id', id)
+    .orderBy([{ column: 'is_primary', order: 'desc' }, { column: 'created_at', order: 'asc' }]);
+
   res.json({
     success: true,
     data: {
       ...formattedProperty,
       property_certificates: formattedCerts,
       compliance_checklist: formattedCompliance,
+      images: propertyImages.map(formatPropertyImage),
       active_tenancy: tenancyData,
       maintenance_tickets: maintenanceTickets.map(t => ({
         ...t,
@@ -650,6 +656,19 @@ export const deletePropertyInternal = async (trx, propertyId) => {
   await trx('documents').where({ owner_type: 'property', owner_id: propertyId }).delete();
   await trx('property_certificates').where('property_id', propertyId).delete();
 
+  const propertyImages = await trx('property_images').where('property_id', propertyId);
+  for (const img of propertyImages) {
+    const absPath = path.join(process.cwd(), img.document_path);
+    if (fs.existsSync(absPath)) {
+      try {
+        fs.unlinkSync(absPath);
+      } catch (err) {
+        logger.error(`Failed to delete property image file at ${absPath}: ${err.message}`);
+      }
+    }
+  }
+  await trx('property_images').where('property_id', propertyId).delete();
+
   await trx('utilities').where('property_id', propertyId).delete();
   await trx('inspections').where('property_id', propertyId).delete();
 
@@ -728,4 +747,177 @@ export const deleteProperty = catchAsync(async (req, res, next) => {
     success: true,
     message: 'Property deleted successfully'
   });
+});
+
+// ─── Property images (photos & floor plans) ─────────────────────────────────
+
+const formatPropertyImage = (img) => ({
+  id: img.id,
+  property_id: img.property_id,
+  image_type: img.image_type,
+  caption: img.caption || null,
+  is_primary: !!img.is_primary,
+  created_at: img.created_at ? new Date(img.created_at).toISOString() : null
+});
+
+export const uploadPropertyImage = catchAsync(async (req, res, next) => {
+  const { id } = req.params;
+
+  if (!req.file) {
+    throw new ApiError(400, 'No image uploaded');
+  }
+
+  const property = await db('properties').where('id', id).first();
+  if (!property) {
+    await fs.promises.unlink(req.file.path).catch(() => {});
+    throw new ApiError(404, 'Property not found');
+  }
+
+  const image_type = req.body.image_type === 'floor_plan' ? 'floor_plan' : 'photo';
+  const caption = req.body.caption ? String(req.body.caption).slice(0, 255) : null;
+  const document_path = `uploads/properties/${req.file.filename}`;
+
+  // The first photo becomes the card thumbnail automatically.
+  let is_primary = false;
+  if (image_type === 'photo') {
+    const existingPrimary = await db('property_images')
+      .where({ property_id: id, image_type: 'photo', is_primary: true })
+      .first();
+    is_primary = !existingPrimary;
+  }
+
+  const [imageId] = await db('property_images').insert({
+    property_id: id,
+    image_type,
+    caption,
+    is_primary,
+    document_path,
+    uploaded_by: req.user.id
+  });
+
+  await db('audit_log').insert({
+    actor_id: req.user.id,
+    actor_role: req.user.role,
+    action: 'PROPERTY_IMAGE_UPLOADED',
+    entity_type: 'property',
+    entity_id: id,
+    meta: JSON.stringify({ image_id: imageId, image_type, original_name: req.file.originalname }),
+    ip_address: req.ip || null
+  });
+
+  const image = await db('property_images').where('id', imageId).first();
+  res.status(201).json({ success: true, data: formatPropertyImage(image) });
+});
+
+export const getPropertyImages = catchAsync(async (req, res, next) => {
+  const { id } = req.params;
+
+  const property = await db('properties').where('id', id).first();
+  if (!property) {
+    throw new ApiError(404, 'Property not found');
+  }
+
+  const images = await db('property_images')
+    .where('property_id', id)
+    .orderBy([{ column: 'is_primary', order: 'desc' }, { column: 'created_at', order: 'asc' }]);
+
+  res.json({ success: true, data: images.map(formatPropertyImage) });
+});
+
+export const downloadPropertyImage = catchAsync(async (req, res, next) => {
+  const { imageId } = req.params;
+
+  const image = await db('property_images').where('id', imageId).first();
+  if (!image) {
+    throw new ApiError(404, 'Image not found');
+  }
+
+  const absolutePath = path.isAbsolute(image.document_path)
+    ? image.document_path
+    : path.join(process.cwd(), image.document_path);
+  const resolved = path.resolve(absolutePath);
+  if (!resolved.startsWith(path.resolve(path.join(process.cwd(), 'uploads')))) {
+    logger.warn(`Blocked property image download outside uploads dir: ${resolved}`);
+    throw new ApiError(404, 'Image file not found');
+  }
+  if (!fs.existsSync(resolved)) {
+    logger.warn(`Property image missing on disk: ${resolved}`);
+    throw new ApiError(404, 'Image file not found');
+  }
+
+  res.sendFile(resolved);
+});
+
+export const updatePropertyImage = catchAsync(async (req, res, next) => {
+  const { id, imageId } = req.params;
+
+  const image = await db('property_images').where({ id: imageId, property_id: id }).first();
+  if (!image) {
+    throw new ApiError(404, 'Image not found');
+  }
+
+  const updates = {};
+  if (req.body.caption !== undefined) {
+    updates.caption = req.body.caption ? String(req.body.caption).slice(0, 255) : null;
+  }
+
+  if (req.body.is_primary === true) {
+    if (image.image_type !== 'photo') {
+      throw new ApiError(400, 'Only photos can be set as the primary image');
+    }
+    await db.transaction(async (trx) => {
+      await trx('property_images').where({ property_id: id, image_type: 'photo' }).update({ is_primary: false });
+      await trx('property_images').where('id', imageId).update({ ...updates, is_primary: true });
+    });
+  } else if (Object.keys(updates).length > 0) {
+    await db('property_images').where('id', imageId).update(updates);
+  } else {
+    throw new ApiError(400, 'Nothing to update');
+  }
+
+  const updated = await db('property_images').where('id', imageId).first();
+  res.json({ success: true, data: formatPropertyImage(updated) });
+});
+
+export const deletePropertyImage = catchAsync(async (req, res, next) => {
+  const { id, imageId } = req.params;
+
+  const image = await db('property_images').where({ id: imageId, property_id: id }).first();
+  if (!image) {
+    throw new ApiError(404, 'Image not found');
+  }
+
+  await db('property_images').where('id', imageId).delete();
+
+  const absPath = path.join(process.cwd(), image.document_path);
+  if (fs.existsSync(absPath)) {
+    try {
+      fs.unlinkSync(absPath);
+    } catch (err) {
+      logger.error(`Failed to delete property image file at ${absPath}: ${err.message}`);
+    }
+  }
+
+  // Keep a card thumbnail if other photos remain.
+  if (image.is_primary) {
+    const nextPhoto = await db('property_images')
+      .where({ property_id: id, image_type: 'photo' })
+      .orderBy('created_at', 'asc')
+      .first();
+    if (nextPhoto) {
+      await db('property_images').where('id', nextPhoto.id).update({ is_primary: true });
+    }
+  }
+
+  await db('audit_log').insert({
+    actor_id: req.user.id,
+    actor_role: req.user.role,
+    action: 'PROPERTY_IMAGE_DELETED',
+    entity_type: 'property',
+    entity_id: id,
+    meta: JSON.stringify({ image_id: parseInt(imageId, 10), image_type: image.image_type }),
+    ip_address: req.ip || null
+  });
+
+  res.json({ success: true, message: 'Image deleted' });
 });

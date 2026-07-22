@@ -10,6 +10,7 @@ import { StatusPill } from '../components/UI/StatusPill';
 import { Skeleton } from '../components/UI/Skeleton';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
+import { PropertyThumb } from '../components/UI/PropertyImage';
 import api from '../utilities/api';
 
 export const Properties = () => {
@@ -164,17 +165,23 @@ export const Properties = () => {
   };
 
   useEffect(() => {
-    fetchProperties();
-    fetchLandlordsList();
-    // Default management fee comes from the system settings (fallback 12.00).
-    api.get('/settings').then((res) => {
-      const fee = parseFloat(res.data?.data?.agencyFee);
-      if (Number.isFinite(fee)) {
-        setNewProperty((prev) =>
-          prev.mgmt_fee_pct === '12.00' ? { ...prev, mgmt_fee_pct: fee.toFixed(2) } : prev
-        );
-      }
-    }).catch(() => { /* prefill only */ });
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      fetchProperties();
+      fetchLandlordsList();
+      // Default management fee comes from the system settings (fallback 12.00).
+      api.get('/settings').then((res) => {
+        if (cancelled) return;
+        const fee = parseFloat(res.data?.data?.agencyFee);
+        if (Number.isFinite(fee)) {
+          setNewProperty((prev) =>
+            prev.mgmt_fee_pct === '12.00' ? { ...prev, mgmt_fee_pct: fee.toFixed(2) } : prev
+          );
+        }
+      }).catch(() => { /* prefill only */ });
+    });
+    return () => { cancelled = true; };
   }, []);
 
   const handleAddPropertySubmit = async (e) => {
@@ -236,14 +243,17 @@ export const Properties = () => {
 
   const columns = [
     { header: 'Property Reference', accessor: 'property_reference', sortable: true },
-    { 
-      header: 'Property', 
-      accessor: 'name', 
+    {
+      header: 'Property',
+      accessor: 'name',
       sortable: true,
       renderCell: (row) => (
-        <div>
-          <div className="font-semibold text-brand-primary">{row.name || row.address_line1}</div>
-          <div className="text-xs text-status-muted">{row.address}</div>
+        <div className="flex items-center gap-3">
+          <PropertyThumb imageId={row.primary_image_id} alt="" className="w-10 h-10 rounded-lg shrink-0" iconSize={16} />
+          <div>
+            <div className="font-semibold text-brand-primary">{row.name || row.address_line1}</div>
+            <div className="text-xs text-status-muted">{row.address}</div>
+          </div>
         </div>
       )
     },

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Home, ShieldCheck, Users, Wrench, FileText, Clock, Building2, MapPin, Hash, Receipt, Download, Upload
+  Home, ShieldCheck, Users, Wrench, FileText, Clock, Building2, MapPin, Hash, Receipt, Download, Upload, Image as ImageIcon
 } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
 import { StatusPill } from '../components/UI/StatusPill';
@@ -11,6 +11,9 @@ import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
 import { Button } from '../components/UI/Button';
 import { DocumentUploadModal } from '../components/UI/DocumentUploadModal';
+import { PropertyFinancials } from '../components/UI/PropertyFinancials';
+import { PropertyPhotos } from '../components/UI/PropertyPhotos';
+import { PropertyThumb } from '../components/UI/PropertyImage';
 import api from '../utilities/api';
 
 export const PropertyDetailPage = () => {
@@ -273,6 +276,8 @@ export const PropertyDetailPage = () => {
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Home },
+    { id: 'photos', label: 'Photos', icon: ImageIcon },
+    { id: 'financials', label: 'Financials', icon: Receipt },
     { id: 'tenancy', label: 'Tenancy', icon: Users },
     { id: 'maintenance', label: 'Maintenance', icon: Wrench },
     { id: 'safety', label: 'Safety & Compliance', icon: ShieldCheck },
@@ -280,6 +285,7 @@ export const PropertyDetailPage = () => {
   ];
 
   const address = `${data.address_line1}${data.address_line2 ? ', ' + data.address_line2 : ''}, ${data.city} ${data.postcode}`;
+  const primaryImage = (data.images || []).find((i) => i.is_primary) || (data.images || []).find((i) => i.image_type === 'photo') || null;
 
   return (
     <DetailContainer>
@@ -298,9 +304,19 @@ export const PropertyDetailPage = () => {
 
       {/* Tab Content */}
       <div className="w-full">
+        {activeTab === 'photos' && <PropertyPhotos propertyId={id} onChanged={() => setReloadKey((k) => k + 1)} />}
+        {activeTab === 'financials' && <PropertyFinancials propertyId={id} />}
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-2 flex flex-col gap-6">
+              {primaryImage && (
+                <PropertyThumb
+                  imageId={primaryImage.id}
+                  alt={data.name || data.address_line1}
+                  className="w-full h-64 rounded-card border border-card-border"
+                  iconSize={28}
+                />
+              )}
               <Card title="Property Summary">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-1">
                   <div>
