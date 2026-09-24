@@ -42,7 +42,7 @@ export const PropertyDetailPage = () => {
     property_type: 'flat',
     bedrooms: '',
     rent_pcm: '',
-    mgmt_fee_pct: '12.00',
+    mgmt_fee_pct: '8.00',
     block_name: '',
     apartment_number: '',
     key_ref: '',
@@ -105,7 +105,7 @@ export const PropertyDetailPage = () => {
       property_type: data.property_type || 'flat',
       bedrooms: data.bedrooms != null ? String(data.bedrooms) : '',
       rent_pcm: data.rent_pcm != null ? String(data.rent_pcm) : '',
-      mgmt_fee_pct: data.mgmt_fee_pct != null ? String(data.mgmt_fee_pct) : '12.00',
+      mgmt_fee_pct: data.mgmt_fee_pct != null ? String(data.mgmt_fee_pct) : '8.00',
       block_name: data.block_name || '',
       apartment_number: data.apartment_number || '',
       key_ref: data.key_ref || '',
@@ -678,7 +678,7 @@ export const PropertyDetailPage = () => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <Input
-                  label="Block Name (statements)"
+                  label="Block Code (e.g. PH)"
                   id="edit_block_name"
                   placeholder="e.g. PH"
                   value={editingProperty.block_name}

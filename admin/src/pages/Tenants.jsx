@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, CheckCircle2, AlertTriangle, Edit, X, Trash2, Eye } from 'lucide-react';
+import { Users, UserPlus, CheckCircle2, AlertTriangle, Edit, X, Trash2, Eye } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { StatCard } from '../components/UI/StatCard';
@@ -9,6 +9,7 @@ import { Dropdown } from '../components/UI/Dropdown';
 import { Skeleton } from '../components/UI/Skeleton';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
+import { AddTenantModal } from '../components/UI/AddTenantModal';
 import api from '../utilities/api';
 
 export const Tenants = () => {
@@ -31,6 +32,7 @@ export const Tenants = () => {
   const [submitting, setSubmitting] = useState(false);
   const { addToast } = useToast();
   const confirm = useConfirm();
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const handleEditClick = (row) => {
     setEditingTenantId(row.rawId);
@@ -179,8 +181,8 @@ export const Tenants = () => {
     <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
       {/* Page actions (title lives in the layout header) */}
       <div className="flex justify-end">
-        <Button variant="primary" icon={Users} onClick={() => navigate('/onboarding')}>
-          New Onboarding
+        <Button variant="primary" icon={UserPlus} onClick={() => setShowAddModal(true)}>
+          Add Tenant
         </Button>
       </div>
 
@@ -294,6 +296,9 @@ export const Tenants = () => {
             </form>
           </div>
         </div>
+      )}
+      {showAddModal && (
+        <AddTenantModal onClose={() => setShowAddModal(false)} onCreated={fetchTenants} />
       )}
     </div>
   );

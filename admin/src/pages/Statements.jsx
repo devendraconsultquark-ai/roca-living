@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { FileSpreadsheet, Download, Calendar, Plus, Trash2, Send, CheckCircle2 } from 'lucide-react';
+import { FileSpreadsheet, Download, Send, CheckCircle2 } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
-import { Input } from '../components/UI/Input';
-import { DatePicker } from '../components/UI/DatePicker';
-import { Dropdown } from '../components/UI/Dropdown';
 import { useToast } from '../components/UI/ToastContext';
 import { Skeleton } from '../components/UI/Skeleton';
+import { TenantStatementModal } from '../components/UI/TenantStatementModal';
 import api from '../utilities/api';
 
 export const Statements = () => {
@@ -14,48 +12,9 @@ export const Statements = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // Modal & Form State
+  // Generate-statement form (select tenant → autofill → check → generate)
   const [showModal, setShowModal] = useState(false);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [modalLoading, setModalLoading] = useState(false);
-  
   const { addToast } = useToast();
- 
-  // Autofill states
-  const [propertiesList, setPropertiesList] = useState([]);
-  const [selectedPropertyId, setSelectedPropertyId] = useState('');
-  const [loadingAutofill, setLoadingAutofill] = useState(false);
-
-  // Form Fields
-  const [landlordId, setLandlordId] = useState(null); // local landlord user id from autofill — drives statement attribution
-  const [landlordName, setLandlordName] = useState('');
-  const [landlordAddress, setLandlordAddress] = useState('');
-  const [statementNumber, setStatementNumber] = useState('');
-  const [nrlNumber, setNrlNumber] = useState('');
-  const [landlordRef, setLandlordRef] = useState('');
-  const [propertyRef, setPropertyRef] = useState('');
-
-  // Source tracking — which DB did the selected property come from
-  const [propertySource, setPropertySource] = useState('local');   // 'local' | 'em'
-  const [propertySourceId, setPropertySourceId] = useState(null);  // original property_id in source DB
-  
-  const [propertyName, setPropertyName] = useState('');
-  const [tenantName, setTenantName] = useState('');
-  const [tenancyType, setTenancyType] = useState('Assured Periodic Tenancy (APT)');
-  const [tenancyStartDate, setTenancyStartDate] = useState('');
-  
-  // Income
-  const [rentReceived, setRentReceived] = useState('');
-  const [voidPeriodCredit, setVoidPeriodCredit] = useState('');
-  
-  // Expenditure
-  const [expInvoiceNo, setExpInvoiceNo] = useState('');
-  const [expAmount, setExpAmount] = useState('');
-  const [setupRebate, setSetupRebate] = useState('');
-
-  // Summary
-  const [previousBalance, setPreviousBalance] = useState('');
 
   const fetchStatements = async () => {
     setLoading(true);
@@ -71,7 +30,8 @@ export const Statements = () => {
 
         return {
           id: s.id,
-          statement_reference: s.statement_reference || `STM-${s.id}`,
+          // The statement number (PH_33_0004) is what ROCA and the landlord see on the PDF.
+          statement_reference: s.statement_number || s.statement_reference || `STM-${s.id}`,
           landlord: s.landlord_name || 'Landlord',
           period: `${periodStartStr} - ${periodEndStr}`,
           date: s.generated_at ? new Date(s.generated_at).toLocaleDateString('en-GB') : '-',
@@ -96,65 +56,6 @@ export const Statements = () => {
   useEffect(() => {
     fetchStatements();
   }, []);
-
-  const fetchAutofillMetadata = async () => {
-    setLoadingAutofill(true);
-    try {
-      const response = await api.get('/statements/autofill-metadata');
-      if (response.data && response.data.success) {
-        setPropertiesList(response.data.data);
-      }
-    } catch (err) {
-      console.error('Error fetching autofill metadata:', err);
-      addToast('Failed to load property list for autofill', 'error');
-    } finally {
-      setLoadingAutofill(false);
-    }
-  };
-
-  useEffect(() => {
-    if (showModal) {
-      fetchAutofillMetadata();
-    }
-  }, [showModal]);
-
-  const handlePropertyChange = (val) => {
-    setSelectedPropertyId(val);
-    if (!val) return;
-    const prop = propertiesList.find(p => `${p.source}_${p.property_id}` === val);
-    if (prop) {
-      // Track source DB and original property id
-      setPropertySource(prop.source || 'local');
-      setPropertySourceId(prop.property_id || null);
-
-      // Autofill form fields from whichever DB the property came from
-      setLandlordId(prop.landlord_id || null);
-      setLandlordName(prop.landlord_name || '');
-      setLandlordAddress(prop.landlord_address || '');
-      setStatementNumber(prop.statement_number || '');
-      setNrlNumber(prop.nrl_number || '');
-      setLandlordRef(prop.landlord_reference || '');
-      setPropertyRef(prop.property_reference || '');
-      setPropertyName(prop.property_address || '');
-      setTenantName(prop.tenant_name || '');
-      setTenancyType(prop.tenancy_type || 'Assured Periodic Tenancy (APT)');
-      setTenancyStartDate(prop.tenancy_start_date || '');
-      setRentReceived(prop.rent_received || '');
-    }
-  };
-
-  // Real-time calculations
-  const rentReceivedVal = parseFloat(rentReceived) || 0;
-  const voidCreditVal = parseFloat(voidPeriodCredit) || 0;
-  const totalIncome = rentReceivedVal + voidCreditVal;
-
-  const expAmountVal = parseFloat(expAmount) || 0;
-  const setupRebateVal = parseFloat(setupRebate) || 0;
-  const totalExpenditure = Math.max(0, expAmountVal - setupRebateVal);
-
-  const prevBalanceVal = parseFloat(previousBalance) || 0;
-  const netIncome = totalIncome - totalExpenditure;
-  const newBalance = prevBalanceVal + netIncome;
 
   const handleDownload = async (id, landlord) => {
     try {
@@ -207,84 +108,6 @@ export const Statements = () => {
     } catch (err) {
       addToast(err.response?.data?.message || 'Failed to update statement status', 'error');
     }
-  };
-
-  const handleGenerateStatementsSubmit = async (e) => {
-    e.preventDefault();
-    if (!landlordName || !statementNumber) {
-      addToast('Please fill in required fields', 'warning');
-      return;
-    }
-    if (!startDate || !endDate) {
-      addToast('Period start and end dates are required', 'warning');
-      return;
-    }
-
-    setModalLoading(true);
-    try {
-      const payload = {
-        source: propertySource,
-        source_property_id: propertySourceId,
-        landlord_id: landlordId,
-        landlord_name: landlordName,
-        landlord_address: landlordAddress,
-        statement_number: statementNumber,
-        nrl_number: nrlNumber,
-        landlord_reference: landlordRef,
-        property_reference: propertyRef,
-        property_address: propertyName,
-        tenant_name: tenantName,
-        tenancy_type: tenancyType,
-        tenancy_start_date: tenancyStartDate,
-        period_start: startDate,
-        period_end: endDate,
-        rent_received: rentReceivedVal,
-        void_period_credit: voidCreditVal,
-        exp_invoice_no: expInvoiceNo,
-        exp_amount: expAmountVal,
-        setup_rebate: setupRebateVal,
-        previous_balance: prevBalanceVal,
-        net_paid: netIncome
-      };
-
-      await api.post('/statements/generate', payload);
-
-      addToast(`Statement ${statementNumber} created successfully`, 'success');
-      setShowModal(false);
-      resetForm();
-      fetchStatements();
-    } catch (err) {
-      console.error(err);
-      const msg = err.response?.data?.message || 'Failed to generate statement';
-      addToast(msg, 'error');
-    } finally {
-      setModalLoading(false);
-    }
-  };
-
-  const resetForm = () => {
-    setStartDate('');
-    setEndDate('');
-    setSelectedPropertyId('');
-    setPropertySource('local');
-    setPropertySourceId(null);
-    setLandlordId(null);
-    setLandlordName('');
-    setLandlordAddress('');
-    setStatementNumber('');
-    setNrlNumber('');
-    setLandlordRef('');
-    setPropertyRef('');
-    setPropertyName('');
-    setTenantName('');
-    setTenancyType('Assured Periodic Tenancy (APT)');
-    setTenancyStartDate('');
-    setRentReceived('');
-    setVoidPeriodCredit('');
-    setExpInvoiceNo('');
-    setExpAmount('');
-    setSetupRebate('');
-    setPreviousBalance('');
   };
 
   const columns = [
@@ -381,7 +204,7 @@ export const Statements = () => {
           onClick={() => setShowModal(true)}
           icon={FileSpreadsheet}
         >
-          Generate Statements
+          Generate Statement
         </Button>
       </div>
 
@@ -403,279 +226,8 @@ export const Statements = () => {
         )}
       </div>
 
-      {/* Statement Generation Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl border border-card-border overflow-hidden my-8">
-            <div className="bg-brand-primary text-white p-5 font-bold flex items-center gap-2 select-none shrink-0">
-              <Calendar size={18} />
-              <span>Generate Landlord Statement</span>
-            </div>
-
-            <form onSubmit={handleGenerateStatementsSubmit} className="p-6 flex flex-col gap-6 max-h-[80vh] overflow-y-auto">
-              {/* Select Property for Autofill */}
-              <div className="bg-status-info-bg p-4 rounded-card border border-status-info/15 flex flex-col gap-3">
-                <Dropdown
-                  label="Select Property for Autofill"
-                  id="propertySelect"
-                  options={propertiesList.map(p => ({
-                    value: `${p.source}_${p.property_id}`,
-                    label: p.display_name
-                  }))}
-                  value={selectedPropertyId}
-                  onChange={handlePropertyChange}
-                  placeholder={loadingAutofill ? "Loading properties..." : "Search and select a property to autofill..."}
-                  searchable
-                  clearable
-                  disabled={loadingAutofill}
-                />
-                <p className="text-xs-portal text-status-info italic">
-                  Selecting a property will automatically populate landlord, reference, property, and tenant details.
-                </p>
-              </div>
-
-              {/* Warning: EM property with no landlord data */}
-              {propertySource === 'em' && !landlordName && (
-                <div className="flex gap-3 items-start bg-status-warning/10 border border-status-warning/15 rounded-card p-4">
-                  <span className="text-status-warning mt-0.5 shrink-0 text-lg">⚠️</span>
-                  <div>
-                    <p className="text-sm font-semibold text-status-warning">Landlord details not found in external database</p>
-                    <p className="text-xs-portal text-status-muted mt-0.5">
-                      This EM property has no linked landlord record. Please fill in the <strong>Landlord Name</strong>, <strong>Landlord Address</strong>, and <strong>NRL Number</strong> manually below.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Section 1: Landlord & Reference Details */}
-              <div className="border-b pb-4 border-card-border">
-                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-3">Landlord & References Details</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input 
-                    label="Landlord / Company Name *"
-                    id="landlordName"
-                    required
-                    value={landlordName}
-                    onChange={(e) => { setLandlordName(e.target.value); setLandlordId(null); }}
-                    placeholder="e.g. Mr Rob Belema & Geertje Adrianntje Hogenes"
-                  />
-                  <Input 
-                    label="Landlord Address"
-                    id="landlordAddress"
-                    value={landlordAddress}
-                    onChange={(e) => setLandlordAddress(e.target.value)}
-                    placeholder="e.g. Jollenmakersweg 26, Oostzaan, 1511 DA"
-                  />
-                  <Input 
-                    label="Statement Number *"
-                    id="statementNumber"
-                    required
-                    value={statementNumber}
-                    onChange={(e) => setStatementNumber(e.target.value)}
-                    placeholder="e.g. PH_19_0001"
-                  />
-                  <Input 
-                    label="NRL Number"
-                    id="nrlNumber"
-                    value={nrlNumber}
-                    onChange={(e) => setNrlNumber(e.target.value)}
-                    placeholder="e.g. RB: NL945003 / GAH: NL945014"
-                  />
-                  <Input 
-                    label="Landlord Reference"
-                    id="landlordRef"
-                    value={landlordRef}
-                    onChange={(e) => setLandlordRef(e.target.value)}
-                    placeholder="e.g. RL_LR_PH_19"
-                  />
-                  <Input 
-                    label="Property Reference"
-                    id="propertyRef"
-                    value={propertyRef}
-                    onChange={(e) => setPropertyRef(e.target.value)}
-                    placeholder="e.g. PH-19"
-                  />
-                </div>
-              </div>
-
-              {/* Section 2: Property & Tenant Details */}
-              <div className="border-b pb-4 border-card-border">
-                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-3">Property & Tenant Details</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input 
-                    label="Property Details / Address"
-                    id="propertyName"
-                    value={propertyName}
-                    onChange={(e) => setPropertyName(e.target.value)}
-                    placeholder="e.g. Apartment 19, Parsons House"
-                  />
-                  <Input 
-                    label="Tenant Name"
-                    id="tenantName"
-                    value={tenantName}
-                    onChange={(e) => setTenantName(e.target.value)}
-                    placeholder="e.g. Ms Kirsty Scott"
-                  />
-                  <Input 
-                    label="Tenancy Type"
-                    id="tenancyType"
-                    value={tenancyType}
-                    onChange={(e) => setTenancyType(e.target.value)}
-                    placeholder="e.g. Assured Periodic Tenancy (APT)"
-                  />
-                  <DatePicker 
-                    label="Tenancy Start Date"
-                    id="tenancyStartDate"
-                    value={tenancyStartDate}
-                    onChange={(val) => setTenancyStartDate(val)}
-                  />
-                </div>
-              </div>
-
-              {/* Section 3: Billing Period */}
-              <div className="border-b pb-4 border-card-border">
-                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-3">Billing Period</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <DatePicker 
-                    label="Statement Period Start"
-                    id="startDate"
-                    required
-                    value={startDate}
-                    onChange={(val) => setStartDate(val)}
-                  />
-                  <DatePicker 
-                    label="Statement Period End"
-                    id="endDate"
-                    required
-                    value={endDate}
-                    onChange={(val) => setEndDate(val)}
-                  />
-                </div>
-              </div>
-
-              {/* Section 4: Income details */}
-              <div className="border-b pb-4 border-card-border">
-                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-3">Income</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input 
-                    label="Rent Received (£)"
-                    id="rentReceived"
-                    type="number"
-                    step="0.01"
-                    value={rentReceived}
-                    onChange={(e) => setRentReceived(e.target.value)}
-                    placeholder="0.00"
-                  />
-                  <Input 
-                    label="Void Period Rent Credit (£)"
-                    id="voidPeriodCredit"
-                    type="number"
-                    step="0.01"
-                    value={voidPeriodCredit}
-                    onChange={(e) => setVoidPeriodCredit(e.target.value)}
-                    placeholder="0.00"
-                  />
-                  <div className="md:col-span-2">
-                    <div className="px-3 py-2 bg-surface-light border border-card-border rounded-lg text-xs-portal font-semibold text-status-muted h-10 flex items-center justify-between">
-                      <span>Total Income:</span>
-                      <span className="font-bold text-sm text-brand-primary">£{totalIncome.toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 5: Expenditure details */}
-              <div className="border-b pb-4 border-card-border">
-                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-3">Expenditure</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input 
-                    label="Expenditure Invoice Number"
-                    id="expInvoiceNo"
-                    value={expInvoiceNo}
-                    onChange={(e) => setExpInvoiceNo(e.target.value)}
-                    placeholder="e.g. PH_19_0001"
-                  />
-                  <Input 
-                    label="Expenditure Amount (£)"
-                    id="expAmount"
-                    type="number"
-                    step="0.01"
-                    value={expAmount}
-                    onChange={(e) => setExpAmount(e.target.value)}
-                    placeholder="0.00"
-                  />
-                  <Input 
-                    label="Tenancy Set up Rebate (£)"
-                    id="setupRebate"
-                    type="number"
-                    step="0.01"
-                    value={setupRebate}
-                    onChange={(e) => setSetupRebate(e.target.value)}
-                    placeholder="0.00"
-                  />
-                  <div className="flex items-end">
-                    <div className="w-full px-3 py-2 bg-surface-light border border-card-border rounded-lg text-xs-portal font-semibold text-status-muted h-10 flex items-center justify-between">
-                      <span>Total Expenditure:</span>
-                      <span className="font-bold text-sm text-brand-primary">£{totalExpenditure.toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 6: Summary & Payout Balance */}
-              <div className="bg-brand-primary/5 border border-brand-accent/20 rounded-card p-4 flex flex-col md:flex-row justify-between gap-4">
-                <div className="flex-1">
-                  <Input 
-                    label="Balance from Previous Statement (£)"
-                    id="previousBalance"
-                    type="number"
-                    step="0.01"
-                    value={previousBalance}
-                    onChange={(e) => setPreviousBalance(e.target.value)}
-                    placeholder="0.00"
-                  />
-                </div>
-                
-                <div className="w-full md:w-64 flex flex-col gap-2 justify-center border-t md:border-t-0 md:border-l border-card-border pt-3 md:pt-0 md:pl-4">
-                  <div className="flex justify-between text-xs text-status-muted">
-                    <span>Previous Balance:</span>
-                    <span>£{prevBalanceVal.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs text-status-muted">
-                    <span>Net Period Income:</span>
-                    <span>£{netIncome.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between border-t pt-2 mt-1 font-bold text-sm text-brand-primary">
-                    <span>Payment / New Balance:</span>
-                    <span>£{newBalance.toFixed(2)}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Modal Buttons */}
-              <div className="flex justify-end gap-3 shrink-0">
-                <Button 
-                  type="button" 
-                  variant="secondary" 
-                  onClick={() => {
-                    setShowModal(false);
-                    resetForm();
-                  }}
-                  disabled={modalLoading}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="submit" 
-                  variant="primary" 
-                  disabled={modalLoading}
-                >
-                  {modalLoading ? 'Generating...' : 'Generate Statement'}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <TenantStatementModal onClose={() => setShowModal(false)} onGenerated={fetchStatements} />
       )}
     </div>
   );

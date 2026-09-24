@@ -5,6 +5,7 @@ import { getNumericSetting } from '../utils/settings.js';
 import fs from 'fs';
 import path from 'path';
 import logger from '../utils/logger.js';
+import { cleanUnitCode } from '../utils/statementNumbering.js';
 
 const ALLOWED_PROPERTY_FIELDS = [
   'address_line1',
@@ -180,7 +181,7 @@ export const createProperty = catchAsync(async (req, res, next) => {
   }
 
   // System default management fee (admin Settings page), 12% as last resort.
-  const defaultMgmtFee = await getNumericSetting('agencyFee', 12.00);
+  const defaultMgmtFee = await getNumericSetting('agencyFee', 8.00);
 
   const result = await db.transaction(async (trx) => {
     const tempRef = `TEMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -196,8 +197,8 @@ export const createProperty = catchAsync(async (req, res, next) => {
       mgmt_fee_pct: mgmt_fee_pct !== undefined ? mgmt_fee_pct : defaultMgmtFee,
       key_ref: key_ref || null,
       notes: notes || null,
-      block_name: block_name || null,
-      apartment_number: apartment_number || null,
+      block_name: cleanUnitCode(block_name, 'Block code') ?? null,
+      apartment_number: cleanUnitCode(apartment_number, 'Apartment number') ?? null,
       name: name || address_line1,
       property_reference: tempRef,
       status: 'onboarding'
@@ -271,6 +272,9 @@ export const updateProperty = catchAsync(async (req, res, next) => {
       updateData[field] = req.body[field];
     }
   });
+
+  if (updateData.block_name !== undefined) updateData.block_name = cleanUnitCode(updateData.block_name, 'Block code');
+  if (updateData.apartment_number !== undefined) updateData.apartment_number = cleanUnitCode(updateData.apartment_number, 'Apartment number');
 
   if (updateData.status === 'let') {
     const checklist = await db('compliance_checklist').where({ scope: 'property', entity_id: id });

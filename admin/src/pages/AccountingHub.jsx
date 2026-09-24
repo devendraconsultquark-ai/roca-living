@@ -8,6 +8,7 @@ import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
 import { Skeleton } from '../components/UI/Skeleton';
 import { CashflowOverview } from '../components/UI/CashflowOverview';
+import { BankTransactionsTab } from '../components/UI/BankTransactionsTab';
 import api from '../utilities/api';
 
 export const AccountingHub = () => {
@@ -394,6 +395,7 @@ export const AccountingHub = () => {
   ];
 
   const tabItems = [
+    { id: 'bank', name: 'Bank Transactions (Xero)', count: null },
     { id: 'incoming', name: 'Incoming Payments', count: incomingData.length },
     { id: 'unreconciled', name: 'Unreconciled', count: unreconciledDataState.length },
     { id: 'payouts', name: 'Outgoing/Payouts', count: payoutsDataState.length },
@@ -453,11 +455,13 @@ export const AccountingHub = () => {
                 }`}
               >
                 <span>{tab.name}</span>
-                <span className={`text-2xs font-bold px-2 py-0.5 rounded-sm ${
-                  isActive ? 'bg-status-info-bg text-status-info' : 'bg-surface-hover text-gray-400'
-                }`}>
-                  {tab.count}
-                </span>
+                {tab.count !== null && (
+                  <span className={`text-2xs font-bold px-2 py-0.5 rounded-sm ${
+                    isActive ? 'bg-status-info-bg text-status-info' : 'bg-surface-hover text-gray-400'
+                  }`}>
+                    {tab.count}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -483,6 +487,7 @@ export const AccountingHub = () => {
 
       {/* Tab Grid Render */}
       <div className="card-bg rounded-card shadow-premium border border-card-border p-4">
+        {activeTab === 'bank' && <BankTransactionsTab />}
         {activeTab === 'incoming' && (
           loading['incoming'] ? renderSkeleton() : (
             <DataTable 

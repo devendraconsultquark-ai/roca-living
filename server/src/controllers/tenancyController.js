@@ -2,11 +2,15 @@ import db from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
 import { addDays, addMonths } from '../utils/dateHelpers.js';
+import { allocateTenancyPayments } from '../utils/rentAllocation.js';
 
-const generateSchedules = (startDateStr, endDateStr, rentPcm) => {
+// Monthly rent months on the tenancy's due day. With fromDateStr (a tenancy
+// already running before this system), months due before it are skipped and
+// the 12-month horizon counts from it.
+const generateSchedules = (startDateStr, endDateStr, rentPcm, fromDateStr = null) => {
   const schedules = [];
-  const start = new Date(startDateStr);
   const end = endDateStr ? new Date(endDateStr) : null;
+  const from = fromDateStr ? new Date(fromDateStr) : null;
   
   let i = 0;
   while (true) {
@@ -16,7 +20,11 @@ const generateSchedules = (startDateStr, endDateStr, rentPcm) => {
     if (end && nextDate > end) {
       break;
     }
-    if (!end && i >= 12) {
+    if (from && nextDate < from) {
+      i++;
+      continue;
+    }
+    if (!end && schedules.length >= 12) {
       break;
     }
     
@@ -93,7 +101,9 @@ export const createTenancy = catchAsync(async (req, res, next) => {
     agent_letting_fee,
     roca_letting_fee,
     tenants,
-    deposit
+    deposit,
+    statements_from,
+    last_statement_seq
   } = req.body;
 
   if (!property_id) {
@@ -121,9 +131,37 @@ export const createTenancy = catchAsync(async (req, res, next) => {
     throw new ApiError(400, 'Every tenant must have a name');
   }
 
-  if (!deposit || !deposit.amount || Number.isNaN(parseFloat(deposit.amount)) || !deposit.received_at) {
-    throw new ApiError(400, 'Deposit amount and received date are required');
+  // Deposit is optional (details may not be known yet); when given, both the
+  // amount and the date received are needed to compute the registration deadline.
+  const hasDeposit = !!deposit && deposit.amount !== undefined && deposit.amount !== null && deposit.amount !== '';
+  if (hasDeposit && (Number.isNaN(parseFloat(deposit.amount)) || parseFloat(deposit.amount) <= 0 || !deposit.received_at)) {
+    throw new ApiError(400, 'Deposit needs a valid amount and the date it was received');
   }
+
+  // Opening position (optional): tenancy already running and statemented by hand.
+  const statementsFrom = statements_from || null;
+  if (statementsFrom && (!/^\d{4}-\d{2}-\d{2}$/.test(statementsFrom) || statementsFrom < String(start_date).slice(0, 10))) {
+    throw new ApiError(400, 'First period in this system must be a valid date on or after the tenancy start date');
+  }
+  if (statementsFrom && Number(statementsFrom.slice(8, 10)) !== Number(String(start_date).slice(8, 10))) {
+    throw new ApiError(400, 'First period in this system must fall on the rent due day (same day of the month as the start date)');
+  }
+  const lastSeq = last_statement_seq === undefined || last_statement_seq === null || last_statement_seq === '' ? null : Number(last_statement_seq);
+  if (lastSeq !== null && (!Number.isInteger(lastSeq) || lastSeq < 0 || lastSeq > 9999)) {
+    throw new ApiError(400, 'Last statement number must be a whole number between 0 and 9999');
+  }
+
+  // One live tenancy per property.
+  const liveTenancy = await db('tenancies')
+    .where('property_id', property_id)
+    .whereIn('status', ['active', 'notice', 'pending'])
+    .first();
+  if (liveTenancy) {
+    throw new ApiError(409, 'This property already has a current tenancy — end it before adding a new one');
+  }
+
+  // Exactly one lead tenant: the flagged one, else the first listed.
+  const leadIndex = Math.max(0, tenants.findIndex(t => t.is_lead_tenant));
 
   const result = await db.transaction(async (trx) => {
     // 1. Insert Tenancy
@@ -136,34 +174,38 @@ export const createTenancy = catchAsync(async (req, res, next) => {
       rent_frequency: frequency || 'monthly',
       agent_letting_fee: agent_letting_fee !== undefined ? parseFloat(agent_letting_fee).toFixed(2) : null,
       roca_letting_fee: roca_letting_fee !== undefined ? parseFloat(roca_letting_fee).toFixed(2) : null,
+      statements_from: statementsFrom,
+      last_statement_seq: lastSeq,
       created_by: req.user.id
     });
 
     // 2. Insert Tenants
-    const tenantRows = tenants.map(t => ({
+    const tenantRows = tenants.map((t, i) => ({
       tenancy_id: tenancyId,
       name: t.name,
       email: t.email || null,
       phone: t.phone || null,
-      is_lead_tenant: t.is_lead_tenant ? 1 : 0,
+      is_lead_tenant: i === leadIndex ? 1 : 0,
       right_to_rent_status: 'pending'
     }));
     await trx('tenants').insert(tenantRows);
 
-    // 3. Insert Deposit
-    const registerDue = addDays(deposit.received_at, 30);
-    const [depositId] = await trx('deposits').insert({
-      tenancy_id: tenancyId,
-      holding_deposit: deposit.holding_deposit !== undefined ? parseFloat(deposit.holding_deposit).toFixed(2) : null,
-      tenancy_deposit: parseFloat(deposit.amount).toFixed(2),
-      scheme: deposit.scheme || 'TDS',
-      received_at: deposit.received_at,
-      register_due: registerDue,
-      status: 'pending_registration'
-    });
+    // 3. Insert Deposit (optional)
+    let depositId = null;
+    if (hasDeposit) {
+      [depositId] = await trx('deposits').insert({
+        tenancy_id: tenancyId,
+        holding_deposit: deposit.holding_deposit !== undefined ? parseFloat(deposit.holding_deposit).toFixed(2) : null,
+        tenancy_deposit: parseFloat(deposit.amount).toFixed(2),
+        scheme: deposit.scheme || 'TDS',
+        received_at: deposit.received_at,
+        register_due: addDays(deposit.received_at, 30),
+        status: 'pending_registration'
+      });
+    }
 
     // 4. Generate rent schedules
-    const schedules = generateSchedules(start_date, end_date, rent_pcm);
+    const schedules = generateSchedules(start_date, end_date, rent_pcm, statementsFrom);
     const scheduleRows = schedules.map(s => ({
       tenancy_id: tenancyId,
       due_date: s.due_date,
@@ -182,14 +224,14 @@ export const createTenancy = catchAsync(async (req, res, next) => {
       action: 'TENANCY_CREATED',
       entity_type: 'tenancy',
       entity_id: tenancyId,
-      meta: JSON.stringify({ property_id, rent_pcm, deposit_amount: deposit.amount }),
+      meta: JSON.stringify({ property_id, rent_pcm, deposit_amount: hasDeposit ? deposit.amount : null }),
       ip_address: req.ip || null
     });
 
     // Fetch full response payload
     const tenancyObj = await trx('tenancies').where('id', tenancyId).first();
     const tenantsList = await trx('tenants').where('tenancy_id', tenancyId);
-    const depositObj = await trx('deposits').where('id', depositId).first();
+    const depositObj = depositId ? await trx('deposits').where('id', depositId).first() : null;
 
     return {
       tenancy: formatTenancy(tenancyObj),
@@ -465,38 +507,23 @@ export const recordRentPayment = catchAsync(async (req, res, next) => {
   const result = await db.transaction(async (trx) => {
     const formattedAmount = parseFloat(amount).toFixed(2);
 
-    // Auto-reconcile logic: oldest matching due/overdue schedule
-    const matchedSchedule = await trx('rent_schedules')
-      .where({
-        tenancy_id: id,
-        amount: formattedAmount
-      })
-      .whereIn('status', ['due', 'overdue'])
-      .orderBy('due_date', 'asc')
-      .first();
-
-    const isReconciled = !!matchedSchedule;
-
-    // 1. Insert rent payment
+    // 1. Insert rent payment, then apply it to rent months oldest first
+    //    (part payments and surplus credit handled by allocateTenancyPayments).
     const [paymentId] = await trx('rent_payments').insert({
       tenancy_id: id,
-      schedule_id: isReconciled ? matchedSchedule.id : null,
+      schedule_id: null,
       received_at,
       amount: formattedAmount,
       method,
       reference: reference || null,
-      reconciled: isReconciled ? 1 : 0,
-      reconciled_at: isReconciled ? trx.fn.now() : null,
-      reconciled_by: isReconciled ? req.user.id : null,
+      reconciled: 0,
+      reconciled_by: req.user.id,
       notes: notes || null
     });
-
-    // 2. Update schedule if reconciled
-    if (isReconciled) {
-      await trx('rent_schedules')
-        .where('id', matchedSchedule.id)
-        .update({ status: 'paid' });
-    }
+    const { credit } = await allocateTenancyPayments(trx, id);
+    const allocatedRow = await trx('rent_payments').where('id', paymentId).first();
+    const isReconciled = !!allocatedRow.reconciled;
+    const matchedSchedule = allocatedRow.schedule_id ? { id: allocatedRow.schedule_id } : null;
 
     // 3. Write transaction row
     await trx('transactions').insert({
@@ -527,7 +554,8 @@ export const recordRentPayment = catchAsync(async (req, res, next) => {
     return {
       payment: formatRentPayment(paymentObj),
       reconciled: isReconciled,
-      matched_schedule_id: isReconciled ? matchedSchedule.id : null
+      matched_schedule_id: matchedSchedule ? matchedSchedule.id : null,
+      tenant_credit: credit.toFixed(2)
     };
   });
 
@@ -601,20 +629,10 @@ export const manualReconcile = catchAsync(async (req, res, next) => {
   }
 
   await db.transaction(async (trx) => {
-    // 1. Link payment to schedule and set reconciled=1
-    await trx('rent_payments')
-      .where('id', paymentId)
-      .update({
-        schedule_id,
-        reconciled: 1,
-        reconciled_at: trx.fn.now(),
-        reconciled_by: req.user.id
-      });
-
-    // 2. Update schedule status to 'paid'
-    await trx('rent_schedules')
-      .where('id', schedule_id)
-      .update({ status: 'paid' });
+    // 1–2. Payments are applied to rent months oldest first by the allocation
+    //      rule; re-running it settles this payment against the open months.
+    await trx('rent_payments').where('id', paymentId).update({ reconciled_by: req.user.id });
+    await allocateTenancyPayments(trx, payment.tenancy_id);
 
     // 3. Update associated transactions reconciled=1
     await trx('transactions')
@@ -692,6 +710,7 @@ export const getMyRentSchedule = catchAsync(async (req, res, next) => {
       'rent_schedules.tenancy_id',
       'rent_schedules.due_date',
       'rent_schedules.amount',
+      'rent_schedules.paid_amount',
       'rent_schedules.status',
       'properties.id as property_id',
       'properties.address_line1',
@@ -706,13 +725,14 @@ export const getMyRentSchedule = catchAsync(async (req, res, next) => {
   }));
 
   const overdue = formatted.filter(s => s.status === 'overdue');
-  const overdueTotal = overdue.reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
+  // Arrears = what is still owed (part-paid months count only the remainder).
+  const overdueTotal = overdue.reduce((sum, s) => sum + parseFloat(s.amount || 0) - parseFloat(s.paid_amount || 0), 0);
   let daysInArrears = 0;
   if (overdue.length > 0) {
     const oldest = new Date(overdue[0].due_date);
     daysInArrears = Math.max(0, Math.ceil((Date.now() - oldest.getTime()) / (1000 * 60 * 60 * 24)));
   }
-  const nextDue = formatted.find(s => s.status === 'due');
+  const nextDue = formatted.find(s => s.status === 'due' || s.status === 'partial');
 
   res.json({
     success: true,
@@ -823,7 +843,7 @@ export const getArrears = catchAsync(async (req, res, next) => {
         lastPaymentDate: lastPayment ? new Date(lastPayment.received_at).toISOString().split('T')[0] : '-'
       };
     }
-    tenanciesWithArrears[tenancyId].arrears += parseFloat(row.amount);
+    tenanciesWithArrears[tenancyId].arrears += parseFloat(row.amount) - parseFloat(row.paid_amount || 0);
   }
 
   const result = Object.values(tenanciesWithArrears).map(item => ({
@@ -872,7 +892,7 @@ export const getAllTenants = catchAsync(async (req, res, next) => {
     
     let balanceVal = 0.0;
     overdueSchedules.forEach(s => {
-      balanceVal -= parseFloat(s.amount);
+      balanceVal -= parseFloat(s.amount) - parseFloat(s.paid_amount || 0);
     });
 
     formatted.push({
@@ -1007,9 +1027,11 @@ export const getTenantById = catchAsync(async (req, res, next) => {
     .orderBy('received_at', 'desc')
     .limit(20);
 
-  // Compute account balance: sum of scheduled rent minus sum of payments
+  // Account balance: payments received minus rent fallen due to date
+  // (positive = tenant credit, negative = arrears). Future months don't count.
   const scheduleSum = await db('rent_schedules')
     .where('tenancy_id', tenant.tenancy_id)
+    .where('due_date', '<=', db.raw('CURDATE()'))
     .sum('amount as total')
     .first();
   const paymentSum = await db('rent_payments')

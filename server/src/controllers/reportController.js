@@ -2,10 +2,13 @@ import db from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
 
-// Helper to format date as YYYY-MM-DD
+// Helper to format date as YYYY-MM-DD. DATE columns arrive as local-midnight
+// Date objects, so format in local time — toISOString() would shift them to the
+// previous day in any UTC+ timezone (India, UK summer time).
 const formatDate = (d) => {
   if (!d) return null;
-  return new Date(d).toISOString().split('T')[0];
+  const x = new Date(d);
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
 };
 
 export const getArrearsReport = catchAsync(async (req, res, next) => {
@@ -17,7 +20,7 @@ export const getArrearsReport = catchAsync(async (req, res, next) => {
     .select(
       'users.id as landlord_id',
       'users.name as landlord_name',
-      db.raw('SUM(rent_schedules.amount) as total_arrears'),
+      db.raw('SUM(rent_schedules.amount - rent_schedules.paid_amount) as total_arrears'),
       db.raw('COUNT(DISTINCT properties.id) as properties_affected'),
       db.raw('MIN(rent_schedules.due_date) as oldest_overdue_date')
     )
@@ -49,7 +52,7 @@ export const getArrearsReport = catchAsync(async (req, res, next) => {
       'rent_schedules.id',
       'rent_schedules.tenancy_id',
       'rent_schedules.due_date',
-      'rent_schedules.amount',
+      db.raw('(rent_schedules.amount - rent_schedules.paid_amount) as amount'),
       'users.name as landlord_name',
       'lt.tenant_name',
       'properties.address_line1',
@@ -130,7 +133,7 @@ export const getPipelineReport = catchAsync(async (req, res, next) => {
   const [{ maintenance_emergency }] = await db('maintenance_tickets').where('urgency', 'emergency').whereNotIn('status', ['complete', 'cancelled']).count('id as maintenance_emergency');
 
   // rent overdue count & sum
-  const rentOverdue = await db('rent_schedules').where('status', 'overdue').select(db.raw('COUNT(id) as cnt, SUM(amount) as total_amount')).first();
+  const rentOverdue = await db('rent_schedules').where('status', 'overdue').select(db.raw('COUNT(id) as cnt, SUM(amount - paid_amount) as total_amount')).first();
   const rent_overdue_count = parseInt(rentOverdue?.cnt || 0, 10);
   const rent_overdue_total_amount = parseFloat(rentOverdue?.total_amount || 0).toFixed(2);
 
@@ -271,7 +274,7 @@ export const getDashboardSummary = catchAsync(async (req, res, next) => {
     ).first(),
     db('rent_schedules').where('status', 'overdue').select(
       db.raw('COUNT(id) as cnt'),
-      db.raw('SUM(amount) as total')
+      db.raw('SUM(amount - paid_amount) as total')
     ).first(),
     db('rent_payments').where('reconciled', 0).sum('amount as total').first(),
     inMonth(db('transactions').where('type', 'mgmt_fee'), 'transaction_date').sum('amount as total').first(),
@@ -294,7 +297,7 @@ export const getDashboardSummary = catchAsync(async (req, res, next) => {
       .from(
         db('rent_schedules')
           .select('tenancy_id')
-          .sum('amount as arrears')
+          .select(db.raw('SUM(amount - paid_amount) as arrears'))
           .where('status', 'overdue')
           .groupBy('tenancy_id')
           .as('a')

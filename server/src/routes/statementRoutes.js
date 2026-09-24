@@ -6,7 +6,9 @@ import {
   getLandlordStatements,
   downloadStatement,
   getAutofillMetadata,
-  updateStatementStatus
+  updateStatementStatus,
+  getTenancyStatementOptions,
+  getTenancyAutofill
 } from '../controllers/statementController.js';
 import { protect } from '../middlewares/protect.js';
 import { restrictTo } from '../middlewares/restrictTo.js';
@@ -18,6 +20,8 @@ statementRouter.get('/my', protect('landlord'), restrictTo('LANDLORD'), getLandl
 
 // Admin Routes
 statementRouter.get('/autofill-metadata', protect('admin'), restrictTo('ADMIN'), getAutofillMetadata);
+statementRouter.get('/tenancy-options', protect('admin'), restrictTo('ADMIN'), getTenancyStatementOptions);
+statementRouter.get('/tenancy-autofill/:tenancyId', protect('admin'), restrictTo('ADMIN'), getTenancyAutofill);
 statementRouter.post('/generate', protect('admin'), restrictTo('ADMIN'), generateStatements);
 statementRouter.get('/', protect('admin'), restrictTo('ADMIN'), getStatements);
 statementRouter.patch('/:id/status', protect('admin'), restrictTo('ADMIN'), updateStatementStatus);

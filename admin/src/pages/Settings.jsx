@@ -4,6 +4,7 @@ import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
 import { Input } from '../components/UI/Input';
 import { Button } from '../components/UI/Button';
+import { XeroConnection } from '../components/UI/XeroConnection';
 import api from '../utilities/api';
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
@@ -187,6 +188,9 @@ export const Settings = () => {
         </div>
 
       </form>
+
+      {/* Xero — accounting integration (money source of truth) */}
+      <XeroConnection />
 
       {/* Legislation & News manager — feeds the dashboard's "Legislation & News" card */}
       <div className="card-bg border border-card-border rounded-card p-6 md:p-8 shadow-premium flex flex-col gap-5">

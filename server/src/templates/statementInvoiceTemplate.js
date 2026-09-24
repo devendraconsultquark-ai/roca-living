@@ -93,32 +93,31 @@ export const formatLongDate = (val) => {
   }
 };
 
+// Landlord address block. An address typed on separate lines keeps its lines;
+// a one-line address is split on commas into pairs
+// ("Apartment 3, Parsons House" / "Washington, Sunderland" / "NE37 1EZ").
 const formatAddress = (address) => {
   if (!address) return '';
 
-  const parts = address
-    .split(',')
-    .map(p => p.trim())
-    .filter(Boolean);
-
-  const lines = [];
-
-  if (parts.length >= 2) {
-    lines.push(parts.slice(0, 2).join(', '));     // Apartment 3, Parsons House
+  let lines;
+  if (/\r?\n/.test(address)) {
+    lines = address.split(/\r?\n/).map(l => l.trim().replace(/,$/, '')).filter(Boolean);
+  } else {
+    const parts = address.split(',').map(p => p.trim()).filter(Boolean);
+    lines = [];
+    for (let i = 0; i < parts.length && i < 4; i += 2) lines.push(parts.slice(i, i + 2).join(', '));
+    if (parts.length > 4) lines.push(parts.slice(4).join(', '));
   }
 
-  if (parts.length >= 4) {
-    lines.push(parts.slice(2, 4).join(', '));     // Washington, Sunderland
-  } else if (parts.length > 2) {
-    lines.push(parts.slice(2).join(', '));
-  }
-
-  if (parts.length >= 5) {
-    lines.push(parts[4]);                         // NE37 1EZ
-  }
-
-  return lines.map(line => `<div>${line}</div>`).join('');
+  return lines.map(line => `<div>${escapeHtml(line)}</div>`).join('');
 };
+
+// Admin-typed text (statement line descriptions) is rendered into the PDF HTML.
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;');
 
 /**
  * Helper: cleanLine (strips leading bullets, hyphens, and asterisks)
@@ -225,17 +224,96 @@ export const generateStatementHTMLBody = (data) => {
 
   const issueDateStr = formatLongDate(new Date());
 
+  // Line mode (Statement Generator): the caller passes the income and
+  // expenditure lines plus the computed totals. Otherwise the fixed fields of
+  // the manual Statements form are used.
+  const lineMode = Array.isArray(data.income_lines) && Array.isArray(data.expenditure_lines);
+
   const rentVal = parseFloat(data.rent_received) || 0;
   const voidCreditVal = parseFloat(data.void_period_credit) || 0;
-  const totalIncome = rentVal + voidCreditVal;
-
   const expAmountVal = parseFloat(data.exp_amount) || 0;
   const setupRebateVal = parseFloat(data.setup_rebate) || 0;
-  const totalExpenditure = Math.max(0, expAmountVal - setupRebateVal);
+
+  const totalIncome = lineMode ? parseFloat(data.total_income) || 0 : rentVal + voidCreditVal;
+  const totalExpenditure = lineMode ? parseFloat(data.total_expenditure) || 0 : Math.max(0, expAmountVal - setupRebateVal);
 
   const prevBalanceVal = parseFloat(data.previous_balance) || 0;
   const netIncome = totalIncome - totalExpenditure;
   const newBalance = prevBalanceVal + netIncome;
+  const paymentAmount = lineMode ? parseFloat(data.payment_amount) || 0 : netIncome;
+
+  // Expenditure amounts are costs: shown negative. A negative line is a
+  // credit back to the landlord (e.g. a rebate): shown positive.
+  const lineRow = (desc, amount, isExpenditure) => {
+    const shown = isExpenditure ? -amount : amount;
+    const text = shown < 0 ? `-${formatCurrency(Math.abs(shown))}` : formatCurrency(shown);
+    const color = isExpenditure && shown < 0 ? ' style="color: #000;"' : '';
+    return `
+        <div class="table-row">
+          <span class="row-desc">${escapeHtml(desc)}</span>
+          <div class="row-vals">
+            <span class="col-amount"${color}>${text}</span>
+            <span class="col-vat">£0.00</span>
+            <span class="col-gross"${color}>${text}</span>
+          </div>
+        </div>`;
+  };
+
+  const incomeRowsHtml = lineMode
+    ? data.income_lines.map((l) => lineRow(l.description, parseFloat(l.amount) || 0, false)).join('')
+    : `
+        <div class="table-row">
+          <span class="row-desc">Rent received for the month ${formatDate(data.period_start)} to ${formatDate(data.period_end)} – ${data.tenant_name || 'Tenant'}</span>
+          <div class="row-vals">
+            <span class="col-amount">${formatCurrency(rentVal)}</span>
+            <span class="col-vat">£0.00</span>
+            <span class="col-gross">${formatCurrency(rentVal)}</span>
+          </div>
+        </div>
+        ${voidCreditVal > 0 ? `
+        <div class="table-row">
+          <span class="row-desc">Void period rent credit (Roca Living)</span>
+          <div class="row-vals">
+            <span class="col-amount">${formatCurrency(voidCreditVal)}</span>
+            <span class="col-vat">£0.00</span>
+            <span class="col-gross">${formatCurrency(voidCreditVal)}</span>
+          </div>
+        </div>` : ''}`;
+
+  const noExpenditureRow = `
+        <div class="table-row">
+          <span class="row-desc" style="font-style: italic; color: #6b7280;">No expenditure recorded for this period</span>
+          <div class="row-vals">
+            <span class="col-amount">£0.00</span>
+            <span class="col-vat">£0.00</span>
+            <span class="col-gross">£0.00</span>
+          </div>
+        </div>`;
+
+  const expenditureRowsHtml = lineMode
+    ? (data.expenditure_lines.length > 0
+      ? data.expenditure_lines.map((l) => lineRow(l.description, parseFloat(l.amount) || 0, true)).join('')
+      : noExpenditureRow)
+    : `
+        ${expAmountVal > 0 ? `
+        <div class="table-row">
+          <span class="row-desc">Invoice No ${data.exp_invoice_no || '—'} (see accompanying invoice & breakdown)</span>
+          <div class="row-vals">
+            <span class="col-amount" style="color: #000;">-${formatCurrency(expAmountVal)}</span>
+            <span class="col-vat">£0.00</span>
+            <span class="col-gross" style="color: #000;">-${formatCurrency(expAmountVal)}</span>
+          </div>
+        </div>` : ''}
+        ${setupRebateVal > 0 ? `
+        <div class="table-row">
+          <span class="row-desc">Tenancy Set up – Roca Living rebate</span>
+          <div class="row-vals">
+            <span class="col-amount">${formatCurrency(setupRebateVal)}</span>
+            <span class="col-vat">£0.00</span>
+            <span class="col-gross">${formatCurrency(setupRebateVal)}</span>
+          </div>
+        </div>` : ''}
+        ${expAmountVal === 0 && setupRebateVal === 0 ? noExpenditureRow : ''}`;
 
   return `
     <div class="header">
@@ -270,7 +348,7 @@ export const generateStatementHTMLBody = (data) => {
     <!-- Title Row -->
     <div class="title-row">
       <h1 class="doc-title">Statement of Account</h1>
-      <span class="doc-date">${formatLongDate(data.period_end) || issueDateStr}</span>
+      <span class="doc-date">${data.issue_date ? formatLongDate(data.issue_date) : (formatLongDate(data.period_end) || issueDateStr)}</span>
     </div>
     
     <!-- Recipient & Meta info box -->
@@ -349,23 +427,7 @@ export const generateStatementHTMLBody = (data) => {
       </div>
       <div class="table-body">
         <div class="property-group-title">${data.property_address || '—'}</div>
-        <div class="table-row">
-          <span class="row-desc">Rent received for the month ${formatDate(data.period_start)} to ${formatDate(data.period_end)} – ${data.tenant_name || 'Tenant'}</span>
-          <div class="row-vals">
-            <span class="col-amount">${formatCurrency(rentVal)}</span>
-            <span class="col-vat">£0.00</span>
-            <span class="col-gross">${formatCurrency(rentVal)}</span>
-          </div>
-        </div>
-        ${voidCreditVal > 0 ? `
-        <div class="table-row">
-          <span class="row-desc">Void period rent credit (Roca Living)</span>
-          <div class="row-vals">
-            <span class="col-amount">${formatCurrency(voidCreditVal)}</span>
-            <span class="col-vat">£0.00</span>
-            <span class="col-gross">${formatCurrency(voidCreditVal)}</span>
-          </div>
-        </div>` : ''}
+        ${incomeRowsHtml}
         <div class="row-total">
           <span class="total-label">Total Income</span>
           <div class="total-vals">
@@ -389,33 +451,7 @@ export const generateStatementHTMLBody = (data) => {
       </div>
       <div class="table-body">
         <div class="property-group-title">${data.property_address || '—'}</div>
-        ${expAmountVal > 0 ? `
-        <div class="table-row">
-          <span class="row-desc">Invoice No ${data.exp_invoice_no || '—'} (see accompanying invoice & breakdown)</span>
-          <div class="row-vals">
-            <span class="col-amount" style="color: #000;">-${formatCurrency(expAmountVal)}</span>
-            <span class="col-vat">£0.00</span>
-            <span class="col-gross" style="color: #000;">-${formatCurrency(expAmountVal)}</span>
-          </div>
-        </div>` : ''}
-        ${setupRebateVal > 0 ? `
-        <div class="table-row">
-          <span class="row-desc">Tenancy Set up – Roca Living rebate</span>
-          <div class="row-vals">
-            <span class="col-amount">${formatCurrency(setupRebateVal)}</span>
-            <span class="col-vat">£0.00</span>
-            <span class="col-gross">${formatCurrency(setupRebateVal)}</span>
-          </div>
-        </div>` : ''}
-        ${expAmountVal === 0 && setupRebateVal === 0 ? `
-        <div class="table-row">
-          <span class="row-desc" style="font-style: italic; color: #6b7280;">No expenditure recorded for this period</span>
-          <div class="row-vals">
-            <span class="col-amount">£0.00</span>
-            <span class="col-vat">£0.00</span>
-            <span class="col-gross">£0.00</span>
-          </div>
-        </div>` : ''}
+        ${expenditureRowsHtml}
         <div class="row-total">
           <span class="total-label">Total Expenditure</span>
           <div class="total-vals">
@@ -455,7 +491,7 @@ export const generateStatementHTMLBody = (data) => {
 
     <div class="payment-card">
         <div class="payment-title">PAYMENT AMOUNT</div>
-        <div class="payment-val">${formatCurrency(netIncome)}</div>
+        <div class="payment-val">${formatCurrency(paymentAmount)}</div>
     </div>
 
     <div class="payment-desc">
@@ -486,7 +522,7 @@ export const generateInvoiceHTMLBody = (data) => {
     ? `<img src="${logoBase64}" alt="ROCA Living" style="height: 70px; display: block;" />`
     : `<div style="font-size: 26px; font-weight: bold; color: #1a1a1a; letter-spacing: 0.5px;">ROCA <span style="background-color: #ff9f43; color: white; padding: 2px 8px; border-radius: 4px;">Living</span></div>`;
 
-  const issueDateStr = formatLongDate(data.period_end || new Date());
+  const issueDateStr = formatLongDate(data.issue_date || data.period_end || new Date());
 
   const lineItems = data.line_items || [];
 
@@ -522,7 +558,6 @@ export const generateInvoiceHTMLBody = (data) => {
          <div class="summary-card-header">Notes</div>
          <div class="notes-body">
            <ul class="notes-list">
-             <li>UK Vastgoed (UKV) introductory/new tenant discount applied in accordance with the landlord management agreement.</li>
              <li>All fees are shown excluding VAT as ROCA Living is not VAT registered.</li>
            </ul>
          </div>
@@ -622,6 +657,8 @@ export const generateInvoiceHTMLBody = (data) => {
           <span class="card-title">Tenant Details</span>
           <span class="card-field-lbl">Tenant Name:</span>
           <span class="card-text-row" style="color: #1a1a1a; font-weight: bold; margin-bottom: 4px; display: block;">${data.tenant_name || '—'}</span>
+          ${data.tenancy_type ? `<span class="card-field-lbl">Tenancy Type:</span>
+          <span class="card-text-row" style="display: block; margin-bottom: 4px;">${data.tenancy_type}</span>` : ''}
           <span class="card-field-lbl">Tenancy Start Date:</span>
           <span class="card-text-row" style="display: block;">${formatDate(data.tenancy_start_date)}</span>
         </div>
@@ -649,7 +686,7 @@ export const generateInvoiceHTMLBody = (data) => {
             <th class="text-right" style="width: 80px;">COST<br/>£</th>
             <th class="text-right" style="width: 70px;">VAT<br/>£</th>
             <th class="text-right" style="width: 60px;">VAT<br/>%</th>
-            <th class="text-right" style="width: 130px;">DISCOUNT<br/>£ (UKV)</th>
+            <th class="text-right" style="width: 130px;">DISCOUNT<br/>£</th>
             <th class="text-right" style="width: 90px;">NET<br/>£</th>
           </tr>
         </thead>

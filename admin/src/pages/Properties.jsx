@@ -31,7 +31,7 @@ export const Properties = () => {
     property_type: 'flat',
     bedrooms: '',
     rent_pcm: '',
-    mgmt_fee_pct: '12.00',
+    mgmt_fee_pct: '8.00',
     block_name: '',
     apartment_number: '',
     key_ref: '',
@@ -50,7 +50,7 @@ export const Properties = () => {
     property_type: 'flat',
     bedrooms: '',
     rent_pcm: '',
-    mgmt_fee_pct: '12.00',
+    mgmt_fee_pct: '8.00',
     block_name: '',
     apartment_number: '',
     key_ref: '',
@@ -76,7 +76,7 @@ export const Properties = () => {
         property_type: info.property_type || 'flat',
         bedrooms: info.bedrooms !== null ? String(info.bedrooms) : '',
         rent_pcm: info.rent_pcm !== null ? String(info.rent_pcm) : '',
-        mgmt_fee_pct: info.mgmt_fee_pct !== null ? String(info.mgmt_fee_pct) : '12.00',
+        mgmt_fee_pct: info.mgmt_fee_pct !== null ? String(info.mgmt_fee_pct) : '8.00',
         block_name: info.block_name || '',
         apartment_number: info.apartment_number || '',
         key_ref: info.key_ref || '',
@@ -170,13 +170,13 @@ export const Properties = () => {
       if (cancelled) return;
       fetchProperties();
       fetchLandlordsList();
-      // Default management fee comes from the system settings (fallback 12.00).
+      // Default management fee comes from the system settings (fallback 8.00).
       api.get('/settings').then((res) => {
         if (cancelled) return;
         const fee = parseFloat(res.data?.data?.agencyFee);
         if (Number.isFinite(fee)) {
           setNewProperty((prev) =>
-            prev.mgmt_fee_pct === '12.00' ? { ...prev, mgmt_fee_pct: fee.toFixed(2) } : prev
+            prev.mgmt_fee_pct === '8.00' ? { ...prev, mgmt_fee_pct: fee.toFixed(2) } : prev
           );
         }
       }).catch(() => { /* prefill only */ });
@@ -201,7 +201,7 @@ export const Properties = () => {
         property_type: 'flat',
         bedrooms: '',
         rent_pcm: '',
-        mgmt_fee_pct: '12.00',
+        mgmt_fee_pct: '8.00',
         block_name: '',
         apartment_number: '',
         key_ref: '',
@@ -496,7 +496,7 @@ export const Properties = () => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <Input
-                  label="Block Name (statements)"
+                  label="Block Code (e.g. PH)"
                   id="block_name"
                   placeholder="e.g. PH"
                   value={newProperty.block_name}
@@ -547,7 +547,7 @@ export const Properties = () => {
                       property_type: 'flat',
                       bedrooms: '',
                       rent_pcm: '',
-                      mgmt_fee_pct: '12.00',
+                      mgmt_fee_pct: '8.00',
                       block_name: '',
                       apartment_number: '',
                       key_ref: '',
@@ -662,7 +662,7 @@ export const Properties = () => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <Input
-                  label="Block Name (statements)"
+                  label="Block Code (e.g. PH)"
                   id="edit_block_name"
                   placeholder="e.g. PH"
                   value={editingProperty.block_name}

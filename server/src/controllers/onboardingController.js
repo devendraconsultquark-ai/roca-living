@@ -8,6 +8,7 @@ import { ensureLandlordSetup } from '../utils/landlordSetup.js';
 import { getSetting } from '../utils/settings.js';
 import { UK_PHONE_REGEX, UK_PHONE_MESSAGE } from '../validations/common.js';
 import { createActivationLink } from '../utils/activationLink.js';
+import { cleanUnitCode } from '../utils/statementNumbering.js';
 
 const BCRYPT_COST = parseInt(process.env.BCRYPT_COST || '12', 10);
 
@@ -37,6 +38,8 @@ export const completeOnboarding = catchAsync(async (req, res, next) => {
       !utilityProvider || !councilTaxBand || !moveInChecklist) {
     throw new ApiError(400, 'Missing required onboarding form fields');
   }
+  const blockCode = cleanUnitCode(blockName, 'Block code') ?? null;
+  const aptCode = cleanUnitCode(apartmentNumber, 'Apartment number') ?? null;
 
   // Same phone rule as every other landlord entry path.
   if (!UK_PHONE_REGEX.test(landlordPhone)) {
@@ -123,8 +126,8 @@ export const completeOnboarding = catchAsync(async (req, res, next) => {
       postcode: postcode,
       property_type: propertyType || null,
       bedrooms: bedrooms !== undefined && bedrooms !== null && bedrooms !== '' ? parseInt(bedrooms, 10) : null,
-      block_name: blockName || null,
-      apartment_number: apartmentNumber || null,
+      block_name: blockCode,
+      apartment_number: aptCode,
       key_ref: keyRef || null,
       status: 'onboarding',
       rent_pcm: parseFloat(rentPrice).toFixed(2),

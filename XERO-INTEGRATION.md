@@ -1,6 +1,6 @@
 # Xero Integration — Design
 
-**Status:** approved direction, 22 Jul 2026 · not yet built
+**Status:** X1 (Connect) **built 22 Jul 2026**; X2–X4 not yet built
 **Companion to:** `SPEC-COVERAGE.md` §10 (E1), §13 (decisions)
 **Context:** ROCA runs its money through Xero — landlord payouts leave the Xero-connected bank
 account. The client is non-technical; decisions here were taken on their behalf.
@@ -31,10 +31,18 @@ into an API integration.
 
 ## 3. Technical shape
 
-**Auth.** Standard Xero OAuth 2.0 app (free tier) using `xero-node`. Admin connects once from
-Settings → "Connect Xero"; we store the token set encrypted and refresh on use.
+**Auth.** Standard Xero OAuth 2.0 app (free tier, integration type **Web app** — the server is a
+confidential client holding the secret) using `xero-node`. Admin connects once from Settings →
+"Connect Xero"; we store the token set encrypted and refresh on use.
 
 - Env: `XERO_CLIENT_ID`, `XERO_CLIENT_SECRET`, `XERO_REDIRECT_URI`.
+- **Registered redirect URI (dev):** `http://localhost:9009/api/v1/xero/callback` — Xero permits
+  plain http only for `localhost`. Production URI to be added on the same app once the live API
+  hostname is fixed; Xero allows multiple and they can be edited any time.
+- **Callback route contract:** a dedicated `xeroRoutes.js` mounted at `/api/v1/xero` (matching the
+  one-router-per-domain pattern in `app.js`) exposes `GET /connect`, `GET /callback`,
+  `POST /sync`, `DELETE /disconnect`. The browser lands on `/callback`; the **server** exchanges
+  the code (the secret never reaches the browser) and then 302s back to the admin Settings page.
 - Refresh tokens are rolling 60-day; the daily sync keeps them alive.
 
 **New tables.**
@@ -68,10 +76,33 @@ ROCA's books show fee income without re-keying.
 
 | Phase | Scope | Depends on |
 |---|---|---|
-| **X1 — Connect** | OAuth flow in Settings, token storage, show org + bank accounts, live Client Account Balance in the sidebar tile & dashboard | Xero app credentials (§5) |
-| **X2 — Pull** | Bank-transaction import + raw feed screen | X1 |
+| **X1 — Connect** ✅ | OAuth flow in Settings, encrypted token storage, connected org + bank accounts with balances, disconnect with token revocation | Xero app credentials (§5) |
+| **X2 — Pull** | Bank-transaction import + raw feed screen; `xero_bank_transactions` cache; daily sync | X1 |
 | **X3 — Match** | Matching engine + Reconciliation screen (deck p.25); confirmed matches write rent payments / statement paid | X2 |
-| **X4 — Push + VAT** | Fee invoices to Xero; VAT summary card with deep links | X1 |
+| **X4 — Push + VAT** | Fee invoices to Xero; VAT summary card with deep links. **Needs a reconnect** — X1 requested read-only scopes | X1 |
+
+### X1 as built (22 Jul 2026)
+
+- `phase17_xero_connection.js` → `xero_connections` (tenant, encrypted token pair, expiry, scopes,
+  status `active`/`needs_reauth`, connected_by, last_synced_at).
+- `utils/secretBox.js` — AES-256-GCM encryption for stored credentials, key derived from
+  `JWT_SECRET` (no second secret to distribute; rotating it forces a harmless reconnect).
+- `utils/xero.js` — OAuth + Accounting API client on global `fetch` (no `xero-node`: we need a
+  handful of endpoints and the SDK is a very large dependency). Handles refresh-token **rotation**,
+  marks the connection `needs_reauth` when refresh fails, maps HTTP 429 to a clear error, and never
+  logs a token, auth code or secret.
+- `xeroController.js` / `xeroRoutes.js` at `/api/v1/xero` — `status`, `connect`, `callback`,
+  `bank-accounts`, `disconnect` (admin-only). CSRF-protected by a random `state` in an httpOnly
+  SameSite=Lax cookie, verified on callback; the code exchange happens server-side so the client
+  secret never reaches the browser; failures redirect back to Settings with a readable reason.
+- Admin `XeroConnection` panel in Settings: connect/reconnect, organisation name, bank accounts
+  with balances and a total, refresh, disconnect. Balances come from the **Bank Summary report**
+  (the Accounts endpoint has no balance); an unreadable balance shows "—", never a fake £0.00.
+
+**Verified:** phase17 migration applied; `/status` returns `configured:true, connected:false`;
+`/connect` 302s to `login.xero.com` with the registered redirect URI, correct scopes and a 32-char
+state (httpOnly cookie set); a mismatched state is rejected. **Not yet exercised:** a real
+authorisation round trip — that needs someone to click Connect and approve against a Xero org.
 
 ## 5. Needed before building
 

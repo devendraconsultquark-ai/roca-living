@@ -1,7 +1,11 @@
 import axios from 'axios';
 
+// Exported for the few flows that need a real browser navigation to the API
+// rather than an XHR — e.g. the Xero OAuth handshake, which must leave the SPA.
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:9009/api/v1';
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:9009/api/v1',
+  baseURL: API_BASE_URL,
   withCredentials: true,
 });
 

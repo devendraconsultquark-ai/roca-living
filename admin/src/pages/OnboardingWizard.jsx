@@ -530,7 +530,7 @@ export const OnboardingWizard = () => {
                     onChange={handleChange}
                   />
                   <Input
-                    label="Block Name (statement numbering)"
+                    label="Block Code (e.g. PH)"
                     id="blockName"
                     placeholder="e.g. PH (Parsons House)"
                     value={formData.blockName}

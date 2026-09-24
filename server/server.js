@@ -17,6 +17,11 @@ import { runPhase13Migrations } from './src/db/migrations/phase13_data_consisten
 import { runPhase14Migrations } from './src/db/migrations/phase14_rent_reviews_news.js';
 import { runPhase15Migrations } from './src/db/migrations/phase15_landlord_detail.js';
 import { runPhase16Migrations } from './src/db/migrations/phase16_property_images.js';
+import { runPhase17Migrations } from './src/db/migrations/phase17_xero_connection.js';
+import { runPhase18Migrations } from './src/db/migrations/phase18_statement_generator.js';
+import { runPhase19Migrations } from './src/db/migrations/phase19_xero_bank_transactions.js';
+import { runPhase20Migrations } from './src/db/migrations/phase20_rent_allocation.js';
+import { runPhase21Migrations } from './src/db/migrations/phase21_tenancy_opening.js';
 import { startScheduler } from './src/jobs/scheduler.js';
 import { ensurePuppeteerDependencies } from './src/utils/puppeteerGenerator.js';
 const PORT = Number(process.env.PORT) || 9000;
@@ -82,6 +87,21 @@ const startServer = async () => {
 
   await runPhase16Migrations();
   logger.info('Phase 16 migrations complete');
+
+  await runPhase17Migrations();
+  logger.info('Phase 17 migrations complete');
+
+  await runPhase18Migrations();
+  logger.info('Phase 18 migrations complete');
+
+  await runPhase19Migrations();
+  logger.info('Phase 19 migrations complete');
+
+  await runPhase20Migrations();
+  logger.info('Phase 20 migrations complete');
+
+  await runPhase21Migrations();
+  logger.info('Phase 21 migrations complete');
 
   await ensurePuppeteerDependencies();
 

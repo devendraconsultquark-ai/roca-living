@@ -83,7 +83,7 @@ export const checkRentArrears = async () => {
     logger.info('Running rent arrears check...');
     const schedules = await db('rent_schedules')
       .where('due_date', '<', db.raw('CURDATE()'))
-      .where('status', 'due');
+      .whereIn('status', ['due', 'partial']); // part-paid months past due are arrears too
 
     for (const s of schedules) {
       const today = new Date();
@@ -131,6 +131,16 @@ export const runRetentionCleanup = async () => {
   }
 };
 
+// Job 6: Xero sync — import new bank transactions and auto-match the certain ones.
+const syncXeroDaily = async () => {
+  const connection = await db('xero_connections').where('status', 'active').first();
+  const hasAccounts = await db('xero_import_accounts').first();
+  if (!connection || !hasAccounts) return; // not set up yet
+  const { runXeroSync } = await import('../controllers/xeroBankController.js');
+  const result = await runXeroSync(null);
+  logger.info(`Xero daily sync: ${result.imported} imported, ${result.auto_matched} auto-matched`);
+};
+
 // Prevents a job from overlapping with its own next tick (single-instance overlap guard).
 const running = {};
 const runExclusive = (name, fn) => async () => {
@@ -175,6 +185,9 @@ export const startScheduler = () => {
 
   // Job 5: Data retention cleanup - Daily at 3:00 AM
   cron.schedule('0 3 * * *', runExclusive('runRetentionCleanup', runRetentionCleanup));
+
+  // Job 6: Xero bank transaction sync - Daily at 6:30 AM
+  cron.schedule('30 6 * * *', runExclusive('syncXeroDaily', syncXeroDaily));
 
   logger.info('Background jobs scheduler initialized successfully.');
 };

@@ -30,7 +30,7 @@ export const createPropertySchema = z.object({
   mgmt_fee_pct: z.coerce.number().min(0).max(100).optional(),
   key_ref: z.string().optional(),
   notes: z.string().optional(),
-  block_name: z.string().max(100).optional(),
-  apartment_number: z.string().max(50).optional(),
+  block_name: z.string().max(10).regex(/^\s*[A-Za-z0-9]*\s*$/, "Block code must be letters/numbers only (e.g. PH)").optional(),
+  apartment_number: z.string().max(10).regex(/^\s*[A-Za-z0-9]*\s*$/, "Apartment number must be letters/numbers only (e.g. 33)").optional(),
   name: z.string().optional()
 });

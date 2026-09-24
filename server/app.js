@@ -26,6 +26,7 @@ import documentRouter from './src/routes/documentRoutes.js';
 import invoiceRouter from './src/routes/invoiceRoutes.js';
 import settingsRouter from './src/routes/settingsRoutes.js';
 import newsRouter from './src/routes/newsRoutes.js';
+import xeroRouter from './src/routes/xeroRoutes.js';
 import previewRouter from './src/routes/previewRoutes.js';
 import transactionRouter from './src/routes/transactionRoutes.js';
 import contactRouter from './src/routes/contactRoutes.js';
@@ -130,6 +131,7 @@ app.use('/api/v1/documents', documentRouter);
 app.use('/api/v1/invoices', invoiceRouter);
 app.use('/api/v1/settings', settingsRouter);
 app.use('/api/v1/news', newsRouter);
+app.use('/api/v1/xero', xeroRouter);
 app.use('/api/v1/transactions', transactionRouter);
 app.use('/api/v1/contact', contactRouter);
 
