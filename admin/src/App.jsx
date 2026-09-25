@@ -5,7 +5,6 @@ import { ConfirmProvider } from './components/UI/ConfirmContext';
 import { LoginPage } from './pages/LoginPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AuthProvider } from './context/AuthContext';
-import { OnboardingWizard } from './pages/OnboardingWizard';
 import { MaintenanceBoard } from './pages/MaintenanceBoard';
 import { DocumentLibrary } from './pages/DocumentLibrary';
 import { AccountingHub } from './pages/AccountingHub';
@@ -64,7 +63,6 @@ function App() {
 
             {/* Wrap all administrative routes inside our shared layout, protected by ADMIN validation */}
             <Route element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
-              <Route path="/onboarding" element={<OnboardingWizard />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/landlords" element={<Landlords />} />
               <Route path="/landlords/:id" element={<LandlordDetailPage />} />

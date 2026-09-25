@@ -3,6 +3,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
 import { addDays, addMonths } from '../utils/dateHelpers.js';
 import { allocateTenancyPayments } from '../utils/rentAllocation.js';
+import { ensureLivingProperty } from '../utils/estatesLink.js';
 
 // Monthly rent months on the tenancy's due day. With fromDateStr (a tenancy
 // already running before this system), months due before it are skipped and
@@ -93,7 +94,7 @@ const formatRentPayment = (p) => {
 
 export const createTenancy = catchAsync(async (req, res, next) => {
   const {
-    property_id,
+    rocaem_property_id,
     start_date,
     end_date,
     rent_pcm,
@@ -105,9 +106,17 @@ export const createTenancy = catchAsync(async (req, res, next) => {
     statements_from,
     last_statement_seq
   } = req.body;
+  let { property_id } = req.body;
+
+  // Apartments come from ROCA Estates: the internal lettings record for the
+  // chosen Rocaem apartment is found or created automatically.
+  if (rocaem_property_id) {
+    if (!Number.isInteger(Number(rocaem_property_id))) throw new ApiError(400, 'Invalid apartment');
+    property_id = await db.transaction((trx) => ensureLivingProperty(trx, Number(rocaem_property_id)));
+  }
 
   if (!property_id) {
-    throw new ApiError(400, 'property_id is required');
+    throw new ApiError(400, 'Select an apartment');
   }
 
   if (!start_date || Number.isNaN(new Date(start_date).getTime())) {

@@ -5,6 +5,7 @@ import { generatePortraitPDFWithPuppeteer } from '../utils/puppeteerGenerator.js
 import { generateStandaloneStatementHTML, generateStandaloneInvoiceHTML, generateCombinedHTML } from '../templates/statementInvoiceTemplate.js';
 import { deriveInitials } from '../utils/initials.js';
 import { parseBlockName, parseApartmentNumber, getNextSeq, formatNrl } from '../utils/statementNumbering.js';
+import { estateDisplayFor } from '../utils/estatesLink.js';
 import { getNumericSetting } from '../utils/settings.js';
 import { tenancyCredit } from '../utils/rentAllocation.js';
 import logger from '../utils/logger.js';
@@ -704,6 +705,7 @@ const loadTenancyContext = (tenancyId) => db('tenancies')
     'properties.block_name',
     'properties.apartment_number',
     'properties.mgmt_fee_pct',
+    'properties.rocaem_property_id',
     'landlords.id as landlord_id',
     'landlords.name as landlord_name',
     'landlords.address as landlord_address',
@@ -773,6 +775,9 @@ export const getTenancyAutofill = catchAsync(async (req, res) => {
   const period = rentPeriod(periodStart, anchorDay);
 
   const tenantName = await tenantNamesFor(t.tenancy_id);
+  // Landlord and apartment details come live from ROCA Estates when it has
+  // them; the local lettings record is only the fallback.
+  const estate = await estateDisplayFor(t.rocaem_property_id);
   const block = parseBlockName(t.address_line1, t.block_name);
   const apt = parseApartmentNumber(t.address_line1, t.apartment_number, null);
   const initials = t.landlord_initials || deriveInitials(t.landlord_name) || 'RL';
@@ -844,12 +849,12 @@ export const getTenancyAutofill = catchAsync(async (req, res) => {
     data: {
       tenancy_id: t.tenancy_id,
       landlord_id: t.landlord_id,
-      landlord_name: t.landlord_name || '',
-      landlord_address: t.landlord_address || '',
+      landlord_name: estate?.landlord_name || t.landlord_name || '',
+      landlord_address: estate?.landlord_address || t.landlord_address || '',
       nrl_number: formatNrl(t.nrl_hmrc_ref, initials),
       landlord_reference: `RL_LR_${block}_${apt}`,
       property_reference: `${block}-${apt}`,
-      property_address: [t.address_line1, t.address_line2, t.city, t.postcode].filter(Boolean).join(', '),
+      property_address: estate?.property_address || [t.address_line1, t.address_line2, t.city, t.postcode].filter(Boolean).join(', '),
       tenant_name: tenantName,
       tenancy_type: TENANCY_TYPE,
       tenancy_start_date: tenancyStart,
@@ -1158,6 +1163,13 @@ const generateTenancyStatement = async (req, res) => {
       meta: JSON.stringify({ tenancy_id: t.tenancy_id, statement_number: b.statement_number, invoice_number: invoiceNumber, period_start: b.period_start, period_end: b.period_end, payout: payout.toFixed(2) }),
       ip_address: req.ip || null
     });
+
+    // The NRL is a lettings detail ROCA Estates doesn't hold: remember what the
+    // admin used on this statement for the landlord's next one.
+    const nrl = typeof b.nrl_number === 'string' ? b.nrl_number.trim().slice(0, 100) : '';
+    if (nrl && nrl !== formatNrl(t.nrl_hmrc_ref, t.landlord_initials)) {
+      await trx('landlord_profiles').where({ user_id: t.landlord_id }).update({ nrl_hmrc_ref: nrl });
+    }
   });
 
   for (const [rel, buf] of [[statementPath, statementPdf], [invoicePath, invoicePdf]]) {

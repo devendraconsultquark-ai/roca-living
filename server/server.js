@@ -22,6 +22,7 @@ import { runPhase18Migrations } from './src/db/migrations/phase18_statement_gene
 import { runPhase19Migrations } from './src/db/migrations/phase19_xero_bank_transactions.js';
 import { runPhase20Migrations } from './src/db/migrations/phase20_rent_allocation.js';
 import { runPhase21Migrations } from './src/db/migrations/phase21_tenancy_opening.js';
+import { runPhase22Migrations } from './src/db/migrations/phase22_estates_link.js';
 import { startScheduler } from './src/jobs/scheduler.js';
 import { ensurePuppeteerDependencies } from './src/utils/puppeteerGenerator.js';
 const PORT = Number(process.env.PORT) || 9000;
@@ -102,6 +103,9 @@ const startServer = async () => {
 
   await runPhase21Migrations();
   logger.info('Phase 21 migrations complete');
+
+  await runPhase22Migrations();
+  logger.info('Phase 22 migrations complete');
 
   await ensurePuppeteerDependencies();
 

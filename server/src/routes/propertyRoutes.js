@@ -1,4 +1,8 @@
 import { Router } from 'express';
+import { managedInEstates, rejectEstateFields } from '../middlewares/managedInEstates.js';
+
+// Apartment identity lives in ROCA Estates.
+const ESTATE_PROPERTY_FIELDS = ['address_line1', 'address_line2', 'city', 'postcode', 'property_type', 'bedrooms', 'block_name', 'apartment_number', 'name', 'property_reference', 'landlord_id'];
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -96,10 +100,12 @@ propertyRouter.get('/:id/certificates/:certType/document', protect(), restrictTo
 // Static image-download path declared before '/:id' so 'images' is never parsed as an id
 propertyRouter.get('/images/:imageId', protect('admin'), restrictTo('ADMIN'), downloadPropertyImage);
 propertyRouter.get('/', protect('admin'), restrictTo('ADMIN'), getAllProperties);
-propertyRouter.post('/', protect('admin'), restrictTo('ADMIN'), validate(createPropertySchema), createProperty);
+// Apartments are added/edited in ROCA Estates; the lettings record behind a
+// Rocaem apartment is created automatically when a tenant is added.
+propertyRouter.post('/', protect('admin'), restrictTo('ADMIN'), managedInEstates);
 propertyRouter.get('/:id', protect('admin'), restrictTo('ADMIN'), getPropertyById);
-propertyRouter.patch('/:id', protect('admin'), restrictTo('ADMIN'), updateProperty);
-propertyRouter.delete('/:id', protect('admin'), restrictTo('ADMIN'), deleteProperty);
+propertyRouter.patch('/:id', protect('admin'), restrictTo('ADMIN'), rejectEstateFields(ESTATE_PROPERTY_FIELDS), updateProperty);
+propertyRouter.delete('/:id', protect('admin'), restrictTo('ADMIN'), managedInEstates);
 propertyRouter.patch('/:id/certificates/:certType', protect('admin'), restrictTo('ADMIN'), updateCertificate);
 propertyRouter.post('/:id/certificates/:certType/document', protect('admin'), restrictTo('ADMIN'), certUpload.single('file'), uploadCertificateDocument);
 propertyRouter.patch('/:id/checklist/:itemCode', protect('admin'), restrictTo('ADMIN'), updateChecklistItem);

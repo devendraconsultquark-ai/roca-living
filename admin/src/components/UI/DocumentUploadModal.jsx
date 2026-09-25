@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FileText } from 'lucide-react';
+import { FileText, X } from 'lucide-react';
 import { useToast } from './ToastContext';
 import { Button } from './Button';
 import { Dropdown } from './Dropdown';
@@ -81,7 +81,12 @@ export const DocumentUploadModal = ({ file, scope, entityId, onClose, onUploaded
   return (
     <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
-        <h3 className="text-lg font-bold text-brand-primary mb-4">Upload Document</h3>
+        <div className="flex justify-between items-start gap-3 mb-4">
+          <h3 className="text-lg font-bold text-brand-primary">Upload Document</h3>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-brand-primary cursor-pointer" aria-label="Close">
+            <X size={20} />
+          </button>
+        </div>
 
         <div className="flex items-center gap-4 p-4 bg-surface-light border border-card-border rounded-card">
           {previewUrl ? (

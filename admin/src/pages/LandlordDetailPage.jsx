@@ -4,7 +4,7 @@ import {
   Hash, Mail, Phone, MapPin,
   Building2, Flag, Calendar, ShieldCheck, Banknote, Home,
   CheckCircle2, AlertTriangle, Clock, FileText, User, Download,
-  Wallet, Upload, Wrench, PoundSterling, ClipboardList, TrendingUp
+  Wallet, Upload, Wrench, PoundSterling, ClipboardList, TrendingUp, X
 } from 'lucide-react';
 import { PieChart, Pie, Cell } from 'recharts';
 import { useToast } from '../components/UI/ToastContext';
@@ -15,7 +15,6 @@ import { StatCard } from '../components/UI/StatCard';
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
 import { Button } from '../components/UI/Button';
-import { ActivationLinkModal } from '../components/UI/ActivationLinkModal';
 import { DocumentUploadModal } from '../components/UI/DocumentUploadModal';
 import { PropertyThumb } from '../components/UI/PropertyImage';
 import api from '../utilities/api';
@@ -77,15 +76,12 @@ export const LandlordDetailPage = () => {
   const [kycSaving, setKycSaving] = useState(false);
 
   // One-time set-password link ({ name, link, expiresAt })
-  const [activationInfo, setActivationInfo] = useState(null);
-  const [activationLoading, setActivationLoading] = useState(false);
 
   // Edit profile modal state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  // Lettings details only — identity fields are managed in ROCA Estates.
   const [editForm, setEditForm] = useState({
-    name: '', email: '', phone: '', address: '', company_name: '', initials: '',
-    is_overseas: 'no', nrl_hmrc_ref: '', nrl_hmrc_approved: 'no',
-    nrl_withhold_pct: '', ownership_share: '', tob_status: 'not_sent',
+    initials: '', nrl_hmrc_ref: '', nrl_hmrc_approved: 'no', nrl_withhold_pct: '',
   });
   const [editErrors, setEditErrors] = useState({});
   const [editSaving, setEditSaving] = useState(false);
@@ -195,18 +191,10 @@ export const LandlordDetailPage = () => {
 
   const openEditModal = () => {
     setEditForm({
-      name: data.name || '',
-      email: data.email || '',
-      phone: data.phone || '',
-      address: data.address || '',
-      company_name: data.company_name || '',
       initials: data.initials || '',
-      is_overseas: data.is_overseas ? 'yes' : 'no',
       nrl_hmrc_ref: data.nrl_hmrc_ref || '',
       nrl_hmrc_approved: data.nrl_hmrc_approved ? 'yes' : 'no',
       nrl_withhold_pct: data.nrl_withhold_pct != null ? String(data.nrl_withhold_pct) : '',
-      ownership_share: data.ownership_share != null ? String(data.ownership_share) : '',
-      tob_status: data.tob_status || 'not_sent',
     });
     setEditErrors({});
     setIsEditModalOpen(true);
@@ -218,20 +206,12 @@ export const LandlordDetailPage = () => {
     setEditSaving(true);
     try {
       await api.patch(`/landlords/${id}`, {
-        name: editForm.name,
-        email: editForm.email,
-        phone: editForm.phone,
-        address: editForm.address,
-        company_name: editForm.company_name || undefined,
         initials: editForm.initials || undefined,
-        is_overseas: editForm.is_overseas === 'yes',
         nrl_hmrc_ref: editForm.nrl_hmrc_ref || undefined,
         nrl_hmrc_approved: editForm.nrl_hmrc_approved === 'yes',
         nrl_withhold_pct: editForm.nrl_withhold_pct !== '' ? parseFloat(editForm.nrl_withhold_pct) : undefined,
-        ownership_share: editForm.ownership_share !== '' ? parseFloat(editForm.ownership_share) : undefined,
-        tob_status: editForm.tob_status,
       });
-      addToast('Landlord details updated successfully!', 'success');
+      addToast('Lettings details updated', 'success');
       setIsEditModalOpen(false);
       refetchLandlord();
     } catch (err) {
@@ -318,21 +298,6 @@ export const LandlordDetailPage = () => {
     }
   };
 
-  const handleGenerateActivationLink = async () => {
-    setActivationLoading(true);
-    try {
-      const res = await api.post(`/landlords/${id}/activation-link`);
-      setActivationInfo({
-        name: data.name,
-        link: res.data.data.activation_link,
-        expiresAt: res.data.data.activation_expires_at
-      });
-    } catch (err) {
-      addToast(err.response?.data?.message || 'Failed to generate activation link', 'error');
-    } finally {
-      setActivationLoading(false);
-    }
-  };
 
   const handleToggleOwnership = async () => {
     const confirming = !data.ownership_confirmed;
@@ -417,24 +382,6 @@ export const LandlordDetailPage = () => {
     }
   };
 
-  const handleDelete = async () => {
-    const ok = await confirm({
-      title: 'Delete Landlord',
-      message: `Are you sure you want to delete ${data.name}? This action cannot be undone.`,
-      variant: 'danger',
-      confirmText: 'Delete Landlord',
-    });
-
-    if (ok) {
-      try {
-        await api.delete(`/landlords/${id}`);
-        addToast('Landlord deleted successfully', 'success');
-        navigate('/landlords');
-      } catch (err) {
-        addToast(err.response?.data?.message || 'Failed to delete landlord', 'error');
-      }
-    }
-  };
 
   if (loading) {
     return <DetailSkeleton />;
@@ -565,9 +512,8 @@ export const LandlordDetailPage = () => {
           lastLogin ? `Last login: ${lastLogin}` : 'Never logged in',
           data.account_manager_name ? `Account Manager: ${data.account_manager_name}` : null,
         ].filter(Boolean).join(' • ')}
-        editLabel="Edit Profile"
+        editLabel="Edit Lettings Details"
         onEdit={() => openEditModal()}
-        onDelete={handleDelete}
       />
 
       {/* KPI strip (spec p.2) — Portfolio Value & client-account balance need
@@ -1293,18 +1239,6 @@ export const LandlordDetailPage = () => {
                   </Button>
                 </div>
 
-                {/* Portal access — a fresh link invalidates any previous one */}
-                <div className="mt-4 pt-4 border-t border-card-border flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-bold text-brand-primary">Portal Access</p>
-                    <p className="text-2xs text-status-muted mt-0.5">
-                      One-time set-password link to share with the landlord
-                    </p>
-                  </div>
-                  <Button variant="ghost" onClick={handleGenerateActivationLink} disabled={activationLoading}>
-                    {activationLoading ? 'Generating…' : 'Generate Link'}
-                  </Button>
-                </div>
               </Card>
 
               <Card title="Account Manager">
@@ -1411,50 +1345,16 @@ export const LandlordDetailPage = () => {
       {isEditModalOpen && (
         <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-xl mx-4 border border-card-border max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-bold text-brand-primary mb-4">Edit Landlord Details</h3>
+            <div className="flex justify-between items-start gap-3 mb-1">
+              <h3 className="text-lg font-bold text-brand-primary">Edit Lettings Details</h3>
+              <button type="button" onClick={() => { setIsEditModalOpen(false); setEditErrors({}); }} className="text-gray-400 hover:text-brand-primary cursor-pointer" aria-label="Close">
+                <X size={20} />
+              </button>
+            </div>
+            <p className="text-xs text-status-muted mb-4">Name, contact details and address are managed in ROCA Estates.</p>
 
             <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input
-                  label="Full Name"
-                  id="edit_name"
-                  required
-                  value={editForm.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  error={editErrors.name}
-                />
-                <Input
-                  label="Email Address"
-                  id="edit_email"
-                  type="email"
-                  required
-                  value={editForm.email}
-                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                  error={editErrors.email}
-                />
-                <Input
-                  label="Contact Phone"
-                  id="edit_phone"
-                  required
-                  placeholder="e.g. 07123 456789"
-                  value={editForm.phone}
-                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                  error={editErrors.phone}
-                />
-                <Input
-                  label="Address"
-                  id="edit_address"
-                  value={editForm.address}
-                  onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
-                  error={editErrors.address}
-                />
-                <Input
-                  label="Company Name (optional)"
-                  id="edit_company_name"
-                  value={editForm.company_name}
-                  onChange={(e) => setEditForm({ ...editForm, company_name: e.target.value })}
-                  error={editErrors.company_name}
-                />
                 <Input
                   label="Initials (statements)"
                   id="edit_initials"
@@ -1462,16 +1362,6 @@ export const LandlordDetailPage = () => {
                   value={editForm.initials}
                   onChange={(e) => setEditForm({ ...editForm, initials: e.target.value })}
                   error={editErrors.initials}
-                />
-                <Dropdown
-                  label="Residency"
-                  id="edit_is_overseas"
-                  options={[
-                    { value: 'no', label: 'UK Resident' },
-                    { value: 'yes', label: 'Overseas (NRL)' }
-                  ]}
-                  value={editForm.is_overseas}
-                  onChange={(val) => setEditForm({ ...editForm, is_overseas: val })}
                 />
                 <Input
                   label="NRL Withholding (%)"
@@ -1503,29 +1393,6 @@ export const LandlordDetailPage = () => {
                   value={editForm.nrl_hmrc_approved}
                   onChange={(val) => setEditForm({ ...editForm, nrl_hmrc_approved: val })}
                 />
-                <Input
-                  label="Ownership Share (%)"
-                  id="edit_ownership_share"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  placeholder="100.00"
-                  value={editForm.ownership_share}
-                  onChange={(e) => setEditForm({ ...editForm, ownership_share: e.target.value })}
-                  error={editErrors.ownership_share}
-                />
-                <Dropdown
-                  label="Terms of Business"
-                  id="edit_tob_status"
-                  options={[
-                    { value: 'not_sent', label: 'Not Sent' },
-                    { value: 'sent', label: 'Sent' },
-                    { value: 'signed', label: 'Signed' }
-                  ]}
-                  value={editForm.tob_status}
-                  onChange={(val) => setEditForm({ ...editForm, tob_status: val })}
-                />
               </div>
 
               <div className="flex gap-3 justify-end mt-2">
@@ -1552,7 +1419,12 @@ export const LandlordDetailPage = () => {
       {isBankModalOpen && (
         <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
-            <h3 className="text-lg font-bold text-brand-primary mb-1">Update Bank Details</h3>
+            <div className="flex justify-between items-start gap-3 mb-1">
+              <h3 className="text-lg font-bold text-brand-primary">Update Bank Details</h3>
+              <button type="button" onClick={() => setIsBankModalOpen(false)} className="text-gray-400 hover:text-brand-primary cursor-pointer" aria-label="Close">
+                <X size={20} />
+              </button>
+            </div>
             <p className="text-xs text-status-muted mb-4">Changes are held as pending until verified by an administrator. Payouts should not be made against unverified details.</p>
 
             <form onSubmit={handleBankSubmit} className="flex flex-col gap-4">
@@ -1614,7 +1486,6 @@ export const LandlordDetailPage = () => {
         </div>
       )}
 
-      <ActivationLinkModal info={activationInfo} onClose={() => setActivationInfo(null)} />
 
       <DocumentUploadModal
         file={pendingUpload}

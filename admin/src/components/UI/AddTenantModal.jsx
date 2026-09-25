@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UserPlus, Plus, Trash2 } from 'lucide-react';
+import { UserPlus, Plus, Trash2, X } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { DatePicker } from './DatePicker';
@@ -11,7 +11,8 @@ const emptyTenant = () => ({ name: '', email: '', phone: '' });
 
 // Add a tenant (tenancy) to an existing property: property, tenant(s), rent,
 // start date (sets the rent due day) and an optional deposit. The full
-// new-let wizard remains under Landlords → Onboarding for new landlords.
+// Apartments come from ROCA Estates; the lettings record behind the chosen
+// apartment is created automatically by the server.
 export const AddTenantModal = ({ onClose, onCreated }) => {
   const { addToast } = useToast();
   const [properties, setProperties] = useState([]);
@@ -32,10 +33,10 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await api.get('/properties');
+        const res = await api.get('/estates/properties');
         setProperties(res.data.data || []);
       } catch (err) {
-        addToast(err.response?.data?.message || 'Failed to load properties', 'error');
+        addToast(err.response?.data?.message || 'Failed to load apartments from ROCA Estates', 'error');
       } finally {
         setLoadingProps(false);
       }
@@ -46,7 +47,7 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
   const selectProperty = (id) => {
     setPropertyId(id);
     const p = properties.find((x) => String(x.id) === String(id));
-    if (p?.rent_pcm && !rent) setRent(String(parseFloat(p.rent_pcm)));
+    if (p?.roca_living?.rent_pcm && !rent) setRent(String(parseFloat(p.roca_living.rent_pcm)));
   };
 
   const setTenant = (i, key, value) => setTenants((list) => list.map((t, idx) => (idx === i ? { ...t, [key]: value } : t)));
@@ -54,7 +55,7 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
   const submit = async (e) => {
     e.preventDefault();
     const errs = {};
-    if (!propertyId) errs.property = 'Select a property';
+    if (!propertyId) errs.property = 'Select an apartment';
     if (!tenants[0].name.trim()) errs.tenant = 'Lead tenant name is required';
     if (!(parseFloat(rent) > 0)) errs.rent = 'Enter the monthly rent';
     if (!startDate) errs.start = 'Start date is required';
@@ -69,7 +70,7 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
     setSaving(true);
     try {
       await api.post('/tenancies', {
-        property_id: Number(propertyId),
+        rocaem_property_id: Number(propertyId),
         rent_pcm: parseFloat(rent),
         start_date: startDate,
         end_date: endDate || null,
@@ -96,19 +97,34 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
         <div className="bg-brand-primary text-white p-5 font-bold flex items-center gap-2 select-none">
           <UserPlus size={18} />
           <span>Add Tenant</span>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="ml-auto p-1 rounded-md text-white/80 hover:text-white hover:bg-white/10 cursor-pointer disabled:opacity-50"
+            aria-label="Close"
+          >
+            <X size={20} />
+          </button>
         </div>
 
         <form onSubmit={submit} className="p-6 flex flex-col gap-5 max-h-[80vh] overflow-y-auto">
           <Dropdown
-            label="Property"
+            label="Apartment (ROCA Estates)"
             id="property"
             options={properties.map((p) => ({
               value: String(p.id),
-              label: `${p.address_line1}${p.city ? ', ' + p.city : ''} · ${p.landlord_name || 'No landlord'}${p.status === 'let' ? ' · currently let' : ''}`,
+              // "PH-33 · Parsons House - Unit 33 · Landlord: …"
+              label: [
+                p.unit_ref,
+                p.name,
+                p.landlord_name ? `Landlord: ${p.landlord_name}` : 'No landlord in ROCA Estates',
+                p.roca_living?.has_tenant ? 'already has a tenant' : null,
+              ].filter(Boolean).join(' · '),
             }))}
             value={propertyId}
             onChange={selectProperty}
-            placeholder={loadingProps ? 'Loading properties...' : 'Search and select a property...'}
+            placeholder={loadingProps ? 'Loading apartments...' : 'Search and select an apartment...'}
             searchable
             disabled={loadingProps}
             error={errors.property}

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Users, Home, UserCheck, Wallet, Banknote, PiggyBank,
-  Wrench, Upload, BarChart3, UserPlus, PlusCircle,
+  Wrench, Upload, BarChart3,
   AlertTriangle, Download, Inbox, ClipboardList, CheckCircle2,
   CalendarDays, ChevronDown
 } from 'lucide-react';
@@ -49,10 +49,7 @@ const COMPLIANCE_SEGMENTS = [
 ];
 
 const QUICK_ACTIONS = [
-  { label: 'Landlord Onboarding Wizard', to: '/onboarding', icon: PlusCircle },
-  { label: 'Add New Landlord', to: '/landlords', icon: UserPlus },
-  { label: 'Add New Property', to: '/properties', icon: Home },
-  { label: 'Add New Tenancy', to: '/tenancies', icon: UserCheck },
+  { label: 'Add Tenant', to: '/tenants', icon: UserCheck },
   { label: 'Record Rent Payment', to: '/accounting', icon: Wallet },
   { label: 'Raise Maintenance', to: '/maintenance', icon: Wrench },
   { label: 'Upload Document', to: '/documents', icon: Upload },

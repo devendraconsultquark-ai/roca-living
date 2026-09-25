@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileSpreadsheet, Banknote } from 'lucide-react';
+import { FileSpreadsheet, Banknote, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../components/UI/ToastContext';
 import { DataTable } from '../components/UI/DataTable';
@@ -547,6 +547,15 @@ export const AccountingHub = () => {
             <div className="bg-brand-primary text-white p-5 font-bold flex items-center gap-2 select-none">
               <Banknote size={18} />
               <span>Record Rent Payment</span>
+              <button
+                type="button"
+                onClick={() => { setShowPaymentModal(false); setPaymentForm(emptyPayment); }}
+                disabled={paymentSaving}
+                className="ml-auto p-1 rounded-md text-white/80 hover:text-white hover:bg-white/10 cursor-pointer disabled:opacity-50"
+                aria-label="Close"
+              >
+                <X size={20} />
+              </button>
             </div>
 
             <form onSubmit={handleRecordPayment} className="p-6 flex flex-col gap-5">

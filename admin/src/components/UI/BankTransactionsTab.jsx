@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, Check, Link2, EyeOff, Undo2, ArrowDownLeft, ArrowUpRight, Sparkles } from 'lucide-react';
+import { RefreshCw, Check, Link2, EyeOff, Undo2, ArrowDownLeft, ArrowUpRight, Sparkles, X } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Dropdown } from './Dropdown';
@@ -321,6 +321,15 @@ const ReconcileModal = ({ row, onClose, onDone }) => {
         <div className="bg-brand-primary text-white p-5 font-bold flex items-center gap-2 select-none">
           <Link2 size={18} />
           <span>Reconcile {row.direction === 'in' ? 'money in' : 'money out'} · {money(row.amount)}</span>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="ml-auto p-1 rounded-md text-white/80 hover:text-white hover:bg-white/10 cursor-pointer disabled:opacity-50"
+            aria-label="Close"
+          >
+            <X size={20} />
+          </button>
         </div>
         <form onSubmit={submit} className="p-6 flex flex-col gap-5">
           <div className="bg-surface-hover/50 border border-card-border rounded-card p-3 text-xs">

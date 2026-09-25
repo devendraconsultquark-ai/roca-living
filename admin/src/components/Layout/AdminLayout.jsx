@@ -49,7 +49,6 @@ const NAV_ITEMS = [
     name: 'Landlords', icon: Users,
     children: [
       { name: 'All Landlords', path: '/landlords' },
-      { name: 'Onboarding', path: '/onboarding' },
       { name: 'Letting Agents', path: '/agents' },
     ],
   },

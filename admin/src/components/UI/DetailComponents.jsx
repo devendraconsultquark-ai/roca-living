@@ -88,7 +88,7 @@ export const DetailHeader = ({
             {editLabel}
           </button>
         )}
-        {deleteLabel && (
+        {deleteLabel && onDelete && (
           <button
             onClick={onDelete}
             className="flex items-center gap-2 px-4 py-2 card-bg border border-status-danger/20 text-status-danger rounded-card hover:bg-status-danger/5 transition-colors text-sm-portal font-semibold shadow-xs cursor-pointer"

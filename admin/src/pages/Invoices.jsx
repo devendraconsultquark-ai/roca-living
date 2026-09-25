@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Calendar, Plus, Trash2, Receipt, Send, CheckCircle2, Ban } from 'lucide-react';
+import { Download, Calendar, Plus, Trash2, Receipt, Send, CheckCircle2, Ban, X } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
@@ -440,6 +440,15 @@ export const Invoices = () => {
             <div className="bg-brand-primary text-white p-5 font-bold flex items-center gap-2 select-none shrink-0">
               <Receipt size={18} />
               <span>Generate Landlord Invoice</span>
+              <button
+                type="button"
+                onClick={() => { setShowModal(false); resetForm(); }}
+                disabled={modalLoading}
+                className="ml-auto p-1 rounded-md text-white/80 hover:text-white hover:bg-white/10 cursor-pointer disabled:opacity-50"
+                aria-label="Close"
+              >
+                <X size={20} />
+              </button>
             </div>
 
             <form onSubmit={handleGenerateInvoiceSubmit} className="p-6 flex flex-col gap-6 max-h-[80vh] overflow-y-auto">

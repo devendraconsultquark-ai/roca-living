@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Home, ShieldCheck, Users, Wrench, FileText, Clock, Building2, MapPin, Hash, Receipt, Download, Upload, Image as ImageIcon
+  Home, ShieldCheck, Users, Wrench, FileText, Clock, Building2, MapPin, Hash, Receipt, Download, Upload, Image as ImageIcon, X
 } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
 import { StatusPill } from '../components/UI/StatusPill';
@@ -34,21 +34,13 @@ export const PropertyDetailPage = () => {
 
   // Edit property modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  // Lettings details only — address/block/apartment are managed in ROCA Estates.
   const [editingProperty, setEditingProperty] = useState({
-    address_line1: '',
-    address_line2: '',
-    city: '',
-    postcode: '',
-    property_type: 'flat',
-    bedrooms: '',
     rent_pcm: '',
     mgmt_fee_pct: '8.00',
-    block_name: '',
-    apartment_number: '',
     key_ref: '',
     notes: '',
-    status: 'onboarding',
-    name: ''
+    status: 'onboarding'
   });
   const [formErrors, setFormErrors] = useState({});
 
@@ -98,20 +90,11 @@ export const PropertyDetailPage = () => {
 
   const openEditModal = () => {
     setEditingProperty({
-      address_line1: data.address_line1 || '',
-      address_line2: data.address_line2 || '',
-      city: data.city || '',
-      postcode: data.postcode || '',
-      property_type: data.property_type || 'flat',
-      bedrooms: data.bedrooms != null ? String(data.bedrooms) : '',
       rent_pcm: data.rent_pcm != null ? String(data.rent_pcm) : '',
       mgmt_fee_pct: data.mgmt_fee_pct != null ? String(data.mgmt_fee_pct) : '8.00',
-      block_name: data.block_name || '',
-      apartment_number: data.apartment_number || '',
       key_ref: data.key_ref || '',
       notes: data.notes || '',
-      status: data.status || 'onboarding',
-      name: data.name || ''
+      status: data.status || 'onboarding'
     });
     setFormErrors({});
     setIsEditModalOpen(true);
@@ -123,7 +106,7 @@ export const PropertyDetailPage = () => {
 
     try {
       await api.patch(`/properties/${id}`, editingProperty);
-      addToast('Property updated successfully!', 'success');
+      addToast('Lettings details updated', 'success');
       setIsEditModalOpen(false);
       setReloadKey((k) => k + 1);
     } catch (err) {
@@ -249,24 +232,6 @@ export const PropertyDetailPage = () => {
     }
   };
 
-  const handleDelete = async () => {
-    const ok = await confirm({
-      title: 'Delete Property',
-      message: `Are you sure you want to delete this property? This action cannot be undone.`,
-      variant: 'danger',
-      confirmText: 'Delete Property',
-    });
-    
-    if (ok) {
-      try {
-        await api.delete(`/properties/${id}`);
-        addToast('Property deleted successfully', 'success');
-        navigate('/properties');
-      } catch (err) {
-        addToast(err.response?.data?.message || 'Failed to delete property', 'error');
-      }
-    }
-  };
 
   if (loading) {
     return <DetailSkeleton />;
@@ -295,9 +260,8 @@ export const PropertyDetailPage = () => {
         title={data.name || data.address_line1}
         badge={<StatusPill status={data.status === 'let' ? 'active' : data.status === 'vacant' ? 'pending' : 'draft'} />}
         subtitle={`${data.property_reference} • ${address} • Added ${new Date(data.created_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`}
-        editLabel="Edit Property"
+        editLabel="Edit Lettings Details"
         onEdit={openEditModal}
-        onDelete={handleDelete}
       />
 
       <DetailTabs tabs={tabs} activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -587,75 +551,16 @@ export const PropertyDetailPage = () => {
       {isEditModalOpen && (
         <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-bold text-brand-primary mb-4">Edit Property Details</h3>
+            <div className="flex justify-between items-start gap-3 mb-1">
+              <h3 className="text-lg font-bold text-brand-primary">Edit Lettings Details</h3>
+              <button type="button" onClick={() => { setIsEditModalOpen(false); setFormErrors({}); }} className="text-gray-400 hover:text-brand-primary cursor-pointer" aria-label="Close">
+                <X size={20} />
+              </button>
+            </div>
+            <p className="text-xs text-status-muted mb-4">Address, block and apartment details are managed in ROCA Estates.</p>
 
             <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
-              <Input
-                label="Property Name (Optional)"
-                id="edit_name"
-                placeholder="e.g. Parsons House"
-                value={editingProperty.name}
-                onChange={(e) => setEditingProperty({ ...editingProperty, name: e.target.value })}
-                error={formErrors.name}
-              />
-              <Input
-                label="Address Line 1"
-                id="edit_address_line1"
-                required
-                value={editingProperty.address_line1}
-                onChange={(e) => setEditingProperty({ ...editingProperty, address_line1: e.target.value })}
-                error={formErrors.address_line1}
-              />
-              <Input
-                label="Address Line 2"
-                id="edit_address_line2"
-                value={editingProperty.address_line2}
-                onChange={(e) => setEditingProperty({ ...editingProperty, address_line2: e.target.value })}
-                error={formErrors.address_line2}
-              />
               <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="City"
-                  id="edit_city"
-                  required
-                  value={editingProperty.city}
-                  onChange={(e) => setEditingProperty({ ...editingProperty, city: e.target.value })}
-                  error={formErrors.city}
-                />
-                <Input
-                  label="Postcode"
-                  id="edit_postcode"
-                  required
-                  value={editingProperty.postcode}
-                  onChange={(e) => setEditingProperty({ ...editingProperty, postcode: e.target.value })}
-                  error={formErrors.postcode}
-                />
-              </div>
-              <Dropdown
-                label="Property Type"
-                id="edit_property_type"
-                placeholder="Select type..."
-                value={editingProperty.property_type}
-                onChange={(val) => {
-                  setEditingProperty(prev => ({ ...prev, property_type: val }));
-                  if (formErrors.property_type) setFormErrors(prev => ({ ...prev, property_type: '' }));
-                }}
-                error={formErrors.property_type}
-                options={[
-                  { value: 'flat', label: 'Flat' },
-                  { value: 'house', label: 'House' },
-                  { value: 'HMO', label: 'HMO' }
-                ]}
-              />
-              <div className="grid grid-cols-3 gap-4">
-                <Input
-                  label="Bedrooms"
-                  id="edit_bedrooms"
-                  type="number"
-                  value={editingProperty.bedrooms}
-                  onChange={(e) => setEditingProperty({ ...editingProperty, bedrooms: e.target.value })}
-                  error={formErrors.bedrooms}
-                />
                 <Input
                   label="Monthly Rent"
                   id="edit_rent_pcm"
@@ -674,24 +579,6 @@ export const PropertyDetailPage = () => {
                   value={editingProperty.mgmt_fee_pct}
                   onChange={(e) => setEditingProperty({ ...editingProperty, mgmt_fee_pct: e.target.value })}
                   error={formErrors.mgmt_fee_pct}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="Block Code (e.g. PH)"
-                  id="edit_block_name"
-                  placeholder="e.g. PH"
-                  value={editingProperty.block_name}
-                  onChange={(e) => setEditingProperty({ ...editingProperty, block_name: e.target.value })}
-                  error={formErrors.block_name}
-                />
-                <Input
-                  label="Apartment Number"
-                  id="edit_apartment_number"
-                  placeholder="e.g. 12"
-                  value={editingProperty.apartment_number}
-                  onChange={(e) => setEditingProperty({ ...editingProperty, apartment_number: e.target.value })}
-                  error={formErrors.apartment_number}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -754,7 +641,12 @@ export const PropertyDetailPage = () => {
       {certModalCert && (
         <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
-            <h3 className="text-lg font-bold text-brand-primary mb-1">Update {certModalCert.cert_type} Certificate</h3>
+            <div className="flex justify-between items-start gap-3 mb-1">
+              <h3 className="text-lg font-bold text-brand-primary">Update {certModalCert.cert_type} Certificate</h3>
+              <button type="button" onClick={() => setCertModalCert(null)} className="text-gray-400 hover:text-brand-primary cursor-pointer" aria-label="Close">
+                <X size={20} />
+              </button>
+            </div>
             <p className="text-xs text-status-muted mb-4">The compliance status (compliant / expiring soon / expired) is calculated from the expiry date, and the matching checklist item is marked complete.</p>
 
             <form onSubmit={handleCertSubmit} className="flex flex-col gap-4">
