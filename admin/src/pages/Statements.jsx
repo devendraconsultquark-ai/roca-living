@@ -47,6 +47,7 @@ export const Statements = () => {
           landlordEmail: s.landlord_email || '',
           sentAt: s.sent_at ? new Date(s.sent_at).toLocaleDateString('en-GB') : null,
           sentTo: s.sent_to || null,
+          paidAt: s.paid_at ? new Date(s.paid_at).toLocaleDateString('en-GB') : null,
           status: s.status ? s.status.charAt(0).toUpperCase() + s.status.slice(1) : 'Draft'
         };
       });
@@ -207,17 +208,22 @@ export const Statements = () => {
           style = 'bg-status-info-bg text-status-info border-status-info/15';
         }
         return (
-          <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border ${style}`}>
-            {row.status}
-          </span>
+          <div className="flex flex-col items-start gap-0.5">
+            <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border ${style}`}>
+              {row.status}
+            </span>
+            {row.status === 'Paid' && row.paidAt && <span className="text-xs-portal text-status-muted">Payout {row.paidAt}</span>}
+            {row.sentAt && <span className="text-xs-portal text-status-muted">Emailed {row.sentAt}</span>}
+          </div>
         );
       }
     },
     {
       header: 'Actions',
       accessor: 'id',
+      align: 'center',
       renderCell: (row) => (
-        <div className="flex items-center gap-1">
+        <div className="flex items-center justify-center gap-1">
           <Button
             variant="ghost"
             size="sm"

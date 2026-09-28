@@ -10,6 +10,7 @@ import { getNumericSetting } from '../utils/settings.js';
 import { tenancyCredit } from '../utils/rentAllocation.js';
 import logger from '../utils/logger.js';
 import { sendEmail } from '../utils/email.js';
+import { niceName } from '../utils/names.js';
 import { ensureStatementPdfCurrent } from '../utils/statementPdf.js';
 import fs from 'fs';
 import path from 'path';
@@ -307,7 +308,7 @@ export const getStatements = catchAsync(async (req, res, next) => {
 
   res.json({
     success: true,
-    data: statements.map(formatStatement)
+    data: statements.map((s) => ({ ...formatStatement(s), landlord_name: niceName(s.landlord_name) }))
   });
 });
 
@@ -681,7 +682,9 @@ const rentPeriod = (startYmd, anchorDay) => {
 // Statement numbers (PH_33_0001) need a short block code and apartment number
 // on the property; free text such as "Parsons House" would break them.
 const UNIT_CODE = /^[A-Za-z0-9]{1,10}$/;
-const validUnitCodes = (block, apt) => UNIT_CODE.test(String(block ?? '').trim()) && UNIT_CODE.test(String(apt ?? '').trim());
+// "BLD" is Rocaem's placeholder for a building without a short code — not a real block.
+const validUnitCodes = (block, apt) => UNIT_CODE.test(String(block ?? '').trim()) && UNIT_CODE.test(String(apt ?? '').trim())
+  && String(block).trim().toUpperCase() !== 'BLD';
 
 const tenantNamesFor = async (tenancyId) => {
   const rows = await db('tenants')
@@ -736,6 +739,7 @@ export const getTenancyStatementOptions = catchAsync(async (req, res) => {
       'properties.address_line1',
       'properties.block_name',
       'properties.apartment_number',
+      'properties.rocaem_property_id',
       'landlords.name as landlord_name',
       'tenants.name as tenant_name'
     )
@@ -743,12 +747,14 @@ export const getTenancyStatementOptions = catchAsync(async (req, res) => {
 
   res.json({
     success: true,
-    data: rows.map((r) => {
+    // Old tenancies typed in by hand before ROCA Estates (no unit code, no
+    // Rocaem link) can't produce a statement number, so they are not offered.
+    data: rows.filter((r) => r.rocaem_property_id || validUnitCodes(r.block_name, r.apartment_number)).map((r) => {
       const block = parseBlockName(r.address_line1, r.block_name);
       const apt = parseApartmentNumber(r.address_line1, r.apartment_number, null);
       return {
         tenancy_id: r.tenancy_id,
-        label: `${r.landlord_name || 'No landlord'} · ${block}-${apt} (${r.tenant_name || 'no tenant name'})`
+        label: `${niceName(r.landlord_name) || 'No landlord'} · ${block}-${apt} (${niceName(r.tenant_name) || 'no tenant name'})`
       };
     })
   });
@@ -906,13 +912,13 @@ export const getTenancyAutofill = catchAsync(async (req, res) => {
     data: {
       tenancy_id: t.tenancy_id,
       landlord_id: t.landlord_id,
-      landlord_name: t.landlord_name || '',
+      landlord_name: niceName(t.landlord_name) || '',
       landlord_address: t.landlord_address || '',
       nrl_number: formatNrl(t.nrl_hmrc_ref, initials),
       landlord_reference: `RL_LR_${block}_${apt}`,
       property_reference: `${block}-${apt}`,
       property_address: [t.address_line1, t.address_line2, t.city, t.postcode].filter(Boolean).join(', '),
-      tenant_name: tenantName,
+      tenant_name: niceName(tenantName),
       tenancy_type: TENANCY_TYPE,
       tenancy_start_date: tenancyStart,
       period_start: period.start,
@@ -930,6 +936,9 @@ export const getTenancyAutofill = catchAsync(async (req, res) => {
       invoice_notes: lastInvoice?.notes || '',
       checks,
       last_statement_seq: t.last_statement_seq ?? null,
+      // Numbering carries on automatically once an apartment has a statement
+      // here; the "issued before this system" setting only matters before that.
+      first_statement_here: used.length === 0,
       income_lines: [{
         description: `Rent received — ${tenantName || 'Tenant'} (${periodLabel})`
           + (arrearsReceived > 0 ? ` (incl. £${arrearsReceived.toFixed(2)} arrears for earlier months)` : '')

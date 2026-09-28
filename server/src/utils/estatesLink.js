@@ -4,6 +4,7 @@ import { emDb } from '../config/db.js';
 import { ApiError } from './ApiError.js';
 import { ensureLandlordSetup } from './landlordSetup.js';
 import { getNumericSetting } from './settings.js';
+import { niceName } from './names.js';
 
 // Link between ROCA Estates (rocaem) and Roca Living.
 //
@@ -26,10 +27,11 @@ export const estateUnitCodes = (u) => {
     block = block || b;
     apt = apt || a;
   }
-  return {
-    block: block ? String(block).trim().toUpperCase() : null,
-    apt: apt ? String(apt).trim().toUpperCase() : null
-  };
+  block = block ? String(block).trim().toUpperCase() : null;
+  // "BLD" is Rocaem's placeholder when a building has no short code yet
+  // (unit ids like "BLD_13") — not a real block code, so treat it as missing.
+  if (block === 'BLD') block = null;
+  return { block, apt: apt ? String(apt).trim().toUpperCase().replace(/^0+(?=\d)/, '') : null };
 };
 
 // Rocaem unit with its block and landlord id (whitelisted columns only).
@@ -49,9 +51,9 @@ export const fetchEstateLandlord = (rocaemUserId) => emDb('users')
 
 // "A & B" for joint owners (unless the name already includes the second owner).
 export const estateLandlordName = (l) => {
-  const main = l.ownership_type === 'COMPANY' && l.company_name ? l.company_name : l.name;
-  const second = l.is_joint_ownership && l.secondary_owner_name && !String(main).includes(l.secondary_owner_name)
-    ? l.secondary_owner_name : null;
+  const main = niceName(l.ownership_type === 'COMPANY' && l.company_name ? l.company_name : l.name);
+  const second = l.is_joint_ownership && l.secondary_owner_name && !String(main).toLowerCase().includes(String(l.secondary_owner_name).toLowerCase())
+    ? niceName(l.secondary_owner_name) : null;
   return second ? `${main} & ${second}` : main;
 };
 
@@ -189,6 +191,22 @@ export const refreshFromEstates = async (trx, propertyId) => {
   const u = await fetchEstateUnit(p.rocaem_property_id);
   if (!u) throw new ApiError(404, 'Apartment not found in ROCA Estates');
   const updated = [];
+  // Block code / apartment number (e.g. once Rocaem's building gets its short
+  // code "PH"): only while no statement has been issued with the old numbers.
+  const codes = estateUnitCodes(u);
+  if (codes.block && codes.apt && (codes.block !== p.block_name || codes.apt !== p.apartment_number)) {
+    const issued = await trx('landlord_statements as s')
+      .join('tenancies as t', 's.tenancy_id', 't.id')
+      .where('t.property_id', p.id)
+      .where((w) => w.whereNot('s.status', 'draft').orWhereNotNull('s.sent_at'))
+      .first('s.statement_number');
+    if (issued) {
+      updated.push(`not the unit code (${issued.statement_number} was already issued — codes stay ${p.block_name}-${p.apartment_number})`);
+    } else {
+      await trx('properties').where('id', p.id).update({ block_name: codes.block, apartment_number: codes.apt });
+      updated.push(`unit code ${codes.block}-${codes.apt}`);
+    }
+  }
   const addr = estateUnitAddress(u);
   if (addr.postcode) {
     await trx('properties').where('id', p.id).update({ ...addr, updated_at: trx.fn.now() });

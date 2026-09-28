@@ -53,6 +53,7 @@ export const TenantStatementModal = ({ onClose, onGenerated }) => {
   const [previewing, setPreviewing] = useState(false);
   const [lastSeq, setLastSeq] = useState('');
   const [savingSeq, setSavingSeq] = useState(false);
+  const [showEarlier, setShowEarlier] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -88,6 +89,7 @@ export const TenantStatementModal = ({ onClose, onGenerated }) => {
     setTenancyId(id);
     setForm(null);
     setPeriods([]);
+    setShowEarlier(false);
     if (!id) return;
     try {
       const res = await api.get(`/statements/tenancy-periods/${id}`);
@@ -196,7 +198,7 @@ export const TenantStatementModal = ({ onClose, onGenerated }) => {
           </button>
         </div>
 
-        <form onSubmit={submit} className="p-6 flex flex-col gap-6 max-h-[80vh] overflow-y-auto">
+        <form onSubmit={submit} className="p-6 flex flex-col gap-6 min-h-[70vh] max-h-[85vh] overflow-y-auto">
           <div className="bg-status-info-bg p-4 rounded-card border border-status-info/15 flex flex-col gap-3">
             <Dropdown
               label="Landlord & Unit"
@@ -230,7 +232,7 @@ export const TenantStatementModal = ({ onClose, onGenerated }) => {
                 <Warning danger text={`Statement ${form.existing_statement_number} already covers this rent month. Choose another month.`} />
               )}
               {form.missing_unit_codes && (
-                <Warning text="This apartment has no block code and apartment number (e.g. PH + 33), so no statement number can be made. Check it is linked to its ROCA Estates apartment." />
+                <Warning text={`This apartment has no valid unit code (it shows "${form.property_reference}"), so no statement number like PH_13_0001 can be made. In ROCA Estates give the building its short code (e.g. PH for Parsons House — "BLD" means it has none), then open the apartment here → Edit Details → "Refresh address & owner from ROCA Estates".`} />
               )}
               {form.tenant_credit > 0 && (
                 <p className="text-xs-portal font-semibold text-status-info bg-status-info-bg border border-status-info/15 rounded-card p-3">
@@ -272,6 +274,12 @@ export const TenantStatementModal = ({ onClose, onGenerated }) => {
 
               <div className="border-b pb-4 border-card-border">
                 <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-3">Statement Details</h3>
+                {form.first_statement_here && !showEarlier && (
+                  <button type="button" onClick={() => setShowEarlier(true)} className="text-xs-portal font-semibold text-status-info hover:underline cursor-pointer mb-3">
+                    First statement for this apartment here — were statements issued before this system?
+                  </button>
+                )}
+                {form.first_statement_here && showEarlier && (
                 <div className="flex flex-wrap items-end gap-3 mb-4 bg-surface-hover/50 border border-card-border rounded-card p-3">
                   <div className="w-56">
                     <Input
@@ -289,9 +297,10 @@ export const TenantStatementModal = ({ onClose, onGenerated }) => {
                     {savingSeq ? 'Saving…' : 'Save numbering'}
                   </Button>
                   <p className="text-xs-portal text-status-muted flex-1 min-w-48">
-                    If ROCA already issued statements for this apartment before this system, enter the last number so this one continues after it.
+                    Statement numbers are created automatically. Only if ROCA already issued statements for this apartment by hand (e.g. up to PH_19_0002), enter that last number (2) once so this one continues after it.
                   </p>
                 </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {HEADER_FIELDS.map((f) => (f.multiline ? (
                     <div key={f.key}>

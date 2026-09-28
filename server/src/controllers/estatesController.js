@@ -3,6 +3,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
 import logger from '../utils/logger.js';
 import { estateUnitCodes, unitKey } from '../utils/estatesLink.js';
+import { niceName } from '../utils/names.js';
 
 // ROCA Estates (rocaem) data shown read-only in Roca Living.
 // ROCA is one company with two services: ROCA Estates (block management) owns
@@ -88,6 +89,8 @@ const toUnit = (u, living) => {
   const link = living.byRocaem.get(u.id) || living.byKey.get(unitKey(block, apt)) || null;
   return {
     ...u,
+    name: u.name,
+    landlord_name: niceName(u.landlord_name),
     block_code: block,
     apartment_number: apt,
     unit_ref: block && apt ? `${block}-${apt}` : u.unit_code,
@@ -179,6 +182,9 @@ export const getEstateLandlords = catchAsync(async (req, res) => {
     success: true,
     data: rows.map((l) => ({
       ...l,
+      name: niceName(l.name),
+      company_name: niceName(l.company_name),
+      secondary_owner_name: niceName(l.secondary_owner_name),
       units: unitsBy[l.id] || [],
       roca_living_landlord_id: findLiving(l)
     }))
@@ -201,6 +207,9 @@ export const getEstateLandlord = catchAsync(async (req, res) => {
     success: true,
     data: {
       ...landlord,
+      name: niceName(landlord.name),
+      company_name: niceName(landlord.company_name),
+      secondary_owner_name: niceName(landlord.secondary_owner_name),
       roca_living_landlord_id: findLiving(landlord),
       units: units.map((u) => toUnit(u, living))
     }
