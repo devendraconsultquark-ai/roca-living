@@ -2,6 +2,7 @@ import db from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
 import logger from '../utils/logger.js';
+import { toYmd } from '../utils/dateHelpers.js';
 import { decryptSecret, encryptSecret } from '../utils/secretBox.js';
 import {
   buildAuthorizeUrl,
@@ -182,8 +183,8 @@ export const getXeroBankAccounts = catchAsync(async (req, res, next) => {
   let balances = new Map();
   try {
     const today = new Date();
-    const fromDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-    const toDate = today.toISOString().split('T')[0];
+    const fromDate = toYmd(new Date(today.getFullYear(), today.getMonth(), 1));
+    const toDate = toYmd(today);
     const summary = await xeroApiGet('/Reports/BankSummary', { fromDate, toDate });
     balances = parseBankSummary(summary);
   } catch (err) {

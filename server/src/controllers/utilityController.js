@@ -1,6 +1,7 @@
 import db from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
+import { toYmd } from '../utils/dateHelpers.js';
 
 const ALLOWED_UTILITY_FIELDS = [
   'supplier',
@@ -20,7 +21,7 @@ const formatUtility = (u) => {
   if (!u) return null;
   return {
     ...u,
-    handover_date: u.handover_date ? new Date(u.handover_date).toISOString().split('T')[0] : null,
+    handover_date: toYmd(u.handover_date),
     created_at: u.created_at ? new Date(u.created_at).toISOString() : null,
     updated_at: u.updated_at ? new Date(u.updated_at).toISOString() : null
   };

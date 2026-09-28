@@ -1,15 +1,7 @@
 import db from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
-
-// Helper to format date as YYYY-MM-DD. DATE columns arrive as local-midnight
-// Date objects, so format in local time — toISOString() would shift them to the
-// previous day in any UTC+ timezone (India, UK summer time).
-const formatDate = (d) => {
-  if (!d) return null;
-  const x = new Date(d);
-  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
-};
+import { toYmd, todayYmd } from '../utils/dateHelpers.js';
 
 export const getArrearsReport = catchAsync(async (req, res, next) => {
   // 1. Group by landlord
@@ -33,7 +25,7 @@ export const getArrearsReport = catchAsync(async (req, res, next) => {
     landlord_name: g.landlord_name,
     total_arrears: parseFloat(g.total_arrears || 0).toFixed(2),
     properties_affected: parseInt(g.properties_affected || 0, 10),
-    oldest_overdue_date: formatDate(g.oldest_overdue_date)
+    oldest_overdue_date: toYmd(g.oldest_overdue_date)
   }));
 
   // 2. Flat list of individual overdue schedules (with lead tenant for the arrears view)
@@ -65,7 +57,7 @@ export const getArrearsReport = catchAsync(async (req, res, next) => {
   const formattedFlat = flatSchedules.map(s => ({
     id: s.id,
     tenancy_id: s.tenancy_id,
-    due_date: formatDate(s.due_date),
+    due_date: toYmd(s.due_date),
     amount: parseFloat(s.amount).toFixed(2),
     landlord_name: s.landlord_name,
     tenant_name: s.tenant_name || null,
@@ -98,7 +90,7 @@ export const getComplianceExpiriesReport = catchAsync(async (req, res, next) => 
 
   const formattedExpiries = expiries.map(e => ({
     cert_type: e.cert_type,
-    expires_at: formatDate(e.expires_at),
+    expires_at: toYmd(e.expires_at),
     expires_in_days: parseInt(e.expires_in_days || 0, 10),
     property_address: e.property_address,
     landlord_name: e.landlord_name
@@ -193,9 +185,9 @@ export const getDepositsNeedingAttention = catchAsync(async (req, res, next) => 
       holding_deposit: d.holding_deposit !== null ? parseFloat(d.holding_deposit).toFixed(2) : null,
       tenancy_deposit: parseFloat(d.tenancy_deposit).toFixed(2),
       scheme: d.scheme,
-      received_at: formatDate(d.received_at),
-      register_due: formatDate(d.register_due),
-      registered_at: formatDate(d.registered_at),
+      received_at: toYmd(d.received_at),
+      register_due: toYmd(d.register_due),
+      registered_at: toYmd(d.registered_at),
       status: d.status,
       notes: d.notes,
       property_address: `${d.address_line1}, ${d.city}`,
@@ -497,7 +489,7 @@ export const getDashboardSummary = catchAsync(async (req, res, next) => {
         tenancy_id: r.id,
         property_address: `${r.address_line1}, ${r.city}`,
         current_rent: num(r.rent_pcm).toFixed(2),
-        review_date: formatDate(r.rent_review_date),
+        review_date: toYmd(r.rent_review_date),
         proposed_rent: r.proposed_rent !== null ? num(r.proposed_rent).toFixed(2) : null,
         status: r.rent_review_status
       })),
@@ -505,7 +497,7 @@ export const getDashboardSummary = catchAsync(async (req, res, next) => {
         id: n.id,
         title: n.title,
         url: n.url,
-        published_on: formatDate(n.published_on)
+        published_on: toYmd(n.published_on)
       })),
       alerts: {
         total: alertsTotal,
@@ -539,8 +531,8 @@ export const getComplianceItems = catchAsync(async (req, res, next) => {
     success: true,
     data: items.map((i) => ({
       ...i,
-      issued_at: formatDate(i.issued_at),
-      expires_at: formatDate(i.expires_at),
+      issued_at: toYmd(i.issued_at),
+      expires_at: toYmd(i.expires_at),
       days_left: i.days_left !== null ? parseInt(i.days_left, 10) : null
     }))
   });
@@ -660,42 +652,42 @@ export const getCalendarEvents = catchAsync(async (req, res, next) => {
   const events = [
     ...certs.map((c) => ({
       type: 'compliance',
-      date: formatDate(c.date),
+      date: toYmd(c.date),
       title: `${c.cert_type} certificate expires`,
       place: c.place,
       link: `/properties/${c.property_id}`
     })),
     ...inspections.map((i) => ({
       type: 'inspection',
-      date: formatDate(i.date),
+      date: toYmd(i.date),
       title: 'Inspection due',
       place: i.place,
       link: `/properties/${i.property_id}`
     })),
     ...rents.map((r) => ({
       type: 'rent',
-      date: formatDate(r.date),
+      date: toYmd(r.date),
       title: `Rent due £${parseFloat(r.amount).toFixed(2)}${r.status === 'paid' ? ' (paid)' : ''}`,
       place: r.place,
       link: '/accounting'
     })),
     ...tenancyEnds.map((t) => ({
       type: 'tenancy',
-      date: formatDate(t.date),
+      date: toYmd(t.date),
       title: 'Tenancy ends',
       place: t.place,
       link: '/tenancies'
     })),
     ...reviews.map((t) => ({
       type: 'rent_review',
-      date: formatDate(t.date),
+      date: toYmd(t.date),
       title: 'Rent review due',
       place: t.place,
       link: '/rent-reviews'
     })),
     ...deposits.map((d) => ({
       type: 'deposit',
-      date: formatDate(d.date),
+      date: toYmd(d.date),
       title: 'Deposit registration due',
       place: d.place,
       link: '/deposits'
@@ -720,7 +712,7 @@ export const getMgmtFeeAccount = catchAsync(async (req, res, next) => {
     data: {
       total: parseFloat(row?.total || 0).toFixed(2),
       year,
-      as_at: new Date().toISOString().split('T')[0]
+      as_at: todayYmd()
     }
   });
 });

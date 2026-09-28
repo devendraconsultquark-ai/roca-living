@@ -1,6 +1,7 @@
 import db from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
+import { toYmd } from '../utils/dateHelpers.js';
 
 const ALLOWED_DEPOSIT_FIELDS = [
   'registered_at',
@@ -15,10 +16,10 @@ const formatDeposit = (d) => {
     ...d,
     holding_deposit: d.holding_deposit !== null && d.holding_deposit !== undefined ? parseFloat(d.holding_deposit).toFixed(2) : null,
     tenancy_deposit: d.tenancy_deposit !== null && d.tenancy_deposit !== undefined ? parseFloat(d.tenancy_deposit).toFixed(2) : null,
-    received_at: d.received_at ? new Date(d.received_at).toISOString().split('T')[0] : null,
-    register_due: d.register_due ? new Date(d.register_due).toISOString().split('T')[0] : null,
-    registered_at: d.registered_at ? new Date(d.registered_at).toISOString().split('T')[0] : null,
-    prescribed_info_served_at: d.prescribed_info_served_at ? new Date(d.prescribed_info_served_at).toISOString().split('T')[0] : null,
+    received_at: toYmd(d.received_at),
+    register_due: toYmd(d.register_due),
+    registered_at: toYmd(d.registered_at),
+    prescribed_info_served_at: toYmd(d.prescribed_info_served_at),
     created_at: d.created_at ? new Date(d.created_at).toISOString() : null,
     updated_at: d.updated_at ? new Date(d.updated_at).toISOString() : null
   };

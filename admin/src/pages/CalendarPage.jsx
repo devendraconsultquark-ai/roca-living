@@ -46,7 +46,8 @@ export const CalendarPage = () => {
   const monthLabel = new Date(year, monthNum - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   const daysInMonth = new Date(year, monthNum, 0).getDate();
   const leadingBlanks = (new Date(year, monthNum - 1, 1).getDay() + 6) % 7; // Monday-first
-  const todayStr = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const todayStr = `${monthKeyOf(now)}-${String(now.getDate()).padStart(2, '0')}`;
 
   const shiftMonth = (delta) => {
     setMonth(monthKeyOf(new Date(year, monthNum - 1 + delta, 1)));

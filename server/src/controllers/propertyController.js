@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import logger from '../utils/logger.js';
 import { cleanUnitCode } from '../utils/statementNumbering.js';
+import { toYmd } from '../utils/dateHelpers.js';
 
 const ALLOWED_PROPERTY_FIELDS = [
   'address_line1',
@@ -100,8 +101,8 @@ export const getPropertyById = catchAsync(async (req, res, next) => {
   const certificates = await db('property_certificates').where('property_id', id);
   const formattedCerts = certificates.map((c) => ({
     ...c,
-    issued_at: c.issued_at ? new Date(c.issued_at).toISOString().split('T')[0] : null,
-    expires_at: c.expires_at ? new Date(c.expires_at).toISOString().split('T')[0] : null,
+    issued_at: toYmd(c.issued_at),
+    expires_at: toYmd(c.expires_at),
     created_at: c.created_at ? new Date(c.created_at).toISOString() : null,
     updated_at: c.updated_at ? new Date(c.updated_at).toISOString() : null
   }));
@@ -128,16 +129,16 @@ export const getPropertyById = catchAsync(async (req, res, next) => {
     tenancyData = {
       id: tenancy.id,
       status: tenancy.status,
-      start_date: tenancy.start_date ? new Date(tenancy.start_date).toISOString().split('T')[0] : null,
-      end_date: tenancy.end_date ? new Date(tenancy.end_date).toISOString().split('T')[0] : null,
+      start_date: toYmd(tenancy.start_date),
+      end_date: toYmd(tenancy.end_date),
       rent_pcm: tenancy.rent_pcm !== null ? parseFloat(tenancy.rent_pcm).toFixed(2) : null,
       tenants,
       deposit: deposit ? {
         ...deposit,
         tenancy_deposit: deposit.tenancy_deposit !== null ? parseFloat(deposit.tenancy_deposit).toFixed(2) : null,
         holding_deposit: deposit.holding_deposit !== null ? parseFloat(deposit.holding_deposit).toFixed(2) : null,
-        received_at: deposit.received_at ? new Date(deposit.received_at).toISOString().split('T')[0] : null,
-        registered_at: deposit.registered_at ? new Date(deposit.registered_at).toISOString().split('T')[0] : null,
+        received_at: toYmd(deposit.received_at),
+        registered_at: toYmd(deposit.registered_at),
       } : null
     };
   }
@@ -455,8 +456,8 @@ export const updateCertificate = catchAsync(async (req, res, next) => {
     success: true,
     data: {
       ...updatedCert,
-      issued_at: updatedCert.issued_at ? new Date(updatedCert.issued_at).toISOString().split('T')[0] : null,
-      expires_at: updatedCert.expires_at ? new Date(updatedCert.expires_at).toISOString().split('T')[0] : null,
+      issued_at: toYmd(updatedCert.issued_at),
+      expires_at: toYmd(updatedCert.expires_at),
       created_at: updatedCert.created_at ? new Date(updatedCert.created_at).toISOString() : null,
       updated_at: updatedCert.updated_at ? new Date(updatedCert.updated_at).toISOString() : null
     }
@@ -591,8 +592,8 @@ export const getMyCertificates = catchAsync(async (req, res, next) => {
       ...c,
       document_path: undefined,
       has_document: !!c.document_path,
-      issued_at: c.issued_at ? new Date(c.issued_at).toISOString().split('T')[0] : null,
-      expires_at: c.expires_at ? new Date(c.expires_at).toISOString().split('T')[0] : null
+      issued_at: toYmd(c.issued_at),
+      expires_at: toYmd(c.expires_at)
     }))
   });
 });
@@ -617,8 +618,8 @@ export const getMyPropertyById = catchAsync(async (req, res, next) => {
   const certificates = await db('property_certificates').where('property_id', id);
   const formattedCerts = certificates.map((c) => ({
     ...c,
-    issued_at: c.issued_at ? new Date(c.issued_at).toISOString().split('T')[0] : null,
-    expires_at: c.expires_at ? new Date(c.expires_at).toISOString().split('T')[0] : null,
+    issued_at: toYmd(c.issued_at),
+    expires_at: toYmd(c.expires_at),
     created_at: c.created_at ? new Date(c.created_at).toISOString() : null,
     updated_at: c.updated_at ? new Date(c.updated_at).toISOString() : null
   }));

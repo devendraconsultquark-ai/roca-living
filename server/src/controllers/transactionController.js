@@ -1,11 +1,12 @@
 import db from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
+import { toYmd } from '../utils/dateHelpers.js';
 
 const formatTransaction = (t) => ({
   ...t,
   amount: t.amount !== null && t.amount !== undefined ? parseFloat(t.amount).toFixed(2) : null,
-  transaction_date: t.transaction_date ? new Date(t.transaction_date).toISOString().split('T')[0] : null,
+  transaction_date: toYmd(t.transaction_date),
   created_at: t.created_at ? new Date(t.created_at).toISOString() : null
 });
 

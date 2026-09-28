@@ -1,7 +1,7 @@
 import db from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
-import { addDays, addMonths } from '../utils/dateHelpers.js';
+import { addDays, addMonths, toYmd, todayYmd } from '../utils/dateHelpers.js';
 import { allocateTenancyPayments } from '../utils/rentAllocation.js';
 import { ensureLivingProperty } from '../utils/estatesLink.js';
 
@@ -47,9 +47,9 @@ const formatTenancy = (t) => {
     rent_pcm: t.rent_pcm !== null && t.rent_pcm !== undefined ? parseFloat(t.rent_pcm).toFixed(2) : null,
     agent_letting_fee: t.agent_letting_fee !== null && t.agent_letting_fee !== undefined ? parseFloat(t.agent_letting_fee).toFixed(2) : null,
     roca_letting_fee: t.roca_letting_fee !== null && t.roca_letting_fee !== undefined ? parseFloat(t.roca_letting_fee).toFixed(2) : null,
-    start_date: t.start_date ? new Date(t.start_date).toISOString().split('T')[0] : null,
-    end_date: t.end_date ? new Date(t.end_date).toISOString().split('T')[0] : null,
-    rent_review_date: t.rent_review_date ? new Date(t.rent_review_date).toISOString().split('T')[0] : null,
+    start_date: toYmd(t.start_date),
+    end_date: toYmd(t.end_date),
+    rent_review_date: toYmd(t.rent_review_date),
     proposed_rent: t.proposed_rent !== null && t.proposed_rent !== undefined ? parseFloat(t.proposed_rent).toFixed(2) : null,
     created_at: t.created_at ? new Date(t.created_at).toISOString() : null,
     updated_at: t.updated_at ? new Date(t.updated_at).toISOString() : null
@@ -62,10 +62,10 @@ const formatDeposit = (d) => {
     ...d,
     holding_deposit: d.holding_deposit !== null && d.holding_deposit !== undefined ? parseFloat(d.holding_deposit).toFixed(2) : null,
     tenancy_deposit: d.tenancy_deposit !== null && d.tenancy_deposit !== undefined ? parseFloat(d.tenancy_deposit).toFixed(2) : null,
-    received_at: d.received_at ? new Date(d.received_at).toISOString().split('T')[0] : null,
-    register_due: d.register_due ? new Date(d.register_due).toISOString().split('T')[0] : null,
-    registered_at: d.registered_at ? new Date(d.registered_at).toISOString().split('T')[0] : null,
-    prescribed_info_served_at: d.prescribed_info_served_at ? new Date(d.prescribed_info_served_at).toISOString().split('T')[0] : null,
+    received_at: toYmd(d.received_at),
+    register_due: toYmd(d.register_due),
+    registered_at: toYmd(d.registered_at),
+    prescribed_info_served_at: toYmd(d.prescribed_info_served_at),
     created_at: d.created_at ? new Date(d.created_at).toISOString() : null,
     updated_at: d.updated_at ? new Date(d.updated_at).toISOString() : null
   };
@@ -76,7 +76,7 @@ const formatRentSchedule = (s) => {
   return {
     ...s,
     amount: s.amount !== null && s.amount !== undefined ? parseFloat(s.amount).toFixed(2) : null,
-    due_date: s.due_date ? new Date(s.due_date).toISOString().split('T')[0] : null,
+    due_date: toYmd(s.due_date),
     created_at: s.created_at ? new Date(s.created_at).toISOString() : null
   };
 };
@@ -86,7 +86,7 @@ const formatRentPayment = (p) => {
   return {
     ...p,
     amount: p.amount !== null && p.amount !== undefined ? parseFloat(p.amount).toFixed(2) : null,
-    received_at: p.received_at ? new Date(p.received_at).toISOString().split('T')[0] : null,
+    received_at: toYmd(p.received_at),
     reconciled_at: p.reconciled_at ? new Date(p.reconciled_at).toISOString() : null,
     created_at: p.created_at ? new Date(p.created_at).toISOString() : null
   };
@@ -412,7 +412,7 @@ export const updateTenancy = catchAsync(async (req, res, next) => {
 
   // Ending a tenancy stamps an end date if none was supplied.
   const effectiveEndDate = updates.status === 'ended'
-    ? (updates.end_date || tenancy.end_date || new Date().toISOString().split('T')[0])
+    ? (updates.end_date || tenancy.end_date || todayYmd())
     : null;
   if (updates.status === 'ended' && !updates.end_date && !tenancy.end_date) {
     updates.end_date = effectiveEndDate;
@@ -707,8 +707,8 @@ export const getMyTenancies = catchAsync(async (req, res, next) => {
         deposit_amount: t.deposit_amount !== null && t.deposit_amount !== undefined ? parseFloat(t.deposit_amount).toFixed(2) : null,
         deposit_scheme: t.deposit_scheme || '-',
         deposit_status: t.deposit_status || null,
-        deposit_registered_at: t.deposit_registered_at ? new Date(t.deposit_registered_at).toISOString().split('T')[0] : null,
-        deposit_register_due: t.deposit_register_due ? new Date(t.deposit_register_due).toISOString().split('T')[0] : null
+        deposit_registered_at: toYmd(t.deposit_registered_at),
+        deposit_register_due: toYmd(t.deposit_register_due)
       };
     })
   });
@@ -853,7 +853,7 @@ export const getArrears = catchAsync(async (req, res, next) => {
         rent: parseFloat(row.rent_pcm),
         arrears: 0.0,
         days: diffDays,
-        lastPaymentDate: lastPayment ? new Date(lastPayment.received_at).toISOString().split('T')[0] : '-'
+        lastPaymentDate: lastPayment ? toYmd(lastPayment.received_at) : '-'
       };
     }
     tenanciesWithArrears[tenancyId].arrears += parseFloat(row.amount) - parseFloat(row.paid_amount || 0);
@@ -918,7 +918,7 @@ export const getAllTenants = catchAsync(async (req, res, next) => {
       balance: balanceVal,
       status: balanceVal < 0 ? 'In Arrears' : 'Active',
       right_to_rent_status: t.right_to_rent_status || 'pending',
-      right_to_rent_expiry: t.right_to_rent_expiry ? new Date(t.right_to_rent_expiry).toISOString().split('T')[0] : null
+      right_to_rent_expiry: toYmd(t.right_to_rent_expiry)
     });
   }
 
@@ -969,7 +969,7 @@ export const updateTenant = catchAsync(async (req, res, next) => {
     success: true,
     data: {
       ...updatedTenant,
-      right_to_rent_expiry: updatedTenant.right_to_rent_expiry ? new Date(updatedTenant.right_to_rent_expiry).toISOString().split('T')[0] : null
+      right_to_rent_expiry: toYmd(updatedTenant.right_to_rent_expiry)
     }
   });
 });
@@ -1069,14 +1069,12 @@ export const getTenantById = catchAsync(async (req, res, next) => {
     success: true,
     data: {
       ...tenant,
-      right_to_rent_expiry: tenant.right_to_rent_expiry
-        ? new Date(tenant.right_to_rent_expiry).toISOString().split('T')[0]
-        : null,
+      right_to_rent_expiry: toYmd(tenant.right_to_rent_expiry),
       created_at: tenant.created_at ? new Date(tenant.created_at).toISOString() : null,
       tenancy: tenancy ? {
         ...tenancy,
-        start_date: tenancy.start_date ? new Date(tenancy.start_date).toISOString().split('T')[0] : null,
-        end_date: tenancy.end_date ? new Date(tenancy.end_date).toISOString().split('T')[0] : null,
+        start_date: toYmd(tenancy.start_date),
+        end_date: toYmd(tenancy.end_date),
         rent_pcm: tenancy.rent_pcm !== null ? parseFloat(tenancy.rent_pcm).toFixed(2) : null,
         property_address: `${tenancy.address_line1}${tenancy.address_line2 ? ', ' + tenancy.address_line2 : ''}, ${tenancy.city} ${tenancy.postcode}`,
       } : null,
@@ -1085,7 +1083,7 @@ export const getTenantById = catchAsync(async (req, res, next) => {
       payment_history: payments.map(p => ({
         ...p,
         amount: parseFloat(p.amount).toFixed(2),
-        received_at: p.received_at ? new Date(p.received_at).toISOString().split('T')[0] : null,
+        received_at: toYmd(p.received_at),
         created_at: p.created_at ? new Date(p.created_at).toISOString() : null,
       })),
     }

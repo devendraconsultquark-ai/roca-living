@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import logger from '../utils/logger.js';
 import { formatBytes } from '../utils/format.js';
+import { toYmd } from '../utils/dateHelpers.js';
 
 // Ensure uploads folder exists
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -79,7 +80,7 @@ export const getFolders = catchAsync(async (req, res, next) => {
         id: d.id,
         name: d.original_name,
         size: formatBytes(d.file_size_bytes),
-        date: d.created_at ? new Date(d.created_at).toISOString().split('T')[0] : '',
+        date: toYmd(d.created_at) || '',
         scope: d.owner_type,
         entityId: entityRefFor(d),
         doc_reference: d.doc_reference
@@ -377,7 +378,7 @@ export const getMyDocuments = catchAsync(async (req, res, next) => {
       item: d.original_name,
       category,
       related,
-      uploaded: d.created_at ? new Date(d.created_at).toISOString().split('T')[0] : '',
+      uploaded: toYmd(d.created_at) || '',
       file_path: d.file_path,
       size: formatBytes(d.file_size_bytes)
     };

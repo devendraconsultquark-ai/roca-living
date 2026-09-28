@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import db from '../config/db.js';
 import logger from '../utils/logger.js';
+import { toYmd } from '../utils/dateHelpers.js';
 
 // Job 1: Deposit Registration Reminder (daily at 8am)
 export const checkDeposits = async () => {
@@ -14,7 +15,7 @@ export const checkDeposits = async () => {
       .andWhere('deposits.register_due', '<=', db.raw('DATE_ADD(NOW(), INTERVAL 7 DAY)'));
 
     for (const dep of deposits) {
-      const formattedDate = dep.register_due ? new Date(dep.register_due).toISOString().split('T')[0] : 'N/A';
+      const formattedDate = toYmd(dep.register_due) || 'N/A';
       logger.warn(`Deposit registration warning: deposit for tenancy ID ${dep.tenancy_id} (Property: ${dep.address_line1}, ${dep.city}) is due for registration on ${formattedDate} but has not been registered yet.`);
 
       await db('audit_log').insert({
@@ -58,7 +59,7 @@ export const checkComplianceCertificates = async () => {
           .where('id', cert.id)
           .update({ status: newStatus, updated_at: db.fn.now() });
 
-        const formattedExpiry = cert.expires_at ? new Date(cert.expires_at).toISOString().split('T')[0] : 'N/A';
+        const formattedExpiry = toYmd(cert.expires_at) || 'N/A';
         await db('audit_log').insert({
           action: 'COMPLIANCE_CERTIFICATE_STATUS_UPDATED',
           entity_type: 'property',
@@ -103,7 +104,7 @@ export const checkRentArrears = async () => {
         meta: JSON.stringify({ schedule_id: s.id, tenancy_id: s.tenancy_id, amount: parseFloat(s.amount).toFixed(2), days_overdue: daysOverdue }),
         created_at: db.fn.now()
       });
-      logger.warn(`Rent payment overdue for tenancy ID ${s.tenancy_id}. Amount: £${parseFloat(s.amount).toFixed(2)}. Due: ${new Date(s.due_date).toISOString().split('T')[0]} (${daysOverdue} days overdue).`);
+      logger.warn(`Rent payment overdue for tenancy ID ${s.tenancy_id}. Amount: £${parseFloat(s.amount).toFixed(2)}. Due: ${toYmd(s.due_date)} (${daysOverdue} days overdue).`);
     }
     logger.info(`Rent arrears check complete. Flagged ${schedules.length} payments overdue.`);
   } catch (error) {

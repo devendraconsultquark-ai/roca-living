@@ -1,12 +1,13 @@
 import db from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
+import { toYmd } from '../utils/dateHelpers.js';
 
 // Admin-curated "Legislation & News" items shown on the admin dashboard.
 
 const formatItem = (n) => ({
   ...n,
-  published_on: n.published_on ? new Date(n.published_on).toISOString().split('T')[0] : null,
+  published_on: toYmd(n.published_on),
   created_at: n.created_at ? new Date(n.created_at).toISOString() : null,
   updated_at: n.updated_at ? new Date(n.updated_at).toISOString() : null
 });

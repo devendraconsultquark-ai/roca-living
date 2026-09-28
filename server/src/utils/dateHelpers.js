@@ -1,5 +1,19 @@
 // Date utility functions immune to timezone shifts (all operate on 'YYYY-MM-DD' strings).
 
+const pad2 = (n) => String(n).padStart(2, '0');
+
+// DATE/DATETIME from MySQL (local-midnight Date) or any date value → 'YYYY-MM-DD'
+// in local time. Never use toISOString() for this: it shifts to the previous
+// day in any UTC+ timezone (UK summer time, India).
+export const toYmd = (d) => {
+  if (d === null || d === undefined || d === '') return null;
+  const x = new Date(d);
+  if (isNaN(x.getTime())) return null;
+  return `${x.getFullYear()}-${pad2(x.getMonth() + 1)}-${pad2(x.getDate())}`;
+};
+
+export const todayYmd = () => toYmd(new Date());
+
 export const addDays = (dateStr, days) => {
   const parts = dateStr.split('-');
   const d = new Date(parts[0], parts[1] - 1, parts[2]);

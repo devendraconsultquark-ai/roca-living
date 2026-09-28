@@ -39,7 +39,8 @@ export const Deposits = () => {
 
   const openRegisterModal = (row) => {
     setRegisterTarget(row);
-    setRegisteredAt(new Date().toISOString().split('T')[0]);
+    const now = new Date(); // local date — toISOString() is a day behind before 01:00 BST
+    setRegisteredAt(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`);
     setPrescribedInfoAt('');
   };
 

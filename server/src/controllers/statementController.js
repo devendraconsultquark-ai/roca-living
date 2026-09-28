@@ -12,15 +12,9 @@ import logger from '../utils/logger.js';
 import { sendEmail } from '../utils/email.js';
 import { niceName } from '../utils/names.js';
 import { ensureStatementPdfCurrent } from '../utils/statementPdf.js';
+import { toYmd } from '../utils/dateHelpers.js';
 import fs from 'fs';
 import path from 'path';
-
-// DATE columns arrive as local-midnight Date objects; toISOString() would
-// shift them to the previous day in any UTC+ timezone (India, UK summer time).
-const localDate = (d) => {
-  const x = new Date(d);
-  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
-};
 
 const formatStatement = (s) => {
   if (!s) return null;
@@ -36,8 +30,8 @@ const formatStatement = (s) => {
     deductions: s.deductions !== null && s.deductions !== undefined ? parseFloat(s.deductions).toFixed(2) : null,
     nrl_withheld: s.nrl_withheld !== null && s.nrl_withheld !== undefined ? parseFloat(s.nrl_withheld).toFixed(2) : null,
     net_paid: s.net_paid !== null && s.net_paid !== undefined ? parseFloat(s.net_paid).toFixed(2) : null,
-    period_start: s.period_start ? localDate(s.period_start) : null,
-    period_end: s.period_end ? localDate(s.period_end) : null,
+    period_start: toYmd(s.period_start),
+    period_end: toYmd(s.period_end),
     generated_at: s.generated_at ? new Date(s.generated_at).toISOString() : null,
     paid_at: s.paid_at ? new Date(s.paid_at).toISOString() : null,
     created_at: s.created_at ? new Date(s.created_at).toISOString() : null
@@ -525,12 +519,7 @@ export const getAutofillMetadata = catchAsync(async (req, res, next) => {
     return deriveInitials(name) || 'RL';
   };
 
-  const formatDate = (dateValue) => {
-    if (!dateValue) return '';
-    const d = new Date(dateValue);
-    if (isNaN(d.getTime())) return '';
-    return d.toISOString().split('T')[0];
-  };
+  const formatDate = (dateValue) => toYmd(dateValue) || '';
 
   // Process Local Properties
   for (const p of localProps) {
@@ -676,7 +665,7 @@ const rentPeriod = (startYmd, anchorDay) => {
   const m = start.getMonth() + 1;
   const nextDue = new Date(y, m, Math.min(anchorDay, new Date(y, m + 1, 0).getDate()));
   nextDue.setDate(nextDue.getDate() - 1);
-  return { start: startYmd, end: localDate(nextDue) };
+  return { start: startYmd, end: toYmd(nextDue) };
 };
 
 // Statement numbers (PH_33_0001) need a short block code and apartment number
@@ -766,23 +755,23 @@ export const getTenancyStatementOptions = catchAsync(async (req, res) => {
 export const getTenancyPeriods = catchAsync(async (req, res) => {
   const t = await db('tenancies').where('id', req.params.tenancyId).first();
   if (!t) throw new ApiError(404, 'Tenancy not found');
-  const startYmd = localDate(t.start_date);
+  const startYmd = toYmd(t.start_date);
   const anchorDay = parseYmd(startYmd).getDate();
   const issued = await db('landlord_statements').where('tenancy_id', t.id).select('period_start', 'statement_number', 'status');
-  const byStart = new Map(issued.map((s) => [localDate(s.period_start), s]));
+  const byStart = new Map(issued.map((s) => [toYmd(s.period_start), s]));
 
   const today = new Date();
-  const horizon = localDate(new Date(today.getFullYear(), today.getMonth() + 2, today.getDate()));
-  const endYmd = t.end_date ? localDate(t.end_date) : null;
+  const horizon = toYmd(new Date(today.getFullYear(), today.getMonth() + 2, today.getDate()));
+  const endYmd = t.end_date ? toYmd(t.end_date) : null;
   const periods = [];
-  let start = t.statements_from ? localDate(t.statements_from) : startYmd;
+  let start = t.statements_from ? toYmd(t.statements_from) : startYmd;
   for (let i = 0; i < 120 && start <= horizon && (!endYmd || start <= endYmd); i++) {
     const p = rentPeriod(start, anchorDay);
     const s = byStart.get(p.start);
     periods.push({ start: p.start, end: p.end, statement_number: s?.statement_number || null, status: s?.status || null });
     const next = parseYmd(p.end);
     next.setDate(next.getDate() + 1);
-    start = localDate(next);
+    start = toYmd(next);
   }
   const nextOpen = periods.find((p) => !p.statement_number) || null;
   res.json({ success: true, data: { periods, next_period_start: nextOpen ? nextOpen.start : null } });
@@ -794,7 +783,7 @@ export const getTenancyAutofill = catchAsync(async (req, res) => {
   const t = await loadTenancyContext(req.params.tenancyId);
   if (!t) throw new ApiError(404, 'Tenancy not found');
 
-  const tenancyStart = localDate(t.start_date);
+  const tenancyStart = toYmd(t.start_date);
   const anchorDay = parseYmd(tenancyStart).getDate();
 
   const last = await db('landlord_statements')
@@ -807,12 +796,12 @@ export const getTenancyAutofill = catchAsync(async (req, res) => {
     if (!isYmd(req.query.period_start)) throw new ApiError(400, 'period_start must be YYYY-MM-DD');
     periodStart = req.query.period_start;
   } else if (last) {
-    const next = parseYmd(localDate(last.period_end));
+    const next = parseYmd(toYmd(last.period_end));
     next.setDate(next.getDate() + 1);
-    periodStart = localDate(next);
+    periodStart = toYmd(next);
   } else {
     // Tenancies already statemented by hand start at their first period in this system.
-    periodStart = t.statements_from ? localDate(t.statements_from) : tenancyStart;
+    periodStart = t.statements_from ? toYmd(t.statements_from) : tenancyStart;
   }
   const period = rentPeriod(periodStart, anchorDay);
 
@@ -840,7 +829,7 @@ export const getTenancyAutofill = catchAsync(async (req, res) => {
     .select('a.amount', 's.due_date');
   const rentReceived = round2(allocations.reduce((sum, a) => sum + parseFloat(a.amount), 0));
   const arrearsReceived = round2(allocations
-    .filter((a) => localDate(a.due_date) < period.start)
+    .filter((a) => toYmd(a.due_date) < period.start)
     .reduce((sum, a) => sum + parseFloat(a.amount), 0));
 
   const periodMonths = await db('rent_schedules')
@@ -953,7 +942,7 @@ export const getTenancyAutofill = catchAsync(async (req, res) => {
       }],
       expenditure_lines: [
         ...recordedExpenses.map((x) => ({
-          description: `${x.description}${x.supplier ? ` – ${x.supplier}` : ''} (${ukDate(localDate(x.expense_date))})`,
+          description: `${x.description}${x.supplier ? ` – ${x.supplier}` : ''} (${ukDate(toYmd(x.expense_date))})`,
           amount: round2(parseFloat(x.amount)),
           expense_id: x.id
         })),
@@ -962,7 +951,7 @@ export const getTenancyAutofill = catchAsync(async (req, res) => {
           amount: round2(parseFloat(r.cost))
         })),
         ...xeroExpenses.map((x) => ({
-          description: `${x.note || x.reference || x.contact_name || 'Expense'} (${ukDate(localDate(x.date))})`,
+          description: `${x.note || x.reference || x.contact_name || 'Expense'} (${ukDate(toYmd(x.date))})`,
           amount: round2(parseFloat(x.amount))
         }))
       ]
@@ -1064,7 +1053,7 @@ const prepareTenancyStatement = async (b) => {
     tenancy_type: b.tenancy_type || TENANCY_TYPE,
     period_start: b.period_start,
     period_end: b.period_end,
-    issue_date: localDate(new Date())
+    issue_date: toYmd(new Date())
   };
   const invoiceNotes = typeof b.invoice_notes === 'string' ? b.invoice_notes.trim().slice(0, 1000) : '';
   const statementData = {
@@ -1330,7 +1319,7 @@ const emailList = (value, label, { required = false } = {}) => {
 };
 
 const defaultEmailDraft = (s, landlord) => {
-  const period = `${ukDate(localDate(s.period_start))} – ${ukDate(localDate(s.period_end))}`;
+  const period = `${ukDate(toYmd(s.period_start))} – ${ukDate(toYmd(s.period_end))}`;
   const name = niceName(s.landlord_name || landlord?.name) || 'Landlord';
   return {
     email_to: landlord?.email && EMAIL_RE.test(landlord.email) ? landlord.email : '',

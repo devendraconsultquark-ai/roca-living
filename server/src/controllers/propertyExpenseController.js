@@ -4,22 +4,17 @@ import db from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
 import { refreshFromEstates } from '../utils/estatesLink.js';
+import { toYmd } from '../utils/dateHelpers.js';
 
 // Expenses recorded against a managed apartment during the month (cleaning,
 // small repairs…). They pre-fill the statement for that month as expenditure
 // and are marked used once deducted, so they are never deducted twice. The
 // supplier invoice can be attached (RL-P03 check 4).
 
-const pad2 = (n) => String(n).padStart(2, '0');
-const ymd = (d) => {
-  const x = new Date(d);
-  return `${x.getFullYear()}-${pad2(x.getMonth() + 1)}-${pad2(x.getDate())}`;
-};
-
 const format = (e) => ({
   id: e.id,
   property_id: e.property_id,
-  expense_date: ymd(e.expense_date),
+  expense_date: toYmd(e.expense_date),
   description: e.description,
   supplier: e.supplier,
   amount: parseFloat(e.amount).toFixed(2),

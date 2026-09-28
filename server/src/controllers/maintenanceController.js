@@ -4,6 +4,7 @@ import { catchAsync } from '../utils/catchAsync.js';
 import fs from 'fs';
 import path from 'path';
 import logger from '../utils/logger.js';
+import { toYmd } from '../utils/dateHelpers.js';
 
 const formatTicket = (t) => {
   if (!t) return null;
@@ -531,7 +532,7 @@ export const getAllContractors = catchAsync(async (req, res, next) => {
     data: list.map(c => ({
       ...c,
       rating: c.rating !== null && c.rating !== undefined ? parseFloat(c.rating).toFixed(2) : null,
-      insurance_expiry: c.insurance_expiry ? new Date(c.insurance_expiry).toISOString().split('T')[0] : null,
+      insurance_expiry: toYmd(c.insurance_expiry),
       created_at: c.created_at ? new Date(c.created_at).toISOString() : null
     }))
   });
@@ -563,7 +564,7 @@ export const createContractor = catchAsync(async (req, res, next) => {
     data: {
       ...contractor,
       rating: contractor.rating !== null ? parseFloat(contractor.rating).toFixed(2) : null,
-      insurance_expiry: contractor.insurance_expiry ? new Date(contractor.insurance_expiry).toISOString().split('T')[0] : null,
+      insurance_expiry: toYmd(contractor.insurance_expiry),
       created_at: contractor.created_at ? new Date(contractor.created_at).toISOString() : null
     }
   });
@@ -611,7 +612,7 @@ export const updateContractor = catchAsync(async (req, res, next) => {
     data: {
       ...updatedContractor,
       rating: updatedContractor.rating !== null ? parseFloat(updatedContractor.rating).toFixed(2) : null,
-      insurance_expiry: updatedContractor.insurance_expiry ? new Date(updatedContractor.insurance_expiry).toISOString().split('T')[0] : null,
+      insurance_expiry: toYmd(updatedContractor.insurance_expiry),
       created_at: updatedContractor.created_at ? new Date(updatedContractor.created_at).toISOString() : null
     }
   });
@@ -678,9 +679,7 @@ export const getContractorById = catchAsync(async (req, res, next) => {
     data: {
       ...contractor,
       rating: contractor.rating !== null ? parseFloat(contractor.rating).toFixed(2) : null,
-      insurance_expiry: contractor.insurance_expiry
-        ? new Date(contractor.insurance_expiry).toISOString().split('T')[0]
-        : null,
+      insurance_expiry: toYmd(contractor.insurance_expiry),
       created_at: contractor.created_at ? new Date(contractor.created_at).toISOString() : null,
       tickets: tickets.map(t => ({
         ...t,

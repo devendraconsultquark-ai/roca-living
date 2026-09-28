@@ -12,16 +12,9 @@
 // frozen: re-allocation only moves the not-yet-statemented money, so an issued
 // statement never changes and no money appears on two statements.
 
-const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
-const pad2 = (n) => String(n).padStart(2, '0');
-const todayYmd = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-};
-const ymd = (d) => {
-  const x = new Date(d);
-  return `${x.getFullYear()}-${pad2(x.getMonth() + 1)}-${pad2(x.getDate())}`;
-};
+import { toYmd, todayYmd } from './dateHelpers.js';
+
+const round2 =(n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 
 // Status of a rent month from what has been paid towards it.
 export const scheduleStatus = (amount, paid, dueYmd, today = todayYmd()) => {
@@ -60,7 +53,7 @@ export const allocateTenancyPayments = async (trx, tenancyId) => {
   const months = schedules.map((s) => ({
     id: s.id,
     amount: round2(s.amount),
-    due: ymd(s.due_date),
+    due: toYmd(s.due_date),
     paid: frozenBySchedule[s.id] || 0,
     oldStatus: s.status,
     oldPaid: round2(s.paid_amount || 0)

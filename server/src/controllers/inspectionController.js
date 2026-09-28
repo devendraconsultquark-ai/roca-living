@@ -1,6 +1,7 @@
 import db from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
+import { toYmd } from '../utils/dateHelpers.js';
 
 const VALID_RATINGS = ['excellent', 'good', 'satisfactory', 'unsatisfactory'];
 
@@ -9,7 +10,7 @@ const formatInspection = (i) => {
   return {
     ...i,
     inspected_at: i.inspected_at ? new Date(i.inspected_at).toISOString() : null,
-    next_inspection_due: i.next_inspection_due ? new Date(i.next_inspection_due).toISOString().split('T')[0] : null,
+    next_inspection_due: toYmd(i.next_inspection_due),
     created_at: i.created_at ? new Date(i.created_at).toISOString() : null
   };
 };
