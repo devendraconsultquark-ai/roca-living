@@ -21,7 +21,7 @@ const transporter = nodemailer.createTransport({
  * @param {Array}  [options.attachments] - nodemailer attachments, e.g. [{ filename, content }]
  * @returns the send info, or null when SMTP is not configured (nothing sent)
  */
-export const sendEmail = async ({ to, subject, text, html, attachments }) => {
+export const sendEmail = async ({ to, cc, subject, text, html, attachments }) => {
   // If SMTP user/password is not configured, warn and skip sending (fallback to logging)
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
     logger.warn(`[SMTP NOT CONFIGURED] Skipping actual email to ${to}. Subject: ${subject}`);
@@ -31,6 +31,7 @@ export const sendEmail = async ({ to, subject, text, html, attachments }) => {
   const mailOptions = {
     from: process.env.SMTP_FROM || '"Roca Living" <noreply@rocaliving.com>',
     to,
+    ...(cc ? { cc } : {}),
     subject,
     text,
     html,

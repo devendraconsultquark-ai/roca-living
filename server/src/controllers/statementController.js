@@ -1222,7 +1222,12 @@ const generateTenancyStatement = async (req, res) => {
       tenancy_type: b.tenancy_type || TENANCY_TYPE,
       tenancy_start_date: b.tenancy_start_date || null,
       render_data: JSON.stringify({ statementData, invoiceData }),
-      pdf_paid: false
+      pdf_paid: false,
+      // Email draft (RL-006): reviewed and sent from the Statements list.
+      ...defaultEmailDraft(
+        { statement_number: b.statement_number, period_start: b.period_start, period_end: b.period_end, landlord_name: b.landlord_name },
+        { email: t.landlord_email, name: t.landlord_name }
+      )
     });
     await trx('landlord_statements').where('id', statementId)
       .update({ statement_reference: `REM-STM-${String(statementId).padStart(5, '0')}` });
@@ -1310,28 +1315,104 @@ const generateTenancyStatement = async (req, res) => {
   });
 };
 
-// POST /statements/:id/send — email the statement PDF to the landlord (the
-// human-approved send, RL-006) and mark it Sent. Body: { to? } overrides the
-// recipient (defaults to the landlord's email).
+// ── Statement email draft (RL-006) ──────────────────────────────────────────
+// Every statement carries an email draft (to, cc, subject, message) that the
+// admin reviews and edits before sending; the PDF is attached when sent.
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const emailList = (value, label, { required = false } = {}) => {
+  const list = String(value || '').split(/[,;\s]+/).map((e) => e.trim()).filter(Boolean);
+  if (required && !list.length) throw new ApiError(400, `Enter at least one ${label} email address`);
+  if (list.length > 10) throw new ApiError(400, `Up to 10 ${label} addresses`);
+  const bad = list.find((e) => !EMAIL_RE.test(e));
+  if (bad) throw new ApiError(400, `"${bad}" is not a valid email address`);
+  return list.join(', ');
+};
+
+const defaultEmailDraft = (s, landlord) => {
+  const period = `${ukDate(localDate(s.period_start))} – ${ukDate(localDate(s.period_end))}`;
+  const name = niceName(s.landlord_name || landlord?.name) || 'Landlord';
+  return {
+    email_to: landlord?.email && EMAIL_RE.test(landlord.email) ? landlord.email : '',
+    email_cc: '',
+    email_subject: `ROCA Living statement ${s.statement_number} (${period})`,
+    email_body: `Dear ${name},\n\nPlease find attached your statement ${s.statement_number} and invoice for the period ${period}.\n\nIf you have any questions, please reply to this email or call us on 0207 101 9551.\n\nKind regards,\nROCA Living`
+  };
+};
+
+// The saved draft, or the standard one for statements that don't have one yet.
+const loadEmailDraft = async (s) => {
+  const landlord = s.landlord_id ? await db('users').where('id', s.landlord_id).first('email', 'name') : null;
+  const defaults = defaultEmailDraft(s, landlord);
+  return {
+    to: s.email_to ?? defaults.email_to,
+    cc: s.email_cc ?? defaults.email_cc,
+    subject: s.email_subject ?? defaults.email_subject,
+    body: s.email_body ?? defaults.email_body
+  };
+};
+
+const statementAttachmentName = async (s) => {
+  const doc = s.document_id ? await db('documents').where('id', s.document_id).first('filename') : null;
+  return doc?.filename || `${s.statement_number}.pdf`;
+};
+
+// GET /statements/:id/email — the email draft for review.
+export const getStatementEmail = catchAsync(async (req, res) => {
+  const s = await db('landlord_statements').where('id', req.params.id).first();
+  if (!s) throw new ApiError(404, 'Statement not found');
+  res.json({
+    success: true,
+    data: {
+      ...(await loadEmailDraft(s)),
+      attachment: await statementAttachmentName(s),
+      statement_number: s.statement_number,
+      sent_at: s.sent_at ? new Date(s.sent_at).toISOString() : null,
+      sent_to: s.sent_to || null
+    }
+  });
+});
+
+// PUT /statements/:id/email { to, cc, subject, body } — save the edited draft.
+export const saveStatementEmail = catchAsync(async (req, res) => {
+  const s = await db('landlord_statements').where('id', req.params.id).first();
+  if (!s) throw new ApiError(404, 'Statement not found');
+  const b = req.body || {};
+  const subject = String(b.subject || '').trim();
+  const body = String(b.body || '').trim();
+  if (!subject || subject.length > 255) throw new ApiError(400, 'Enter a subject (up to 255 characters)');
+  if (!body || body.length > 10000) throw new ApiError(400, 'Enter a message (up to 10,000 characters)');
+  const update = {
+    email_to: emailList(b.to, 'recipient'),
+    email_cc: emailList(b.cc, 'CC'),
+    email_subject: subject,
+    email_body: body
+  };
+  await db('landlord_statements').where('id', s.id).update(update);
+  res.json({ success: true, data: { to: update.email_to, cc: update.email_cc, subject, body } });
+});
+
+// POST /statements/:id/send — email the saved draft with the statement PDF
+// (the human-approved send) and mark it Sent.
 export const sendStatement = catchAsync(async (req, res) => {
   let s = await db('landlord_statements').where('id', req.params.id).first();
   if (!s) throw new ApiError(404, 'Statement not found');
-  s = await ensureStatementPdfCurrent(s);
-  const landlord = s.landlord_id ? await db('users').where('id', s.landlord_id).first('email', 'name') : null;
-  const to = String(req.body?.to || landlord?.email || '').trim();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) throw new ApiError(400, 'The landlord has no valid email address — add it on the landlord first');
+  const draft = await loadEmailDraft(s);
+  const to = emailList(draft.to, 'recipient', { required: true });
+  const cc = emailList(draft.cc, 'CC');
 
+  s = await ensureStatementPdfCurrent(s);
   const doc = await db('documents').where('id', s.document_id).first();
   const abs = doc ? (path.isAbsolute(doc.file_path) ? doc.file_path : path.join(process.cwd(), doc.file_path)) : null;
   if (!abs || !fs.existsSync(abs)) throw new ApiError(404, 'Statement PDF not found');
 
-  const period = `${ukDate(localDate(s.period_start))} – ${ukDate(localDate(s.period_end))}`;
-  const name = s.landlord_name || landlord?.name || 'Landlord';
+  const html = draft.body.split(/\n{2,}/).map((p) => `<p>${escapeHtmlText(p).replace(/\n/g, '<br>')}</p>`).join('');
   const info = await sendEmail({
     to,
-    subject: `ROCA Living statement ${s.statement_number} (${period})`,
-    text: `Dear ${name},\n\nPlease find attached your statement ${s.statement_number} for the period ${period}.\n\nKind regards,\nROCA Living\n0207 101 9551 · admin@rocaliving.co.uk`,
-    html: `<p>Dear ${escapeHtmlText(name)},</p><p>Please find attached your statement <strong>${escapeHtmlText(s.statement_number)}</strong> for the period ${period}.</p><p>Kind regards,<br>ROCA Living<br>0207 101 9551 · admin@rocaliving.co.uk</p>`,
+    ...(cc ? { cc } : {}),
+    subject: draft.subject,
+    text: draft.body,
+    html,
     attachments: [{ filename: doc.filename || `${s.statement_number}.pdf`, path: abs, contentType: 'application/pdf' }]
   });
   if (!info) throw new ApiError(503, 'Email is not configured on this server (SMTP settings missing) — nothing was sent');
@@ -1340,7 +1421,7 @@ export const sendStatement = catchAsync(async (req, res) => {
     await trx('landlord_statements').where('id', s.id).update({
       status: s.status === 'paid' ? 'paid' : 'sent',
       sent_at: trx.fn.now(),
-      sent_to: to
+      sent_to: cc ? `${to} (cc ${cc})`.slice(0, 255) : to.slice(0, 255)
     });
     await trx('audit_log').insert({
       actor_id: req.user.id,
@@ -1348,11 +1429,11 @@ export const sendStatement = catchAsync(async (req, res) => {
       action: 'STATEMENT_SENT',
       entity_type: 'landlord_statement',
       entity_id: s.id,
-      meta: JSON.stringify({ to, statement_number: s.statement_number, resend: !!s.sent_at }),
+      meta: JSON.stringify({ to, cc, subject: draft.subject, statement_number: s.statement_number, resend: !!s.sent_at }),
       ip_address: req.ip || null
     });
   });
-  res.json({ success: true, data: { sent_to: to } });
+  res.json({ success: true, data: { sent_to: to, cc } });
 });
 
 const escapeHtmlText = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

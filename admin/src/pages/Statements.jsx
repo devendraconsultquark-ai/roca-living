@@ -6,6 +6,7 @@ import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
 import { Skeleton } from '../components/UI/Skeleton';
 import { TenantStatementModal } from '../components/UI/TenantStatementModal';
+import { StatementEmailModal } from '../components/UI/StatementEmailModal';
 import api from '../utilities/api';
 
 export const Statements = () => {
@@ -17,7 +18,6 @@ export const Statements = () => {
   const [showModal, setShowModal] = useState(false);
   const { addToast } = useToast();
   const confirm = useConfirm();
-  const [sendingId, setSendingId] = useState(null);
 
   const fetchStatements = async () => {
     setLoading(true);
@@ -67,30 +67,8 @@ export const Statements = () => {
   }, []);
 
   // Emails the statement PDF to the landlord and marks it Sent.
-  const handleSend = async (row) => {
-    if (!row.landlordEmail) {
-      addToast('This landlord has no email address — add it on the landlord first', 'error');
-      return;
-    }
-    const ok = await confirm({
-      title: row.sentAt ? 'Send again?' : 'Send statement',
-      message: row.sentAt
-        ? `${row.statement_reference} was already sent to ${row.sentTo} on ${row.sentAt}. Send it again to ${row.landlordEmail}?`
-        : `Email ${row.statement_reference} (PDF attached) to ${row.landlord} at ${row.landlordEmail}?`,
-      confirmText: row.sentAt ? 'Send again' : 'Send',
-    });
-    if (!ok) return;
-    setSendingId(row.id);
-    try {
-      const res = await api.post(`/statements/${row.id}/send`);
-      addToast(`Statement ${row.statement_reference} sent to ${res.data.data.sent_to}`, 'success');
-      fetchStatements();
-    } catch (err) {
-      addToast(err.response?.data?.message || 'Failed to send the statement', 'error');
-    } finally {
-      setSendingId(null);
-    }
-  };
+  // Email draft window (review, edit, then send with the PDF attached).
+  const [emailFor, setEmailFor] = useState(null);
 
   // A draft that was never sent can be deleted (e.g. generated with the wrong
   // number); its rent money and expenses go back for the next statement.
@@ -227,11 +205,10 @@ export const Statements = () => {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => handleSend(row)}
+            onClick={() => setEmailFor(row.id)}
             icon={Mail}
-            disabled={sendingId === row.id}
           >
-            {sendingId === row.id ? 'Sending…' : row.sentAt ? 'Resend' : 'Send'}
+            {row.sentAt ? 'Email again' : 'Email'}
           </Button>
           {row.rawStatus === 'draft' && (
             <Button
@@ -302,6 +279,9 @@ export const Statements = () => {
         )}
       </div>
 
+      {emailFor && (
+        <StatementEmailModal statementId={emailFor} onClose={() => setEmailFor(null)} onSent={fetchStatements} />
+      )}
       {showModal && (
         <TenantStatementModal onClose={() => setShowModal(false)} onGenerated={fetchStatements} />
       )}

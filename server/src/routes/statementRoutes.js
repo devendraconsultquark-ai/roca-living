@@ -12,7 +12,9 @@ import {
   getTenancyPeriods,
   previewTenancyStatement,
   sendStatement,
-  deleteDraftStatement
+  deleteDraftStatement,
+  getStatementEmail,
+  saveStatementEmail
 } from '../controllers/statementController.js';
 import { protect } from '../middlewares/protect.js';
 import { restrictTo } from '../middlewares/restrictTo.js';
@@ -31,6 +33,8 @@ statementRouter.post('/preview', protect('admin'), restrictTo('ADMIN'), previewT
 statementRouter.post('/generate', protect('admin'), restrictTo('ADMIN'), generateStatements);
 statementRouter.get('/', protect('admin'), restrictTo('ADMIN'), getStatements);
 statementRouter.patch('/:id/status', protect('admin'), restrictTo('ADMIN'), updateStatementStatus);
+statementRouter.get('/:id/email', protect('admin'), restrictTo('ADMIN'), getStatementEmail);
+statementRouter.put('/:id/email', protect('admin'), restrictTo('ADMIN'), saveStatementEmail);
 statementRouter.post('/:id/send', protect('admin'), restrictTo('ADMIN'), sendStatement);
 statementRouter.delete('/:id', protect('admin'), restrictTo('ADMIN'), deleteDraftStatement);
 
