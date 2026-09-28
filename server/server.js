@@ -23,6 +23,8 @@ import { runPhase19Migrations } from './src/db/migrations/phase19_xero_bank_tran
 import { runPhase20Migrations } from './src/db/migrations/phase20_rent_allocation.js';
 import { runPhase21Migrations } from './src/db/migrations/phase21_tenancy_opening.js';
 import { runPhase22Migrations } from './src/db/migrations/phase22_estates_link.js';
+import { runPhase23Migrations } from './src/db/migrations/phase23_statement_expenses_send.js';
+import { runPhase24Migrations } from './src/db/migrations/phase24_statement_payment_status.js';
 import { startScheduler } from './src/jobs/scheduler.js';
 import { ensurePuppeteerDependencies } from './src/utils/puppeteerGenerator.js';
 const PORT = Number(process.env.PORT) || 9000;
@@ -106,6 +108,12 @@ const startServer = async () => {
 
   await runPhase22Migrations();
   logger.info('Phase 22 migrations complete');
+
+  await runPhase23Migrations();
+  logger.info('Phase 23 migrations complete');
+
+  await runPhase24Migrations();
+  logger.info('Phase 24 migrations complete');
 
   await ensurePuppeteerDependencies();
 

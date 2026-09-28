@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Plus, Trash2, AlertTriangle, X } from 'lucide-react';
+import { Calendar, Plus, Trash2, AlertTriangle, X, Eye } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { DatePicker } from './DatePicker';
@@ -12,6 +12,7 @@ const num = (v) => {
   const n = parseFloat(v);
   return Number.isFinite(n) ? n : 0;
 };
+const ukDate = (ymd) => (ymd ? ymd.split('-').reverse().join('/') : '');
 const money = (v) => {
   const n = Math.round(num(v) * 100) / 100;
   const text = `£${Math.abs(n).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -33,12 +34,13 @@ const HEADER_FIELDS = [
 
 const SECTIONS = [
   { key: 'income_lines', title: 'Income', hint: 'Rent received for the period. Add credits, e.g. a void period rent credit.' },
-  { key: 'fee_lines', title: 'ROCA Fees (invoice)', hint: 'Becomes the fee invoice. Use the discount column to reduce or waive a fee.', fee: true },
-  { key: 'expenditure_lines', title: 'Expenditure', hint: 'Repairs and other costs deducted from the landlord. Use a negative amount for a rebate.' },
+  { key: 'fee_lines', title: 'ROCA Fees (invoice)', hint: 'Becomes the fee invoice. The fee is worked out from the income and updates when you change the rent — type your own amount to override it. Use the discount column to reduce or waive a fee.', fee: true },
+  { key: 'expenditure_lines', title: 'Expenditure', hint: 'Costs deducted from the landlord: expenses added on the apartment (Properties → apartment → Expenses), completed repairs and Xero expenses fill in here. Use a negative amount for a rebate.' },
 ];
 
-// Statements → select tenant → everything auto-fills → admin checks/edits →
-// Generate (statement + linked fee invoice PDF).
+// Statements → select landlord & unit → choose the rent month → everything
+// auto-fills → admin checks/edits → Preview → Generate (statement + fee invoice
+// PDF in ROCA Living's own design).
 export const TenantStatementModal = ({ onClose, onGenerated }) => {
   const { addToast } = useToast();
   const [options, setOptions] = useState([]);
@@ -47,6 +49,10 @@ export const TenantStatementModal = ({ onClose, onGenerated }) => {
   const [form, setForm] = useState(null);
   const [loadingForm, setLoadingForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [periods, setPeriods] = useState([]);
+  const [previewing, setPreviewing] = useState(false);
+  const [lastSeq, setLastSeq] = useState('');
+  const [savingSeq, setSavingSeq] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -69,6 +75,7 @@ export const TenantStatementModal = ({ onClose, onGenerated }) => {
         params: periodStart ? { period_start: periodStart } : {},
       });
       setForm(res.data.data);
+      setLastSeq(res.data.data.last_statement_seq ?? '');
     } catch (err) {
       addToast(err.response?.data?.message || 'Failed to load tenant details', 'error');
       setForm(null);
@@ -77,22 +84,73 @@ export const TenantStatementModal = ({ onClose, onGenerated }) => {
     }
   };
 
-  const selectTenant = (id) => {
+  const selectTenant = async (id) => {
     setTenancyId(id);
     setForm(null);
-    if (id) loadAutofill(id);
+    setPeriods([]);
+    if (!id) return;
+    try {
+      const res = await api.get(`/statements/tenancy-periods/${id}`);
+      setPeriods(res.data.data.periods || []);
+      loadAutofill(id, res.data.data.next_period_start || undefined);
+    } catch {
+      loadAutofill(id);
+    }
+  };
+
+  // "Last statement number issued by hand" for this tenancy, so numbering
+  // continues from the client's own numbers (e.g. 5 → next is PH_19_0006).
+  const saveLastSeq = async () => {
+    setSavingSeq(true);
+    try {
+      await api.patch(`/tenancies/${tenancyId}/opening`, { last_statement_seq: lastSeq === '' ? null : Number(lastSeq) });
+      addToast('Numbering updated', 'success');
+      loadAutofill(tenancyId, form?.period_start);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to update numbering', 'error');
+    } finally {
+      setSavingSeq(false);
+    }
+  };
+
+  // Opens the exact PDF for the form in a new tab, without saving anything.
+  const preview = async () => {
+    const tab = window.open('', '_blank');
+    setPreviewing(true);
+    try {
+      const res = await api.post('/statements/preview', { ...form, tenancy_id: Number(tenancyId) }, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      if (tab) tab.location.href = url; else window.open(url, '_blank');
+    } catch (err) {
+      if (tab) tab.close();
+      let message = 'Failed to preview the statement';
+      try { message = JSON.parse(await err.response?.data?.text())?.message || message; } catch { /* not JSON */ }
+      addToast(message, 'error');
+    } finally {
+      setPreviewing(false);
+    }
   };
 
   const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
-  const setLine = (section, index, key, value) => setForm((f) => ({
+
+  // The management fee follows the income (8% of it) until the admin types a
+  // fee amount themselves; from then on it is left as entered.
+  const withFee = (f) => {
+    if (f.fee_manual || !f.fee_lines.length) return f;
+    const income = f.income_lines.reduce((s, l) => s + num(l.amount), 0);
+    const fee = Math.round(income * num(f.mgmt_fee_pct)) / 100;
+    return { ...f, fee_lines: f.fee_lines.map((l, i) => (i === 0 ? { ...l, amount: fee } : l)) };
+  };
+  const setLine = (section, index, key, value) => setForm((f) => withFee({
     ...f,
+    ...(section === 'fee_lines' && key === 'amount' ? { fee_manual: true } : {}),
     [section]: f[section].map((l, i) => (i === index ? { ...l, [key]: value } : l)),
   }));
   const addLine = (section) => setForm((f) => ({
     ...f,
     [section]: [...f[section], section === 'fee_lines' ? { description: '', amount: '', discount: '' } : { description: '', amount: '' }],
   }));
-  const removeLine = (section, index) => setForm((f) => ({ ...f, [section]: f[section].filter((_, i) => i !== index) }));
+  const removeLine = (section, index) => setForm((f) => withFee({ ...f, [section]: f[section].filter((_, i) => i !== index) }));
 
   // Live totals — the server recomputes the same figures on Generate.
   const totals = form ? (() => {
@@ -141,18 +199,18 @@ export const TenantStatementModal = ({ onClose, onGenerated }) => {
         <form onSubmit={submit} className="p-6 flex flex-col gap-6 max-h-[80vh] overflow-y-auto">
           <div className="bg-status-info-bg p-4 rounded-card border border-status-info/15 flex flex-col gap-3">
             <Dropdown
-              label="Select Tenant"
+              label="Landlord & Unit"
               id="tenancySelect"
               options={options.map((o) => ({ value: String(o.tenancy_id), label: o.label }))}
               value={tenancyId}
               onChange={selectTenant}
-              placeholder={loadingOptions ? 'Loading tenants...' : 'Search and select a tenant...'}
+              placeholder={loadingOptions ? 'Loading landlords...' : 'Search and select a landlord...'}
               searchable
               clearable
               disabled={loadingOptions}
             />
             <p className="text-xs-portal text-status-info italic">
-              Landlord, references, period, rent, the management fee and completed repairs fill in automatically. Check them, then generate.
+              Only apartments ROCA Living manages are listed. Choose the rent month — landlord, references, rent, the 8% fee and expenses fill in automatically. Check them, preview, then generate.
             </p>
           </div>
 
@@ -169,22 +227,71 @@ export const TenantStatementModal = ({ onClose, onGenerated }) => {
                 <Warning danger text="This property has no landlord linked. Add the landlord to the property first." />
               )}
               {form.existing_statement_number && (
-                <Warning danger text={`Statement ${form.existing_statement_number} already covers this tenant for this period. Choose a different period start.`} />
+                <Warning danger text={`Statement ${form.existing_statement_number} already covers this rent month. Choose another month.`} />
               )}
               {form.missing_unit_codes && (
-                <Warning text="This property needs a Block code and Apartment number before a statement can be generated. Set them on the property (Properties → Edit, e.g. Block = PH, Apartment = 33), then select the tenant again." />
+                <Warning text="This apartment has no block code and apartment number (e.g. PH + 33), so no statement number can be made. Check it is linked to its ROCA Estates apartment." />
               )}
               {form.tenant_credit > 0 && (
                 <p className="text-xs-portal font-semibold text-status-info bg-status-info-bg border border-status-info/15 rounded-card p-3">
                   The tenant has {money(form.tenant_credit)} credit (paid in advance). It will be included on the statement of the month it pays — no fee is taken on it until then.
                 </p>
               )}
+              {form.checks?.length > 0 && (
+                <div className="flex gap-3 items-start rounded-card p-4 border bg-status-warning/10 border-status-warning/15">
+                  <AlertTriangle size={16} className="shrink-0 mt-0.5 text-status-warning" />
+                  <div className="text-xs-portal font-semibold text-status-warning">
+                    <p className="mb-1">Check before issuing:</p>
+                    <ul className="list-disc pl-4 flex flex-col gap-0.5">
+                      {form.checks.map((c) => <li key={c}>{c}</li>)}
+                    </ul>
+                  </div>
+                </div>
+              )}
               {!form.rent_recorded && (
                 <Warning text="No rent payment is recorded for this period — the rent due is shown. Check the rent was received, or record the payment first." />
               )}
 
               <div className="border-b pb-4 border-card-border">
+                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-1">Rent Month</h3>
+                <p className="text-xs-portal text-status-muted mb-3">
+                  Which rent period this statement is for. Months that already have a statement are shown but can't be chosen again.
+                </p>
+                <Dropdown
+                  id="rentMonth"
+                  options={periods.map((p) => ({
+                    value: p.start,
+                    label: `${ukDate(p.start)} – ${ukDate(p.end)}${p.statement_number ? ` · ${p.statement_number} issued` : ''}`,
+                    disabled: !!p.statement_number && p.start !== form.period_start,
+                  }))}
+                  value={form.period_start}
+                  onChange={(v) => v && v !== form.period_start && loadAutofill(tenancyId, v)}
+                  placeholder={`${ukDate(form.period_start)} – ${ukDate(form.period_end)}`}
+                />
+              </div>
+
+              <div className="border-b pb-4 border-card-border">
                 <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-3">Statement Details</h3>
+                <div className="flex flex-wrap items-end gap-3 mb-4 bg-surface-hover/50 border border-card-border rounded-card p-3">
+                  <div className="w-56">
+                    <Input
+                      id="lastSeq"
+                      label="Last number issued by hand"
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="e.g. 5 for _0005"
+                      value={lastSeq}
+                      onChange={(e) => setLastSeq(e.target.value)}
+                    />
+                  </div>
+                  <Button type="button" variant="secondary" size="sm" onClick={saveLastSeq} disabled={savingSeq}>
+                    {savingSeq ? 'Saving…' : 'Save numbering'}
+                  </Button>
+                  <p className="text-xs-portal text-status-muted flex-1 min-w-48">
+                    If ROCA already issued statements for this apartment before this system, enter the last number so this one continues after it.
+                  </p>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {HEADER_FIELDS.map((f) => (f.multiline ? (
                     <div key={f.key}>
@@ -216,28 +323,6 @@ export const TenantStatementModal = ({ onClose, onGenerated }) => {
                 </div>
               </div>
 
-              <div className="border-b pb-4 border-card-border">
-                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-1">Statement Period</h3>
-                <p className="text-xs-portal text-status-muted mb-3">
-                  Changing the start date reloads the rent, fee and repairs for that period.
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <DatePicker
-                    label="Period Start"
-                    id="periodStart"
-                    required
-                    value={form.period_start}
-                    onChange={(v) => v && loadAutofill(tenancyId, v)}
-                  />
-                  <DatePicker
-                    label="Period End"
-                    id="periodEnd"
-                    required
-                    value={form.period_end}
-                    onChange={(v) => setField('period_end', v)}
-                  />
-                </div>
-              </div>
 
               {SECTIONS.map((section) => (
                 <div key={section.key} className="border-b pb-4 border-card-border">
@@ -345,6 +430,9 @@ export const TenantStatementModal = ({ onClose, onGenerated }) => {
           <div className="flex justify-end gap-3">
             <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>
               Cancel
+            </Button>
+            <Button type="button" variant="secondary" icon={Eye} onClick={preview} disabled={!form || previewing || saving || loadingForm || blocked}>
+              {previewing ? 'Preparing...' : 'Preview PDF'}
             </Button>
             <Button type="submit" variant="primary" disabled={saving || loadingForm || blocked}>
               {saving ? 'Generating...' : 'Generate Statement'}

@@ -8,7 +8,11 @@ import {
   getAutofillMetadata,
   updateStatementStatus,
   getTenancyStatementOptions,
-  getTenancyAutofill
+  getTenancyAutofill,
+  getTenancyPeriods,
+  previewTenancyStatement,
+  sendStatement,
+  deleteDraftStatement
 } from '../controllers/statementController.js';
 import { protect } from '../middlewares/protect.js';
 import { restrictTo } from '../middlewares/restrictTo.js';
@@ -22,9 +26,13 @@ statementRouter.get('/my', protect('landlord'), restrictTo('LANDLORD'), getLandl
 statementRouter.get('/autofill-metadata', protect('admin'), restrictTo('ADMIN'), getAutofillMetadata);
 statementRouter.get('/tenancy-options', protect('admin'), restrictTo('ADMIN'), getTenancyStatementOptions);
 statementRouter.get('/tenancy-autofill/:tenancyId', protect('admin'), restrictTo('ADMIN'), getTenancyAutofill);
+statementRouter.get('/tenancy-periods/:tenancyId', protect('admin'), restrictTo('ADMIN'), getTenancyPeriods);
+statementRouter.post('/preview', protect('admin'), restrictTo('ADMIN'), previewTenancyStatement);
 statementRouter.post('/generate', protect('admin'), restrictTo('ADMIN'), generateStatements);
 statementRouter.get('/', protect('admin'), restrictTo('ADMIN'), getStatements);
 statementRouter.patch('/:id/status', protect('admin'), restrictTo('ADMIN'), updateStatementStatus);
+statementRouter.post('/:id/send', protect('admin'), restrictTo('ADMIN'), sendStatement);
+statementRouter.delete('/:id', protect('admin'), restrictTo('ADMIN'), deleteDraftStatement);
 
 // Shared Admin/Landlord routes (Ownership validated in controller)
 statementRouter.get('/:id', protect(), restrictTo('ADMIN', 'LANDLORD'), getStatementById);

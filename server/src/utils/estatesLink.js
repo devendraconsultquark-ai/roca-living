@@ -105,9 +105,41 @@ export const ensureLivingLandlord = async (trx, rocaemUserId) => {
   return userId;
 };
 
+// Landlord chosen in Roca Living when ROCA Estates has no owner on the unit:
+// an existing Roca Living landlord, or a new one (reused if the email exists).
+const resolveChosenLandlord = async (trx, { landlordId, newLandlord } = {}) => {
+  if (landlordId) {
+    const l = await trx('users').where({ id: landlordId, role: 'LANDLORD' }).first();
+    if (!l) throw new ApiError(400, 'Selected landlord not found');
+    return l.id;
+  }
+  if (newLandlord && newLandlord.name && newLandlord.email) {
+    const email = String(newLandlord.email).trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ApiError(400, 'Enter a valid landlord email');
+    const existing = await trx('users').whereRaw('LOWER(email) = ?', [email]).first();
+    if (existing) {
+      if (existing.role !== 'LANDLORD') throw new ApiError(409, `${email} is already used by a non-landlord account`);
+      return existing.id;
+    }
+    const password = await bcrypt.hash(crypto.randomBytes(24).toString('hex'), 12);
+    const [userId] = await trx('users').insert({
+      name: String(newLandlord.name).trim().slice(0, 255),
+      email,
+      phone: String(newLandlord.phone || '').trim().slice(0, 20),
+      address: String(newLandlord.address || '').trim() || null,
+      password,
+      role: 'LANDLORD'
+    });
+    await ensureLandlordSetup(trx, userId, {});
+    return userId;
+  }
+  return null;
+};
+
 // Local lettings record for a Rocaem apartment: by link, else same block +
-// apartment number (existing records), else created.
-export const ensureLivingProperty = async (trx, rocaemPropertyId) => {
+// apartment number (existing records), else created. The landlord is the
+// Rocaem owner; if Rocaem has none, the one chosen in Add Tenant.
+export const ensureLivingProperty = async (trx, rocaemPropertyId, landlordChoice = {}) => {
   const linked = await trx('properties').where({ rocaem_property_id: rocaemPropertyId }).first();
   if (linked) return linked.id;
 
@@ -126,10 +158,12 @@ export const ensureLivingProperty = async (trx, rocaemPropertyId) => {
     }
   }
 
-  if (!u.landlord_id) {
-    throw new ApiError(400, `${u.name} has no landlord in ROCA Estates — link the landlord to this apartment in ROCA Estates first`);
+  const landlordId = u.landlord_id
+    ? await ensureLivingLandlord(trx, u.landlord_id)
+    : await resolveChosenLandlord(trx, landlordChoice);
+  if (!landlordId) {
+    throw new ApiError(400, `${u.name} has no landlord in ROCA Estates — choose or add the landlord`);
   }
-  const landlordId = await ensureLivingLandlord(trx, u.landlord_id);
   const addr = estateUnitAddress(u);
   const [propertyId] = await trx('properties').insert({
     landlord_id: landlordId,
@@ -144,6 +178,35 @@ export const ensureLivingProperty = async (trx, rocaemPropertyId) => {
   });
   await trx('properties').where('id', propertyId).update({ property_reference: `REM-PRP-${String(propertyId).padStart(5, '0')}` });
   return propertyId;
+};
+
+// "Refresh from ROCA Estates": copy the apartment address (when Rocaem has a
+// complete one) and the owner's name/address onto the Roca Living records.
+export const refreshFromEstates = async (trx, propertyId) => {
+  const p = await trx('properties').where('id', propertyId).first();
+  if (!p) throw new ApiError(404, 'Property not found');
+  if (!p.rocaem_property_id) throw new ApiError(400, 'This property is not linked to a ROCA Estates apartment');
+  const u = await fetchEstateUnit(p.rocaem_property_id);
+  if (!u) throw new ApiError(404, 'Apartment not found in ROCA Estates');
+  const updated = [];
+  const addr = estateUnitAddress(u);
+  if (addr.postcode) {
+    await trx('properties').where('id', p.id).update({ ...addr, updated_at: trx.fn.now() });
+    updated.push('apartment address');
+  }
+  if (u.landlord_id) {
+    const l = await fetchEstateLandlord(u.landlord_id);
+    if (l) {
+      const address = estateLandlordAddress(l);
+      await trx('users').where('id', p.landlord_id).update({
+        name: estateLandlordName(l),
+        ...(address ? { address } : {}),
+        ...(l.phone ? { phone: l.phone } : {})
+      });
+      updated.push('landlord name and address');
+    }
+  }
+  return updated;
 };
 
 // Live Rocaem display data for a local property, used on statements. Returns

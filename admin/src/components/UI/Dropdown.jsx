@@ -5,7 +5,7 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { ChevronDown, Check, X, Search, ChevronsUpDown } from "lucide-react";
+import { ChevronDown, Check, X, Search } from "lucide-react";
 
 /**
  * Dropdown — Universal custom select component.
@@ -57,11 +57,14 @@ export const Dropdown = ({
   const listRef = useRef(null);
 
   // ─── Normalise value ────────────────────────────────────────────────────────
+  // '' means "nothing selected" (shows the placeholder, no clear ×) unless a
+  // list deliberately offers an option whose value is ''.
   const selectedValues = useMemo(() => {
+    const isEmpty = (v) => v == null || (v === "" && !options.some((o) => o.value === ""));
     if (multiple)
-      return Array.isArray(value) ? value : value != null ? [value] : [];
-    return value != null ? [value] : [];
-  }, [value, multiple]);
+      return Array.isArray(value) ? value : !isEmpty(value) ? [value] : [];
+    return !isEmpty(value) ? [value] : [];
+  }, [value, multiple, options]);
 
   // ─── Filtered options ────────────────────────────────────────────────────────
   const filteredOptions = useMemo(() => {

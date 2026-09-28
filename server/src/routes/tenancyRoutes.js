@@ -12,6 +12,7 @@ import {
   getAllTenants,
   updateTenant,
   deleteTenant,
+  updateTenancyOpening,
   getTenantById
 } from '../controllers/tenancyController.js';
 import { protect } from '../middlewares/protect.js';
@@ -31,6 +32,7 @@ tenancyRouter.delete('/tenants/:id', protect('admin'), restrictTo('ADMIN'), dele
 tenancyRouter.post('/', protect('admin'), restrictTo('ADMIN'), createTenancy);
 tenancyRouter.get('/', protect('admin'), restrictTo('ADMIN'), getAllTenancies);
 tenancyRouter.get('/:id', protect('admin'), restrictTo('ADMIN'), getTenancyById);
+tenancyRouter.patch('/:id/opening', protect('admin'), restrictTo('ADMIN'), updateTenancyOpening);
 tenancyRouter.patch('/:id', protect('admin'), restrictTo('ADMIN'), updateTenancy);
 tenancyRouter.patch('/:id/rent-review', protect('admin'), restrictTo('ADMIN'), updateRentReview);
 tenancyRouter.post('/:id/rent-payments', protect('admin'), restrictTo('ADMIN'), recordRentPayment);

@@ -30,17 +30,24 @@ export const DataTable = ({
   const sortedData = React.useMemo(() => {
     if (!sortField) return data;
 
+    const isEmpty = (v) => v === null || v === undefined || v === '';
     return [...data].sort((a, b) => {
-      let aVal = a[sortField];
-      let bVal = b[sortField];
+      const aVal = a[sortField];
+      const bVal = b[sortField];
 
-      if (typeof aVal === 'string') {
-        return sortOrder === 'asc'
-          ? aVal.localeCompare(bVal)
-          : bVal.localeCompare(aVal);
+      // Empty values (e.g. an apartment with no landlord) always sort last.
+      if (isEmpty(aVal) || isEmpty(bVal)) {
+        return isEmpty(aVal) === isEmpty(bVal) ? 0 : isEmpty(aVal) ? 1 : -1;
       }
 
-      return sortOrder === 'asc' ? aVal - bVal : bVal - aVal;
+      let result;
+      if (typeof aVal === 'number' && typeof bVal === 'number') {
+        result = aVal - bVal;
+      } else {
+        // Natural order for text: "PH-2" before "PH-10".
+        result = String(aVal).localeCompare(String(bVal), 'en-GB', { numeric: true, sensitivity: 'base' });
+      }
+      return sortOrder === 'asc' ? result : -result;
     });
   }, [data, sortField, sortOrder]);
 

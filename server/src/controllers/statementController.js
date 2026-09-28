@@ -3,12 +3,14 @@ import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
 import { generatePortraitPDFWithPuppeteer } from '../utils/puppeteerGenerator.js';
 import { generateStandaloneStatementHTML, generateStandaloneInvoiceHTML, generateCombinedHTML } from '../templates/statementInvoiceTemplate.js';
+import { rocaLivingStatementPdfHtml, rocaLivingInvoicePdfHtml, rocaLivingPdfFileName } from '../templates/rocaLivingStatementTemplate.js';
 import { deriveInitials } from '../utils/initials.js';
 import { parseBlockName, parseApartmentNumber, getNextSeq, formatNrl } from '../utils/statementNumbering.js';
-import { estateDisplayFor } from '../utils/estatesLink.js';
 import { getNumericSetting } from '../utils/settings.js';
 import { tenancyCredit } from '../utils/rentAllocation.js';
 import logger from '../utils/logger.js';
+import { sendEmail } from '../utils/email.js';
+import { ensureStatementPdfCurrent } from '../utils/statementPdf.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -21,8 +23,10 @@ const localDate = (d) => {
 
 const formatStatement = (s) => {
   if (!s) return null;
+  // render_data is internal (used to redraw the PDF) — never sent to clients.
+  const { render_data: _renderData, ...rest } = s;
   return {
-    ...s,
+    ...rest,
     gross_rent: s.gross_rent !== null && s.gross_rent !== undefined ? parseFloat(s.gross_rent).toFixed(2) : null,
     mgmt_fee: s.mgmt_fee !== null && s.mgmt_fee !== undefined ? parseFloat(s.mgmt_fee).toFixed(2) : null,
     mgmt_fee_vat: s.mgmt_fee_vat !== null && s.mgmt_fee_vat !== undefined ? parseFloat(s.mgmt_fee_vat).toFixed(2) : null,
@@ -296,7 +300,8 @@ export const getStatements = catchAsync(async (req, res, next) => {
     .leftJoin('users', 'landlord_statements.landlord_id', 'users.id')
     .select(
       'landlord_statements.*',
-      db.raw('COALESCE(users.name, landlord_statements.landlord_name) as landlord_name')
+      db.raw('COALESCE(users.name, landlord_statements.landlord_name) as landlord_name'),
+      'users.email as landlord_email'
     )
     .orderBy('landlord_statements.created_at', 'desc');
 
@@ -413,7 +418,7 @@ export const updateStatementStatus = catchAsync(async (req, res, next) => {
 export const downloadStatement = catchAsync(async (req, res, next) => {
   const { id } = req.params;
 
-  const statement = await db('landlord_statements').where('id', id).first();
+  let statement = await db('landlord_statements').where('id', id).first();
   if (!statement) {
     throw new ApiError(404, 'Statement not found');
   }
@@ -421,6 +426,7 @@ export const downloadStatement = catchAsync(async (req, res, next) => {
   if (req.user.role === 'LANDLORD' && statement.landlord_id !== req.user.id) {
     throw new ApiError(403, 'You do not have permission to perform this action');
   }
+  statement = await ensureStatementPdfCurrent(statement);
 
   const docRecord = await db('documents').where('id', statement.document_id).first();
   if (!docRecord) {
@@ -709,12 +715,14 @@ const loadTenancyContext = (tenancyId) => db('tenancies')
     'landlords.id as landlord_id',
     'landlords.name as landlord_name',
     'landlords.address as landlord_address',
+    'landlords.email as landlord_email',
     'profiles.initials as landlord_initials',
     'profiles.nrl_hmrc_ref'
   )
   .first();
 
-// GET /statements/tenancy-options — tenants for the "Select tenant" dropdown.
+// GET /statements/tenancy-options — "Landlord · PH-13 (Tenant)" rows for the
+// statement dropdown: only apartments ROCA Living manages (a live tenancy).
 export const getTenancyStatementOptions = catchAsync(async (req, res) => {
   const rows = await db('tenancies')
     .join('properties', 'tenancies.property_id', 'properties.id')
@@ -731,7 +739,7 @@ export const getTenancyStatementOptions = catchAsync(async (req, res) => {
       'landlords.name as landlord_name',
       'tenants.name as tenant_name'
     )
-    .orderBy('properties.address_line1');
+    .orderBy([{ column: 'landlords.name' }, { column: 'properties.apartment_number' }]);
 
   res.json({
     success: true,
@@ -740,10 +748,38 @@ export const getTenancyStatementOptions = catchAsync(async (req, res) => {
       const apt = parseApartmentNumber(r.address_line1, r.apartment_number, null);
       return {
         tenancy_id: r.tenancy_id,
-        label: `${block}-${apt} · ${r.tenant_name || 'No tenant name'} · ${r.landlord_name || 'No landlord'}`
+        label: `${r.landlord_name || 'No landlord'} · ${block}-${apt} (${r.tenant_name || 'no tenant name'})`
       };
     })
   });
+});
+
+// GET /statements/tenancy-periods/:tenancyId — rent months for the "Rent month"
+// picker: from the first period in the system to next month, each marked with
+// the statement already issued for it (if any).
+export const getTenancyPeriods = catchAsync(async (req, res) => {
+  const t = await db('tenancies').where('id', req.params.tenancyId).first();
+  if (!t) throw new ApiError(404, 'Tenancy not found');
+  const startYmd = localDate(t.start_date);
+  const anchorDay = parseYmd(startYmd).getDate();
+  const issued = await db('landlord_statements').where('tenancy_id', t.id).select('period_start', 'statement_number', 'status');
+  const byStart = new Map(issued.map((s) => [localDate(s.period_start), s]));
+
+  const today = new Date();
+  const horizon = localDate(new Date(today.getFullYear(), today.getMonth() + 2, today.getDate()));
+  const endYmd = t.end_date ? localDate(t.end_date) : null;
+  const periods = [];
+  let start = t.statements_from ? localDate(t.statements_from) : startYmd;
+  for (let i = 0; i < 120 && start <= horizon && (!endYmd || start <= endYmd); i++) {
+    const p = rentPeriod(start, anchorDay);
+    const s = byStart.get(p.start);
+    periods.push({ start: p.start, end: p.end, statement_number: s?.statement_number || null, status: s?.status || null });
+    const next = parseYmd(p.end);
+    next.setDate(next.getDate() + 1);
+    start = localDate(next);
+  }
+  const nextOpen = periods.find((p) => !p.statement_number) || null;
+  res.json({ success: true, data: { periods, next_period_start: nextOpen ? nextOpen.start : null } });
 });
 
 // GET /statements/tenancy-autofill/:tenancyId[?period_start=YYYY-MM-DD]
@@ -775,9 +811,6 @@ export const getTenancyAutofill = catchAsync(async (req, res) => {
   const period = rentPeriod(periodStart, anchorDay);
 
   const tenantName = await tenantNamesFor(t.tenancy_id);
-  // Landlord and apartment details come live from ROCA Estates when it has
-  // them; the local lettings record is only the fallback.
-  const estate = await estateDisplayFor(t.rocaem_property_id);
   const block = parseBlockName(t.address_line1, t.block_name);
   const apt = parseApartmentNumber(t.address_line1, t.apartment_number, null);
   const initials = t.landlord_initials || deriveInitials(t.landlord_name) || 'RL';
@@ -825,6 +858,30 @@ export const getTenancyAutofill = catchAsync(async (req, res) => {
     .whereRaw('COALESCE(invoice_amount, quote_amount) > 0')
     .select('id', 'title', db.raw('COALESCE(invoice_amount, quote_amount) as cost'));
 
+  // Expenses recorded on the apartment and not yet deducted (up to the end of
+  // this period, so nothing recorded late is missed).
+  const recordedExpenses = await db('property_expenses')
+    .where('property_id', t.property_id)
+    .whereNull('statement_id')
+    .where('expense_date', '<=', period.end)
+    .orderBy('expense_date')
+    .select('id', 'expense_date', 'description', 'supplier', 'amount', 'invoice_path');
+
+  // RL-P03 checks the admin should see before issuing (warnings, not blocks).
+  const bank = t.landlord_id ? await db('landlord_payment_details').where('user_id', t.landlord_id).first() : null;
+  const checks = [];
+  if (!String(t.landlord_address || '').trim()) checks.push('The landlord has no postal address — add it on the landlord (Edit Details).');
+  if (!String(t.nrl_hmrc_ref || '').trim()) checks.push('No NRL number for the landlord — needed for landlords living abroad (Landlord → Edit Details, or type it below).');
+  if (!String(t.postcode || '').trim()) checks.push('The apartment address has no postcode — add it on the apartment (Edit Details) or use "Refresh from ROCA Estates".');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(t.landlord_email || ''))) checks.push("The landlord has no email address, so the statement can't be emailed.");
+  if (!bank) checks.push("No bank details for the landlord — the payout's destination account can't be checked.");
+  else if (!bank.verified_at || bank.change_pending) checks.push("The landlord's bank details are not verified yet.");
+  const noInvoice = recordedExpenses.filter((x) => !x.invoice_path).length;
+  if (noInvoice) checks.push(`${noInvoice} expense${noInvoice === 1 ? ' has' : 's have'} no supplier invoice attached (Apartment → Expenses).`);
+
+  // Invoice notes carry over from this tenancy's previous invoice.
+  const lastInvoice = last?.invoice_id ? await db('invoices').where('id', last.invoice_id).first('notes') : null;
+
   // Property expenses reconciled from Xero (money out) dated in the period.
   const xeroExpenses = await db('xero_bank_transactions')
     .where({ status: 'reconciled', reconciled_as: 'property_expense', property_id: t.property_id })
@@ -849,12 +906,12 @@ export const getTenancyAutofill = catchAsync(async (req, res) => {
     data: {
       tenancy_id: t.tenancy_id,
       landlord_id: t.landlord_id,
-      landlord_name: estate?.landlord_name || t.landlord_name || '',
-      landlord_address: estate?.landlord_address || t.landlord_address || '',
+      landlord_name: t.landlord_name || '',
+      landlord_address: t.landlord_address || '',
       nrl_number: formatNrl(t.nrl_hmrc_ref, initials),
       landlord_reference: `RL_LR_${block}_${apt}`,
       property_reference: `${block}-${apt}`,
-      property_address: estate?.property_address || [t.address_line1, t.address_line2, t.city, t.postcode].filter(Boolean).join(', '),
+      property_address: [t.address_line1, t.address_line2, t.city, t.postcode].filter(Boolean).join(', '),
       tenant_name: tenantName,
       tenancy_type: TENANCY_TYPE,
       tenancy_start_date: tenancyStart,
@@ -870,6 +927,9 @@ export const getTenancyAutofill = catchAsync(async (req, res) => {
       tenant_credit: tenantCredit,
       existing_statement_number: existing ? existing.statement_number : null,
       missing_unit_codes: !validUnitCodes(t.block_name, t.apartment_number),
+      invoice_notes: lastInvoice?.notes || '',
+      checks,
+      last_statement_seq: t.last_statement_seq ?? null,
       income_lines: [{
         description: `Rent received — ${tenantName || 'Tenant'} (${periodLabel})`
           + (arrearsReceived > 0 ? ` (incl. £${arrearsReceived.toFixed(2)} arrears for earlier months)` : '')
@@ -877,11 +937,17 @@ export const getTenancyAutofill = catchAsync(async (req, res) => {
         amount: rent
       }],
       fee_lines: [{
-        description: `Management Fee ${feePct}% (${periodLabel})`,
+        // The invoice shows full dates: "Management Fee 8% (23/09/2026 - 22/10/2026)".
+        description: `Management Fee ${feePct}% (${ukDate(period.start)} - ${ukDate(period.end)})`,
         amount: round2(rent * feePct / 100),
         discount: 0
       }],
       expenditure_lines: [
+        ...recordedExpenses.map((x) => ({
+          description: `${x.description}${x.supplier ? ` – ${x.supplier}` : ''} (${ukDate(localDate(x.expense_date))})`,
+          amount: round2(parseFloat(x.amount)),
+          expense_id: x.id
+        })),
         ...repairs.map((r) => ({
           description: `Repair – ${r.title} (ticket #${r.id})`,
           amount: round2(parseFloat(r.cost))
@@ -908,6 +974,7 @@ const cleanLines = (lines, label, { fee = false } = {}) => {
     const amount = parseFloat(l.amount);
     if (!Number.isFinite(amount) || Math.abs(amount) > MAX_AMOUNT) throw new ApiError(400, `${label} ${i + 1}: invalid amount`);
     const line = { description, amount: round2(amount) };
+    if (!fee && Number.isInteger(Number(l.expense_id)) && Number(l.expense_id) > 0) line.expense_id = Number(l.expense_id);
     if (fee) {
       const discount = l.discount === undefined || l.discount === '' ? 0 : parseFloat(l.discount);
       if (amount < 0 || !Number.isFinite(discount) || discount < 0 || discount > amount) {
@@ -942,10 +1009,9 @@ const saveStatementPdf = async (trx, { folderName, landlordId, docType, filename
   return docId;
 };
 
-// POST /statements/generate with income_lines / fee_lines / expenditure_lines.
-const generateTenancyStatement = async (req, res) => {
-  const b = req.body;
-
+// Validates the statement form and builds the statement + invoice data (the
+// same for Preview and Generate). Totals are always computed here.
+const prepareTenancyStatement = async (b) => {
   const t = await loadTenancyContext(b.tenancy_id);
   if (!t) throw new ApiError(400, 'Select a tenant');
   if (!t.landlord_id) throw new ApiError(400, 'This property has no landlord linked — add the landlord first');
@@ -968,17 +1034,6 @@ const generateTenancyStatement = async (req, res) => {
   const feeLines = cleanLines(b.fee_lines || [], 'Fee line', { fee: true });
   const expenditureLines = cleanLines(b.expenditure_lines || [], 'Expenditure line');
   const invoiceNumber = feeLines.length ? (b.invoice_number || `INV_${b.statement_number}`) : null;
-
-  if (await db('landlord_statements').where({ statement_number: b.statement_number }).first()) {
-    throw new ApiError(409, `Statement ${b.statement_number} already exists`);
-  }
-  if (invoiceNumber && await db('invoices').where({ invoice_number: invoiceNumber }).first()) {
-    throw new ApiError(409, `Invoice ${invoiceNumber} already exists`);
-  }
-  const duplicate = await db('landlord_statements').where({ tenancy_id: t.tenancy_id, period_start: b.period_start }).first();
-  if (duplicate) {
-    throw new ApiError(409, `Statement ${duplicate.statement_number} already covers this tenant for this period`);
-  }
 
   // Totals are always computed here, never taken from the client.
   const sum = (list, fn) => round2(list.reduce((s, l) => s + fn(l), 0));
@@ -1018,7 +1073,9 @@ const generateTenancyStatement = async (req, res) => {
     ],
     total_income: totalIncome,
     total_expenditure: totalExpenditure,
-    payment_amount: payout
+    payment_amount: payout,
+    // New statements are drafts: "To be transferred…" until the payout is confirmed.
+    payment_confirmed: false
   };
   const invoiceData = invoiceNumber ? {
     ...common,
@@ -1032,16 +1089,51 @@ const generateTenancyStatement = async (req, res) => {
     total_net: feesNet
   } : null;
 
+  return { t, incomeLines, feeLines, expenditureLines, invoiceNumber, invoiceNotes, totalIncome, feesGross, feesDiscount, feesNet, totalExpenditure, previousBalance, closingBalance, payout, statementData, invoiceData };
+};
+
+const renderStatementPdfs = async (statementData, invoiceData) => ({
+  statementPdf: await generatePortraitPDFWithPuppeteer(rocaLivingStatementPdfHtml(statementData, invoiceData), { fullBleed: true }),
+  invoicePdf: invoiceData ? await generatePortraitPDFWithPuppeteer(rocaLivingInvoicePdfHtml(invoiceData), { fullBleed: true }) : null
+});
+
+// POST /statements/preview — the exact PDF for the form, without saving anything.
+export const previewTenancyStatement = catchAsync(async (req, res) => {
+  const { statementData, invoiceData } = await prepareTenancyStatement(req.body);
+  const { statementPdf } = await renderStatementPdfs(statementData, invoiceData);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="${rocaLivingPdfFileName(statementData.statement_number, invoiceData?.invoice_number)}"`);
+  res.send(statementPdf);
+});
+
+// POST /statements/generate with income_lines / fee_lines / expenditure_lines.
+const generateTenancyStatement = async (req, res) => {
+  const b = req.body;
+  const {
+    t, feeLines, expenditureLines, invoiceNumber, invoiceNotes, totalIncome, feesGross, feesDiscount, feesNet,
+    totalExpenditure, previousBalance, closingBalance, payout, statementData, invoiceData
+  } = await prepareTenancyStatement(b);
+
+  if (await db('landlord_statements').where({ statement_number: b.statement_number }).first()) {
+    throw new ApiError(409, `Statement ${b.statement_number} already exists`);
+  }
+  if (invoiceNumber && await db('invoices').where({ invoice_number: invoiceNumber }).first()) {
+    throw new ApiError(409, `Invoice ${invoiceNumber} already exists`);
+  }
+  const duplicate = await db('landlord_statements').where({ tenancy_id: t.tenancy_id, period_start: b.period_start }).first();
+  if (duplicate) {
+    throw new ApiError(409, `Statement ${duplicate.statement_number} already covers this tenant for this period`);
+  }
+
   // Render first (Puppeteer is slow); files are written only after the DB commit.
-  const statementPdf = await generatePortraitPDFWithPuppeteer(
-    invoiceData ? generateCombinedHTML(statementData, invoiceData) : generateStandaloneStatementHTML(statementData)
-  );
-  const invoicePdf = invoiceData ? await generatePortraitPDFWithPuppeteer(generateStandaloneInvoiceHTML(invoiceData)) : null;
+  const { statementPdf, invoicePdf } = await renderStatementPdfs(statementData, invoiceData);
+  // Stored under a unique name; downloads use ROCA's own file name
+  // (RL_PH_13_0004_INV_PH_13_0004.pdf), see downloadStatement.
   const stamp = Date.now();
-  const statementFile = `RL_STMT_${b.statement_number}_${stamp}.pdf`;
-  const statementPath = `uploads/statements/${statementFile}`;
-  const invoiceFile = invoiceNumber ? `${invoiceNumber}_${stamp}.pdf` : null;
-  const invoicePath = invoiceFile ? `uploads/invoices/${invoiceFile}` : null;
+  const statementFile = rocaLivingPdfFileName(b.statement_number, invoiceNumber);
+  const statementPath = `uploads/statements/${stamp}_${statementFile.replace(/ /g, "_")}`;
+  const invoiceFile = invoiceNumber ? `${invoiceNumber}.pdf` : null;
+  const invoicePath = invoiceFile ? `uploads/invoices/${stamp}_${invoiceFile}` : null;
 
   let statementId;
   let invoiceId = null;
@@ -1069,6 +1161,7 @@ const generateTenancyStatement = async (req, res) => {
         total_vat: '0.00',
         total_discount: feesDiscount.toFixed(2),
         total_net: feesNet.toFixed(2),
+        notes: invoiceNotes || null,
         status: 'draft',
         document_id: invoiceDocId,
         created_at: trx.fn.now()
@@ -1118,10 +1211,22 @@ const generateTenancyStatement = async (req, res) => {
       statement_reference: `TEMP-STM-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       tenant_name: b.tenant_name || null,
       tenancy_type: b.tenancy_type || TENANCY_TYPE,
-      tenancy_start_date: b.tenancy_start_date || null
+      tenancy_start_date: b.tenancy_start_date || null,
+      render_data: JSON.stringify({ statementData, invoiceData }),
+      pdf_paid: false
     });
     await trx('landlord_statements').where('id', statementId)
       .update({ statement_reference: `REM-STM-${String(statementId).padStart(5, '0')}` });
+
+    // Recorded expenses deducted on this statement can't be deducted again.
+    const expenseIds = expenditureLines.map((l) => l.expense_id).filter(Boolean);
+    if (expenseIds.length) {
+      await trx('property_expenses')
+        .whereIn('id', expenseIds)
+        .where('property_id', t.property_id)
+        .whereNull('statement_id')
+        .update({ statement_id: statementId });
+    }
 
     // Freeze the rent money this statement pays out: allocations to rent months
     // due by the period end that were not on an earlier statement.
@@ -1195,3 +1300,89 @@ const generateTenancyStatement = async (req, res) => {
     }]
   });
 };
+
+// POST /statements/:id/send — email the statement PDF to the landlord (the
+// human-approved send, RL-006) and mark it Sent. Body: { to? } overrides the
+// recipient (defaults to the landlord's email).
+export const sendStatement = catchAsync(async (req, res) => {
+  let s = await db('landlord_statements').where('id', req.params.id).first();
+  if (!s) throw new ApiError(404, 'Statement not found');
+  s = await ensureStatementPdfCurrent(s);
+  const landlord = s.landlord_id ? await db('users').where('id', s.landlord_id).first('email', 'name') : null;
+  const to = String(req.body?.to || landlord?.email || '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) throw new ApiError(400, 'The landlord has no valid email address — add it on the landlord first');
+
+  const doc = await db('documents').where('id', s.document_id).first();
+  const abs = doc ? (path.isAbsolute(doc.file_path) ? doc.file_path : path.join(process.cwd(), doc.file_path)) : null;
+  if (!abs || !fs.existsSync(abs)) throw new ApiError(404, 'Statement PDF not found');
+
+  const period = `${ukDate(localDate(s.period_start))} – ${ukDate(localDate(s.period_end))}`;
+  const name = s.landlord_name || landlord?.name || 'Landlord';
+  const info = await sendEmail({
+    to,
+    subject: `ROCA Living statement ${s.statement_number} (${period})`,
+    text: `Dear ${name},\n\nPlease find attached your statement ${s.statement_number} for the period ${period}.\n\nKind regards,\nROCA Living\n0207 101 9551 · admin@rocaliving.co.uk`,
+    html: `<p>Dear ${escapeHtmlText(name)},</p><p>Please find attached your statement <strong>${escapeHtmlText(s.statement_number)}</strong> for the period ${period}.</p><p>Kind regards,<br>ROCA Living<br>0207 101 9551 · admin@rocaliving.co.uk</p>`,
+    attachments: [{ filename: doc.filename || `${s.statement_number}.pdf`, path: abs, contentType: 'application/pdf' }]
+  });
+  if (!info) throw new ApiError(503, 'Email is not configured on this server (SMTP settings missing) — nothing was sent');
+
+  await db.transaction(async (trx) => {
+    await trx('landlord_statements').where('id', s.id).update({
+      status: s.status === 'paid' ? 'paid' : 'sent',
+      sent_at: trx.fn.now(),
+      sent_to: to
+    });
+    await trx('audit_log').insert({
+      actor_id: req.user.id,
+      actor_role: req.user.role,
+      action: 'STATEMENT_SENT',
+      entity_type: 'landlord_statement',
+      entity_id: s.id,
+      meta: JSON.stringify({ to, statement_number: s.statement_number, resend: !!s.sent_at }),
+      ip_address: req.ip || null
+    });
+  });
+  res.json({ success: true, data: { sent_to: to } });
+});
+
+const escapeHtmlText = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+// DELETE /statements/:id — remove a statement that is still a draft and was
+// never sent (e.g. generated with the wrong number). Its rent money and
+// expenses become available again. Issued statements can't be deleted
+// (RL-P03: issued records stay unchanged).
+export const deleteDraftStatement = catchAsync(async (req, res) => {
+  const s = await db('landlord_statements').where('id', req.params.id).first();
+  if (!s) throw new ApiError(404, 'Statement not found');
+  if (s.status !== 'draft' || s.sent_at) {
+    throw new ApiError(409, `Statement ${s.statement_number || s.id} has been issued (${s.sent_at ? 'sent' : s.status}) and can't be deleted`);
+  }
+  const invoice = s.invoice_id ? await db('invoices').where('id', s.invoice_id).first() : null;
+  const docs = await db('documents').whereIn('id', [s.document_id, invoice?.document_id].filter(Boolean)).select('id', 'file_path');
+
+  await db.transaction(async (trx) => {
+    await trx('rent_payment_allocations').where('statement_id', s.id).update({ statement_id: null });
+    await trx('property_expenses').where('statement_id', s.id).update({ statement_id: null });
+    await trx('transactions').where('statement_id', s.id).delete();
+    await trx('landlord_statements').where('id', s.id).delete();
+    if (invoice) {
+      await trx('invoice_items').where('invoice_id', invoice.id).delete();
+      await trx('invoices').where('id', invoice.id).delete();
+    }
+    if (docs.length) await trx('documents').whereIn('id', docs.map((d) => d.id)).delete();
+    await trx('audit_log').insert({
+      actor_id: req.user.id,
+      actor_role: req.user.role,
+      action: 'STATEMENT_DRAFT_DELETED',
+      entity_type: 'landlord_statement',
+      entity_id: s.id,
+      meta: JSON.stringify({ statement_number: s.statement_number, invoice_number: invoice?.invoice_number || null }),
+      ip_address: req.ip || null
+    });
+  });
+  for (const d of docs) {
+    try { fs.unlinkSync(path.isAbsolute(d.file_path) ? d.file_path : path.join(process.cwd(), d.file_path)); } catch { /* already gone */ }
+  }
+  res.json({ success: true, message: `Draft ${s.statement_number || s.id} deleted` });
+});

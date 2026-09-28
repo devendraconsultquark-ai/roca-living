@@ -112,7 +112,11 @@ export const createTenancy = catchAsync(async (req, res, next) => {
   // chosen Rocaem apartment is found or created automatically.
   if (rocaem_property_id) {
     if (!Number.isInteger(Number(rocaem_property_id))) throw new ApiError(400, 'Invalid apartment');
-    property_id = await db.transaction((trx) => ensureLivingProperty(trx, Number(rocaem_property_id)));
+    const { landlord_id: chosenLandlordId, new_landlord: newLandlord } = req.body;
+    property_id = await db.transaction((trx) => ensureLivingProperty(trx, Number(rocaem_property_id), {
+      landlordId: chosenLandlordId ? Number(chosenLandlordId) : null,
+      newLandlord: newLandlord || null
+    }));
   }
 
   if (!property_id) {
@@ -981,8 +985,20 @@ export const deleteTenant = catchAsync(async (req, res, next) => {
     throw new ApiError(404, 'Tenant not found');
   }
 
+  // A current tenancy must keep at least one tenant; otherwise it would stay
+  // "active" with nobody on it and block the apartment. End the tenancy first.
+  const tenancy = await db('tenancies').where('id', tenant.tenancy_id).first();
+  const others = await db('tenants').where('tenancy_id', tenant.tenancy_id).whereNot('id', id).orderBy('id');
+  if (tenancy && ['active', 'notice', 'pending'].includes(tenancy.status) && others.length === 0) {
+    throw new ApiError(409, 'This is the only tenant on a current tenancy. End the tenancy first (Tenancies → End Tenancy), then remove the tenant.');
+  }
+
   await db.transaction(async (trx) => {
     await trx('tenants').where('id', id).delete();
+    // Keep exactly one lead tenant on joint tenancies.
+    if (tenant.is_lead_tenant && others.length) {
+      await trx('tenants').where('id', others[0].id).update({ is_lead_tenant: 1 });
+    }
 
     await trx('audit_log').insert({
       actor_id: req.user.id,
@@ -1074,4 +1090,30 @@ export const getTenantById = catchAsync(async (req, res, next) => {
       })),
     }
   });
+});
+
+// PATCH /tenancies/:id/opening { last_statement_seq } — the last statement
+// number ROCA issued by hand before this system (e.g. 5 for PH_19_0005), so
+// numbering continues from there. Can be changed after the tenancy was added.
+export const updateTenancyOpening = catchAsync(async (req, res) => {
+  const tenancy = await db('tenancies').where('id', req.params.id).first();
+  if (!tenancy) throw new ApiError(404, 'Tenancy not found');
+  const raw = req.body?.last_statement_seq;
+  const seq = raw === null || raw === '' || raw === undefined ? null : Number(raw);
+  if (seq !== null && (!Number.isInteger(seq) || seq < 0 || seq > 9999)) {
+    throw new ApiError(400, 'Last statement number must be a whole number between 0 and 9999');
+  }
+  await db.transaction(async (trx) => {
+    await trx('tenancies').where('id', tenancy.id).update({ last_statement_seq: seq });
+    await trx('audit_log').insert({
+      actor_id: req.user.id,
+      actor_role: req.user.role,
+      action: 'TENANCY_OPENING_UPDATED',
+      entity_type: 'tenancy',
+      entity_id: tenancy.id,
+      meta: JSON.stringify({ from: tenancy.last_statement_seq, to: seq }),
+      ip_address: req.ip || null
+    });
+  });
+  res.json({ success: true, data: { last_statement_seq: seq } });
 });

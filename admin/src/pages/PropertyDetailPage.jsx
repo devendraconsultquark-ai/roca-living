@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Home, ShieldCheck, Users, Wrench, FileText, Clock, Building2, MapPin, Hash, Receipt, Download, Upload, Image as ImageIcon, X
+  Home, ShieldCheck, Users, Wrench, FileText, Clock, Building2, MapPin, Hash, Receipt, Download, Upload, Image as ImageIcon, X, PoundSterling
 } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
 import { StatusPill } from '../components/UI/StatusPill';
@@ -13,6 +13,7 @@ import { Button } from '../components/UI/Button';
 import { DocumentUploadModal } from '../components/UI/DocumentUploadModal';
 import { PropertyFinancials } from '../components/UI/PropertyFinancials';
 import { PropertyPhotos } from '../components/UI/PropertyPhotos';
+import { PropertyExpenses } from '../components/UI/PropertyExpenses';
 import { PropertyThumb } from '../components/UI/PropertyImage';
 import api from '../utilities/api';
 
@@ -34,8 +35,13 @@ export const PropertyDetailPage = () => {
 
   // Edit property modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  // Lettings details only — address/block/apartment are managed in ROCA Estates.
+  // Lettings details and the address as printed on statements; the block code,
+  // apartment number and owner link come from ROCA Estates.
   const [editingProperty, setEditingProperty] = useState({
+    address_line1: '',
+    address_line2: '',
+    city: '',
+    postcode: '',
     rent_pcm: '',
     mgmt_fee_pct: '8.00',
     key_ref: '',
@@ -90,6 +96,10 @@ export const PropertyDetailPage = () => {
 
   const openEditModal = () => {
     setEditingProperty({
+      address_line1: data.address_line1 || '',
+      address_line2: data.address_line2 || '',
+      city: data.city || '',
+      postcode: data.postcode || '',
       rent_pcm: data.rent_pcm != null ? String(data.rent_pcm) : '',
       mgmt_fee_pct: data.mgmt_fee_pct != null ? String(data.mgmt_fee_pct) : '8.00',
       key_ref: data.key_ref || '',
@@ -98,6 +108,24 @@ export const PropertyDetailPage = () => {
     });
     setFormErrors({});
     setIsEditModalOpen(true);
+  };
+
+  // Copy the address / owner details from ROCA Estates when it has them.
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefreshFromEstates = async () => {
+    setRefreshing(true);
+    try {
+      const res = await api.post(`/properties/${id}/refresh-from-estates`);
+      addToast(res.data.message, res.data.data.updated.length ? 'success' : 'info');
+      if (res.data.data.updated.length) {
+        setIsEditModalOpen(false);
+        setReloadKey((k) => k + 1);
+      }
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to refresh from ROCA Estates', 'error');
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleEditSubmit = async (e) => {
@@ -244,6 +272,7 @@ export const PropertyDetailPage = () => {
     { id: 'photos', label: 'Photos', icon: ImageIcon },
     { id: 'financials', label: 'Financials', icon: Receipt },
     { id: 'tenancy', label: 'Tenancy', icon: Users },
+    { id: 'expenses', label: 'Expenses', icon: PoundSterling },
     { id: 'maintenance', label: 'Maintenance', icon: Wrench },
     { id: 'safety', label: 'Safety & Compliance', icon: ShieldCheck },
     { id: 'documents', label: 'Documents', icon: FileText }
@@ -260,7 +289,7 @@ export const PropertyDetailPage = () => {
         title={data.name || data.address_line1}
         badge={<StatusPill status={data.status === 'let' ? 'active' : data.status === 'vacant' ? 'pending' : 'draft'} />}
         subtitle={`${data.property_reference} • ${address} • Added ${new Date(data.created_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`}
-        editLabel="Edit Lettings Details"
+        editLabel="Edit Details"
         onEdit={openEditModal}
       />
 
@@ -270,6 +299,7 @@ export const PropertyDetailPage = () => {
       <div className="w-full">
         {activeTab === 'photos' && <PropertyPhotos propertyId={id} onChanged={() => setReloadKey((k) => k + 1)} />}
         {activeTab === 'financials' && <PropertyFinancials propertyId={id} />}
+        {activeTab === 'expenses' && <PropertyExpenses propertyId={id} />}
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 flex flex-col gap-6">
@@ -552,14 +582,25 @@ export const PropertyDetailPage = () => {
         <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start gap-3 mb-1">
-              <h3 className="text-lg font-bold text-brand-primary">Edit Lettings Details</h3>
+              <h3 className="text-lg font-bold text-brand-primary">Edit Details</h3>
               <button type="button" onClick={() => { setIsEditModalOpen(false); setFormErrors({}); }} className="text-gray-400 hover:text-brand-primary cursor-pointer" aria-label="Close">
                 <X size={20} />
               </button>
             </div>
-            <p className="text-xs text-status-muted mb-4">Address, block and apartment details are managed in ROCA Estates.</p>
+            <p className="text-xs text-status-muted mb-4">The address below is what prints on statements. The block code, apartment number and owner come from ROCA Estates.</p>
 
             <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
+              {data.rocaem_property_id && (
+                <Button type="button" variant="secondary" size="sm" onClick={handleRefreshFromEstates} disabled={refreshing}>
+                  {refreshing ? 'Refreshing…' : 'Refresh address & owner from ROCA Estates'}
+                </Button>
+              )}
+              <Input label="Address Line 1" id="edit_address_line1" value={editingProperty.address_line1} onChange={(e) => setEditingProperty({ ...editingProperty, address_line1: e.target.value })} error={formErrors.address_line1} />
+              <Input label="Address Line 2" id="edit_address_line2" value={editingProperty.address_line2} onChange={(e) => setEditingProperty({ ...editingProperty, address_line2: e.target.value })} error={formErrors.address_line2} />
+              <div className="grid grid-cols-2 gap-4">
+                <Input label="Town / City" id="edit_city" value={editingProperty.city} onChange={(e) => setEditingProperty({ ...editingProperty, city: e.target.value })} error={formErrors.city} />
+                <Input label="Postcode" id="edit_postcode" value={editingProperty.postcode} onChange={(e) => setEditingProperty({ ...editingProperty, postcode: e.target.value })} error={formErrors.postcode} />
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <Input
                   label="Monthly Rent"

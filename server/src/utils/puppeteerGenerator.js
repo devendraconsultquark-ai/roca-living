@@ -112,9 +112,10 @@ process.on('SIGTERM', async () => {
 /**
  * Compiles a self-contained HTML page into a Portrait PDF buffer using Puppeteer
  * @param {String} htmlContent Complete HTML content string
+ * @param {Object} [options] { fullBleed: true } → no page margin (the page's own CSS lays out A4)
  * @returns {Promise<Buffer>} Binary PDF buffer
  */
-export const generatePortraitPDFWithPuppeteer = async (htmlContent) => {
+export const generatePortraitPDFWithPuppeteer = async (htmlContent, options = {}) => {
   let page = null;
   try {
     const browser = await getSharedBrowser();
@@ -130,12 +131,9 @@ export const generatePortraitPDFWithPuppeteer = async (htmlContent) => {
       format: 'A4',
       landscape: false,
       printBackground: true,
-      margin: {
-        top: '10mm',
-        bottom: '10mm',
-        left: '10mm',
-        right: '10mm'
-      }
+      margin: options.fullBleed
+        ? { top: '0', bottom: '0', left: '0', right: '0' }
+        : { top: '10mm', bottom: '10mm', left: '10mm', right: '10mm' }
     });
 
     return pdfBuffer;

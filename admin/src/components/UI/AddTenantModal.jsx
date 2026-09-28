@@ -29,12 +29,18 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
   const [lastSeq, setLastSeq] = useState('');
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  // When ROCA Estates has no owner on the apartment: pick a Roca Living
+  // landlord, or add a new one.
+  const [landlords, setLandlords] = useState([]);
+  const [landlordChoice, setLandlordChoice] = useState('');
+  const [newLandlord, setNewLandlord] = useState({ name: '', email: '', phone: '', address: '' });
 
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await api.get('/estates/properties');
+        const [res, ll] = await Promise.all([api.get('/estates/properties'), api.get('/landlords')]);
         setProperties(res.data.data || []);
+        setLandlords(ll.data.data || []);
       } catch (err) {
         addToast(err.response?.data?.message || 'Failed to load apartments from ROCA Estates', 'error');
       } finally {
@@ -50,12 +56,18 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
     if (p?.roca_living?.rent_pcm && !rent) setRent(String(parseFloat(p.roca_living.rent_pcm)));
   };
 
+  const selected = properties.find((x) => String(x.id) === String(propertyId));
+  // Landlord needed only for a first tenant on an apartment Rocaem has no owner for.
+  const needsLandlord = !!selected && !selected.landlord_name && !selected.roca_living;
+
   const setTenant = (i, key, value) => setTenants((list) => list.map((t, idx) => (idx === i ? { ...t, [key]: value } : t)));
 
   const submit = async (e) => {
     e.preventDefault();
     const errs = {};
     if (!propertyId) errs.property = 'Select an apartment';
+    if (needsLandlord && !landlordChoice) errs.landlord = 'Choose the landlord';
+    if (needsLandlord && landlordChoice === 'new' && (!newLandlord.name.trim() || !newLandlord.email.trim())) errs.landlord = "Enter the new landlord's name and email";
     if (!tenants[0].name.trim()) errs.tenant = 'Lead tenant name is required';
     if (!(parseFloat(rent) > 0)) errs.rent = 'Enter the monthly rent';
     if (!startDate) errs.start = 'Start date is required';
@@ -71,6 +83,8 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
     try {
       await api.post('/tenancies', {
         rocaem_property_id: Number(propertyId),
+        ...(needsLandlord && landlordChoice === 'new' ? { new_landlord: newLandlord } : {}),
+        ...(needsLandlord && landlordChoice && landlordChoice !== 'new' ? { landlord_id: Number(landlordChoice) } : {}),
         rent_pcm: parseFloat(rent),
         start_date: startDate,
         end_date: endDate || null,
@@ -129,6 +143,44 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
             disabled={loadingProps}
             error={errors.property}
           />
+
+          {needsLandlord && (
+            <div className="flex flex-col gap-3 bg-status-warning/10 border border-status-warning/15 rounded-card p-4">
+              <p className="text-xs-portal font-semibold text-status-warning">
+                ROCA Estates has no owner on this apartment. Choose the landlord for Roca Living's statements (you can link the owner in ROCA Estates later).
+              </p>
+              <Dropdown
+                label="Landlord"
+                id="landlordChoice"
+                options={[
+                  ...landlords.map((l) => ({ value: String(l.id), label: `${l.name}${l.email ? ` (${l.email})` : ''}` })),
+                  { value: 'new', label: '+ New landlord' },
+                ]}
+                value={landlordChoice}
+                onChange={setLandlordChoice}
+                placeholder="Search and select a landlord..."
+                searchable
+                error={errors.landlord}
+              />
+              {landlordChoice === 'new' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Input id="newLandlordName" label="Name (as on statements)" value={newLandlord.name} onChange={(e) => setNewLandlord((l) => ({ ...l, name: e.target.value }))} placeholder="e.g. Mr Paul Belema & Marcia E W Huizing" />
+                  <Input id="newLandlordEmail" label="Email" type="email" value={newLandlord.email} onChange={(e) => setNewLandlord((l) => ({ ...l, email: e.target.value }))} />
+                  <Input id="newLandlordPhone" label="Phone (optional)" value={newLandlord.phone} onChange={(e) => setNewLandlord((l) => ({ ...l, phone: e.target.value }))} />
+                  <div>
+                    <label htmlFor="newLandlordAddress" className="block text-xs font-semibold text-status-muted mb-1">Postal address (one line per row)</label>
+                    <textarea
+                      id="newLandlordAddress"
+                      rows={3}
+                      value={newLandlord.address}
+                      onChange={(e) => setNewLandlord((l) => ({ ...l, address: e.target.value }))}
+                      className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-brand-accent bg-white resize-none"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">

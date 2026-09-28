@@ -33,7 +33,9 @@ export const createLandlordSchema = z.object({
 export const updateLandlordSchema = z.looseObject({
   name: z.string().min(2, "Name must be at least 2 characters").optional(),
   email: z.string().email("Invalid email format").optional(),
-  phone: z.string().regex(UK_PHONE_REGEX, UK_PHONE_MESSAGE).optional()
+  // Many ROCA Living landlords live abroad (e.g. +31 numbers), so any
+  // international-style number is accepted when editing.
+  phone: z.string().regex(/^\+?[0-9 ()-]{6,20}$/, "Must be a valid phone number (e.g. +31 6 1234 5678 or 07123 456789)").optional()
 });
 
 // Columns bank_name/account_name/account_number/sort_code are NOT NULL in

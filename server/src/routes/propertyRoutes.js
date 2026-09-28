@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import { managedInEstates, rejectEstateFields } from '../middlewares/managedInEstates.js';
 
-// Apartment identity lives in ROCA Estates.
-const ESTATE_PROPERTY_FIELDS = ['address_line1', 'address_line2', 'city', 'postcode', 'property_type', 'bedrooms', 'block_name', 'apartment_number', 'name', 'property_reference', 'landlord_id'];
+// The link to the ROCA Estates apartment (unit codes, owner, reference) is
+// fixed; the address printed on statements can be corrected here.
+const ESTATE_PROPERTY_FIELDS = ['block_name', 'apartment_number', 'property_reference', 'landlord_id'];
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -26,6 +27,14 @@ import {
   updatePropertyImage,
   deletePropertyImage
 } from '../controllers/propertyController.js';
+import {
+  listPropertyExpenses,
+  addPropertyExpense,
+  deletePropertyExpense,
+  attachExpenseInvoice,
+  downloadExpenseInvoice,
+  refreshPropertyFromEstates
+} from '../controllers/propertyExpenseController.js';
 import { protect } from '../middlewares/protect.js';
 import { restrictTo } from '../middlewares/restrictTo.js';
 import { validate } from '../middlewares/validate.js';
@@ -54,6 +63,27 @@ const certUpload = multer({
     const ext = path.extname(file.originalname).toLowerCase();
     if (!certAllowedExtensions.includes(ext) || !certAllowedMimeTypes.includes(file.mimetype)) {
       return cb(new Error('Only PDF, JPEG and PNG certificate files are allowed!'), false);
+    }
+    cb(null, true);
+  }
+});
+
+// Supplier invoices behind apartment expenses — PDF / JPG / PNG under uploads/expenses/
+const expenseInvoiceUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      fs.mkdirSync('uploads/expenses/', { recursive: true });
+      cb(null, 'uploads/expenses/');
+    },
+    filename: (req, file, cb) => {
+      cb(null, `expense-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${path.extname(file.originalname).toLowerCase()}`);
+    }
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!certAllowedExtensions.includes(ext) || !certAllowedMimeTypes.includes(file.mimetype)) {
+      return cb(new Error('Only PDF, JPEG and PNG invoice files are allowed'), false);
     }
     cb(null, true);
   }
@@ -112,6 +142,13 @@ propertyRouter.patch('/:id/checklist/:itemCode', protect('admin'), restrictTo('A
 
 // Property photos & floor plans (admin)
 propertyRouter.post('/:id/images', protect('admin'), restrictTo('ADMIN'), propertyImageUpload.single('image'), uploadPropertyImage);
+// Expenses deducted on the landlord statement, and refresh from ROCA Estates.
+propertyRouter.get('/:id/expenses', protect('admin'), restrictTo('ADMIN'), listPropertyExpenses);
+propertyRouter.post('/:id/expenses', protect('admin'), restrictTo('ADMIN'), expenseInvoiceUpload.single('invoice'), addPropertyExpense);
+propertyRouter.post('/:id/expenses/:expenseId/invoice', protect('admin'), restrictTo('ADMIN'), expenseInvoiceUpload.single('invoice'), attachExpenseInvoice);
+propertyRouter.get('/:id/expenses/:expenseId/invoice', protect('admin'), restrictTo('ADMIN'), downloadExpenseInvoice);
+propertyRouter.delete('/:id/expenses/:expenseId', protect('admin'), restrictTo('ADMIN'), deletePropertyExpense);
+propertyRouter.post('/:id/refresh-from-estates', protect('admin'), restrictTo('ADMIN'), refreshPropertyFromEstates);
 propertyRouter.get('/:id/images', protect('admin'), restrictTo('ADMIN'), getPropertyImages);
 propertyRouter.patch('/:id/images/:imageId', protect('admin'), restrictTo('ADMIN'), updatePropertyImage);
 propertyRouter.delete('/:id/images/:imageId', protect('admin'), restrictTo('ADMIN'), deletePropertyImage);

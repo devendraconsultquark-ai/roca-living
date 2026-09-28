@@ -79,8 +79,9 @@ export const LandlordDetailPage = () => {
 
   // Edit profile modal state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  // Lettings details only — identity fields are managed in ROCA Estates.
+  // Statement details: name/address as printed, email for sending, NRL.
   const [editForm, setEditForm] = useState({
+    name: '', email: '', phone: '', address: '',
     initials: '', nrl_hmrc_ref: '', nrl_hmrc_approved: 'no', nrl_withhold_pct: '',
   });
   const [editErrors, setEditErrors] = useState({});
@@ -191,6 +192,10 @@ export const LandlordDetailPage = () => {
 
   const openEditModal = () => {
     setEditForm({
+      name: data.name || '',
+      email: data.email || '',
+      phone: data.phone || '',
+      address: data.address || '',
       initials: data.initials || '',
       nrl_hmrc_ref: data.nrl_hmrc_ref || '',
       nrl_hmrc_approved: data.nrl_hmrc_approved ? 'yes' : 'no',
@@ -206,12 +211,16 @@ export const LandlordDetailPage = () => {
     setEditSaving(true);
     try {
       await api.patch(`/landlords/${id}`, {
+        name: editForm.name,
+        email: editForm.email,
+        ...(editForm.phone ? { phone: editForm.phone } : {}),
+        address: editForm.address,
         initials: editForm.initials || undefined,
         nrl_hmrc_ref: editForm.nrl_hmrc_ref || undefined,
         nrl_hmrc_approved: editForm.nrl_hmrc_approved === 'yes',
         nrl_withhold_pct: editForm.nrl_withhold_pct !== '' ? parseFloat(editForm.nrl_withhold_pct) : undefined,
       });
-      addToast('Lettings details updated', 'success');
+      addToast('Landlord details updated', 'success');
       setIsEditModalOpen(false);
       refetchLandlord();
     } catch (err) {
@@ -512,7 +521,7 @@ export const LandlordDetailPage = () => {
           lastLogin ? `Last login: ${lastLogin}` : 'Never logged in',
           data.account_manager_name ? `Account Manager: ${data.account_manager_name}` : null,
         ].filter(Boolean).join(' • ')}
-        editLabel="Edit Lettings Details"
+        editLabel="Edit Details"
         onEdit={() => openEditModal()}
       />
 
@@ -1346,15 +1355,28 @@ export const LandlordDetailPage = () => {
         <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-xl mx-4 border border-card-border max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start gap-3 mb-1">
-              <h3 className="text-lg font-bold text-brand-primary">Edit Lettings Details</h3>
+              <h3 className="text-lg font-bold text-brand-primary">Edit Landlord Details</h3>
               <button type="button" onClick={() => { setIsEditModalOpen(false); setEditErrors({}); }} className="text-gray-400 hover:text-brand-primary cursor-pointer" aria-label="Close">
                 <X size={20} />
               </button>
             </div>
-            <p className="text-xs text-status-muted mb-4">Name, contact details and address are managed in ROCA Estates.</p>
+            <p className="text-xs text-status-muted mb-4">Name and address exactly as they should print on statements. Statements are emailed to this email address.</p>
 
             <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input label="Name (as on statements)" id="edit_name" required value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} error={editErrors.name} />
+                <Input label="Email (statements are sent here)" id="edit_email" type="email" required value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} error={editErrors.email} />
+                <Input label="Phone" id="edit_phone" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} error={editErrors.phone} />
+                <div>
+                  <label htmlFor="edit_address" className="block text-xs font-semibold text-status-muted mb-1">Postal address (one line per row)</label>
+                  <textarea
+                    id="edit_address"
+                    rows={4}
+                    value={editForm.address}
+                    onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-brand-accent bg-white resize-none"
+                  />
+                </div>
                 <Input
                   label="Initials (statements)"
                   id="edit_initials"

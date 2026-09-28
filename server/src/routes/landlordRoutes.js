@@ -18,10 +18,7 @@ import { restrictTo } from '../middlewares/restrictTo.js';
 import { validate } from '../middlewares/validate.js';
 import { createLandlordSchema, updateLandlordSchema, updatePaymentDetailsSchema } from '../validations/landlordValidation.js';
 
-import { managedInEstates, rejectEstateFields } from '../middlewares/managedInEstates.js';
-
-// Landlord identity lives in ROCA Estates.
-const ESTATE_LANDLORD_FIELDS = ['name', 'email', 'phone', 'address', 'company_name', 'is_overseas', 'ownership_share', 'tob_status', 'kyc_status'];
+import { managedInEstates } from '../middlewares/managedInEstates.js';
 
 const landlordRouter = Router();
 
@@ -43,7 +40,9 @@ landlordRouter.post('/:id/activation-link', managedInEstates);
 landlordRouter.patch('/:id/kyc', updateLandlordKyc);
 landlordRouter.put('/:id/payment-details', validate(updatePaymentDetailsSchema), updatePaymentDetails);
 landlordRouter.patch('/:id/payment-details/verify', verifyPaymentDetails);
-landlordRouter.patch('/:id', rejectEstateFields(ESTATE_LANDLORD_FIELDS), validate(updateLandlordSchema), updateLandlord);
+// Managed landlords' statement details (name/address as printed, email for
+// sending, NRL…) are kept in Roca Living; new landlords come via Add Tenant.
+landlordRouter.patch('/:id', validate(updateLandlordSchema), updateLandlord);
 landlordRouter.delete('/:id', managedInEstates);
 
 export default landlordRouter;

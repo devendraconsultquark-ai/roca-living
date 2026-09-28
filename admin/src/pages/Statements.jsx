@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { FileSpreadsheet, Download, Send, CheckCircle2 } from 'lucide-react';
+import { FileSpreadsheet, Download, Send, CheckCircle2, Mail, Trash2 } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { useToast } from '../components/UI/ToastContext';
+import { useConfirm } from '../components/UI/ConfirmContext';
 import { Skeleton } from '../components/UI/Skeleton';
 import { TenantStatementModal } from '../components/UI/TenantStatementModal';
 import api from '../utilities/api';
@@ -15,6 +16,8 @@ export const Statements = () => {
   // Generate-statement form (select tenant → autofill → check → generate)
   const [showModal, setShowModal] = useState(false);
   const { addToast } = useToast();
+  const confirm = useConfirm();
+  const [sendingId, setSendingId] = useState(null);
 
   const fetchStatements = async () => {
     setLoading(true);
@@ -39,6 +42,11 @@ export const Statements = () => {
           fees: totalDeductions,
           payout: parseFloat(s.net_paid || 0),
           rawStatus: (s.status || 'draft').toLowerCase(),
+          number: s.statement_number || null,
+          hasInvoice: !!s.invoice_id,
+          landlordEmail: s.landlord_email || '',
+          sentAt: s.sent_at ? new Date(s.sent_at).toLocaleDateString('en-GB') : null,
+          sentTo: s.sent_to || null,
           status: s.status ? s.status.charAt(0).toUpperCase() + s.status.slice(1) : 'Draft'
         };
       });
@@ -57,7 +65,52 @@ export const Statements = () => {
     fetchStatements();
   }, []);
 
-  const handleDownload = async (id, landlord) => {
+  // Emails the statement PDF to the landlord and marks it Sent.
+  const handleSend = async (row) => {
+    if (!row.landlordEmail) {
+      addToast('This landlord has no email address — add it on the landlord first', 'error');
+      return;
+    }
+    const ok = await confirm({
+      title: row.sentAt ? 'Send again?' : 'Send statement',
+      message: row.sentAt
+        ? `${row.statement_reference} was already sent to ${row.sentTo} on ${row.sentAt}. Send it again to ${row.landlordEmail}?`
+        : `Email ${row.statement_reference} (PDF attached) to ${row.landlord} at ${row.landlordEmail}?`,
+      confirmText: row.sentAt ? 'Send again' : 'Send',
+    });
+    if (!ok) return;
+    setSendingId(row.id);
+    try {
+      const res = await api.post(`/statements/${row.id}/send`);
+      addToast(`Statement ${row.statement_reference} sent to ${res.data.data.sent_to}`, 'success');
+      fetchStatements();
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to send the statement', 'error');
+    } finally {
+      setSendingId(null);
+    }
+  };
+
+  // A draft that was never sent can be deleted (e.g. generated with the wrong
+  // number); its rent money and expenses go back for the next statement.
+  const handleDeleteDraft = async (row) => {
+    const ok = await confirm({
+      title: 'Delete draft statement',
+      message: `Delete draft ${row.statement_reference} and its invoice? The rent and expenses on it become available for the next statement.`,
+      variant: 'danger',
+      confirmText: 'Delete draft',
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`/statements/${row.id}`);
+      addToast(`Draft ${row.statement_reference} deleted`, 'success');
+      fetchStatements();
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to delete the draft', 'error');
+    }
+  };
+
+  const handleDownload = async (id, landlord, row) => {
     try {
       addToast(`Preparing download for Statement #${id}...`, 'info');
       const response = await api.get(`/statements/${id}/pdf`, {
@@ -78,7 +131,10 @@ export const Statements = () => {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `RL_STMT_${id}_${(landlord || 'statement').replace(/\s+/g, '_')}.pdf`);
+      // ROCA's own file name: "RL_Statement PH_19_0002_INV_PH_19_0002.pdf"
+      link.setAttribute('download', row?.number
+        ? `RL_Statement ${row.number}${row.hasInvoice ? `_INV_${row.number}` : ''}.pdf`
+        : `RL_STMT_${id}_${(landlord || 'statement').replace(/\s+/g, '_')}.pdf`);
       document.body.appendChild(link);
       link.click();
       link.parentNode.removeChild(link);
@@ -162,6 +218,15 @@ export const Statements = () => {
       accessor: 'id',
       renderCell: (row) => (
         <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleSend(row)}
+            icon={Mail}
+            disabled={sendingId === row.id}
+          >
+            {sendingId === row.id ? 'Sending…' : row.sentAt ? 'Resend' : 'Send'}
+          </Button>
           {row.rawStatus === 'draft' && (
             <Button
               variant="ghost"
@@ -185,11 +250,16 @@ export const Statements = () => {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => handleDownload(row.id, row.landlord)}
+            onClick={() => handleDownload(row.id, row.landlord, row)}
             icon={Download}
           >
             PDF
           </Button>
+          {row.rawStatus === 'draft' && !row.sentAt && (
+            <Button variant="ghost" size="sm" onClick={() => handleDeleteDraft(row)} icon={Trash2}>
+              Delete
+            </Button>
+          )}
         </div>
       )
     }
