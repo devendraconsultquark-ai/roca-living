@@ -168,7 +168,7 @@ export const getEstateLandlords = catchAsync(async (req, res) => {
     const owned = ids.length
       ? await emDb('properties as p').leftJoin('buildings as b', 'p.building_id', 'b.id')
         .whereIn('p.landlord_id', ids)
-        .select('p.landlord_id', 'p.unit_code', 'p.unit_id', 'p.unit_number', 'b.short_code as building_short_code')
+        .select('p.landlord_id', 'p.unit_code', 'p.unit_id', 'p.unit_number', 'b.name as building_name', 'b.short_code as building_short_code')
       : [];
     return [list, owned];
   });

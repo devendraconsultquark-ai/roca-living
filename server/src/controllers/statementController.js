@@ -13,6 +13,7 @@ import { sendEmail } from '../utils/email.js';
 import { niceName } from '../utils/names.js';
 import { ensureStatementPdfCurrent } from '../utils/statementPdf.js';
 import { toYmd } from '../utils/dateHelpers.js';
+import { healUnitCodes } from '../utils/estatesLink.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -683,7 +684,13 @@ const tenantNamesFor = async (tenancyId) => {
   return rows.map((r) => r.name).join(' & ');
 };
 
-const loadTenancyContext = (tenancyId) => db('tenancies')
+const loadTenancyContext = async (tenancyId) => {
+  const t = await tenancyContextQuery(tenancyId);
+  const healed = t && await healUnitCodes(t.property_id, t.rocaem_property_id, t.block_name);
+  return healed ? { ...t, block_name: healed.block, apartment_number: healed.apt } : t;
+};
+
+const tenancyContextQuery = (tenancyId) => db('tenancies')
   .join('properties', 'tenancies.property_id', 'properties.id')
   .leftJoin('users as landlords', 'properties.landlord_id', 'landlords.id')
   .leftJoin('landlord_profiles as profiles', 'landlords.id', 'profiles.user_id')
@@ -725,6 +732,7 @@ export const getTenancyStatementOptions = catchAsync(async (req, res) => {
     .whereIn('tenancies.status', ['active', 'notice'])
     .select(
       'tenancies.id as tenancy_id',
+      'properties.id as property_id',
       'properties.address_line1',
       'properties.block_name',
       'properties.apartment_number',
@@ -733,6 +741,10 @@ export const getTenancyStatementOptions = catchAsync(async (req, res) => {
       'tenants.name as tenant_name'
     )
     .orderBy([{ column: 'landlords.name' }, { column: 'properties.apartment_number' }]);
+  for (const r of rows) {
+    const healed = await healUnitCodes(r.property_id, r.rocaem_property_id, r.block_name);
+    if (healed) Object.assign(r, { block_name: healed.block, apartment_number: healed.apt });
+  }
 
   res.json({
     success: true,

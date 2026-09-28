@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
-import { emDb } from '../config/db.js';
+import db, { emDb } from '../config/db.js';
 import { ApiError } from './ApiError.js';
 import { ensureLandlordSetup } from './landlordSetup.js';
 import { getNumericSetting } from './settings.js';
@@ -27,11 +27,23 @@ const realBlock = (b) => {
   const v = b ? String(b).trim().toUpperCase() : null;
   return v && v !== 'BLD' ? v : null;
 };
+const usableBlock = (b) => !!realBlock(b) && /^[A-Za-z0-9]{1,10}$/.test(String(b).trim());
+
+// The rule ROCA Estates itself uses to make a building's short code
+// ("Parsons House" → "PH"), for buildings created before it had one — their
+// apartments were imported as "BLD_33".
+const buildingInitials = (name) => {
+  const words = String(name || '').replace(/[^a-zA-Z0-9\s]/g, '').trim().toUpperCase().split(/\s+/)
+    .filter((w) => w && !['THE', 'A', 'AN', 'OF', 'IN'].includes(w));
+  if (words.length >= 2) return words.map((w) => w[0]).join('').substring(0, 3);
+  if (words.length === 1) return words[0].substring(0, 2);
+  return null;
+};
 
 // Block code + apartment number of a Rocaem unit, e.g. PH + 33. Taken first
 // from the unit id Rocaem keeps in the client's own format ("PH_33"); else the
-// block's short code + unit number. Rocaem's name-based unit_code ("PA33") is
-// never used.
+// block's short code + unit number; else the building name's initials. Rocaem's
+// name-based unit_code ("PA33") is never used.
 export const estateUnitCodes = (u) => {
   let block = null;
   let apt = null;
@@ -40,7 +52,7 @@ export const estateUnitCodes = (u) => {
     block = realBlock(m[1]);
     apt = m[2];
   } else {
-    block = realBlock(u.building_short_code);
+    block = realBlock(u.building_short_code) || realBlock(buildingInitials(u.building_name));
     apt = u.unit_number || (m ? m[2] : null);
   }
   if (apt) {
@@ -208,10 +220,11 @@ export const refreshFromEstates = async (trx, propertyId) => {
   if (!u) throw new ApiError(404, 'Apartment not found in ROCA Estates');
   const updated = [];
   // Block code / apartment number (e.g. once Rocaem's building gets its short
-  // code "PH"): only while no statement has been issued with the old numbers.
+  // code "PH"): only while no statement has been issued with the old numbers —
+  // unless the old code was never a real one ("BLD"), which is always replaced.
   const codes = estateUnitCodes(u);
   if (codes.block && codes.apt && (codes.block !== p.block_name || codes.apt !== p.apartment_number)) {
-    const issued = await trx('landlord_statements as s')
+    const issued = usableBlock(p.block_name) && await trx('landlord_statements as s')
       .join('tenancies as t', 's.tenancy_id', 't.id')
       .where('t.property_id', p.id)
       .where((w) => w.whereNot('s.status', 'draft').orWhereNotNull('s.sent_at'))
@@ -241,6 +254,19 @@ export const refreshFromEstates = async (trx, propertyId) => {
     }
   }
   return updated;
+};
+
+// A linked property saved before its block code could be worked out ("BLD" or
+// empty) gets the real code as soon as one is available, so its statements are
+// numbered in the client's format (PH_36_0001). Returns the new codes, or null.
+export const healUnitCodes = async (propertyId, rocaemPropertyId, blockName) => {
+  if (!rocaemPropertyId || usableBlock(blockName)) return null;
+  let u = null;
+  try { u = await fetchEstateUnit(rocaemPropertyId); } catch { return null; } // Rocaem down: leave as is
+  const codes = u ? estateUnitCodes(u) : null;
+  if (!codes?.block || !codes.apt) return null;
+  await db('properties').where('id', propertyId).update({ block_name: codes.block, apartment_number: codes.apt });
+  return codes;
 };
 
 // Live Rocaem display data for a local property, used on statements. Returns
