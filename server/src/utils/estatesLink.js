@@ -17,21 +17,37 @@ import { niceName } from './names.js';
 
 export const unitKey = (block, apt) => (block && apt ? `${String(block).trim().toUpperCase()}|${String(apt).trim().toUpperCase()}` : null);
 
-// Block code + apartment number of a Rocaem unit: PH + 33 (block short code +
-// unit number, else unit_id "PH_33").
+// Single-digit apartments: "PH_8" (false) or "PH_08" (true) — waiting for the
+// client's own format; one switch changes it everywhere.
+const PAD_APARTMENT_NUMBER = false;
+
+// "BLD" is Rocaem's placeholder when a building has no short code yet — not a
+// real block code, so it is treated as missing.
+const realBlock = (b) => {
+  const v = b ? String(b).trim().toUpperCase() : null;
+  return v && v !== 'BLD' ? v : null;
+};
+
+// Block code + apartment number of a Rocaem unit, e.g. PH + 33. Taken first
+// from the unit id Rocaem keeps in the client's own format ("PH_33"); else the
+// block's short code + unit number. Rocaem's name-based unit_code ("PA33") is
+// never used.
 export const estateUnitCodes = (u) => {
-  let block = u.building_short_code || null;
-  let apt = u.unit_number || null;
-  if ((!block || !apt) && u.unit_id && /^[A-Za-z0-9]+_[A-Za-z0-9]+$/.test(u.unit_id)) {
-    const [b, a] = u.unit_id.split('_');
-    block = block || b;
-    apt = apt || a;
+  let block = null;
+  let apt = null;
+  const m = String(u.unit_id || '').trim().match(/^([A-Za-z]+)_([A-Za-z0-9]+)$/);
+  if (m && realBlock(m[1])) {
+    block = realBlock(m[1]);
+    apt = m[2];
+  } else {
+    block = realBlock(u.building_short_code);
+    apt = u.unit_number || (m ? m[2] : null);
   }
-  block = block ? String(block).trim().toUpperCase() : null;
-  // "BLD" is Rocaem's placeholder when a building has no short code yet
-  // (unit ids like "BLD_13") — not a real block code, so treat it as missing.
-  if (block === 'BLD') block = null;
-  return { block, apt: apt ? String(apt).trim().toUpperCase().replace(/^0+(?=\d)/, '') : null };
+  if (apt) {
+    apt = String(apt).trim().toUpperCase().replace(/^0+(?=\d)/, '');
+    if (PAD_APARTMENT_NUMBER && /^\d$/.test(apt)) apt = `0${apt}`;
+  }
+  return { block, apt: apt || null };
 };
 
 // Rocaem unit with its block and landlord id (whitelisted columns only).
