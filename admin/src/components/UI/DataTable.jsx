@@ -3,16 +3,17 @@ import { ChevronUp, ChevronDown } from 'lucide-react';
 import { Dropdown } from './Dropdown';
 
 export const DataTable = ({
-  columns = [], // Array of { header, accessor, align: 'left'|'right', sortable: bool, renderCell: func }
+  columns = [], // Array of { header, accessor, align: 'left'|'right', sortable: bool, renderCell: func, sortValue: row => value }
   data = [],
   headerVariant = 'grey', // retained for API compatibility — both variants render the portal header
   enableBulkSelect = false,
   onSelectionChange = null,
   initialPageSize = 10,
   onRowClick = null,
+  defaultSort = null, // { field: accessor, order: 'asc'|'desc' }
 }) => {
-  const [sortField, setSortField] = useState(null);
-  const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
+  const [sortField, setSortField] = useState(defaultSort?.field ?? null);
+  const [sortOrder, setSortOrder] = useState(defaultSort?.order ?? 'asc'); // 'asc' or 'desc'
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -31,9 +32,12 @@ export const DataTable = ({
     if (!sortField) return data;
 
     const isEmpty = (v) => v === null || v === undefined || v === '';
+    // A column can sort by something other than what it shows, e.g. a
+    // dd/mm/yyyy date sorted by its timestamp.
+    const valueOf = columns.find((c) => c.accessor === sortField)?.sortValue || ((row) => row[sortField]);
     return [...data].sort((a, b) => {
-      const aVal = a[sortField];
-      const bVal = b[sortField];
+      const aVal = valueOf(a);
+      const bVal = valueOf(b);
 
       // Empty values (e.g. an apartment with no landlord) always sort last.
       if (isEmpty(aVal) || isEmpty(bVal)) {
@@ -49,7 +53,7 @@ export const DataTable = ({
       }
       return sortOrder === 'asc' ? result : -result;
     });
-  }, [data, sortField, sortOrder]);
+  }, [data, columns, sortField, sortOrder]);
 
   // 2. Pagination logic
   const totalItems = sortedData.length;

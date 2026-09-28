@@ -11,6 +11,10 @@ import { CashflowOverview } from '../components/UI/CashflowOverview';
 import { BankTransactionsTab } from '../components/UI/BankTransactionsTab';
 import api from '../utilities/api';
 
+// Timestamp for sorting a date column (the cell shows dd/mm/yyyy text).
+const ts = (d) => (d ? new Date(d).getTime() : null);
+const newestFirst = { field: 'date', order: 'desc' };
+
 export const AccountingHub = () => {
   const [activeTab, setActiveTab] = useState('incoming');
   const [selectedIncomingIds, setSelectedIncomingIds] = useState([]);
@@ -43,6 +47,7 @@ export const AccountingHub = () => {
         const formatted = (res.data.data || []).map(p => ({
           id: p.id,
           tenancy_id: p.tenancy_id,
+          dateTs: ts(p.received_at),
           date: p.received_at ? new Date(p.received_at).toLocaleDateString('en-GB') : '-',
           tenant: p.tenant_name || '-',
           property: `${p.address_line1 || ''}, ${p.city || ''}`,
@@ -56,6 +61,7 @@ export const AccountingHub = () => {
         const res = await api.get('/accounting/unreconciled');
         const formatted = (res.data.data || []).map(p => ({
           id: p.id,
+          dateTs: ts(p.received_at),
           date: p.received_at ? new Date(p.received_at).toLocaleDateString('en-GB') : '-',
           description: p.notes || p.reference || 'RENT PAYMENT RECEIVED',
           amount: parseFloat(p.amount || 0),
@@ -68,6 +74,7 @@ export const AccountingHub = () => {
         const paidStatements = (res.data.data || []).filter(s => s.status === 'paid');
         const formatted = paidStatements.map(s => ({
           id: s.id,
+          dateTs: ts(s.paid_at || s.generated_at),
           date: s.paid_at ? new Date(s.paid_at).toLocaleDateString('en-GB') : (s.generated_at ? new Date(s.generated_at).toLocaleDateString('en-GB') : '-'),
           landlord: s.landlord_name || 'Landlord',
           amount: parseFloat(s.net_paid || 0),
@@ -79,6 +86,7 @@ export const AccountingHub = () => {
         const res = await api.get('/transactions');
         const formatted = (res.data.data || []).map(t => ({
           id: t.id,
+          dateTs: ts(t.transaction_date),
           date: t.transaction_date ? new Date(t.transaction_date).toLocaleDateString('en-GB') : '-',
           type: (t.type || '-').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
           description: t.description || '-',
@@ -108,7 +116,8 @@ export const AccountingHub = () => {
             balance,
             invoicedYtd,
             paidYtd,
-            lastStatement
+            lastStatement,
+            lastStatementTs: lastStmt ? ts(lastStmt.generated_at) : null
           };
         });
         setLandlordsDataState(formatted);
@@ -121,6 +130,7 @@ export const AccountingHub = () => {
           rent: parseFloat(a.rent || 0),
           arrears: parseFloat(a.arrears || 0),
           days: a.days,
+          lastPaymentTs: ts(a.lastPaymentDate),
           lastPaymentDate: a.lastPaymentDate ? new Date(a.lastPaymentDate).toLocaleDateString('en-GB') : '-'
         }));
         setArrearsDataState(formatted);
@@ -142,6 +152,16 @@ export const AccountingHub = () => {
     });
     return () => { cancelled = true; };
   }, [activeTab]);
+
+  // Fill every tab's count on page load, not only once that tab is opened
+  // (the first tab, 'incoming', is loaded by the effect above).
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (!cancelled) ['unreconciled', 'payouts', 'landlords', 'arrears', 'ledger'].forEach(fetchTabData);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const handleSelectionChange = (selectedIds) => {
     setSelectedIncomingIds(selectedIds);
@@ -246,7 +266,7 @@ export const AccountingHub = () => {
 
   // Tab configurations & columns
   const incomingColumns = [
-    { header: 'Date', accessor: 'date', sortable: true },
+    { header: 'Date', accessor: 'date', sortable: true, sortValue: (row) => row.dateTs },
     { header: 'Tenant Name', accessor: 'tenant', sortable: true },
     { header: 'Property', accessor: 'property', sortable: true },
     { 
@@ -274,7 +294,7 @@ export const AccountingHub = () => {
   ];
 
   const unreconciledColumns = [
-    { header: 'Date', accessor: 'date', sortable: true },
+    { header: 'Date', accessor: 'date', sortable: true, sortValue: (row) => row.dateTs },
     { header: 'Bank Description', accessor: 'description', sortable: true },
     { 
       header: 'Amount', 
@@ -288,7 +308,7 @@ export const AccountingHub = () => {
   ];
 
   const payoutsColumns = [
-    { header: 'Transfer Date', accessor: 'date', sortable: true },
+    { header: 'Transfer Date', accessor: 'date', sortable: true, sortValue: (row) => row.dateTs },
     { header: 'Landlord Name', accessor: 'landlord', sortable: true },
     {
       header: 'Amount Paid',
@@ -310,7 +330,7 @@ export const AccountingHub = () => {
   ];
 
   const ledgerColumns = [
-    { header: 'Date', accessor: 'date', sortable: true },
+    { header: 'Date', accessor: 'date', sortable: true, sortValue: (row) => row.dateTs },
     { header: 'Type', accessor: 'type', sortable: true },
     { header: 'Description', accessor: 'description', sortable: true },
     { header: 'Property', accessor: 'property', sortable: true },
@@ -366,7 +386,7 @@ export const AccountingHub = () => {
       sortable: true,
       renderCell: (row) => `£${row.paidYtd.toFixed(2)}`
     },
-    { header: 'Last Statement Issued', accessor: 'lastStatement', sortable: true },
+    { header: 'Last Statement Issued', accessor: 'lastStatement', sortable: true, sortValue: (row) => row.lastStatementTs },
   ];
 
   const tenantsArrearsColumns = [
@@ -391,7 +411,7 @@ export const AccountingHub = () => {
       )
     },
     { header: 'Days Overdue', accessor: 'days', sortable: true },
-    { header: 'Last Paid Date', accessor: 'lastPaymentDate', sortable: true },
+    { header: 'Last Paid Date', accessor: 'lastPaymentDate', sortable: true, sortValue: (row) => row.lastPaymentTs },
   ];
 
   const tabItems = [
@@ -492,7 +512,8 @@ export const AccountingHub = () => {
           loading['incoming'] ? renderSkeleton() : (
             <DataTable 
               columns={incomingColumns} 
-              data={incomingData} 
+              data={incomingData}
+              defaultSort={newestFirst}
               enableBulkSelect={true}
               onSelectionChange={handleSelectionChange}
             />
@@ -502,7 +523,8 @@ export const AccountingHub = () => {
           loading['unreconciled'] ? renderSkeleton() : (
             <DataTable 
               columns={unreconciledColumns} 
-              data={unreconciledDataState} 
+              data={unreconciledDataState}
+              defaultSort={newestFirst}
             />
           )
         )}
@@ -511,6 +533,7 @@ export const AccountingHub = () => {
             <DataTable
               columns={payoutsColumns}
               data={payoutsDataState}
+              defaultSort={newestFirst}
             />
           )
         )}
@@ -519,6 +542,7 @@ export const AccountingHub = () => {
             <DataTable
               columns={ledgerColumns}
               data={ledgerData}
+              defaultSort={newestFirst}
             />
           )
         )}
