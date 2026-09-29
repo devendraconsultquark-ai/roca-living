@@ -114,7 +114,8 @@ export const DataTable = ({
                 return (
                   <th
                     key={idx}
-                    className={`py-3 px-2 font-bold ${alignClass} ${col.sortable ? 'cursor-pointer select-none hover:text-brand-primary' : ''}`}
+                    style={col.width ? { width: col.width } : undefined}
+                    className={`py-3 px-2 font-bold ${alignClass} ${col.sortable ? 'cursor-pointer select-none hover:text-brand-primary' : ''} ${col.headerClassName || ''}`}
                     onClick={() => col.sortable && handleSort(col.accessor)}
                   >
                     <div className={`flex items-center gap-1.5 ${col.align === 'right' ? 'justify-end' : col.align === 'center' ? 'justify-center' : 'justify-start'}`}>
@@ -155,7 +156,10 @@ export const DataTable = ({
                     </td>
                   )}
                   {columns.map((col, colIdx) => {
-                    const alignClass = col.align === 'right' ? 'text-right font-semibold font-mono' : col.align === 'center' ? 'text-center' : 'text-left';
+                    // cellClassName (optional) replaces the default right-aligned mono styling.
+                    const alignClass = col.align === 'right'
+                      ? `text-right ${col.cellClassName ?? 'font-semibold font-mono'}`
+                      : `${col.align === 'center' ? 'text-center' : 'text-left'} ${col.cellClassName || ''}`;
                     return (
                       <td key={colIdx} className={`py-3 px-2 text-brand-primary font-medium ${alignClass}`}>
                         {col.renderCell ? col.renderCell(row) : row[col.accessor]}

@@ -2,12 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { FileSpreadsheet, Download, Send, CheckCircle2, Mail, Trash2 } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
+import { StatusPill } from '../components/UI/StatusPill';
+import { RowActionsMenu } from '../components/UI/RowActionsMenu';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
 import { Skeleton } from '../components/UI/Skeleton';
 import { TenantStatementModal } from '../components/UI/TenantStatementModal';
 import { StatementEmailModal } from '../components/UI/StatementEmailModal';
 import api from '../utilities/api';
+
+// "24 Sep 2026" / "24 Sep"
+const longDate = (d) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+const shortDate = (d) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+
+// "25 Sep – 24 Oct 2026" (the year once when both dates share it).
+const periodLabel = (start, end) => {
+  if (!start || !end) return '—';
+  const sameYear = new Date(start).getFullYear() === new Date(end).getFullYear();
+  return `${sameYear ? shortDate(start) : longDate(start)} – ${longDate(end)}`;
+};
+
+const gbp = (n) => `£${n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const MONEY = 'tabular-nums whitespace-nowrap';
 
 export const Statements = () => {
   const [statements, setStatements] = useState([]);
@@ -28,16 +44,14 @@ export const Statements = () => {
         // (The mgmt_fee/letting-fee columns are always 0 in this statement format.)
         const totalDeductions = parseFloat(s.deductions || 0) + parseFloat(s.nrl_withheld || 0);
 
-        const periodStartStr = s.period_start ? new Date(s.period_start).toLocaleDateString('en-GB') : '';
-        const periodEndStr = s.period_end ? new Date(s.period_end).toLocaleDateString('en-GB') : '';
-
         return {
           id: s.id,
           // The statement number (PH_33_0004) is what ROCA and the landlord see on the PDF.
           statement_reference: s.statement_number || s.statement_reference || `STM-${s.id}`,
           landlord: s.landlord_name || 'Landlord',
-          period: `${periodStartStr} - ${periodEndStr}`,
-          date: s.generated_at ? new Date(s.generated_at).toLocaleDateString('en-GB') : '-',
+          period: periodLabel(s.period_start, s.period_end),
+          periodSort: s.period_start ? new Date(s.period_start).getTime() : null,
+          date: s.generated_at ? longDate(s.generated_at) : '—',
           invoiced: parseFloat(s.gross_rent || 0),
           fees: totalDeductions,
           payout: parseFloat(s.net_paid || 0),
@@ -45,9 +59,9 @@ export const Statements = () => {
           number: s.statement_number || null,
           hasInvoice: !!s.invoice_id,
           landlordEmail: s.landlord_email || '',
-          sentAt: s.sent_at ? new Date(s.sent_at).toLocaleDateString('en-GB') : null,
+          sentAt: s.sent_at ? shortDate(s.sent_at) : null,
           sentTo: s.sent_to || null,
-          paidAt: s.paid_at ? new Date(s.paid_at).toLocaleDateString('en-GB') : null,
+          paidAt: s.paid_at ? shortDate(s.paid_at) : null,
           status: s.status ? s.status.charAt(0).toUpperCase() + s.status.slice(1) : 'Draft'
         };
       });
@@ -145,106 +159,121 @@ export const Statements = () => {
     }
   };
 
+  // One "next step" button per row (fixed width so every row lines up); all
+  // other actions sit in the ⋯ menu.
+  const nextStep = (row) => {
+    if (row.rawStatus === 'draft') return { label: 'Email', icon: Mail, onClick: () => setEmailFor(row.id) };
+    if (row.rawStatus === 'sent') return { label: 'Mark Paid', icon: CheckCircle2, onClick: () => handleStatusChange(row, 'paid') };
+    return null;
+  };
+
+  const menuItems = (row) => {
+    const primary = nextStep(row)?.label;
+    return [
+      primary !== 'Email' && { label: row.sentAt ? 'Email again' : 'Email', icon: Mail, onClick: () => setEmailFor(row.id) },
+      row.rawStatus === 'draft' && { label: 'Mark Sent', icon: Send, onClick: () => handleStatusChange(row, 'sent') },
+      (row.rawStatus === 'draft' || row.rawStatus === 'sent') && primary !== 'Mark Paid' && {
+        label: 'Mark Paid', icon: CheckCircle2, onClick: () => handleStatusChange(row, 'paid')
+      },
+      row.rawStatus === 'draft' && !row.sentAt && { label: 'Delete draft', icon: Trash2, danger: true, onClick: () => handleDeleteDraft(row) }
+    ];
+  };
+
   const columns = [
-    { header: 'Statement Reference', accessor: 'statement_reference', sortable: true },
-    { header: 'Landlord', accessor: 'landlord', sortable: true },
-    { header: 'Billing Period', accessor: 'period', sortable: true },
-    { header: 'Issue Date', accessor: 'date', sortable: true },
-    { 
-      header: 'Rent Invoiced', 
-      accessor: 'invoiced', 
-      align: 'right', 
+    {
+      header: 'Statement',
+      accessor: 'statement_reference',
       sortable: true,
-      renderCell: (row) => `£${row.invoiced.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      renderCell: (row) => (
+        <div className="whitespace-nowrap">
+          <div className="font-bold">{row.statement_reference}</div>
+          <div className="text-2xs text-status-muted mt-0.5">Issued {row.date}</div>
+        </div>
+      )
+    },
+    {
+      header: 'Landlord',
+      accessor: 'landlord',
+      sortable: true,
+      renderCell: (row) => (
+        <span className="min-w-[140px] max-w-[260px] line-clamp-2 leading-snug" title={row.landlord}>{row.landlord}</span>
+      )
+    },
+    {
+      header: 'Period',
+      accessor: 'period',
+      sortable: true,
+      sortValue: (row) => row.periodSort,
+      cellClassName: 'whitespace-nowrap',
+    },
+    {
+      header: 'Rent',
+      accessor: 'invoiced',
+      align: 'right',
+      sortable: true,
+      cellClassName: MONEY,
+      renderCell: (row) => gbp(row.invoiced)
     },
     {
       header: 'Deductions',
       accessor: 'fees',
       align: 'right',
       sortable: true,
-      renderCell: (row) => `-£${row.fees.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    },
-    { 
-      header: 'Net Payout', 
-      accessor: 'payout', 
-      align: 'right', 
-      sortable: true,
-      renderCell: (row) => (
-        <span className="font-bold text-brand-primary">
-          £{row.payout.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </span>
-      )
+      cellClassName: MONEY,
+      renderCell: (row) => <span className="text-status-muted">{row.fees ? `−${gbp(row.fees)}` : gbp(0)}</span>
     },
     {
-      header: 'Payout Status',
+      header: 'Payout',
+      accessor: 'payout',
+      align: 'right',
+      sortable: true,
+      cellClassName: `${MONEY} font-bold`,
+      renderCell: (row) => gbp(row.payout)
+    },
+    {
+      header: <span className="pl-4">Status</span>,
       accessor: 'status',
+      sortable: true,
       renderCell: (row) => {
-        let style = 'bg-surface-hover text-gray-400 border-card-border';
-        if (row.status === 'Paid') {
-          style = 'bg-status-success-bg text-status-success border-status-success/15';
-        } else if (row.status === 'Sent') {
-          style = 'bg-status-info-bg text-status-info border-status-info/15';
-        }
+        const notes = [row.sentAt && `Emailed ${row.sentAt}`, row.rawStatus === 'paid' && row.paidAt && `Paid ${row.paidAt}`].filter(Boolean);
         return (
-          <div className="flex flex-col items-start gap-0.5">
-            <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border ${style}`}>
-              {row.status}
-            </span>
-            {row.status === 'Paid' && row.paidAt && <span className="text-xs-portal text-status-muted">Payout {row.paidAt}</span>}
-            {row.sentAt && <span className="text-xs-portal text-status-muted">Emailed {row.sentAt}</span>}
+          <div className="flex flex-col items-start gap-1 pl-4">
+            <StatusPill status={row.rawStatus} size="sm" showIcon={false} />
+            {notes.length > 0 && <span className="text-2xs text-status-muted whitespace-nowrap">{notes.join(' · ')}</span>}
           </div>
         );
       }
     },
     {
-      header: 'Actions',
+      header: '',
       accessor: 'id',
-      align: 'center',
-      renderCell: (row) => (
-        <div className="flex items-center justify-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setEmailFor(row.id)}
-            icon={Mail}
-          >
-            {row.sentAt ? 'Email again' : 'Email'}
-          </Button>
-          {row.rawStatus === 'draft' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleStatusChange(row, 'sent')}
-              icon={Send}
+      align: 'right',
+      width: 190,
+      cellClassName: '',
+      renderCell: (row) => {
+        const step = nextStep(row);
+        return (
+          <div className="flex items-center justify-end gap-0.5">
+            <div className="w-[100px] mr-1 flex justify-end">
+              {step && (
+                <Button variant="secondary" size="sm" icon={step.icon} onClick={step.onClick} className="w-full">
+                  {step.label}
+                </Button>
+              )}
+            </div>
+            <button
+              type="button"
+              title="Download PDF"
+              aria-label="Download PDF"
+              onClick={() => handleDownload(row.id, row.landlord, row)}
+              className="w-8 h-8 inline-flex items-center justify-center rounded-card text-ink-muted hover:text-ink hover:bg-gray-100 transition-colors cursor-pointer"
             >
-              Mark Sent
-            </Button>
-          )}
-          {(row.rawStatus === 'draft' || row.rawStatus === 'sent') && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleStatusChange(row, 'paid')}
-              icon={CheckCircle2}
-            >
-              Mark Paid
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleDownload(row.id, row.landlord, row)}
-            icon={Download}
-          >
-            PDF
-          </Button>
-          {row.rawStatus === 'draft' && !row.sentAt && (
-            <Button variant="ghost" size="sm" onClick={() => handleDeleteDraft(row)} icon={Trash2}>
-              Delete
-            </Button>
-          )}
-        </div>
-      )
+              <Download size={15} />
+            </button>
+            <RowActionsMenu items={menuItems(row)} />
+          </div>
+        );
+      }
     }
   ];
 
