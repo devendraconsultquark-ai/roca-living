@@ -5,6 +5,7 @@ import { ApiError } from './ApiError.js';
 import { ensureLandlordSetup } from './landlordSetup.js';
 import { getNumericSetting } from './settings.js';
 import { niceName } from './names.js';
+import { checkPhone } from '../validations/common.js';
 
 // Link between ROCA Estates (rocaem) and Roca Living.
 //
@@ -146,6 +147,7 @@ const resolveChosenLandlord = async (trx, { landlordId, newLandlord } = {}) => {
   if (newLandlord && newLandlord.name && newLandlord.email) {
     const email = String(newLandlord.email).trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ApiError(400, 'Enter a valid landlord email');
+    checkPhone(newLandlord.phone, 'Landlord phone');
     const existing = await trx('users').whereRaw('LOWER(email) = ?', [email]).first();
     if (existing) {
       if (existing.role !== 'LANDLORD') throw new ApiError(409, `${email} is already used by a non-landlord account`);

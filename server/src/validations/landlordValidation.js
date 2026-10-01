@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { UK_PHONE_REGEX, UK_PHONE_MESSAGE } from "./common.js";
+import { isValidPhone, PHONE_MESSAGE } from "./common.js";
 
 const requiredString = (message) => z.string({
   error: (issue) => issue.input === undefined ? message : "Must be a valid string"
@@ -14,7 +14,7 @@ export const createLandlordSchema = z.object({
     .transform(val => val.toLowerCase()),
 
   phone: requiredString("Phone number is required")
-    .regex(UK_PHONE_REGEX, UK_PHONE_MESSAGE),
+    .refine(isValidPhone, PHONE_MESSAGE),
 
   address: z.string().optional().default(''),
   company_name: z.string().optional(),
@@ -33,9 +33,7 @@ export const createLandlordSchema = z.object({
 export const updateLandlordSchema = z.looseObject({
   name: z.string().min(2, "Name must be at least 2 characters").optional(),
   email: z.string().email("Invalid email format").optional(),
-  // Many ROCA Living landlords live abroad (e.g. +31 numbers), so any
-  // international-style number is accepted when editing.
-  phone: z.string().regex(/^\+?[0-9 ()-]{6,20}$/, "Must be a valid phone number (e.g. +31 6 1234 5678 or 07123 456789)").optional()
+  phone: z.string().refine(isValidPhone, PHONE_MESSAGE).optional()
 });
 
 // Columns bank_name/account_name/account_number/sort_code are NOT NULL in

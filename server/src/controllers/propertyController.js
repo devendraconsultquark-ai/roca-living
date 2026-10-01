@@ -274,10 +274,23 @@ export const updateProperty = catchAsync(async (req, res, next) => {
     }
   });
 
+  // The edit form sends an empty box as ''. For a number column that is "no
+  // value", not zero — and '' makes the save fail on strict MySQL.
+  if (updateData.rent_pcm === '') updateData.rent_pcm = null;
+  if (updateData.mgmt_fee_pct === '') delete updateData.mgmt_fee_pct; // keep the fee already set
+  for (const [field, label] of [['rent_pcm', 'Monthly rent'], ['mgmt_fee_pct', 'Management fee']]) {
+    const v = updateData[field];
+    if (v !== undefined && v !== null && (!Number.isFinite(Number(v)) || Number(v) < 0)) {
+      throw new ApiError(400, `${label} must be a number`);
+    }
+  }
+
   if (updateData.block_name !== undefined) updateData.block_name = cleanUnitCode(updateData.block_name, 'Block code');
   if (updateData.apartment_number !== undefined) updateData.apartment_number = cleanUnitCode(updateData.apartment_number, 'Apartment number');
 
-  if (updateData.status === 'let') {
+  // Only a change TO "let" needs the checklist complete. The edit form re-sends
+  // the current status, and apartments let through Add Tenant are already "let".
+  if (updateData.status === 'let' && propertyExists.status !== 'let') {
     const checklist = await db('compliance_checklist').where({ scope: 'property', entity_id: id });
     // not_applicable (or applicable = 0) items don't block letting — only
     // applicable items that are still pending do.

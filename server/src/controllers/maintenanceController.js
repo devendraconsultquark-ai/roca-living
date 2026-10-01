@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import logger from '../utils/logger.js';
 import { toYmd } from '../utils/dateHelpers.js';
+import { checkPhone } from '../validations/common.js';
 
 const formatTicket = (t) => {
   if (!t) return null;
@@ -540,6 +541,7 @@ export const getAllContractors = catchAsync(async (req, res, next) => {
 
 export const createContractor = catchAsync(async (req, res, next) => {
   const { company_name, trade, contact_name, email, phone, insurance_expiry, rating, preferred } = req.body;
+  checkPhone(phone);
 
   if (!company_name || !trade) {
     throw new ApiError(400, 'company_name and trade are required');
@@ -573,6 +575,7 @@ export const createContractor = catchAsync(async (req, res, next) => {
 export const updateContractor = catchAsync(async (req, res, next) => {
   const { id } = req.params;
   const { company_name, trade, contact_name, email, phone, insurance_expiry, rating, preferred, status } = req.body;
+  checkPhone(phone);
 
   const contractor = await db('contractors').where('id', id).first();
   if (!contractor) {

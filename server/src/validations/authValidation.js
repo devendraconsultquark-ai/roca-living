@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { UK_PHONE_REGEX, UK_PHONE_MESSAGE } from "./common.js";
+import { isValidPhone, PHONE_MESSAGE } from "./common.js";
 
 // Helper function to return a custom error message if the field is missing
 const requiredString = (message) => z.string({
@@ -21,7 +21,7 @@ export const registerSchema = z.object({
             .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character"),
 
       phone: requiredString("Phone number is required")
-            .regex(UK_PHONE_REGEX, UK_PHONE_MESSAGE),
+            .refine(isValidPhone, PHONE_MESSAGE),
 
       address: requiredString("Address is required")
             .min(5, "Address must be at least 5 characters")
@@ -41,7 +41,7 @@ export const updateProfileSchema = z.object({
       name: z.string().min(2, "Name must be at least 2 characters").optional(),
       email: z.string().email("Invalid email format").transform(val => val.toLowerCase()).optional(),
       phone: z.string()
-            .regex(UK_PHONE_REGEX, UK_PHONE_MESSAGE)
+            .refine(isValidPhone, PHONE_MESSAGE)
             .optional(),
       address: z.string().min(5, "Address must be at least 5 characters").optional(),
 

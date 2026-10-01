@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidPhone, PHONE_MESSAGE } from "./common.js";
 
 // Helper function to return a custom error message if the field is missing
 const requiredString = (message) => z.string({
@@ -21,9 +22,7 @@ export const contactSchema = z.object({
             .transform(val => val.toLowerCase()),
 
       phone: requiredString("Phone number is required")
-            .min(7, "Phone number is too short")
-            .max(30, "Phone number is too long")
-            .regex(/^[+\d\s()-]+$/, "Phone number contains invalid characters"),
+            .refine(isValidPhone, PHONE_MESSAGE),
 
       message: requiredString("Message is required")
             .min(5, "Message must be at least 5 characters")

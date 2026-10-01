@@ -1,6 +1,7 @@
 import db from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
+import { checkPhone } from '../validations/common.js';
 
 // Formatting helpers
 const formatAgent = (a) => {
@@ -59,6 +60,7 @@ export const getAllAgents = catchAsync(async (req, res, next) => {
 
 export const createAgent = catchAsync(async (req, res, next) => {
   const { company_name, contact_name, email, phone, redress_scheme, cmp_provider } = req.body;
+  checkPhone(phone);
 
   if (!company_name) {
     throw new ApiError(400, 'Company name is required');
@@ -96,6 +98,7 @@ export const createAgent = catchAsync(async (req, res, next) => {
 export const updateAgent = catchAsync(async (req, res, next) => {
   const { id } = req.params;
   const { company_name, contact_name, email, phone, redress_scheme, cmp_provider, status } = req.body;
+  checkPhone(phone);
 
   const agentExists = await db('letting_agents').where('id', id).first();
   if (!agentExists) {

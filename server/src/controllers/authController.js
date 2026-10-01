@@ -445,22 +445,14 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
     password_reset_expires: expiresAt
   });
 
-  const portalPath = '';
-  
-  // Smart origin detection: use req.headers.origin or extract from req.headers.referer, fallback to port defaults
-  let origin = req.headers.origin;
-  if (!origin && req.headers.referer) {
-    try {
-      origin = new URL(req.headers.referer).origin;
-    } catch (e) {
-      // Ignore malformed referrer URLs
-    }
-  }
-  if (!origin) {
-    origin = portal === 'admin' ? 'http://localhost:5174' : 'http://localhost:5173';
-  }
+  // The link's site comes only from server config, never from the request's
+  // Origin/Referer (a forged header would send the real token to another site).
+  const isAdmin = portal === 'admin' || (!portal && user.role === 'ADMIN');
+  const origin = (isAdmin
+    ? process.env.ADMIN_PORTAL_URL || 'http://localhost:5174'
+    : process.env.LANDLORD_PORTAL_URL || 'http://localhost:5173').replace(/\/+$/, '');
 
-  const resetUrl = `${origin}${portalPath}/reset-password?token=${rawToken}`;
+  const resetUrl = `${origin}/reset-password?token=${rawToken}`;
 
   // Send the actual email to the user using the template
   const subject = "Roca Living - Password Reset Request";

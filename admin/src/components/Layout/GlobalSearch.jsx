@@ -52,7 +52,7 @@ export const GlobalSearch = () => {
         .filter((p) => match(p.name, p.address_line1, p.city, p.postcode, p.property_reference))
         .slice(0, 5),
       tenants: data.tenants
-        .filter((t) => match(t.name, t.email, t.address_line1))
+        .filter((t) => match(t.name, t.email, t.property))
         .slice(0, 5),
     };
   }, [data, query]);
@@ -131,8 +131,8 @@ export const GlobalSearch = () => {
                 (p) => `/properties/${p.id}`)}
               {section('Tenants', UserCheck, results.tenants,
                 (t) => t.name,
-                (t) => t.address_line1 || t.email,
-                (t) => `/tenants/${t.id}`)}
+                (t) => t.property || t.email,
+                (t) => `/tenants/${t.rawId}`)}
             </>
           )}
         </div>
