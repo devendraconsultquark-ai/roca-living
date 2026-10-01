@@ -173,6 +173,12 @@ export const getValidAccessToken = async () => {
     return { connection: refreshed, accessToken: tokenSet.access_token };
   } catch (err) {
     logger.error(`Xero token refresh failed for tenant ${connection.tenant_id}: ${err.message}`);
+    // Only a rejected refresh token (invalid_grant) really ends the connection.
+    // A network blip or Xero outage must not force a fresh sign-in, which would
+    // put the account owner through Xero's email check again.
+    if (err.xeroErrorCode !== 'invalid_grant') {
+      throw new ApiError(502, 'Xero is not reachable right now — please try again shortly');
+    }
     await db('xero_connections').where('id', connection.id).update({ status: 'needs_reauth' });
     throw new ApiError(409, 'The Xero connection has expired — please reconnect');
   }

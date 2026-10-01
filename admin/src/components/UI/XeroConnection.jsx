@@ -178,6 +178,11 @@ export const XeroConnection = () => {
                 <Link2 size={16} />
                 {status.status === 'needs_reauth' ? 'Reconnect Xero' : 'Connect Xero'}
               </a>
+              <p className="text-2xs text-status-muted font-semibold mt-2 max-w-2xl">
+                Best done once by the Xero account owner on their own computer. If Xero says it has sent a
+                verification email, the owner approves it, then press "Continue granting access". After that the
+                connection stays on by itself.
+              </p>
             </div>
           </div>
         ) : (

@@ -137,7 +137,15 @@ export const runRetentionCleanup = async () => {
 const syncXeroDaily = async () => {
   const connection = await db('xero_connections').where('status', 'active').first();
   const hasAccounts = await db('xero_import_accounts').first();
-  if (!connection || !hasAccounts) return; // not set up yet
+  if (!connection) return; // not connected yet
+  if (!hasAccounts) {
+    // No bank accounts chosen yet: still refresh the tokens daily so the
+    // connection never lapses (Xero refresh tokens die after 60 days unused).
+    const { getValidAccessToken } = await import('../utils/xero.js');
+    await getValidAccessToken();
+    logger.info('Xero keep-alive: connection refreshed (no import accounts chosen yet)');
+    return;
+  }
   const { runXeroSync } = await import('../controllers/xeroBankController.js');
   const result = await runXeroSync(null);
   logger.info(`Xero daily sync: ${result.imported} imported, ${result.auto_matched} auto-matched`);

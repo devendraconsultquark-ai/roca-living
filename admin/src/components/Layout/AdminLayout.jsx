@@ -174,7 +174,7 @@ export const AdminLayout = () => {
 
   // Management Fee Account tile (sidebar footer) — live YTD fees from the ledger
   const [feeAccount, setFeeAccount] = useState(null);
-  const [feeTileOpen, setFeeTileOpen] = useState(true);
+  const [feeTileOpen, setFeeTileOpen] = useState(false);
 
   useEffect(() => {
     api.get('/reports/mgmt-fee-account')
