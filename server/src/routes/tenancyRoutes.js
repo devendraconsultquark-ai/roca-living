@@ -9,6 +9,7 @@ import {
   updateRentReview,
   recordRentPayment,
   getRentPayments,
+  deleteRentPayment,
   getAllTenants,
   updateTenant,
   deleteTenant,
@@ -29,6 +30,7 @@ tenancyRouter.get('/tenants/all', protect('admin'), restrictTo('ADMIN'), getAllT
 tenancyRouter.get('/tenants/:id', protect('admin'), restrictTo('ADMIN'), getTenantById);
 tenancyRouter.patch('/tenants/:id', protect('admin'), restrictTo('ADMIN'), updateTenant);
 tenancyRouter.delete('/tenants/:id', protect('admin'), restrictTo('ADMIN'), deleteTenant);
+tenancyRouter.delete('/rent-payments/:paymentId', protect('admin'), restrictTo('ADMIN'), deleteRentPayment);
 tenancyRouter.post('/', protect('admin'), restrictTo('ADMIN'), createTenancy);
 tenancyRouter.get('/', protect('admin'), restrictTo('ADMIN'), getAllTenancies);
 tenancyRouter.get('/:id', protect('admin'), restrictTo('ADMIN'), getTenancyById);

@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import db from '../config/db.js';
 import logger from '../utils/logger.js';
 import { toYmd } from '../utils/dateHelpers.js';
+import { topUpAllRentSchedules } from '../utils/rentSchedules.js';
 
 // Job 1: Deposit Registration Reminder (daily at 8am)
 export const checkDeposits = async () => {
@@ -159,6 +160,13 @@ const runExclusive = (name, fn) => async () => {
   }
 };
 
+// Job 7: open-ended tenancies are created with 12 rent months; keep 12 months
+// ahead so rent due, arrears and payment allocation never run out.
+export const topUpRentSchedulesJob = async () => {
+  const { tenancies, added } = await topUpAllRentSchedules();
+  if (added > 0) logger.info(`Rent schedule top-up: added ${added} rent month(s) across ${tenancies} live open-ended tenancies.`);
+};
+
 // Scheduler setup
 export const startScheduler = () => {
   // In a multi-instance deployment, set SCHEDULER_ENABLED=false on all but one instance
@@ -189,6 +197,10 @@ export const startScheduler = () => {
 
   // Job 6: Xero bank transaction sync - Daily at 6:30 AM
   cron.schedule('30 6 * * *', runExclusive('syncXeroDaily', syncXeroDaily));
+
+  // Job 7: Rent schedule top-up - Daily at 5:00 AM (before the Xero sync and
+  // the arrears check, so both see the new months)
+  cron.schedule('0 5 * * *', runExclusive('topUpRentSchedulesJob', topUpRentSchedulesJob));
 
   logger.info('Background jobs scheduler initialized successfully.');
 };

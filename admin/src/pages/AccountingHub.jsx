@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { FileSpreadsheet, Banknote, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../components/UI/ToastContext';
+import { useConfirm } from '../components/UI/ConfirmContext';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
@@ -19,6 +20,7 @@ export const AccountingHub = () => {
   const [activeTab, setActiveTab] = useState('incoming');
   const [selectedIncomingIds, setSelectedIncomingIds] = useState([]);
   const { addToast } = useToast();
+  const confirm = useConfirm();
   const navigate = useNavigate();
 
   // Record Rent Payment modal
@@ -237,20 +239,39 @@ export const AccountingHub = () => {
       addToast('Tenancy, date received, and amount are required', 'warning');
       return;
     }
+    const send = (confirmDuplicate) => api.post(`/tenancies/${paymentForm.tenancy_id}/rent-payments`, {
+      received_at: paymentForm.received_at,
+      amount: parseFloat(paymentForm.amount),
+      method: paymentForm.method,
+      reference: paymentForm.reference || undefined,
+      notes: paymentForm.notes || undefined,
+      ...(confirmDuplicate ? { confirm_duplicate: true } : {})
+    }, { skipInterceptorError: true });
+
     setPaymentSaving(true);
     try {
-      const res = await api.post(`/tenancies/${paymentForm.tenancy_id}/rent-payments`, {
-        received_at: paymentForm.received_at,
-        amount: parseFloat(paymentForm.amount),
-        method: paymentForm.method,
-        reference: paymentForm.reference || undefined,
-        notes: paymentForm.notes || undefined
-      });
+      let res;
+      try {
+        res = await send(false);
+      } catch (err) {
+        // The same money may already be recorded (typed earlier or from Xero):
+        // the server refuses until the admin confirms it is a second payment.
+        const dup = err.response?.status === 409 ? err.response?.data?.errors?.[0] : null;
+        if (dup?.field !== 'duplicate') throw err;
+        const ok = await confirm({
+          title: 'Payment may already be recorded',
+          message: err.response.data.message,
+          confirmText: 'Record anyway',
+          variant: 'danger',
+        });
+        if (!ok) return;
+        res = await send(true);
+      }
       const reconciled = res.data?.data?.reconciled;
       addToast(
         reconciled
-          ? 'Payment recorded and auto-matched to a rent schedule'
-          : 'Payment recorded — no matching schedule found, reconcile it manually',
+          ? 'Payment recorded and applied to the oldest unpaid rent month'
+          : 'Payment recorded as tenant credit (no unpaid rent month to apply it to)',
         reconciled ? 'success' : 'info'
       );
       setShowPaymentModal(false);
@@ -589,6 +610,7 @@ export const AccountingHub = () => {
 
               <Dropdown
                 label="Tenancy"
+                id="paymentTenancy"
                 options={tenanciesList}
                 value={paymentForm.tenancy_id}
                 onChange={(val) => setPaymentForm({ ...paymentForm, tenancy_id: val })}

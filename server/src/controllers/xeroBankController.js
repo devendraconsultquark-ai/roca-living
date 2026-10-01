@@ -4,6 +4,7 @@ import { catchAsync } from '../utils/catchAsync.js';
 import logger from '../utils/logger.js';
 import { getStoredConnection, xeroApiGet } from '../utils/xero.js';
 import { allocateTenancyPayments } from '../utils/rentAllocation.js';
+import { findSimilarPayment } from '../utils/rentPayments.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Xero bank transactions → ROCA (same model as the rocaem reconciliation):
@@ -28,6 +29,7 @@ const localYmd = (d) => {
   return `${x.getFullYear()}-${pad2(x.getMonth() + 1)}-${pad2(x.getDate())}`;
 };
 const isYmd = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+const ukDate = (d) => { const [y, m, day] = localYmd(d).split('-'); return `${day}/${m}/${y}`; };
 
 const getImportFrom = async () => {
   const row = await db('settings').where({ key: SETTING_IMPORT_FROM }).first();
@@ -249,6 +251,25 @@ const recordRent = async (trx, row, tenancyId, actorId) => {
   return { rent_payment_id: paymentId, ledger_transaction_id: ledgerId, property_id: tenancy.property_id, landlord_id: property?.landlord_id || null };
 };
 
+// The bank line is money that was already typed in with "Record Rent Payment":
+// a payment for the same tenancy and amount within 7 days that no other bank
+// line is tied to. Linking to it (below) avoids booking the rent twice.
+const existingRentFor = (trx, row, tenancyId) =>
+  findSimilarPayment(trx, tenancyId, row.amount, localYmd(row.date), { unlinkedOnly: true });
+
+// Tie the bank line to an existing payment: nothing new is recorded.
+const linkExistingRent = async (trx, payment) => {
+  const tenancy = await trx('tenancies').where('id', payment.tenancy_id).first();
+  const property = tenancy ? await trx('properties').where('id', tenancy.property_id).first() : null;
+  return {
+    rent_payment_id: payment.id,
+    ledger_transaction_id: null,
+    property_id: tenancy?.property_id || null,
+    landlord_id: property?.landlord_id || null,
+    link_meta: JSON.stringify({ matched_existing: true })
+  };
+};
+
 const payStatements = async (trx, row, statementIds) => {
   const statements = await trx('landlord_statements').whereIn('id', statementIds).select('id', 'status', 'paid_at', 'landlord_id');
   if (statements.length !== statementIds.length) throw new ApiError(404, 'Statement not found');
@@ -275,6 +296,19 @@ export const autoMatch = (rowId, actorId) => db.transaction(async (trx) => {
     if (!link?.tenancy_id) return false;
     const tenancy = await trx('tenancies').where('id', link.tenancy_id).whereIn('status', ['active', 'notice']).first();
     if (!tenancy) return false;
+
+    // Already typed in by hand → link to that payment instead of booking it again.
+    const existing = await existingRentFor(trx, row, tenancy.id);
+    if (existing) {
+      const r = await linkExistingRent(trx, existing);
+      await trx('xero_bank_transactions').where('id', rowId).update({
+        status: 'reconciled', reconciled_as: 'tenant_rent', tenancy_id: tenancy.id, property_id: r.property_id,
+        landlord_id: r.landlord_id, rent_payment_id: r.rent_payment_id, ledger_transaction_id: null,
+        link_meta: r.link_meta, auto_matched: true, reconciled_by: actorId, reconciled_at: trx.fn.now()
+      });
+      return true;
+    }
+
     const next = await oldestOpenSchedule(trx, tenancy.id);
     // Certain only when it exactly settles the oldest open month; anything else → admin decides.
     if (!next || round2(next.amount - (next.paid_amount || 0)) !== round2(row.amount)) return false;
@@ -436,11 +470,33 @@ export const reconcileBankTransaction = catchAsync(async (req, res) => {
       const tenancyId = Number(req.body.tenancy_id);
       const tenancy = await trx('tenancies').where('id', tenancyId).first();
       if (!tenancy) throw new ApiError(400, 'Select a tenant');
-      const r = await recordRent(trx, row, tenancyId, req.user.id);
+
+      // { match_payment_id } ties the line to a payment already typed in by
+      // hand; { new_payment: true } records it as new money. With neither,
+      // a likely duplicate is refused so the admin has to choose.
+      const existing = await existingRentFor(trx, row, tenancyId);
+      let r;
+      if (req.body.match_payment_id) {
+        const chosen = await trx('rent_payments').where({ id: Number(req.body.match_payment_id), tenancy_id: tenancyId }).first();
+        const linked = chosen ? await trx('xero_bank_transactions').where('rent_payment_id', chosen.id).first() : null;
+        if (!chosen || linked || round2(chosen.amount) !== round2(row.amount)) {
+          throw new ApiError(400, 'That payment can no longer be matched to this bank line');
+        }
+        r = await linkExistingRent(trx, chosen);
+      } else if (existing && !req.body.new_payment) {
+        throw new ApiError(409, `A £${round2(existing.amount).toFixed(2)} payment on ${ukDate(existing.received_at)} is already recorded for this tenant. Match it, or record this as a new payment.`, [{
+          field: 'duplicate',
+          message: 'Possible duplicate payment',
+          payment: { id: existing.id, amount: round2(existing.amount).toFixed(2), received_at: localYmd(existing.received_at), reference: existing.reference || null }
+        }]);
+      } else {
+        r = await recordRent(trx, row, tenancyId, req.user.id);
+      }
       await rememberContact(trx, row.contact_id, 'tenant', tenancyId, req.user.id);
       await trx('xero_bank_transactions').where('id', row.id).update({
         ...base, tenancy_id: tenancyId, property_id: r.property_id, landlord_id: r.landlord_id,
-        rent_payment_id: r.rent_payment_id, ledger_transaction_id: r.ledger_transaction_id
+        rent_payment_id: r.rent_payment_id, ledger_transaction_id: r.ledger_transaction_id,
+        link_meta: r.link_meta || null
       });
     } else if (as === 'landlord_payout') {
       if (row.direction !== 'out') throw new ApiError(400, 'Only money out can be a landlord payout');
@@ -511,7 +567,11 @@ export const undoBankTransaction = catchAsync(async (req, res) => {
     if (row.status === 'unreconciled') throw new ApiError(400, 'Nothing to undo');
     const date = localYmd(row.date);
 
-    if (row.status === 'reconciled' && row.reconciled_as === 'tenant_rent') {
+    const matchedExisting = row.reconciled_as === 'tenant_rent' && row.link_meta
+      && JSON.parse(row.link_meta)?.matched_existing === true;
+    if (row.status === 'reconciled' && matchedExisting) {
+      // The line was only tied to a hand-typed payment: untie it, keep the payment.
+    } else if (row.status === 'reconciled' && row.reconciled_as === 'tenant_rent') {
       const payment = row.rent_payment_id ? await trx('rent_payments').where('id', row.rent_payment_id).first() : null;
       const claimed = payment
         ? await trx('rent_payment_allocations as a')

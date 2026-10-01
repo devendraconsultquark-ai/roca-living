@@ -85,9 +85,21 @@ export const BankTransactionsTab = () => {
     }
   };
 
-  const confirmSuggestion = (row) => {
+  const confirmSuggestion = async (row) => {
     if (row.suggestion.as === 'tenant_rent') {
-      act(row, `/xero/transactions/${row.id}/reconcile`, { as: 'tenant_rent', tenancy_id: row.suggestion.tenancy_id }, 'Recorded as rent');
+      setBusyId(row.id);
+      try {
+        await api.post(`/xero/transactions/${row.id}/reconcile`, { as: 'tenant_rent', tenancy_id: row.suggestion.tenancy_id }, { skipInterceptorError: true });
+        addToast('Recorded as rent', 'success');
+        reload();
+      } catch (err) {
+        // The rent may already be typed in by hand: let the admin choose in the window.
+        const dup = duplicateOf(err);
+        if (dup) setReconcileRow({ ...row, duplicate: dup });
+        else addToast(err.response?.data?.message || 'Action failed', 'error');
+      } finally {
+        setBusyId(null);
+      }
     } else {
       setReconcileRow(row); // payouts need the statement(s) chosen
     }
@@ -249,6 +261,13 @@ export const BankTransactionsTab = () => {
   );
 };
 
+// The server refuses a rent reconcile when the same money looks already
+// recorded (409 with the existing payment); null for any other error.
+const duplicateOf = (err) => {
+  const e = err.response?.status === 409 ? err.response?.data?.errors?.[0] : null;
+  return e?.field === 'duplicate' ? e.payment : null;
+};
+
 // One popup: choose what the money was, then who/what it belongs to.
 const ReconcileModal = ({ row, onClose, onDone }) => {
   const { addToast } = useToast();
@@ -264,6 +283,10 @@ const ReconcileModal = ({ row, onClose, onDone }) => {
   const [statementIds, setStatementIds] = useState([]);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+  // A payment already typed in by hand that looks like this bank line, and
+  // what to do with it: tie the line to it, or record new money.
+  const [duplicate, setDuplicate] = useState(row.duplicate || null);
+  const [rentChoice, setRentChoice] = useState('match');
 
   useEffect(() => {
     const load = async () => {
@@ -294,6 +317,10 @@ const ReconcileModal = ({ row, onClose, onDone }) => {
     if (as === 'tenant_rent') {
       if (!tenancyId) return addToast('Select the tenant', 'warning');
       body.tenancy_id = Number(tenancyId);
+      if (duplicate) {
+        if (rentChoice === 'match') body.match_payment_id = duplicate.id;
+        else body.new_payment = true;
+      }
     } else if (as === 'landlord_payout') {
       if (!landlordId) return addToast('Select the landlord', 'warning');
       body.landlord_id = Number(landlordId);
@@ -304,12 +331,14 @@ const ReconcileModal = ({ row, onClose, onDone }) => {
     }
     setSaving(true);
     try {
-      await api.post(`/xero/transactions/${row.id}/reconcile`, body);
-      addToast('Transaction reconciled', 'success');
+      await api.post(`/xero/transactions/${row.id}/reconcile`, body, { skipInterceptorError: true });
+      addToast(body.match_payment_id ? 'Matched to the existing payment' : 'Transaction reconciled', 'success');
       onDone();
       onClose();
     } catch (err) {
-      addToast(err.response?.data?.message || 'Failed to reconcile', 'error');
+      const dup = duplicateOf(err);
+      if (dup) { setDuplicate(dup); setRentChoice('match'); }
+      else addToast(err.response?.data?.message || 'Failed to reconcile', 'error');
     } finally {
       setSaving(false);
     }
@@ -360,10 +389,26 @@ const ReconcileModal = ({ row, onClose, onDone }) => {
               id="reconcileTenant"
               options={tenants.map((t) => ({ value: String(t.tenancy_id), label: t.label }))}
               value={tenancyId}
-              onChange={setTenancyId}
+              onChange={(v) => { setTenancyId(v); setDuplicate(null); }}
               placeholder="Search and select a tenant..."
               searchable
             />
+          )}
+
+          {as === 'tenant_rent' && duplicate && (
+            <div className="border border-status-warning/30 bg-status-warning/10 rounded-card p-3 flex flex-col gap-2 text-xs" role="group" aria-label="Rent already recorded">
+              <p className="font-bold text-brand-primary">
+                A {money(parseFloat(duplicate.amount))} payment on {ukDate(duplicate.received_at)} is already recorded for this tenant.
+              </p>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input type="radio" name="rentChoice" className="accent-brand-accent mt-0.5" checked={rentChoice === 'match'} onChange={() => setRentChoice('match')} />
+                <span><span className="font-bold">Match the existing payment</span> — this bank line is that same money. Nothing new is recorded.</span>
+              </label>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input type="radio" name="rentChoice" className="accent-brand-accent mt-0.5" checked={rentChoice === 'new'} onChange={() => setRentChoice('new')} />
+                <span><span className="font-bold">Record as a new payment</span> — the tenant paid twice.</span>
+              </label>
+            </div>
           )}
 
           {as === 'landlord_payout' && (

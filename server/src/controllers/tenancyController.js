@@ -1,43 +1,16 @@
 import db from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
-import { addDays, addMonths, toYmd, todayYmd } from '../utils/dateHelpers.js';
+import { addDays, toYmd, todayYmd } from '../utils/dateHelpers.js';
 import { allocateTenancyPayments } from '../utils/rentAllocation.js';
 import { ensureLivingProperty } from '../utils/estatesLink.js';
+import { checkPhone } from '../validations/common.js';
+import { generateSchedules } from '../utils/rentSchedules.js';
+import { findSimilarPayment, paymentDeleteBlocks } from '../utils/rentPayments.js';
 
-// Monthly rent months on the tenancy's due day. With fromDateStr (a tenancy
-// already running before this system), months due before it are skipped and
-// the 12-month horizon counts from it.
-const generateSchedules = (startDateStr, endDateStr, rentPcm, fromDateStr = null) => {
-  const schedules = [];
-  const end = endDateStr ? new Date(endDateStr) : null;
-  const from = fromDateStr ? new Date(fromDateStr) : null;
-  
-  let i = 0;
-  while (true) {
-    const nextDateStr = addMonths(startDateStr, i);
-    const nextDate = new Date(nextDateStr);
-    
-    if (end && nextDate > end) {
-      break;
-    }
-    if (from && nextDate < from) {
-      i++;
-      continue;
-    }
-    if (!end && schedules.length >= 12) {
-      break;
-    }
-    
-    schedules.push({
-      due_date: nextDateStr,
-      amount: parseFloat(rentPcm).toFixed(2),
-      status: 'due'
-    });
-    i++;
-  }
-  return schedules;
-};
+const RENT_PAYMENT_METHODS = ['bank_transfer', 'direct_debit', 'card', 'cash', 'other'];
+const ukDate = (d) => { const [y, m, day] = toYmd(d).split('-'); return `${day}/${m}/${y}`; };
+
 
 // Formatting helpers
 const formatTenancy = (t) => {
@@ -143,6 +116,7 @@ export const createTenancy = catchAsync(async (req, res, next) => {
   if (tenants.some(t => !t || !t.name)) {
     throw new ApiError(400, 'Every tenant must have a name');
   }
+  tenants.forEach((t, i) => checkPhone(t.phone, tenants.length > 1 ? `Tenant ${i + 1} phone` : 'Tenant phone'));
 
   // Deposit is optional (details may not be known yet); when given, both the
   // amount and the date received are needed to compute the registration deadline.
@@ -504,15 +478,38 @@ export const getTenancyById = catchAsync(async (req, res, next) => {
 
 export const recordRentPayment = catchAsync(async (req, res, next) => {
   const { id } = req.params; // tenancyId
-  const { received_at, amount, method, reference, notes } = req.body;
+  const { received_at, amount, method, reference, notes, confirm_duplicate } = req.body;
 
   if (!received_at || !amount || !method) {
     throw new ApiError(400, 'Received date, amount, and method are required');
+  }
+  const amountNum = Number(amount);
+  if (!Number.isFinite(amountNum) || amountNum <= 0) {
+    throw new ApiError(400, 'Amount must be a number greater than 0');
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(received_at)) || Number.isNaN(new Date(received_at).getTime())) {
+    throw new ApiError(400, 'Received date must be a valid date');
+  }
+  if (!RENT_PAYMENT_METHODS.includes(method)) {
+    throw new ApiError(400, 'Choose a valid payment method');
   }
 
   const tenancy = await db('tenancies').where('id', id).first();
   if (!tenancy) {
     throw new ApiError(404, 'Tenancy not found');
+  }
+
+  // The same money may already be here (typed earlier, or reconciled from
+  // Xero). The admin has to confirm before it is recorded a second time.
+  if (!confirm_duplicate) {
+    const similar = await findSimilarPayment(db, id, amountNum, received_at);
+    if (similar) {
+      throw new ApiError(409, `A £${parseFloat(similar.amount).toFixed(2)} payment on ${ukDate(similar.received_at)} already exists for this tenant. Record it again only if this is a second payment.`, [{
+        field: 'duplicate',
+        message: 'Possible duplicate payment',
+        payment: { id: similar.id, amount: parseFloat(similar.amount).toFixed(2), received_at: toYmd(similar.received_at), reference: similar.reference || null }
+      }]);
+    }
   }
 
   const property = await db('properties').where('id', tenancy.property_id).first();
@@ -589,6 +586,42 @@ export const getRentPayments = catchAsync(async (req, res, next) => {
     success: true,
     data: list.map(formatRentPayment)
   });
+});
+
+// DELETE /tenancies/rent-payments/:paymentId — remove a hand-typed payment
+// entered by mistake. Refused once a statement has paid it out, and for
+// payments that came from a Xero bank line (those are undone on that tab).
+export const deleteRentPayment = catchAsync(async (req, res) => {
+  const paymentId = Number(req.params.paymentId);
+  await db.transaction(async (trx) => {
+    const payment = await trx('rent_payments').where('id', paymentId).forUpdate().first();
+    if (!payment) throw new ApiError(404, 'Payment not found');
+    const block = (await paymentDeleteBlocks(trx, [paymentId]))[paymentId];
+    if (block) throw new ApiError(409, block);
+
+    // Its ledger line ("rent in" for the same tenancy, amount and date).
+    const ledger = await trx('transactions')
+      .where({ type: 'rent_in', tenancy_id: payment.tenancy_id, amount: payment.amount })
+      .where('transaction_date', toYmd(payment.received_at))
+      .whereNotIn('id', trx('xero_bank_transactions').whereNotNull('ledger_transaction_id').select('ledger_transaction_id'))
+      .orderBy('id', 'desc')
+      .first();
+    if (ledger) await trx('transactions').where('id', ledger.id).delete();
+
+    await trx('rent_payments').where('id', paymentId).delete(); // allocations cascade
+    await allocateTenancyPayments(trx, payment.tenancy_id);
+
+    await trx('audit_log').insert({
+      actor_id: req.user.id,
+      actor_role: req.user.role,
+      action: 'RENT_PAYMENT_DELETED',
+      entity_type: 'rent_payment',
+      entity_id: paymentId,
+      meta: JSON.stringify({ tenancy_id: payment.tenancy_id, amount: parseFloat(payment.amount).toFixed(2), received_at: toYmd(payment.received_at) }),
+      ip_address: req.ip || null
+    });
+  });
+  res.json({ success: true, message: 'Payment deleted' });
 });
 
 export const getUnreconciledPayments = catchAsync(async (req, res, next) => {
@@ -935,6 +968,7 @@ export const updateTenant = catchAsync(async (req, res, next) => {
   }
 
   const { name, email, phone, right_to_rent_status, right_to_rent_expiry } = req.body;
+  checkPhone(phone, 'Tenant phone');
 
   const tenantObj = await db('tenants').where('id', id).first();
   if (!tenantObj) {
@@ -1018,7 +1052,8 @@ export const deleteTenant = catchAsync(async (req, res, next) => {
 });
 
 export const getTenantById = catchAsync(async (req, res, next) => {
-  const { id } = req.params;
+  // Lists show the id as "TNT-12"; accept that form as well as the number.
+  const id = String(req.params.id).replace(/^TNT-/i, '');
 
   const tenant = await db('tenants').where('tenants.id', id).first();
   if (!tenant) {
@@ -1051,6 +1086,7 @@ export const getTenantById = catchAsync(async (req, res, next) => {
     .where('tenancy_id', tenant.tenancy_id)
     .orderBy('received_at', 'desc')
     .limit(20);
+  const deleteBlocks = await paymentDeleteBlocks(db, payments.map((p) => p.id));
 
   // Account balance: payments received minus rent fallen due to date
   // (positive = tenant credit, negative = arrears). Future months don't count.
@@ -1085,6 +1121,8 @@ export const getTenantById = catchAsync(async (req, res, next) => {
         amount: parseFloat(p.amount).toFixed(2),
         received_at: toYmd(p.received_at),
         created_at: p.created_at ? new Date(p.created_at).toISOString() : null,
+        // A hand-typed payment no statement has used yet can be deleted.
+        can_delete: !deleteBlocks[p.id],
       })),
     }
   });

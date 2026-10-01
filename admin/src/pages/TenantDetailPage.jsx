@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   User, Users, Phone, Mail, ShieldCheck,
-  Home, CreditCard, Clock, AlertTriangle, Hash, FileText, X, Download, Upload
+  Home, CreditCard, Clock, AlertTriangle, Hash, FileText, X, Download, Upload, Trash2
 } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
@@ -60,6 +60,26 @@ export const TenantDetailPage = () => {
     };
     fetchTenant();
   }, [id, navigate, addToast, reloadKey]);
+
+  // A hand-typed payment entered by mistake can be removed while no statement
+  // has used it (the server refuses otherwise).
+  const handleDeletePayment = async (p) => {
+    const amount = parseFloat(p.amount).toLocaleString('en-GB', { minimumFractionDigits: 2 });
+    const ok = await confirm({
+      title: 'Delete this payment?',
+      message: `Delete the £${amount} payment received on ${new Date(p.received_at).toLocaleDateString('en-GB')}? The rent month it paid becomes unpaid again.`,
+      confirmText: 'Delete payment',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`/tenancies/rent-payments/${p.id}`, { skipInterceptorError: true });
+      addToast('Payment deleted', 'success');
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to delete the payment', 'error');
+    }
+  };
 
   // Documents linked to this tenant's tenancy (entityId is "TCY-<id>" or "TCY-<id> @ <property ref>").
   const tenancyId = data?.tenancy?.id;
@@ -310,6 +330,7 @@ export const TenantDetailPage = () => {
                         <th className="text-left py-3 px-4">Amount</th>
                         <th className="text-left py-3 px-4">Method</th>
                         <th className="text-left py-3 px-4">Reference</th>
+                        <th className="py-3 px-4" aria-label="Actions"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50 text-xs-portal">
@@ -319,6 +340,13 @@ export const TenantDetailPage = () => {
                           <td className="py-3 px-4 font-bold text-brand-primary">£{parseFloat(p.amount).toLocaleString('en-GB', { minimumFractionDigits: 2 })}</td>
                           <td className="py-3 px-4 text-status-muted">{methodLabel[p.method] || p.method}</td>
                           <td className="py-3 px-4 text-gray-400 text-xs font-mono">{p.reference || '—'}</td>
+                          <td className="py-2 px-4 text-right">
+                            {p.can_delete && (
+                              <Button variant="ghost" size="sm" icon={Trash2} onClick={() => handleDeletePayment(p)}>
+                                Delete
+                              </Button>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
