@@ -7,11 +7,16 @@ import { StatCard } from './StatCard';
 import { StatusPill } from './StatusPill';
 import { Skeleton } from './Skeleton';
 import { Button } from './Button';
+import { LandlordChooser } from './LandlordChooser';
+import { useToast } from './ToastContext';
+import { useConfirm } from './ConfirmContext';
 import api from '../../utilities/api';
+import { emptyNewLandlord, landlordChoiceError, landlordChoicePayload } from '../../utilities/landlordChoice';
 
 // ROCA Estates (rocaem) blocks, apartments and landlords, shown read-only.
 // They are managed in ROCA Estates; Roca Living only adds lettings (tenants,
-// rent, statements) to the apartments it manages.
+// rent, statements) to the apartments it manages. Which apartments those are
+// is the "Managed by ROCA Living" switch (RL-003), stored in Roca Living only.
 
 const dash = (v) => (v === null || v === undefined || v === '' ? '—' : v);
 const money = (v) => (v === null || v === undefined || v === '' ? '—' : `£${parseFloat(v).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
@@ -31,9 +36,9 @@ const EstateStatus = ({ status }) => {
   return <StatusPill status="let" customLabel={pretty(status)} size="sm" />;
 };
 
-const ReadOnlyNote = () => (
+const ReadOnlyNote = ({ extra }) => (
   <p className="flex items-center gap-2 text-xs-portal text-status-muted">
-    <Lock size={13} /> Read-only — managed in ROCA Estates. Changes are made there and show here automatically.
+    <Lock size={13} /> Read-only — managed in ROCA Estates. Changes are made there and show here automatically.{extra ? ` ${extra}` : ''}
   </p>
 );
 
@@ -106,8 +111,82 @@ const Section = ({ title, rows }) => (
 );
 
 const LettingsBadge = ({ link }) => {
-  if (!link) return <span className="text-gray-400 text-xs">—</span>;
+  if (!link?.managed) return <span className="text-gray-400 text-xs">—</span>;
   return <StatusPill status="active" customLabel={link.has_tenant ? 'Managed · Let' : 'Managed'} size="sm" />;
+};
+
+// "Managed by ROCA Living" on/off (RL-003). Its own click never opens the row.
+const ManagedSwitch = ({ unit, busy, onToggle }) => {
+  const on = !!unit.roca_living?.managed;
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={`Managed by ROCA Living: ${unit.unit_ref}`}
+      title={on ? 'Managed by ROCA Living (click to stop)' : 'Not managed (click to manage)'}
+      disabled={busy}
+      onClick={(e) => { e.stopPropagation(); onToggle(unit); }}
+      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors cursor-pointer disabled:opacity-50 ${on ? 'bg-status-success' : 'bg-gray-300'}`}
+    >
+      <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-4' : 'translate-x-0.5'}`} />
+    </button>
+  );
+};
+
+// Switching on an apartment ROCA Estates has no owner for: choose its landlord.
+const ManageWithLandlordModal = ({ unit, onClose, onSave }) => {
+  const { addToast } = useToast();
+  const [landlords, setLandlords] = useState([]);
+  const [choice, setChoice] = useState('');
+  const [newLandlord, setNewLandlord] = useState(emptyNewLandlord());
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await api.get('/landlords');
+        setLandlords(res.data.data || []);
+      } catch (err) {
+        addToast(err.response?.data?.message || 'Failed to load landlords', 'error');
+      }
+    };
+    load();
+  }, [addToast]);
+
+  const submit = async () => {
+    const err = landlordChoiceError(choice, newLandlord);
+    if (err) { setError(err); return; }
+    setError(null);
+    setSaving(true);
+    const ok = await onSave(unit, true, landlordChoicePayload(choice, newLandlord));
+    setSaving(false);
+    if (ok) onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl border border-card-border overflow-hidden my-8">
+        <div className="bg-brand-primary text-white p-5 flex items-center gap-3 select-none">
+          <div className="flex flex-col">
+            <span className="font-bold">Manage {unit.unit_ref} with ROCA Living</span>
+            <span className="text-xs text-white/70">{unit.name}</span>
+          </div>
+          <button type="button" onClick={onClose} disabled={saving} className="ml-auto p-1 rounded-md text-white/80 hover:text-white hover:bg-white/10 cursor-pointer disabled:opacity-50" aria-label="Close">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="p-6 flex flex-col gap-5">
+          <LandlordChooser landlords={landlords} choice={choice} onChoice={setChoice} newLandlord={newLandlord} onNewLandlord={setNewLandlord} error={error} />
+          <div className="flex justify-end gap-3">
+            <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>Cancel</Button>
+            <Button type="button" variant="primary" onClick={submit} disabled={saving}>{saving ? 'Saving...' : 'Manage this apartment'}</Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 // ── Apartments ───────────────────────────────────────────────────────────────
@@ -155,7 +234,9 @@ const ApartmentDetail = ({ id, onClose }) => {
               ['Parking', unit.has_parking ? dash(unit.parking_space) || 'Yes' : 'No'],
               ['Status', <EstateStatus key="s" status={unit.status} />],
               ['Address', [unit.address, unit.city, unit.postcode].filter(Boolean).join(', ') || [unit.building_address, unit.building_city, unit.building_postcode].filter(Boolean).join(', ') || '—'],
-              ['Roca Living', unit.roca_living ? `Managed${unit.roca_living.has_tenant ? ' · let' : ''} · rent ${money(unit.roca_living.rent_pcm)}` : 'Not managed by Roca Living']
+              ['Roca Living', unit.roca_living?.managed
+                ? `Managed${unit.roca_living.has_tenant ? ' · let' : ''} · rent ${money(unit.roca_living.rent_pcm)}`
+                : (unit.roca_living ? 'Not managed (earlier lettings record kept)' : 'Not managed by Roca Living')]
             ]} />
             <Section title="Owner" rows={[
               ['Landlord', dash(unit.landlord_name)],
@@ -191,13 +272,53 @@ const ApartmentDetail = ({ id, onClose }) => {
 };
 
 export const EstatesApartments = () => {
+  const { addToast } = useToast();
+  const confirm = useConfirm();
   const [buildings, setBuildings] = useState([]);
   const [units, setUnits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [block, setBlock] = useState('');
+  const [managedFilter, setManagedFilter] = useState('');
   const [search, setSearch] = useState('');
   const [openId, setOpenId] = useState(null);
+  const [busyId, setBusyId] = useState(null);
+  const [chooserFor, setChooserFor] = useState(null);
+
+  // Returns true when saved. The list is updated in place (no reload flash).
+  const saveManaged = async (unit, managed, extra = {}) => {
+    setBusyId(unit.id);
+    try {
+      const res = await api.patch(`/estates/properties/${unit.id}/managed`, { managed, ...extra });
+      const { property_id: propertyId } = res.data.data;
+      setUnits((list) => list.map((u) => (u.id === unit.id
+        ? { ...u, roca_living: propertyId ? { rent_pcm: null, has_tenant: false, ...u.roca_living, property_id: propertyId, managed } : u.roca_living }
+        : u)));
+      addToast(`${unit.unit_ref}: ${res.data.message}`, 'success');
+      return true;
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Could not change "Managed by ROCA Living"', 'error');
+      return false;
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const toggleManaged = async (unit) => {
+    if (unit.roca_living?.managed) {
+      const ok = await confirm({
+        title: 'Stop managing this apartment?',
+        message: `${unit.unit_ref} will no longer be offered in Add Tenant or agent instructions, and leaves the Compliance page. Nothing is deleted; you can switch it back on.`,
+        variant: 'danger',
+        confirmText: 'Stop managing',
+      });
+      if (ok) await saveManaged(unit, false);
+    } else if (!unit.landlord_name && !unit.roca_living) {
+      setChooserFor(unit); // ROCA Estates has no owner: choose the landlord first
+    } else {
+      await saveManaged(unit, true);
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -217,6 +338,7 @@ export const EstatesApartments = () => {
 
   const q = search.trim().toLowerCase();
   const shown = units.filter((u) => (!block || String(u.building_id ?? 'none') === block)
+    && (!managedFilter || (managedFilter === 'managed') === !!u.roca_living?.managed)
     && (!q || [u.unit_ref, u.name, u.unit_code, u.landlord_name].some((v) => String(v || '').toLowerCase().includes(q))));
 
   const columns = [
@@ -227,7 +349,18 @@ export const EstatesApartments = () => {
     { header: 'Type', accessor: 'unit_type', renderCell: (r) => pretty(r.unit_type) },
     { header: 'Status', accessor: 'status', sortable: true, renderCell: (r) => <EstateStatus status={r.status} /> },
     { header: 'Service Charge', accessor: 'service_charge_pcm', align: 'right', renderCell: (r) => (r.service_charge_pcm ? `${money(r.service_charge_pcm)} pcm` : '—') },
-    { header: 'Roca Living', accessor: 'roca_living', renderCell: (r) => <LettingsBadge link={r.roca_living} /> }
+    {
+      header: 'Managed by ROCA Living',
+      accessor: 'roca_living',
+      sortable: true,
+      sortValue: (r) => (r.roca_living?.managed ? 1 : 0),
+      renderCell: (r) => (
+        <span className="flex items-center gap-2">
+          <ManagedSwitch unit={r} busy={busyId === r.id} onToggle={toggleManaged} />
+          <LettingsBadge link={r.roca_living} />
+        </span>
+      )
+    }
   ];
 
   const blockOptions = [
@@ -241,24 +374,41 @@ export const EstatesApartments = () => {
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-5">
         <StatCard label="Blocks" value={buildings.length} icon={Building2} iconColor="text-brand-primary bg-surface-hover" />
         <StatCard label="Apartments" value={unitCount(units.length)} icon={Home} iconColor="text-brand-primary bg-surface-hover" />
-        <StatCard label="Managed by Roca Living" value={unitCount(units.filter((u) => u.roca_living).length)} icon={Home} iconColor="text-status-success bg-status-success-bg" valueColor="text-status-success" />
+        <StatCard label="Managed by Roca Living" value={unitCount(units.filter((u) => u.roca_living?.managed).length)} icon={Home} iconColor="text-status-success bg-status-success-bg" valueColor="text-status-success" />
         <StatCard label="Vacant" value={unitCount(units.filter((u) => String(u.status).toLowerCase() === 'vacant').length)} icon={Home} iconColor="text-status-info bg-status-info-bg" valueColor="text-brand-accent" />
       </div>
 
       <div className="card-bg border border-card-border rounded-card shadow-premium p-4 flex flex-col gap-4">
         <div className="flex flex-col md:flex-row md:items-end gap-3 justify-between">
-          <div className="w-full md:w-72">
-            <Dropdown id="estateBlock" label="Block" options={blockOptions} value={block} onChange={setBlock} placeholder="All blocks" />
+          <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+            <div className="w-full md:w-72">
+              <Dropdown id="estateBlock" label="Block" options={blockOptions} value={block} onChange={setBlock} placeholder="All blocks" />
+            </div>
+            <div className="w-full md:w-64">
+              <Dropdown
+                id="estateManaged"
+                label="Roca Living"
+                options={[
+                  { value: '', label: 'All apartments' },
+                  { value: 'managed', label: 'Managed by ROCA Living' },
+                  { value: 'not', label: 'Not managed' },
+                ]}
+                value={managedFilter}
+                onChange={setManagedFilter}
+                placeholder="All apartments"
+              />
+            </div>
           </div>
           <SearchBox value={search} onChange={setSearch} placeholder="Search unit, apartment or landlord…" />
         </div>
-        <ReadOnlyNote />
+        <ReadOnlyNote extra='Only the "Managed by ROCA Living" switch is set here, in Roca Living.' />
         <LoadState loading={loading} error={error}>
           <DataTable columns={columns} data={shown} initialPageSize={25} onRowClick={(r) => setOpenId(r.id)} />
         </LoadState>
       </div>
 
       {openId && <ApartmentDetail id={openId} onClose={() => setOpenId(null)} />}
+      {chooserFor && <ManageWithLandlordModal unit={chooserFor} onClose={() => setChooserFor(null)} onSave={saveManaged} />}
     </div>
   );
 };

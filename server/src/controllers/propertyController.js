@@ -7,6 +7,7 @@ import path from 'path';
 import logger from '../utils/logger.js';
 import { cleanUnitCode } from '../utils/statementNumbering.js';
 import { toYmd } from '../utils/dateHelpers.js';
+import { ensurePropertyCompliance, PROPERTY_CERT_TYPES } from '../utils/propertySetup.js';
 
 const ALLOWED_PROPERTY_FIELDS = [
   'address_line1',
@@ -46,7 +47,7 @@ const sanitizePropertyForLandlord = (p) => {
 };
 
 export const getAllProperties = catchAsync(async (req, res, next) => {
-  const { landlord_id, status, search } = req.query;
+  const { landlord_id, status, search, managed } = req.query;
 
   let query = db('properties')
     .join('users', 'properties.landlord_id', 'users.id')
@@ -65,6 +66,11 @@ export const getAllProperties = catchAsync(async (req, res, next) => {
 
   if (status) {
     query.where('properties.status', status);
+  }
+
+  // ?managed=1: only flats ROCA Living manages (RL-003).
+  if (managed === '1') {
+    query.where('properties.managed_by_rl', true);
   }
 
   if (search) {
@@ -210,33 +216,7 @@ export const createProperty = catchAsync(async (req, res, next) => {
       .where({ id: propertyId })
       .update({ property_reference });
 
-    const certTypes = ['EPC', 'EICR', 'GAS', 'SMOKE_CO', 'HMO', 'PAT'];
-    const certRows = certTypes.map((type) => ({
-      property_id: propertyId,
-      cert_type: type,
-      status: 'not_uploaded'
-    }));
-
-    await trx('property_certificates').insert(certRows);
-
-    const checklistItems = [
-      { item_code: 'GAS_CERT', item_label: 'Gas Safety Certificate' },
-      { item_code: 'EICR_CERT', item_label: 'Electrical Installation Condition Report' },
-      { item_code: 'EPC_CERT', item_label: 'Energy Performance Certificate' },
-      { item_code: 'SMOKE_CO', item_label: 'Smoke & Carbon Monoxide Alarms' },
-      { item_code: 'KEYS_RECEIVED', item_label: 'Physical Key References Received' }
-    ];
-
-    const checklistRows = checklistItems.map((item) => ({
-      scope: 'property',
-      entity_id: propertyId,
-      item_code: item.item_code,
-      item_label: item.item_label,
-      applicable: 1,
-      status: 'pending'
-    }));
-
-    await trx('compliance_checklist').insert(checklistRows);
+    await ensurePropertyCompliance(trx, propertyId);
 
     await trx('audit_log').insert({
       actor_id: req.user.id,
@@ -387,8 +367,7 @@ export const updateCertificate = catchAsync(async (req, res, next) => {
   const { id, certType } = req.params;
   const { issued_at, expires_at, document_path, notes } = req.body;
 
-  const allowedCerts = ['EPC', 'EICR', 'GAS', 'SMOKE_CO', 'HMO', 'PAT'];
-  if (!allowedCerts.includes(certType)) {
+  if (!PROPERTY_CERT_TYPES.includes(certType)) {
     throw new ApiError(400, 'Invalid certificate type');
   }
 

@@ -81,11 +81,12 @@ export const AgentDetailPage = () => {
     fetchAgent();
   }, [id, navigate, addToast, reloadKey]);
 
+  // Flats switched to "Managed by ROCA Living" (Properties page), let or vacant.
   useEffect(() => {
-    api.get('/properties').then((res) => {
+    api.get('/properties?managed=1').then((res) => {
       setPropertiesList((res.data.data || []).map((p) => ({
         value: p.id,
-        label: `${p.address_line1}, ${p.city}`,
+        label: [p.block_name && p.apartment_number ? `${p.block_name}-${p.apartment_number}` : null, `${p.address_line1}, ${p.city}`].filter(Boolean).join(' · '),
       })));
     }).catch(() => { /* dropdown stays empty */ });
   }, []);

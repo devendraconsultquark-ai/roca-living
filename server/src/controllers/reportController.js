@@ -86,6 +86,7 @@ export const getComplianceExpiriesReport = catchAsync(async (req, res, next) => 
       'users.name as landlord_name'
     )
     .where('property_certificates.expires_at', '<=', db.raw('DATE_ADD(NOW(), INTERVAL 90 DAY)'))
+    .where('properties.managed_by_rl', true)
     .orderBy('property_certificates.expires_at', 'asc');
 
   const formattedExpiries = expiries.map(e => ({
@@ -271,7 +272,8 @@ export const getDashboardSummary = catchAsync(async (req, res, next) => {
     db('rent_payments').where('reconciled', 0).sum('amount as total').first(),
     inMonth(db('transactions').where('type', 'mgmt_fee'), 'transaction_date').sum('amount as total').first(),
     inMonth(db('transactions').where('type', 'contractor_cost'), 'transaction_date').sum('amount as total').first(),
-    db('property_certificates').select(
+    // Certificates of flats ROCA Living manages (RL-003), like the Compliance page.
+    db('property_certificates').whereIn('property_id', db('properties').where('managed_by_rl', true).select('id')).select(
       db.raw('COUNT(id) as total'),
       db.raw('SUM(CASE WHEN expires_at IS NULL THEN 1 ELSE 0 END) as not_uploaded'),
       db.raw('SUM(CASE WHEN expires_at < CURDATE() THEN 1 ELSE 0 END) as overdue'),
@@ -338,6 +340,7 @@ export const getDashboardSummary = catchAsync(async (req, res, next) => {
       )
       .whereNotNull('property_certificates.expires_at')
       .where('property_certificates.expires_at', '<=', db.raw('DATE_ADD(CURDATE(), INTERVAL 30 DAY)'))
+      .where('properties.managed_by_rl', true)
       .orderBy('property_certificates.expires_at', 'asc')
       .limit(25),
     db('deposits')
@@ -512,6 +515,8 @@ export const getComplianceItems = catchAsync(async (req, res, next) => {
   const items = await db('property_certificates')
     .join('properties', 'property_certificates.property_id', 'properties.id')
     .join('users', 'properties.landlord_id', 'users.id')
+    // Only flats ROCA Living manages (RL-003).
+    .where('properties.managed_by_rl', true)
     .select(
       'property_certificates.id',
       'property_certificates.property_id',

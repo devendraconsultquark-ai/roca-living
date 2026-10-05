@@ -7,6 +7,7 @@ import { ensureLivingProperty } from '../utils/estatesLink.js';
 import { checkPhone } from '../validations/common.js';
 import { generateSchedules } from '../utils/rentSchedules.js';
 import { findSimilarPayment, paymentDeleteBlocks } from '../utils/rentPayments.js';
+import { ensurePropertyCompliance } from '../utils/propertySetup.js';
 
 const RENT_PAYMENT_METHODS = ['bank_transfer', 'direct_debit', 'card', 'cash', 'other'];
 const ukDate = (d) => { const [y, m, day] = toYmd(d).split('-'); return `${day}/${m}/${y}`; };
@@ -201,8 +202,10 @@ export const createTenancy = catchAsync(async (req, res, next) => {
     }));
     await trx('rent_schedules').insert(scheduleRows);
 
-    // 5. Update property status to 'let'
-    await trx('properties').where('id', property_id).update({ status: 'let' });
+    // 5. Update property status to 'let'. A flat with a tenant is by definition
+    // managed by ROCA Living (RL-003), with its certificates and checklist.
+    await trx('properties').where('id', property_id).update({ status: 'let', managed_by_rl: true });
+    await ensurePropertyCompliance(trx, property_id);
 
     // 6. Audit Log
     await trx('audit_log').insert({

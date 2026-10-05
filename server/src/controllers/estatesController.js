@@ -2,7 +2,8 @@ import db, { emDb } from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
 import logger from '../utils/logger.js';
-import { estateUnitCodes, unitKey } from '../utils/estatesLink.js';
+import { estateUnitCodes, unitKey, ensureLivingProperty, fetchEstateUnit } from '../utils/estatesLink.js';
+import { ensurePropertyCompliance } from '../utils/propertySetup.js';
 import { niceName } from '../utils/names.js';
 
 // ROCA Estates (rocaem) data shown read-only in Roca Living.
@@ -61,11 +62,11 @@ const livingPropertiesByUnit = async () => {
     .where((w) => w.whereNotNull('properties.rocaem_property_id')
       .orWhere((x) => x.whereNotNull('properties.block_name').whereNotNull('properties.apartment_number')))
     .select('properties.id', 'properties.block_name', 'properties.apartment_number', 'properties.rent_pcm',
-      'properties.rocaem_property_id', 'tenancies.id as tenancy_id');
+      'properties.rocaem_property_id', 'properties.managed_by_rl', 'tenancies.id as tenancy_id');
   const byRocaem = new Map();
   const byKey = new Map();
   for (const r of rows) {
-    const link = { property_id: r.id, rent_pcm: r.rent_pcm, has_tenant: !!r.tenancy_id };
+    const link = { property_id: r.id, rent_pcm: r.rent_pcm, has_tenant: !!r.tenancy_id, managed: !!r.managed_by_rl };
     if (r.rocaem_property_id) {
       if (!byRocaem.has(r.rocaem_property_id) || link.has_tenant) byRocaem.set(r.rocaem_property_id, link);
     } else {
@@ -213,5 +214,81 @@ export const getEstateLandlord = catchAsync(async (req, res) => {
       roca_living_landlord_id: findLiving(landlord),
       units: units.map((u) => toUnit(u, living))
     }
+  });
+});
+
+// Roca Living's lettings record for a Rocaem apartment, without creating one:
+// by link, else an unlinked record with the same block + apartment number.
+const findLivingProperty = async (trx, rocaemPropertyId) => {
+  const linked = await trx('properties').where({ rocaem_property_id: rocaemPropertyId }).first();
+  if (linked) return linked;
+  const u = await fetchEstateUnit(rocaemPropertyId);
+  if (!u) return null;
+  const { block, apt } = estateUnitCodes(u);
+  if (!block || !apt) return null;
+  return trx('properties')
+    .whereNull('rocaem_property_id')
+    .whereRaw('UPPER(block_name) = ? AND UPPER(apartment_number) = ?', [block, apt])
+    .first();
+};
+
+// PATCH /estates/properties/:id/managed  { managed, landlord_id?, new_landlord? }
+// "Managed by ROCA Living" (client handover RL-003). The flag lives on Roca
+// Living's own lettings record — ROCA Estates is only read, never written.
+// On: the lettings record is found or created (landlord = the ROCA Estates
+// owner, else the one chosen here) with its certificates and checklist.
+// Off: only while the flat has no current tenancy; nothing is deleted.
+export const setEstatePropertyManaged = catchAsync(async (req, res) => {
+  const rocaemId = Number(req.params.id);
+  if (!Number.isInteger(rocaemId) || rocaemId <= 0) throw new ApiError(400, 'Invalid apartment');
+  const { managed, landlord_id: landlordId, new_landlord: newLandlord } = req.body;
+  if (typeof managed !== 'boolean') throw new ApiError(400, 'managed must be true or false');
+
+  const result = await db.transaction(async (trx) => {
+    if (managed) {
+      const propertyId = await ensureLivingProperty(trx, rocaemId, {
+        landlordId: landlordId ? Number(landlordId) : null,
+        newLandlord: newLandlord || null
+      });
+      const before = await trx('properties').where('id', propertyId).first('managed_by_rl');
+      await trx('properties').where('id', propertyId).update({ managed_by_rl: true, updated_at: trx.fn.now() });
+      const added = await ensurePropertyCompliance(trx, propertyId);
+      if (!before.managed_by_rl) {
+        await trx('audit_log').insert({
+          actor_id: req.user.id,
+          actor_role: req.user.role,
+          action: 'PROPERTY_MANAGED_ON',
+          entity_type: 'property',
+          entity_id: propertyId,
+          meta: JSON.stringify({ rocaem_property_id: rocaemId, compliance_rows_added: added }),
+          ip_address: req.ip || null
+        });
+      }
+      return { property_id: propertyId, managed: true };
+    }
+
+    const p = await findLivingProperty(trx, rocaemId);
+    if (!p || !p.managed_by_rl) return { property_id: p?.id || null, managed: false };
+    const current = await trx('tenancies').where('property_id', p.id).whereIn('status', ['active', 'notice', 'pending']).first('id');
+    if (current) {
+      throw new ApiError(409, 'This flat has a current tenancy. End the tenancy first, then switch off "Managed by ROCA Living".');
+    }
+    await trx('properties').where('id', p.id).update({ managed_by_rl: false, updated_at: trx.fn.now() });
+    await trx('audit_log').insert({
+      actor_id: req.user.id,
+      actor_role: req.user.role,
+      action: 'PROPERTY_MANAGED_OFF',
+      entity_type: 'property',
+      entity_id: p.id,
+      meta: JSON.stringify({ rocaem_property_id: rocaemId }),
+      ip_address: req.ip || null
+    });
+    return { property_id: p.id, managed: false };
+  });
+
+  res.json({
+    success: true,
+    message: result.managed ? 'Now managed by ROCA Living' : 'No longer managed by ROCA Living',
+    data: result
   });
 });
