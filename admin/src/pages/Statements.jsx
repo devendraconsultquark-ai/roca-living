@@ -124,9 +124,9 @@ export const Statements = () => {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      // ROCA's own file name: "RL_Statement PH_19_0002_INV_PH_19_0002.pdf"
+      // ROCA's own file name: "RL_PH_19_0002_INV_PH_19_0002.pdf"
       link.setAttribute('download', row?.number
-        ? `RL_Statement ${row.number}${row.hasInvoice ? `_INV_${row.number}` : ''}.pdf`
+        ? `RL_${row.number}${row.hasInvoice ? `_INV_${row.number}` : ''}.pdf`
         : `RL_STMT_${id}_${(landlord || 'statement').replace(/\s+/g, '_')}.pdf`);
       document.body.appendChild(link);
       link.click();

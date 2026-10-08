@@ -8,6 +8,7 @@ import { deletePropertyInternal } from './propertyController.js';
 import { ensureLandlordSetup } from '../utils/landlordSetup.js';
 import { deriveInitials } from '../utils/initials.js';
 import { createActivationLink } from '../utils/activationLink.js';
+import { todayYmd } from '../utils/dateHelpers.js';
 import fs from 'fs';
 
 const BCRYPT_COST = parseInt(process.env.BCRYPT_COST || '12', 10);
@@ -172,6 +173,7 @@ export const getLandlordById = catchAsync(async (req, res, next) => {
       'users.phone',
       'users.address',
       'users.role',
+      'users.rocaem_user_id',
       'landlord_profiles.company_name',
       'landlord_profiles.landlord_reference',
       'landlord_profiles.initials',
@@ -537,12 +539,37 @@ export const updateLandlord = catchAsync(async (req, res, next) => {
   const {
     name, email, phone, address,
     company_name, is_overseas, nrl_hmrc_approved, nrl_hmrc_ref, nrl_withhold_pct, kyc_status, tob_status, ownership_share,
-    ownership_confirmed, initials, notes, account_manager_id
+    ownership_confirmed, initials, notes, account_manager_id, tob_signed_at
   } = req.body;
 
   const landlord = await db('users').where({ id, role: 'LANDLORD' }).first();
   if (!landlord) {
     throw new ApiError(404, 'Landlord not found');
+  }
+
+  // A landlord from ROCA Estates is maintained there (source of truth): name,
+  // email, phone and address can't be changed here. Re-sending the same values
+  // (forms do) is fine. Statements can still be adjusted per statement.
+  if (landlord.rocaem_user_id) {
+    const same = (a, b) => String(a ?? '').trim() === String(b ?? '').trim();
+    const changed = [['name', name], ['email', email], ['phone', phone], ['address', address]]
+      .filter(([field, value]) => value !== undefined && !same(field === 'email' ? String(value).toLowerCase() : value, field === 'email' ? String(landlord[field] || '').toLowerCase() : landlord[field]))
+      .map(([field]) => field);
+    if (changed.length) {
+      throw new ApiError(400, `This landlord comes from ROCA Estates — change the ${changed.join(', ')} there.`);
+    }
+  }
+
+  if (tob_status !== undefined && !['not_sent', 'sent', 'signed'].includes(tob_status)) {
+    throw new ApiError(400, 'Terms of Business status must be not_sent, sent or signed');
+  }
+  // Optional date the Terms of Business were signed (YYYY-MM-DD, not in the
+  // future); only meaningful with tob_status 'signed'.
+  if (tob_signed_at !== undefined && tob_signed_at !== null && tob_signed_at !== '') {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(tob_signed_at) || Number.isNaN(new Date(tob_signed_at).getTime())) {
+      throw new ApiError(400, 'Date signed must be a valid date');
+    }
+    if (tob_signed_at > todayYmd()) throw new ApiError(400, 'Date signed cannot be in the future');
   }
 
   const userUpdates = {};
@@ -596,7 +623,10 @@ export const updateLandlord = catchAsync(async (req, res, next) => {
       if (tob_status !== undefined) {
         tobChanged = (profile?.tob_status || 'not_sent') !== tob_status;
         if (tob_status === 'signed') {
-          if (!profile?.tob_signed_at) profileUpdates.tob_signed_at = trx.fn.now();
+          // The admin's date wins; otherwise keep the first stamp (or today).
+          // Stored at midday so no timezone shift can show it a day early.
+          if (tob_signed_at) profileUpdates.tob_signed_at = `${tob_signed_at} 12:00:00`;
+          else if (!profile?.tob_signed_at) profileUpdates.tob_signed_at = trx.fn.now();
         } else {
           profileUpdates.tob_signed_at = null;
         }

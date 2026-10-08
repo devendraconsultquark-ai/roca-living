@@ -195,9 +195,9 @@ export const DataTable = ({
                 { value: 50, label: '50' },
               ]}
             />
-            <span>entries</span>
+            <span>Entries</span>
             <span className="ml-2">
-              (Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, totalItems)} of {totalItems})
+              (Showing {(currentPage - 1) * pageSize + 1} To {Math.min(currentPage * pageSize, totalItems)} of {totalItems})
             </span>
           </div>
 

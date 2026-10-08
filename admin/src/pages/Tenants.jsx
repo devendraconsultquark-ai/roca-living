@@ -1,15 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, UserPlus, CheckCircle2, AlertTriangle, Edit, X, Trash2, Eye } from 'lucide-react';
+import { Users, UserPlus, CheckCircle2, AlertTriangle, Edit, Trash2, Eye } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { StatCard } from '../components/UI/StatCard';
-import { Input } from '../components/UI/Input';
-import { Dropdown } from '../components/UI/Dropdown';
 import { Skeleton } from '../components/UI/Skeleton';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
 import { AddTenantModal } from '../components/UI/AddTenantModal';
+import { EditTenantModal } from '../components/UI/EditTenantModal';
 import api from '../utilities/api';
 
 export const Tenants = () => {
@@ -18,53 +17,13 @@ export const Tenants = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // Edit Modal State
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  // Edit popup (shared with the tenant page)
   const [editingTenantId, setEditingTenantId] = useState(null);
-  const [editForm, setEditForm] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    right_to_rent_status: 'pending',
-    right_to_rent_expiry: ''
-  });
-  const [formErrors, setFormErrors] = useState({});
-  const [submitting, setSubmitting] = useState(false);
   const { addToast } = useToast();
   const confirm = useConfirm();
   const [showAddModal, setShowAddModal] = useState(false);
 
-  const handleEditClick = (row) => {
-    setEditingTenantId(row.rawId);
-    setEditForm({
-      name: row.name || '',
-      email: row.email === '-' ? '' : row.email || '',
-      phone: row.phone === '-' ? '' : row.phone || '',
-      right_to_rent_status: row.right_to_rent_status || 'pending',
-      right_to_rent_expiry: row.right_to_rent_expiry || ''
-    });
-    setIsEditModalOpen(true);
-  };
-
-  const handleEditSubmit = async (e) => {
-    e.preventDefault();
-    const errs = {};
-    if (!editForm.name.trim()) errs.name = 'Full name is required';
-    if (Object.keys(errs).length > 0) { setFormErrors(errs); return; }
-
-    setFormErrors({});
-    setSubmitting(true);
-    try {
-      await api.patch(`/tenancies/tenants/${editingTenantId}`, editForm);
-      addToast('Tenant details updated successfully!', 'success');
-      setIsEditModalOpen(false);
-      fetchTenants();
-    } catch (err) {
-      addToast(err.response?.data?.message || 'Failed to update tenant details', 'error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const handleEditClick = (row) => setEditingTenantId(row.rawId);
 
   const handleDeleteClick = async (row) => {
     const ok = await confirm({
@@ -233,70 +192,14 @@ export const Tenants = () => {
       </div>
 
       {/* Edit Tenant Modal */}
-      {isEditModalOpen && (
-        <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-brand-primary">Edit Tenant Details</h3>
-              <button onClick={() => { setIsEditModalOpen(false); setFormErrors({}); }} className="text-gray-400 hover:text-brand-primary cursor-pointer">
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
-              <Input
-                label="Full Name"
-                id="edit-t-name"
-                required
-                value={editForm.name}
-                onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))}
-                error={formErrors.name}
-              />
-              <Input
-                label="Email Address"
-                id="edit-t-email"
-                type="email"
-                value={editForm.email}
-                onChange={(e) => setEditForm(f => ({ ...f, email: e.target.value }))}
-              />
-              <Input
-                label="Phone Number"
-                id="edit-t-phone"
-                value={editForm.phone}
-                onChange={(e) => setEditForm(f => ({ ...f, phone: e.target.value }))}
-              />
-              <Dropdown
-                label="Right to Rent Status"
-                id="edit-t-rtr-status"
-                placeholder="Select status"
-                value={editForm.right_to_rent_status}
-                onChange={(val) => setEditForm(f => ({ ...f, right_to_rent_status: val }))}
-                options={[
-                  { value: 'pending', label: 'Pending' },
-                  { value: 'verified', label: 'Approved (Verified)' },
-                  { value: 'failed', label: 'Rejected (Failed)' }
-                ]}
-              />
-              <Input
-                label="Right to Rent Expiry"
-                id="edit-t-rtr-expiry"
-                type="date"
-                value={editForm.right_to_rent_expiry}
-                onChange={(e) => setEditForm(f => ({ ...f, right_to_rent_expiry: e.target.value }))}
-              />
-
-              <div className="flex gap-3 justify-end mt-1">
-                <Button type="button" variant="ghost" onClick={() => { setIsEditModalOpen(false); setFormErrors({}); }}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="primary" disabled={submitting}>
-                  {submitting ? 'Saving...' : 'Save Changes'}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {editingTenantId && (
+        <EditTenantModal
+          tenantId={editingTenantId}
+          onClose={() => setEditingTenantId(null)}
+          onSaved={fetchTenants}
+        />
       )}
+
       {showAddModal && (
         <AddTenantModal onClose={() => setShowAddModal(false)} onCreated={fetchTenants} />
       )}

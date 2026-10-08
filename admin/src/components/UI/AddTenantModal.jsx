@@ -6,6 +6,8 @@ import { DatePicker } from './DatePicker';
 import { Dropdown } from './Dropdown';
 import { useToast } from './ToastContext';
 import api from '../../utilities/api';
+import { DEPOSIT_SCHEME_OPTIONS } from '../../utilities/depositSchemes';
+import { RentDuePreview } from './RentDuePreview';
 
 const emptyTenant = () => ({ name: '', email: '', phone: '' });
 
@@ -22,8 +24,11 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
   const [rent, setRent] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  // Optional: rent due on a different day than the start day (pro-rata first payment).
+  const [rentDueDay, setRentDueDay] = useState('');
   const [depositAmount, setDepositAmount] = useState('');
   const [depositReceived, setDepositReceived] = useState('');
+  const [depositScheme, setDepositScheme] = useState('TDS');
   // Opening position: tenancy already running and statemented by hand before this system.
   const [statementsFrom, setStatementsFrom] = useState('');
   const [lastSeq, setLastSeq] = useState('');
@@ -60,6 +65,7 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
     if (!(parseFloat(rent) > 0)) errs.rent = 'Enter the monthly rent';
     if (!startDate) errs.start = 'Start date is required';
     if (endDate && startDate && endDate < startDate) errs.end = 'End date must be after the start date';
+    if (rentDueDay !== '' && !(Number.isInteger(Number(rentDueDay)) && Number(rentDueDay) >= 1 && Number(rentDueDay) <= 28)) errs.rentDueDay = 'A day from 1 to 28';
     if (depositAmount && !depositReceived) errs.deposit = 'Enter the date the deposit was received';
     if (statementsFrom && startDate && statementsFrom < startDate) errs.statementsFrom = 'Must be on or after the start date';
     if (statementsFrom && startDate && statementsFrom.slice(8, 10) !== startDate.slice(8, 10)) errs.statementsFrom = 'Must be on the rent due day (same day of the month as the start date)';
@@ -74,10 +80,11 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
         rent_pcm: parseFloat(rent),
         start_date: startDate,
         end_date: endDate || null,
+        rent_due_day: rentDueDay === '' ? null : Number(rentDueDay),
         tenants: tenants
           .filter((t) => t.name.trim())
           .map((t, i) => ({ name: t.name.trim(), email: t.email.trim(), phone: t.phone.trim(), is_lead_tenant: i === 0 })),
-        deposit: depositAmount ? { amount: parseFloat(depositAmount), received_at: depositReceived } : null,
+        deposit: depositAmount ? { amount: parseFloat(depositAmount), received_at: depositReceived, scheme: depositScheme } : null,
         statements_from: statementsFrom || null,
         last_statement_seq: lastSeq === '' ? null : Number(lastSeq),
       });
@@ -93,7 +100,7 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
 
   return (
     <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl border border-card-border overflow-hidden my-8">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl border border-card-border overflow-hidden my-8">
         <div className="bg-brand-primary text-white p-5 font-bold flex items-center gap-2 select-none">
           <UserPlus size={18} />
           <span>Add Tenant</span>
@@ -183,11 +190,28 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
             <DatePicker label="Start Date" id="startDate" required value={startDate} onChange={setStartDate} error={errors.start} />
             <DatePicker label="End Date (optional)" id="endDate" value={endDate} onChange={setEndDate} error={errors.end} />
           </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 -mt-1">
+            <Input
+              id="rentDueDay"
+              label="Rent due day (optional)"
+              type="number"
+              min="1"
+              max="28"
+              step="1"
+              placeholder="start day"
+              value={rentDueDay}
+              onChange={(e) => setRentDueDay(e.target.value)}
+              error={errors.rentDueDay}
+            />
+            <div className="md:col-span-2 self-end">
+              <RentDuePreview startDate={startDate} rent={rent} rentDueDay={rentDueDay} />
+            </div>
+          </div>
           <p className="text-xs-portal text-status-muted -mt-2">
-            Rent falls due on the start day each month — this also sets the statement period (e.g. 25th → 24th).
+            Rent falls due on the start day each month unless you set a due day — this also sets the statement period (e.g. 25th → 24th).
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-card-border pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-card-border pt-4">
             <Input
               id="depositAmount"
               label="Deposit (£, optional)"
@@ -198,6 +222,7 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
               onChange={(e) => setDepositAmount(e.target.value)}
             />
             <DatePicker label="Deposit Received" id="depositReceived" value={depositReceived} onChange={setDepositReceived} error={errors.deposit} />
+            <Dropdown label="Deposit Scheme" id="depositScheme" options={DEPOSIT_SCHEME_OPTIONS} value={depositScheme} onChange={setDepositScheme} />
           </div>
 
           <div className="flex flex-col gap-2 border-t border-card-border pt-4">

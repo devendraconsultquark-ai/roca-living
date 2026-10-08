@@ -142,12 +142,12 @@ export const Tenancies = () => {
     }
     setSavingReview(true);
     try {
-      await api.patch(`/tenancies/${reviewTarget.rawId}/rent-review`, {
+      const res = await api.patch(`/tenancies/${reviewTarget.rawId}/rent-review`, {
         rent_review_date: reviewForm.date,
         proposed_rent: reviewForm.proposed === '' ? null : reviewForm.proposed,
         rent_review_status: reviewForm.status,
       });
-      addToast(`Rent review saved for ${reviewTarget.id}`, 'success');
+      addToast(res.data.applied ? `${reviewTarget.id}: ${res.data.message}` : `Rent review saved for ${reviewTarget.id}`, 'success');
       setReviewTarget(null);
       setReloadKey((k) => k + 1);
     } catch (err) {
@@ -370,8 +370,9 @@ export const Tenancies = () => {
 
             <p className="text-xs text-status-muted mb-4 leading-snug">
               Schedule or update the rent review for {reviewTarget.id} ({reviewTarget.tenant} at {reviewTarget.property}).
-              Current rent: £{reviewTarget.rent.toFixed(2)} pcm. Mark it completed once the new rent has been agreed
-              and applied to the tenancy.
+              Current rent: £{reviewTarget.rent.toFixed(2)} pcm. When the new rent is agreed, enter it and mark the review
+              Completed: it becomes the tenancy rent from the review date, and unpaid rent months from that date change
+              to it. Months already on a landlord statement stay as they are.
             </p>
 
             <form onSubmit={handleReviewSubmit} className="flex flex-col gap-4">

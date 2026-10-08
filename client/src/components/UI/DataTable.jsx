@@ -207,7 +207,7 @@ export const DataTable = ({
                 { value: 50, label: "50" },
               ]}
             />
-            <span>entries</span>
+            <span>Entries</span>
             <span className="ml-2 font-semibold">
               (Showing {(currentPage - 1) * pageSize + 1} to{" "}
               {Math.min(currentPage * pageSize, totalItems)} of {totalItems})

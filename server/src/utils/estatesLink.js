@@ -72,10 +72,28 @@ export const fetchEstateUnit = (rocaemPropertyId) => emDb('properties as p')
     'b.city as building_city', 'b.postcode as building_postcode')
   .first();
 
-export const fetchEstateLandlord = (rocaemUserId) => emDb('users')
+// Landlord statement fields ROCA Estates holds (NRL number, initials, the
+// email statements go to). Only read where the ROCA Estates database already
+// has them, so an older ROCA Estates keeps working. Checked once per process.
+const STATEMENT_COLUMNS = ['nrl_number', 'statement_initials', 'preferred_statement_email'];
+let statementColumns = null;
+const estateStatementColumns = async () => {
+  if (statementColumns) return statementColumns;
+  try {
+    const present = [];
+    for (const c of STATEMENT_COLUMNS) if (await emDb.schema.hasColumn('users', c)) present.push(c);
+    statementColumns = present;
+  } catch {
+    return [];
+  }
+  return statementColumns;
+};
+
+export const fetchEstateLandlord = async (rocaemUserId) => emDb('users')
   .where({ id: rocaemUserId, role: 'LANDLORD' })
   .select('id', 'name', 'email', 'phone', 'address', 'city', 'postcode', 'country', 'ownership_type', 'company_name',
-    'company_address', 'company_city', 'company_postcode', 'is_joint_ownership', 'secondary_owner_name')
+    'company_address', 'company_city', 'company_postcode', 'is_joint_ownership', 'secondary_owner_name',
+    ...(await estateStatementColumns()))
   .first();
 
 // "A & B" for joint owners (unless the name already includes the second owner).
@@ -287,7 +305,11 @@ export const estateDisplayFor = async (rocaemPropertyId) => {
       // Only a complete address (with postcode) replaces the local one.
       property_address: addr.postcode ? [addr.address_line1, addr.address_line2, addr.city, addr.postcode].filter(Boolean).join(', ') : null,
       landlord_name: l ? estateLandlordName(l) : null,
-      landlord_address: l ? estateLandlordAddress(l) : null
+      landlord_address: l ? estateLandlordAddress(l) : null,
+      // Statements go to the preferred statement email when ROCA Estates has one.
+      landlord_email: (l?.preferred_statement_email || l?.email) ? String(l.preferred_statement_email || l.email).trim().toLowerCase() : null,
+      nrl_number: l?.nrl_number ? String(l.nrl_number).trim() : null,
+      statement_initials: l?.statement_initials ? String(l.statement_initials).trim() : null
     };
   } catch {
     return null; // Rocaem unreachable: statements fall back to the local record.

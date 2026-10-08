@@ -244,14 +244,13 @@ const ApartmentDetail = ({ id, onClose }) => {
               ['Phone', dash(unit.landlord_phone)],
               ['Ownership', pretty(unit.ownership_structure)]
             ]} />
-            <Section title="Lease & service charge" rows={[
+            {/* Service charge is ROCA Estates' business, not shown here (RL-033). */}
+            <Section title="Lease" rows={[
               ['Tenure', pretty(unit.tenure_type)],
               ['Lease start', ukDate(unit.lease_start_date)],
               ['Lease end', ukDate(unit.lease_end_date)],
               ['Lease term', unit.lease_term_years ? `${unit.lease_term_years} years` : '—'],
               ['Ground rent', money(unit.ground_rent_amount)],
-              ['Service charge (pa)', money(unit.service_charge_pa)],
-              ['Service charge (pcm)', money(unit.service_charge_pcm)],
               ['Subletting allowed', yesNo(unit.subletting_allowed)],
               ['Pets allowed', yesNo(unit.pets_allowed)],
               ['Land Registry title', dash(unit.land_registry_title_no)]
@@ -279,7 +278,7 @@ export const EstatesApartments = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [block, setBlock] = useState('');
-  const [managedFilter, setManagedFilter] = useState('');
+  const [managedFilter, setManagedFilter] = useState('managed');
   const [search, setSearch] = useState('');
   const [openId, setOpenId] = useState(null);
   const [busyId, setBusyId] = useState(null);
@@ -348,7 +347,15 @@ export const EstatesApartments = () => {
     { header: 'Landlord', accessor: 'landlord_name', sortable: true, renderCell: (r) => r.landlord_name || <span className="text-gray-400">Not linked</span> },
     { header: 'Type', accessor: 'unit_type', renderCell: (r) => pretty(r.unit_type) },
     { header: 'Status', accessor: 'status', sortable: true, renderCell: (r) => <EstateStatus status={r.status} /> },
-    { header: 'Service Charge', accessor: 'service_charge_pcm', align: 'right', renderCell: (r) => (r.service_charge_pcm ? `${money(r.service_charge_pcm)} pcm` : '—') },
+    // ROCA Living deals in rent, not service charge (RL-033): the current tenancy's rent.
+    {
+      header: 'Rent',
+      accessor: 'roca_living',
+      align: 'right',
+      sortable: true,
+      sortValue: (r) => (r.roca_living?.has_tenant ? parseFloat(r.roca_living.rent_pcm) || 0 : -1),
+      renderCell: (r) => (r.roca_living?.has_tenant && r.roca_living.rent_pcm ? `${money(r.roca_living.rent_pcm)} pcm` : '—')
+    },
     {
       header: 'Managed by ROCA Living',
       accessor: 'roca_living',
@@ -515,6 +522,9 @@ export const EstatesLandlords = () => {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [openId, setOpenId] = useState(null);
+  // ROCA Estates holds every owner in the block (service charges); Roca Living
+  // works with the owners of the flats it manages, so those show by default.
+  const [scope, setScope] = useState('managed');
 
   useEffect(() => {
     const load = async () => {
@@ -532,7 +542,8 @@ export const EstatesLandlords = () => {
   }, []);
 
   const q = search.trim().toLowerCase();
-  const shown = landlords.filter((l) => !q || [l.name, l.email, l.company_name, ...l.units].some((v) => String(v || '').toLowerCase().includes(q)));
+  const shown = landlords.filter((l) => (scope === 'all' || l.managed_units > 0)
+    && (!q || [l.name, l.email, l.company_name, ...l.units].some((v) => String(v || '').toLowerCase().includes(q))));
 
   const columns = [
     { header: 'Landlord', accessor: 'name', sortable: true, renderCell: (r) => <span className="font-bold">{r.name}</span> },
@@ -546,12 +557,25 @@ export const EstatesLandlords = () => {
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <StatCard label="Landlords" value={landlords.length} icon={Users} iconColor="text-brand-primary bg-surface-hover" />
+        <StatCard label="Landlords of managed flats" value={landlords.filter((l) => l.managed_units > 0).length} icon={Users} iconColor="text-brand-primary bg-surface-hover" />
         <StatCard label="With apartments" value={landlords.filter((l) => l.units.length).length} icon={Home} iconColor="text-status-info bg-status-info-bg" />
         <StatCard label="With a Roca Living account" value={landlords.filter((l) => l.roca_living_landlord_id).length} icon={Users} iconColor="text-status-success bg-status-success-bg" valueColor="text-status-success" />
       </div>
       <div className="card-bg border border-card-border rounded-card shadow-premium p-4 flex flex-col gap-4">
-        <div className="flex justify-end">
+        <div className="flex flex-col md:flex-row md:items-end gap-3 justify-between">
+          <div className="w-full md:w-72">
+            <Dropdown
+              id="landlordScope"
+              label="Show"
+              options={[
+                { value: 'managed', label: 'Landlords of managed flats' },
+                { value: 'all', label: `All ROCA Estates landlords (${landlords.length})` },
+              ]}
+              value={scope}
+              onChange={(v) => setScope(v || 'managed')}
+              placeholder="Landlords of managed flats"
+            />
+          </div>
           <SearchBox value={search} onChange={setSearch} placeholder="Search name, email, company or unit…" />
         </div>
         <ReadOnlyNote />

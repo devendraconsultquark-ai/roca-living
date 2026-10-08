@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Plus, Trash2, AlertTriangle, X, Eye } from 'lucide-react';
+import { Calendar, Plus, Trash2, AlertTriangle, X, Eye, RotateCcw } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { DatePicker } from './DatePicker';
 import { Dropdown } from './Dropdown';
 import { Skeleton } from './Skeleton';
 import { useToast } from './ToastContext';
+import { useConfirm } from './ConfirmContext';
 import api from '../../utilities/api';
 
 const num = (v) => {
@@ -13,6 +14,7 @@ const num = (v) => {
   return Number.isFinite(n) ? n : 0;
 };
 const ukDate = (ymd) => (ymd ? ymd.split('-').reverse().join('/') : '');
+const ordinal = (d) => `${d}${[11, 12, 13].includes(d % 100) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[d % 10] || 'th')}`;
 const money = (v) => {
   const n = Math.round(num(v) * 100) / 100;
   const text = `£${Math.abs(n).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -43,6 +45,7 @@ const SECTIONS = [
 // PDF in ROCA Living's own design).
 export const TenantStatementModal = ({ onClose, onGenerated }) => {
   const { addToast } = useToast();
+  const confirm = useConfirm();
   const [options, setOptions] = useState([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [tenancyId, setTenancyId] = useState('');
@@ -77,11 +80,29 @@ export const TenantStatementModal = ({ onClose, onGenerated }) => {
       });
       setForm(res.data.data);
       setLastSeq(res.data.data.last_statement_seq ?? '');
+      setDates({ start: res.data.data.tenancy_start_date || '', dueDay: String(res.data.data.rent_due_day ?? '') });
     } catch (err) {
       addToast(err.response?.data?.message || 'Failed to load tenant details', 'error');
       setForm(null);
     } finally {
       setLoadingForm(false);
+    }
+  };
+
+  // Put the landlord / apartment details back to what ROCA Estates holds now
+  // (edits made here only ever apply to this statement).
+  const [resetting, setResetting] = useState(false);
+  const resetFromEstates = async () => {
+    setResetting(true);
+    try {
+      const res = await api.get(`/statements/tenancy-autofill/${tenancyId}`, { params: { period_start: form.period_start } });
+      const d = res.data.data;
+      setForm((f) => ({ ...f, landlord_name: d.landlord_name, landlord_address: d.landlord_address, property_address: d.property_address, estates_source: d.estates_source }));
+      addToast(d.estates_source === 'unavailable' ? "ROCA Estates couldn't be reached — reset to Roca Living's saved copy" : 'Landlord and property details reset from ROCA Estates', d.estates_source === 'unavailable' ? 'warning' : 'success');
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to reload the details', 'error');
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -97,6 +118,34 @@ export const TenantStatementModal = ({ onClose, onGenerated }) => {
       loadAutofill(id, res.data.data.next_period_start || undefined);
     } catch {
       loadAutofill(id);
+    }
+  };
+
+  // Tenancy dates: changed here they change the tenancy itself (rent months,
+  // periods, amounts all follow), only while it has no statement here yet.
+  const [dates, setDates] = useState({ start: '', dueDay: '' });
+  const [savingDates, setSavingDates] = useState(false);
+  const datesChanged = !!form && !form.tenancy_dates_locked
+    && (dates.start !== (form.tenancy_start_date || '') || Number(dates.dueDay) !== Number(form.rent_due_day));
+  const applyDates = async () => {
+    const day = Number(dates.dueDay);
+    if (!dates.start) { addToast('Choose the tenancy start date', 'warning'); return; }
+    if (!(Number.isInteger(day) && day >= 1 && day <= 28)) { addToast('Rent due day must be a day from 1 to 28', 'warning'); return; }
+    const ok = await confirm({
+      title: 'Change the tenancy dates?',
+      message: `${form.tenant_name || 'The tenancy'}: start ${ukDate(dates.start)}, rent due on the ${ordinal(day)} of each month. The rent months and this statement (period, rent, fee) are recalculated. Payments already recorded are kept.`,
+      confirmText: 'Change dates',
+    });
+    if (!ok) return;
+    setSavingDates(true);
+    try {
+      const res = await api.patch(`/tenancies/${tenancyId}/setup`, { start_date: dates.start, rent_due_day: day });
+      addToast(res.data.message || 'Tenancy dates updated', 'success');
+      await selectTenant(tenancyId);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to change the tenancy dates', 'error');
+    } finally {
+      setSavingDates(false);
     }
   };
 
@@ -163,7 +212,8 @@ export const TenantStatementModal = ({ onClose, onGenerated }) => {
     return { income, fees, other, closing, payout: Math.max(0, closing) };
   })() : null;
 
-  const blocked = !form || !form.landlord_id || !!form.existing_statement_number || !!form.missing_unit_codes;
+  // An unapplied date change would print dates that don't match the amounts.
+  const blocked = !form || !form.landlord_id || !!form.existing_statement_number || !!form.missing_unit_codes || datesChanged;
 
   const submit = async (e) => {
     e.preventDefault();
@@ -273,7 +323,19 @@ export const TenantStatementModal = ({ onClose, onGenerated }) => {
               </div>
 
               <div className="border-b pb-4 border-card-border">
-                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-3">Statement Details</h3>
+                <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                  <div>
+                    <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider">Statement Details</h3>
+                    <p className="text-xs-portal text-status-muted mt-1">
+                      {form.estates_source === 'estates'
+                        ? 'Landlord and property details come from ROCA Estates. Changes here apply to this statement only.'
+                        : 'Changes here apply to this statement only.'}
+                    </p>
+                  </div>
+                  <Button type="button" variant="secondary" size="sm" icon={RotateCcw} onClick={resetFromEstates} disabled={resetting}>
+                    {resetting ? 'Resetting…' : 'Reset from ROCA Estates'}
+                  </Button>
+                </div>
                 {form.first_statement_here && !showEarlier && (
                   <button type="button" onClick={() => setShowEarlier(true)} className="text-xs-portal font-semibold text-status-info hover:underline cursor-pointer mb-3">
                     First statement for this apartment here — were statements issued before this system?
@@ -323,13 +385,58 @@ export const TenantStatementModal = ({ onClose, onGenerated }) => {
                       onChange={(e) => setField(f.key, e.target.value)}
                     />
                   )))}
-                  <DatePicker
-                    label="Tenancy Start Date"
-                    id="tenancyStart"
-                    value={form.tenancy_start_date || ''}
-                    onChange={(v) => setField('tenancy_start_date', v)}
-                  />
                 </div>
+              </div>
+
+              <div className="border-b pb-4 border-card-border">
+                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-1">Tenancy Dates</h3>
+                {form.tenancy_dates_locked ? (
+                  <>
+                    <p className="text-xs-portal text-status-muted mb-3">
+                      Fixed: this tenancy already has a statement, and issued statements never change. A new rent goes through Rent review on the Tenancies page.
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Input id="tenancyStart" label="Tenancy Start Date" value={ukDate(form.tenancy_start_date)} disabled />
+                      <Input id="rentDueDay" label="Rent due day" value={`${ordinal(form.rent_due_day)} of each month`} disabled />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs-portal text-status-muted mb-3">
+                      No statement for this tenancy yet, so the dates can still be changed. Changing them updates the tenancy: rent months, this period, the rent and the fee are all recalculated.
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                      <DatePicker
+                        label="Tenancy Start Date"
+                        id="tenancyStart"
+                        value={dates.start}
+                        onChange={(v) => setDates((d) => ({ ...d, start: v }))}
+                      />
+                      <Input
+                        id="rentDueDay"
+                        label="Rent due day"
+                        type="number"
+                        min="1"
+                        max="28"
+                        value={dates.dueDay}
+                        onChange={(e) => setDates((d) => ({ ...d, dueDay: e.target.value }))}
+                      />
+                      {datesChanged && (
+                        <div className="flex gap-2">
+                          <Button type="button" variant="primary" size="sm" onClick={applyDates} disabled={savingDates}>
+                            {savingDates ? 'Updating…' : 'Update tenancy dates'}
+                          </Button>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setDates({ start: form.tenancy_start_date || '', dueDay: String(form.rent_due_day ?? '') })} disabled={savingDates}>
+                            Undo
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    {datesChanged && (
+                      <p className="text-xs-portal text-status-warning mt-2">Update the tenancy dates (or Undo) before Preview / Generate, so the statement's dates and amounts match.</p>
+                    )}
+                  </>
+                )}
               </div>
 
 

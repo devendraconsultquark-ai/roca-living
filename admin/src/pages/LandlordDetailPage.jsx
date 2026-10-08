@@ -14,6 +14,7 @@ import { StatusPill } from "../components/UI/StatusPill";
 import { StatCard } from '../components/UI/StatCard';
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
+import { DatePicker } from '../components/UI/DatePicker';
 import { Button } from '../components/UI/Button';
 import { DocumentUploadModal } from '../components/UI/DocumentUploadModal';
 import { PropertyThumb } from '../components/UI/PropertyImage';
@@ -21,6 +22,12 @@ import api from '../utilities/api';
 
 const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
+// "YYYY-MM-DD" in local time, for date inputs ('' when missing).
+const localYmd = (v) => {
+  const d = v ? new Date(v) : null;
+  if (!d || Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 // Certificate buckets (mirrors the Compliance page)
 const CERT_BUCKETS = {
@@ -75,6 +82,10 @@ export const LandlordDetailPage = () => {
   const [kycForm, setKycForm] = useState({ kyc_status: 'not_started', kyc_ref: '', sanctions_checked: 'no' });
   const [kycSaving, setKycSaving] = useState(false);
 
+  // Terms of Business: status and the date signed
+  const [tobForm, setTobForm] = useState({ tob_status: 'not_sent', tob_signed_at: '' });
+  const [tobSaving, setTobSaving] = useState(false);
+
   // One-time set-password link ({ name, link, expiresAt })
 
   // Edit profile modal state
@@ -113,6 +124,8 @@ export const LandlordDetailPage = () => {
   // Bump to re-fetch after a mutation (verify / bank-details update).
   const [reloadKey, setReloadKey] = useState(0);
   const refetchLandlord = () => setReloadKey((k) => k + 1);
+  // Linked to a ROCA Estates landlord: name/email/phone/address are kept there.
+  const fromEstates = !!data?.rocaem_user_id;
 
   useEffect(() => {
     const fetchLandlord = async () => {
@@ -123,6 +136,10 @@ export const LandlordDetailPage = () => {
           kyc_status: res.data.data.kyc_status || 'not_started',
           kyc_ref: res.data.data.kyc_ref || '',
           sanctions_checked: res.data.data.sanctions_checked ? 'yes' : 'no',
+        });
+        setTobForm({
+          tob_status: res.data.data.tob_status || 'not_sent',
+          tob_signed_at: localYmd(res.data.data.tob_signed_at),
         });
         setNotesDraft(res.data.data.notes || '');
         setManagerSel(res.data.data.account_manager_id ? String(res.data.data.account_manager_id) : '');
@@ -211,14 +228,18 @@ export const LandlordDetailPage = () => {
     setEditSaving(true);
     try {
       await api.patch(`/landlords/${id}`, {
-        name: editForm.name,
-        email: editForm.email,
-        ...(editForm.phone ? { phone: editForm.phone } : {}),
-        address: editForm.address,
+        // Landlords from ROCA Estates keep these there (source of truth).
+        ...(fromEstates ? {} : {
+          name: editForm.name,
+          email: editForm.email,
+          ...(editForm.phone ? { phone: editForm.phone } : {}),
+          address: editForm.address,
+        }),
         initials: editForm.initials || undefined,
-        nrl_hmrc_ref: editForm.nrl_hmrc_ref || undefined,
+        // A blank box clears the stored value (it used to be skipped).
+        nrl_hmrc_ref: editForm.nrl_hmrc_ref.trim(),
         nrl_hmrc_approved: editForm.nrl_hmrc_approved === 'yes',
-        nrl_withhold_pct: editForm.nrl_withhold_pct !== '' ? parseFloat(editForm.nrl_withhold_pct) : undefined,
+        nrl_withhold_pct: editForm.nrl_withhold_pct !== '' ? parseFloat(editForm.nrl_withhold_pct) : '',
       });
       addToast('Landlord details updated', 'success');
       setIsEditModalOpen(false);
@@ -288,6 +309,27 @@ export const LandlordDetailPage = () => {
       addToast(err.response?.data?.message || 'Failed to update KYC status', 'error');
     } finally {
       setKycSaving(false);
+    }
+  };
+
+  const handleTobSubmit = async (e) => {
+    e.preventDefault();
+    if (tobForm.tob_status === 'signed' && !tobForm.tob_signed_at) {
+      addToast('Enter the date the Terms of Business were signed', 'warning');
+      return;
+    }
+    setTobSaving(true);
+    try {
+      await api.patch(`/landlords/${id}`, {
+        tob_status: tobForm.tob_status,
+        ...(tobForm.tob_status === 'signed' ? { tob_signed_at: tobForm.tob_signed_at } : {}),
+      });
+      addToast('Terms of Business updated', 'success');
+      refetchLandlord();
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to update Terms of Business', 'error');
+    } finally {
+      setTobSaving(false);
     }
   };
 
@@ -1233,6 +1275,9 @@ export const LandlordDetailPage = () => {
                   <Button type="submit" variant="primary" disabled={kycSaving}>
                     {kycSaving ? 'Saving…' : 'Update KYC Status'}
                   </Button>
+                  <Button type="button" variant="ghost" icon={Upload} onClick={() => fileInputRef.current?.click()}>
+                    Upload ID / AML document
+                  </Button>
                 </form>
 
                 {/* Ownership confirmation — an explicit admin decision, separate from KYC */}
@@ -1248,6 +1293,37 @@ export const LandlordDetailPage = () => {
                   </Button>
                 </div>
 
+              </Card>
+
+              <Card title="Terms of Business">
+                <form onSubmit={handleTobSubmit} className="flex flex-col gap-3">
+                  <Dropdown
+                    label="Status"
+                    id="tob-status"
+                    options={[
+                      { value: 'not_sent', label: 'Not sent' },
+                      { value: 'sent', label: 'Sent, waiting for signature' },
+                      { value: 'signed', label: 'Signed' },
+                    ]}
+                    value={tobForm.tob_status}
+                    onChange={(val) => setTobForm((f) => ({ ...f, tob_status: val }))}
+                  />
+                  {tobForm.tob_status === 'signed' && (
+                    <DatePicker
+                      label="Date signed"
+                      id="tob-signed-at"
+                      required
+                      value={tobForm.tob_signed_at}
+                      onChange={(val) => setTobForm((f) => ({ ...f, tob_signed_at: val }))}
+                    />
+                  )}
+                  <Button type="submit" variant="primary" disabled={tobSaving}>
+                    {tobSaving ? 'Saving…' : 'Update Terms of Business'}
+                  </Button>
+                  <Button type="button" variant="ghost" icon={Upload} onClick={() => fileInputRef.current?.click()}>
+                    Upload signed copy
+                  </Button>
+                </form>
               </Card>
 
               <Card title="Account Manager">
@@ -1360,23 +1436,38 @@ export const LandlordDetailPage = () => {
                 <X size={20} />
               </button>
             </div>
-            <p className="text-xs text-status-muted mb-4">Name and address exactly as they should print on statements. Statements are emailed to this email address.</p>
+            <p className="text-xs text-status-muted mb-4">
+              {fromEstates
+                ? 'Name, email, phone and address come from ROCA Estates — change them there. Each statement can still be adjusted on the statement form, for that statement only.'
+                : 'Name and address exactly as they should print on statements. Statements are emailed to this email address.'}
+            </p>
 
             <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input label="Name (as on statements)" id="edit_name" required value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} error={editErrors.name} />
-                <Input label="Email (statements are sent here)" id="edit_email" type="email" required value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} error={editErrors.email} />
-                <Input label="Phone" id="edit_phone" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} error={editErrors.phone} />
-                <div>
-                  <label htmlFor="edit_address" className="block text-xs font-semibold text-status-muted mb-1">Postal address (one line per row)</label>
-                  <textarea
-                    id="edit_address"
-                    rows={4}
-                    value={editForm.address}
-                    onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
-                    className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-brand-accent bg-white resize-none"
-                  />
-                </div>
+                {fromEstates ? (
+                  <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 bg-surface-light border border-card-border rounded-xl px-4 py-3">
+                    <DataRow icon={User} label="Name" value={data.name} />
+                    <DataRow icon={Mail} label="Email" value={data.email} />
+                    <DataRow icon={Phone} label="Phone" value={data.phone || '—'} />
+                    <DataRow icon={MapPin} label="Address" value={data.address || '—'} />
+                  </div>
+                ) : (
+                  <>
+                    <Input label="Name (as on statements)" id="edit_name" required value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} error={editErrors.name} />
+                    <Input label="Email (statements are sent here)" id="edit_email" type="email" required value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} error={editErrors.email} />
+                    <Input label="Phone" id="edit_phone" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} error={editErrors.phone} />
+                    <div>
+                      <label htmlFor="edit_address" className="block text-xs font-semibold text-status-muted mb-1">Postal address (one line per row)</label>
+                      <textarea
+                        id="edit_address"
+                        rows={4}
+                        value={editForm.address}
+                        onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-brand-accent bg-white resize-none"
+                      />
+                    </div>
+                  </>
+                )}
                 <Input
                   label="Initials (statements)"
                   id="edit_initials"

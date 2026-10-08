@@ -10,10 +10,15 @@ import { DataRow, Card, DetailContainer, DetailSkeleton, DetailHeader, DetailTab
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
 import { Button } from '../components/UI/Button';
+import { DatePicker } from '../components/UI/DatePicker';
 import { DocumentUploadModal } from '../components/UI/DocumentUploadModal';
 import api from '../utilities/api';
+import { DEPOSIT_SCHEME_OPTIONS } from '../utilities/depositSchemes';
+import { RentDuePreview } from '../components/UI/RentDuePreview';
+import { EditTenantModal } from '../components/UI/EditTenantModal';
 
 const methodLabel = { bank_transfer: 'Bank Transfer', direct_debit: 'Direct Debit', card: 'Card', cash: 'Cash', other: 'Other' };
+const ordinal = (d) => `${d}${[11, 12, 13].includes(d % 100) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[d % 10] || 'th')}`;
 
 export const TenantDetailPage = () => {
   const { id } = useParams();
@@ -27,16 +32,6 @@ export const TenantDetailPage = () => {
 
   // Edit profile modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editForm, setEditForm] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    right_to_rent_status: 'pending',
-    right_to_rent_expiry: ''
-  });
-  const [formErrors, setFormErrors] = useState({});
-  const [submitting, setSubmitting] = useState(false);
-
   // Documents tab
   const [documents, setDocuments] = useState([]);
   const [pendingUpload, setPendingUpload] = useState(null);
@@ -45,6 +40,55 @@ export const TenantDetailPage = () => {
 
   // Bump to re-fetch after a mutation (profile edit).
   const [reloadKey, setReloadKey] = useState(0);
+
+  // Change the day rent falls due (rebuilds the rent months, pro-rata first payment)
+  const [dueDayForm, setDueDayForm] = useState(null); // null = closed
+  const [dueDaySaving, setDueDaySaving] = useState(false);
+  const handleDueDaySubmit = async (e) => {
+    e.preventDefault();
+    const day = Number(dueDayForm.day);
+    if (!(Number.isInteger(day) && day >= 1 && day <= 28)) { addToast('Enter a day from 1 to 28', 'warning'); return; }
+    setDueDaySaving(true);
+    try {
+      const res = await api.patch(`/tenancies/${data.tenancy.id}/rent-due-day`, { rent_due_day: day });
+      addToast(res.data.message, 'success');
+      setDueDayForm(null);
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to change the rent due day', 'error');
+    } finally {
+      setDueDaySaving(false);
+    }
+  };
+
+  // Add a deposit that wasn't known when the tenant was added
+  const [depositForm, setDepositForm] = useState(null); // null = closed
+  const [depositErrors, setDepositErrors] = useState({});
+  const [depositSaving, setDepositSaving] = useState(false);
+
+  const handleDepositSubmit = async (e) => {
+    e.preventDefault();
+    const errs = {};
+    if (!(parseFloat(depositForm.amount) > 0)) errs.amount = 'Enter the deposit amount';
+    if (!depositForm.received_at) errs.received_at = 'Enter the date it was received';
+    if (Object.keys(errs).length) { setDepositErrors(errs); return; }
+    setDepositErrors({});
+    setDepositSaving(true);
+    try {
+      await api.post(`/tenancies/${data.tenancy.id}/deposit`, {
+        amount: parseFloat(depositForm.amount),
+        received_at: depositForm.received_at,
+        scheme: depositForm.scheme,
+      });
+      addToast('Deposit added. Register it with the scheme within 30 days.', 'success');
+      setDepositForm(null);
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to add the deposit', 'error');
+    } finally {
+      setDepositSaving(false);
+    }
+  };
 
   useEffect(() => {
     const fetchTenant = async () => {
@@ -101,37 +145,7 @@ export const TenantDetailPage = () => {
     fetchDocuments();
   }, [tenancyId, addToast, docsReloadKey]);
 
-  const openEditModal = () => {
-    setEditForm({
-      name: data.name || '',
-      email: data.email || '',
-      phone: data.phone || '',
-      right_to_rent_status: data.right_to_rent_status || 'pending',
-      right_to_rent_expiry: data.right_to_rent_expiry || ''
-    });
-    setFormErrors({});
-    setIsEditModalOpen(true);
-  };
-
-  const handleEditSubmit = async (e) => {
-    e.preventDefault();
-    const errs = {};
-    if (!editForm.name.trim()) errs.name = 'Full name is required';
-    if (Object.keys(errs).length > 0) { setFormErrors(errs); return; }
-
-    setFormErrors({});
-    setSubmitting(true);
-    try {
-      await api.patch(`/tenancies/tenants/${id}`, editForm);
-      addToast('Tenant details updated successfully!', 'success');
-      setIsEditModalOpen(false);
-      setReloadKey((k) => k + 1);
-    } catch (err) {
-      addToast(err.response?.data?.message || 'Failed to update tenant details', 'error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const openEditModal = () => setIsEditModalOpen(true);
 
   const handleDocDownload = async (file) => {
     try {
@@ -276,7 +290,49 @@ export const TenantDetailPage = () => {
                       <div>
                         <DataRow icon={User} label="Landlord" value={data.tenancy.landlord_name} />
                         <DataRow icon={CreditCard} label="Rent PCM" value={`£${parseFloat(data.tenancy.rent_pcm).toLocaleString('en-GB', { minimumFractionDigits: 2 })}`} />
+                        <DataRow icon={Clock} label="Rent due" value={`${ordinal(data.tenancy.rent_due_day)} of each month`} />
                       </div>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-3 -mt-2">
+                      <p className="text-xs text-status-muted">
+                        {data.tenancy.first_payment
+                          ? `First payment £${data.tenancy.first_payment.amount.toFixed(2)} (pro-rata, covers ${new Date(data.tenancy.first_payment.due_date).toLocaleDateString('en-GB')} – ${new Date(data.tenancy.first_payment.covered_to).toLocaleDateString('en-GB')}).`
+                          : 'Rent is due on the tenancy start day each month.'}
+                      </p>
+                      <Button variant="secondary" size="sm" onClick={() => setDueDayForm({ day: String(data.tenancy.rent_due_day) })}>
+                        Change due day
+                      </Button>
+                    </div>
+
+                    <div className="border-t border-card-border pt-4">
+                      <h4 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-2">Deposit</h4>
+                      {data.deposit ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-1">
+                          <div>
+                            <DataRow icon={CreditCard} label="Amount" value={`£${parseFloat(data.deposit.tenancy_deposit).toLocaleString('en-GB', { minimumFractionDigits: 2 })}`} />
+                            <DataRow icon={ShieldCheck} label="Scheme" value={data.deposit.scheme} />
+                          </div>
+                          <div>
+                            <DataRow icon={Clock} label="Received" value={data.deposit.received_at ? new Date(data.deposit.received_at).toLocaleDateString('en-GB') : null} />
+                            <DataRow
+                              icon={Clock}
+                              label={data.deposit.registered_at ? 'Registered' : 'Register by'}
+                              value={new Date(data.deposit.registered_at || data.deposit.register_due).toLocaleDateString('en-GB')}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-light border border-dashed border-card-border rounded-xl px-4 py-3">
+                          <p className="text-sm text-status-muted">No deposit recorded for this tenancy.</p>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => { setDepositErrors({}); setDepositForm({ amount: '', received_at: '', scheme: 'TDS' }); }}
+                          >
+                            Add deposit
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -439,69 +495,95 @@ export const TenantDetailPage = () => {
       </div>
 
       {/* Edit Tenant Modal */}
-      {isEditModalOpen && (
+      {dueDayForm && (
         <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-brand-primary">Edit Tenant Details</h3>
-              <button onClick={() => { setIsEditModalOpen(false); setFormErrors({}); }} className="text-gray-400 hover:text-brand-primary cursor-pointer">
+              <h3 className="text-lg font-bold text-brand-primary">Change Rent Due Day</h3>
+              <button onClick={() => setDueDayForm(null)} disabled={dueDaySaving} className="text-gray-400 hover:text-brand-primary cursor-pointer" aria-label="Close">
                 <X size={20} />
               </button>
             </div>
-
-            <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
+            <p className="text-xs text-status-muted mb-4 leading-snug">
+              The rent months are rebuilt from the start date: a pro-rata first payment, then the full rent on this day each month.
+              Payments already received are applied again. Not possible once a statement exists for this tenancy.
+            </p>
+            <form onSubmit={handleDueDaySubmit} className="flex flex-col gap-4">
               <Input
-                label="Full Name"
-                id="edit-t-name"
+                label="Rent due day (1–28)"
+                id="rent-due-day"
+                type="number"
+                min="1"
+                max="28"
+                step="1"
                 required
-                value={editForm.name}
-                onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))}
-                error={formErrors.name}
+                value={dueDayForm.day}
+                onChange={(e) => setDueDayForm({ day: e.target.value })}
               />
-              <Input
-                label="Email Address"
-                id="edit-t-email"
-                type="email"
-                value={editForm.email}
-                onChange={(e) => setEditForm(f => ({ ...f, email: e.target.value }))}
-              />
-              <Input
-                label="Phone Number"
-                id="edit-t-phone"
-                value={editForm.phone}
-                onChange={(e) => setEditForm(f => ({ ...f, phone: e.target.value }))}
-              />
-              <Dropdown
-                label="Right to Rent Status"
-                id="edit-t-rtr-status"
-                placeholder="Select status"
-                value={editForm.right_to_rent_status}
-                onChange={(val) => setEditForm(f => ({ ...f, right_to_rent_status: val }))}
-                options={[
-                  { value: 'pending', label: 'Pending' },
-                  { value: 'verified', label: 'Approved (Verified)' },
-                  { value: 'failed', label: 'Rejected (Failed)' }
-                ]}
-              />
-              <Input
-                label="Right to Rent Expiry"
-                id="edit-t-rtr-expiry"
-                type="date"
-                value={editForm.right_to_rent_expiry}
-                onChange={(e) => setEditForm(f => ({ ...f, right_to_rent_expiry: e.target.value }))}
-              />
-
+              <RentDuePreview startDate={data.tenancy.start_date} rent={data.tenancy.rent_pcm} rentDueDay={dueDayForm.day} />
               <div className="flex gap-3 justify-end mt-1">
-                <Button type="button" variant="ghost" onClick={() => { setIsEditModalOpen(false); setFormErrors({}); }}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="primary" disabled={submitting}>
-                  {submitting ? 'Saving...' : 'Save Changes'}
-                </Button>
+                <Button type="button" variant="ghost" onClick={() => setDueDayForm(null)} disabled={dueDaySaving}>Cancel</Button>
+                <Button type="submit" variant="primary" disabled={dueDaySaving}>{dueDaySaving ? 'Saving…' : 'Change Due Day'}</Button>
               </div>
             </form>
           </div>
         </div>
+      )}
+
+      {depositForm && (
+        <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-brand-primary">Add Deposit</h3>
+              <button onClick={() => setDepositForm(null)} disabled={depositSaving} className="text-gray-400 hover:text-brand-primary cursor-pointer" aria-label="Close">
+                <X size={20} />
+              </button>
+            </div>
+            <p className="text-xs text-status-muted mb-4 leading-snug">
+              It must be registered with the scheme within 30 days of the date received.
+            </p>
+            <form onSubmit={handleDepositSubmit} className="flex flex-col gap-4">
+              <Input
+                label="Deposit (£)"
+                id="deposit-amount"
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                value={depositForm.amount}
+                onChange={(e) => setDepositForm((f) => ({ ...f, amount: e.target.value }))}
+                error={depositErrors.amount}
+              />
+              <DatePicker
+                label="Date received"
+                id="deposit-received"
+                required
+                value={depositForm.received_at}
+                onChange={(val) => setDepositForm((f) => ({ ...f, received_at: val }))}
+                error={depositErrors.received_at}
+              />
+              <Dropdown
+                label="Scheme"
+                id="deposit-scheme"
+                options={DEPOSIT_SCHEME_OPTIONS}
+                value={depositForm.scheme}
+                onChange={(val) => setDepositForm((f) => ({ ...f, scheme: val }))}
+              />
+              <div className="flex gap-3 justify-end mt-1">
+                <Button type="button" variant="ghost" onClick={() => setDepositForm(null)} disabled={depositSaving}>Cancel</Button>
+                <Button type="submit" variant="primary" disabled={depositSaving}>{depositSaving ? 'Saving…' : 'Add Deposit'}</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isEditModalOpen && (
+        <EditTenantModal
+          tenantId={id}
+          onClose={() => setIsEditModalOpen(false)}
+          onSaved={() => setReloadKey((k) => k + 1)}
+        />
       )}
 
       <DocumentUploadModal

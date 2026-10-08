@@ -13,7 +13,9 @@ import { sendEmail } from '../utils/email.js';
 import { niceName } from '../utils/names.js';
 import { ensureStatementPdfCurrent } from '../utils/statementPdf.js';
 import { toYmd } from '../utils/dateHelpers.js';
-import { healUnitCodes } from '../utils/estatesLink.js';
+// Statement periods: from the due day to the day before the next (rent due day aware).
+import { rentPeriodFor, dueDayOf } from '../utils/rentSchedules.js';
+import { healUnitCodes, estateDisplayFor } from '../utils/estatesLink.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -619,16 +621,16 @@ export const getAutofillMetadata = catchAsync(async (req, res, next) => {
   const invoices = await db('invoices').select('invoice_number');
 
   const formattedProperties = allProperties.map(p => {
-    const stmtPrefix = `${p.block_name}_${p.apartment_number}_`;
-    const invPrefix = `INV_${p.block_name}_${p.apartment_number}_`;
+    const stmtPrefix = statementPrefix(p.block_name, p.apartment_number);
+    const invPrefix = `INV_${stmtPrefix}`;
 
     const stmtSeq = getNextSeq(stmtPrefix, statements, 'statement_number');
     const invSeq = getNextSeq(invPrefix, invoices, 'invoice_number');
 
     return {
       ...p,
-      statement_number: `${p.block_name}_${p.apartment_number}_${stmtSeq}`,
-      invoice_number: `INV_${p.block_name}_${p.apartment_number}_${invSeq}`,
+      statement_number: `${stmtPrefix}${stmtSeq}`,
+      invoice_number: `${invPrefix}${invSeq}`,
     };
   });
 
@@ -658,15 +660,11 @@ const ukDate = (ymd) => {
 // dd/mm/yy, as on ROCA's own statements: "Rent received — Mr X (25/08/26 - 24/09/26)".
 const shortDate = (ymd) => ukDate(ymd).replace(/\/\d{2}(\d{2})$/, '/$1');
 
-// Period starting on `startYmd` for a tenancy whose rent falls due on day
-// `anchorDay`: ends the day before the next due date (day clamped to month length).
-const rentPeriod = (startYmd, anchorDay) => {
-  const start = parseYmd(startYmd);
-  const y = start.getFullYear();
-  const m = start.getMonth() + 1;
-  const nextDue = new Date(y, m, Math.min(anchorDay, new Date(y, m + 1, 0).getDate()));
-  nextDue.setDate(nextDue.getDate() - 1);
-  return { start: startYmd, end: toYmd(nextDue) };
+// Prefix of a flat's statement numbers: PH_33_ — single-digit flats in two
+// digits (PH_08_), the client's format and ROCA Estates' unit id.
+const statementPrefix = (block, apt) => {
+  const a = String(apt ?? '').trim();
+  return `${String(block).trim()}_${/^\d$/.test(a) ? `0${a}` : a}_`;
 };
 
 // Statement numbers (PH_33_0001) need a short block code and apartment number
@@ -687,7 +685,30 @@ const tenantNamesFor = async (tenancyId) => {
 const loadTenancyContext = async (tenancyId) => {
   const t = await tenancyContextQuery(tenancyId);
   const healed = t && await healUnitCodes(t.property_id, t.rocaem_property_id, t.block_name);
-  return healed ? { ...t, block_name: healed.block, apartment_number: healed.apt } : t;
+  return withLiveEstates(healed ? { ...t, block_name: healed.block, apartment_number: healed.apt } : t);
+};
+
+// ROCA Estates is the source of truth for the landlord (name incl. joint owner,
+// postal address, email) and the apartment address: read live for every
+// statement. Roca Living's own copy is only the fallback when ROCA Estates
+// can't be reached. Anything the admin changes on the statement form applies
+// to that statement only.
+const withLiveEstates = async (t) => {
+  if (!t) return t;
+  if (!t.rocaem_property_id) return { ...t, estates_source: 'roca_living' };
+  const d = await estateDisplayFor(t.rocaem_property_id);
+  if (!d) return { ...t, estates_source: 'unavailable' };
+  return {
+    ...t,
+    landlord_name: d.landlord_name || t.landlord_name,
+    landlord_address: d.landlord_address || t.landlord_address,
+    landlord_email: d.landlord_email || t.landlord_email,
+    // NRL and statement initials: ROCA Estates when it holds them.
+    nrl_hmrc_ref: d.nrl_number || t.nrl_hmrc_ref,
+    landlord_initials: d.statement_initials || t.landlord_initials,
+    estates_property_address: d.property_address,
+    estates_source: 'estates'
+  };
 };
 
 const tenancyContextQuery = (tenancyId) => db('tenancies')
@@ -702,6 +723,7 @@ const tenancyContextQuery = (tenancyId) => db('tenancies')
     'tenancies.status as tenancy_status',
     'tenancies.statements_from',
     'tenancies.last_statement_seq',
+    'tenancies.rent_due_day',
     'properties.id as property_id',
     'properties.address_line1',
     'properties.address_line2',
@@ -744,6 +766,9 @@ export const getTenancyStatementOptions = catchAsync(async (req, res) => {
   for (const r of rows) {
     const healed = await healUnitCodes(r.property_id, r.rocaem_property_id, r.block_name);
     if (healed) Object.assign(r, { block_name: healed.block, apartment_number: healed.apt });
+    // Landlord name live from ROCA Estates (with the joint owner).
+    const live = r.rocaem_property_id ? await estateDisplayFor(r.rocaem_property_id) : null;
+    if (live?.landlord_name) r.landlord_name = live.landlord_name;
   }
 
   res.json({
@@ -768,7 +793,6 @@ export const getTenancyPeriods = catchAsync(async (req, res) => {
   const t = await db('tenancies').where('id', req.params.tenancyId).first();
   if (!t) throw new ApiError(404, 'Tenancy not found');
   const startYmd = toYmd(t.start_date);
-  const anchorDay = parseYmd(startYmd).getDate();
   const issued = await db('landlord_statements').where('tenancy_id', t.id).select('period_start', 'statement_number', 'status');
   const byStart = new Map(issued.map((s) => [toYmd(s.period_start), s]));
 
@@ -778,7 +802,7 @@ export const getTenancyPeriods = catchAsync(async (req, res) => {
   const periods = [];
   let start = t.statements_from ? toYmd(t.statements_from) : startYmd;
   for (let i = 0; i < 120 && start <= horizon && (!endYmd || start <= endYmd); i++) {
-    const p = rentPeriod(start, anchorDay);
+    const p = rentPeriodFor(start, startYmd, t.rent_due_day);
     const s = byStart.get(p.start);
     periods.push({ start: p.start, end: p.end, statement_number: s?.statement_number || null, status: s?.status || null });
     const next = parseYmd(p.end);
@@ -796,7 +820,6 @@ export const getTenancyAutofill = catchAsync(async (req, res) => {
   if (!t) throw new ApiError(404, 'Tenancy not found');
 
   const tenancyStart = toYmd(t.start_date);
-  const anchorDay = parseYmd(tenancyStart).getDate();
 
   const last = await db('landlord_statements')
     .where('tenancy_id', t.tenancy_id)
@@ -815,7 +838,7 @@ export const getTenancyAutofill = catchAsync(async (req, res) => {
     // Tenancies already statemented by hand start at their first period in this system.
     periodStart = t.statements_from ? toYmd(t.statements_from) : tenancyStart;
   }
-  const period = rentPeriod(periodStart, anchorDay);
+  const period = rentPeriodFor(periodStart, tenancyStart, t.rent_due_day);
 
   const tenantName = await tenantNamesFor(t.tenancy_id);
   const block = parseBlockName(t.address_line1, t.block_name);
@@ -823,7 +846,7 @@ export const getTenancyAutofill = catchAsync(async (req, res) => {
   const initials = t.landlord_initials || deriveInitials(t.landlord_name) || 'RL';
 
   // Numbering per Statement Logic: PH_33_0001, invoice = INV_ + statement number.
-  const prefix = `${block}_${apt}_`;
+  const prefix = statementPrefix(block, apt);
   const used = await db('landlord_statements').where('statement_number', 'like', `${prefix}%`).select('statement_number');
   // Continue after the last number issued by hand (e.g. PH_33_0003 → 0004).
   const seq = Math.max(parseInt(getNextSeq(prefix, used, 'statement_number'), 10), (t.last_statement_seq || 0) + 1);
@@ -877,10 +900,11 @@ export const getTenancyAutofill = catchAsync(async (req, res) => {
   // RL-P03 checks the admin should see before issuing (warnings, not blocks).
   const bank = t.landlord_id ? await db('landlord_payment_details').where('user_id', t.landlord_id).first() : null;
   const checks = [];
-  if (!String(t.landlord_address || '').trim()) checks.push('The landlord has no postal address — add it on the landlord (Edit Details).');
+  if (t.estates_source === 'unavailable') checks.push("ROCA Estates couldn't be reached — the landlord details below are Roca Living's saved copy. Check them, or press Reset later.");
+  if (!String(t.landlord_address || '').trim()) checks.push('The landlord has no postal address — add it in ROCA Estates (or type it below for this statement).');
   if (!String(t.nrl_hmrc_ref || '').trim()) checks.push('No NRL number for the landlord — needed for landlords living abroad (Landlord → Edit Details, or type it below).');
   if (!String(t.postcode || '').trim()) checks.push('The apartment address has no postcode — add it on the apartment (Edit Details) or use "Refresh from ROCA Estates".');
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(t.landlord_email || ''))) checks.push("The landlord has no email address, so the statement can't be emailed.");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(t.landlord_email || ''))) checks.push("The landlord has no email address in ROCA Estates, so the statement can't be emailed.");
   if (!bank) checks.push("No bank details for the landlord — the payout's destination account can't be checked.");
   else if (!bank.verified_at || bank.change_pending) checks.push("The landlord's bank details are not verified yet.");
   const noInvoice = recordedExpenses.filter((x) => !x.invoice_path).length;
@@ -918,10 +942,18 @@ export const getTenancyAutofill = catchAsync(async (req, res) => {
       nrl_number: formatNrl(t.nrl_hmrc_ref, initials),
       landlord_reference: `RL_LR_${block}_${apt}`,
       property_reference: `${block}-${apt}`,
-      property_address: [t.address_line1, t.address_line2, t.city, t.postcode].filter(Boolean).join(', '),
+      property_address: t.estates_property_address || [t.address_line1, t.address_line2, t.city, t.postcode].filter(Boolean).join(', '),
+      // Where the landlord / address details come from: 'estates' (live),
+      // 'unavailable' (ROCA Estates down → saved copy) or 'roca_living'.
+      estates_source: t.estates_source,
       tenant_name: niceName(tenantName),
       tenancy_type: TENANCY_TYPE,
       tenancy_start_date: tenancyStart,
+      // The tenancy's dates can be changed from this form until it has a
+      // statement here (statements made outside Roca Living don't count).
+      tenancy_dates_locked: !!last,
+      rent_due_day: dueDayOf(tenancyStart, t.rent_due_day),
+      rent_pcm: parseFloat(t.rent_pcm),
       period_start: period.start,
       period_end: period.end,
       statement_number: statementNumber,
@@ -1028,7 +1060,7 @@ const prepareTenancyStatement = async (b) => {
   if (!validUnitCodes(t.block_name, t.apartment_number)) {
     throw new ApiError(400, 'Set the Block code (e.g. PH) and Apartment number (e.g. 33) on the property first');
   }
-  const unitPrefix = `${String(t.block_name).trim()}_${String(t.apartment_number).trim()}_`;
+  const unitPrefix = statementPrefix(t.block_name, t.apartment_number);
   if (typeof b.statement_number !== 'string' || !b.statement_number.startsWith(unitPrefix) || !/^\d{4}$/.test(b.statement_number.slice(unitPrefix.length))) {
     throw new ApiError(400, `Statement number must look like ${unitPrefix}0001`);
   }
@@ -1039,6 +1071,9 @@ const prepareTenancyStatement = async (b) => {
     throw new ApiError(400, 'A valid statement period is required');
   }
   if (!b.landlord_name) throw new ApiError(400, 'Landlord name is required');
+  // The printed start date is the tenancy's, so it always matches the period
+  // and amounts (it is changed on the tenancy, which recalculates them).
+  b.tenancy_start_date = toYmd(t.start_date);
 
   const incomeLines = cleanLines(b.income_lines, 'Income line');
   const feeLines = cleanLines(b.fee_lines || [], 'Fee line', { fee: true });
@@ -1283,13 +1318,6 @@ const generateTenancyStatement = async (req, res) => {
       meta: JSON.stringify({ tenancy_id: t.tenancy_id, statement_number: b.statement_number, invoice_number: invoiceNumber, period_start: b.period_start, period_end: b.period_end, payout: payout.toFixed(2) }),
       ip_address: req.ip || null
     });
-
-    // The NRL is a lettings detail ROCA Estates doesn't hold: remember what the
-    // admin used on this statement for the landlord's next one.
-    const nrl = typeof b.nrl_number === 'string' ? b.nrl_number.trim().slice(0, 100) : '';
-    if (nrl && nrl !== formatNrl(t.nrl_hmrc_ref, t.landlord_initials)) {
-      await trx('landlord_profiles').where({ user_id: t.landlord_id }).update({ nrl_hmrc_ref: nrl });
-    }
   });
 
   for (const [rel, buf] of [[statementPath, statementPdf], [invoicePath, invoicePdf]]) {
@@ -1408,6 +1436,8 @@ export const sendStatement = catchAsync(async (req, res) => {
   if (!abs || !fs.existsSync(abs)) throw new ApiError(404, 'Statement PDF not found');
 
   const html = draft.body.split(/\n{2,}/).map((p) => `<p>${escapeHtmlText(p).replace(/\n/g, '<br>')}</p>`).join('');
+  // A mail server refusal (wrong password, bad address...) is shown to the
+  // admin as it is, not as "Something went wrong" on live.
   const info = await sendEmail({
     to,
     ...(cc ? { cc } : {}),
@@ -1415,6 +1445,8 @@ export const sendStatement = catchAsync(async (req, res) => {
     text: draft.body,
     html,
     attachments: [{ filename: doc.filename || `${s.statement_number}.pdf`, path: abs, contentType: 'application/pdf' }]
+  }).catch((err) => {
+    throw new ApiError(502, `The email could not be sent (${err.message}) — the statement was not marked as sent`);
   });
   if (!info) throw new ApiError(503, 'Email is not configured on this server (SMTP settings missing) — nothing was sent');
 

@@ -5,12 +5,25 @@ import { addDays, toYmd, todayYmd } from '../utils/dateHelpers.js';
 import { allocateTenancyPayments } from '../utils/rentAllocation.js';
 import { ensureLivingProperty } from '../utils/estatesLink.js';
 import { checkPhone } from '../validations/common.js';
-import { generateSchedules } from '../utils/rentSchedules.js';
+import { generateSchedules, firstRentMonth, dueDayOf } from '../utils/rentSchedules.js';
 import { findSimilarPayment, paymentDeleteBlocks } from '../utils/rentPayments.js';
 import { ensurePropertyCompliance } from '../utils/propertySetup.js';
 
+// Government-approved tenancy deposit schemes (deposits.scheme enum).
+const DEPOSIT_SCHEMES = ['TDS', 'DPS', 'mydeposits'];
+
+// Rent due day: 1–28 (every month has it), or empty = the start day. Returns
+// the value to store: null when it is the start day anyway.
+const cleanRentDueDay = (value, startDate) => {
+  if (value === undefined || value === null || value === '') return null;
+  const day = Number(value);
+  if (!Number.isInteger(day) || day < 1 || day > 28) throw new ApiError(400, 'Rent due day must be a day of the month from 1 to 28');
+  return day === dueDayOf(toYmd(startDate), null) ? null : day;
+};
+
 const RENT_PAYMENT_METHODS = ['bank_transfer', 'direct_debit', 'card', 'cash', 'other'];
 const ukDate = (d) => { const [y, m, day] = toYmd(d).split('-'); return `${day}/${m}/${y}`; };
+const nthDay = (d) => `${d}${[11, 12, 13].includes(d) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[d % 10] || 'th')}`;
 
 
 // Formatting helpers
@@ -78,7 +91,8 @@ export const createTenancy = catchAsync(async (req, res, next) => {
     tenants,
     deposit,
     statements_from,
-    last_statement_seq
+    last_statement_seq,
+    rent_due_day
   } = req.body;
   let { property_id } = req.body;
 
@@ -125,6 +139,9 @@ export const createTenancy = catchAsync(async (req, res, next) => {
   if (hasDeposit && (Number.isNaN(parseFloat(deposit.amount)) || parseFloat(deposit.amount) <= 0 || !deposit.received_at)) {
     throw new ApiError(400, 'Deposit needs a valid amount and the date it was received');
   }
+  if (hasDeposit && deposit.scheme && !DEPOSIT_SCHEMES.includes(deposit.scheme)) {
+    throw new ApiError(400, `Deposit scheme must be one of ${DEPOSIT_SCHEMES.join(', ')}`);
+  }
 
   // Opening position (optional): tenancy already running and statemented by hand.
   const statementsFrom = statements_from || null;
@@ -149,6 +166,7 @@ export const createTenancy = catchAsync(async (req, res, next) => {
   }
 
   // Exactly one lead tenant: the flagged one, else the first listed.
+  const rentDueDay = cleanRentDueDay(rent_due_day, start_date);
   const leadIndex = Math.max(0, tenants.findIndex(t => t.is_lead_tenant));
 
   const result = await db.transaction(async (trx) => {
@@ -164,6 +182,7 @@ export const createTenancy = catchAsync(async (req, res, next) => {
       roca_letting_fee: roca_letting_fee !== undefined ? parseFloat(roca_letting_fee).toFixed(2) : null,
       statements_from: statementsFrom,
       last_statement_seq: lastSeq,
+      rent_due_day: rentDueDay,
       created_by: req.user.id
     });
 
@@ -193,7 +212,7 @@ export const createTenancy = catchAsync(async (req, res, next) => {
     }
 
     // 4. Generate rent schedules
-    const schedules = generateSchedules(start_date, end_date, rent_pcm, statementsFrom);
+    const schedules = generateSchedules(start_date, end_date, rent_pcm, statementsFrom, rentDueDay);
     const scheduleRows = schedules.map(s => ({
       tenancy_id: tenancyId,
       due_date: s.due_date,
@@ -329,26 +348,231 @@ export const updateRentReview = catchAsync(async (req, res, next) => {
     }
   }
 
-  await db('tenancies').where('id', id).update({
-    ...updates,
-    updated_at: db.fn.now()
-  });
+  // Completing a review applies the agreed rent: the tenancy's rent and every
+  // rent month due on or after the review date. Months already on a landlord
+  // statement keep their amount (an issued statement never changes).
+  const completing = status === 'completed' && tenancy.rent_review_status !== 'completed';
+  const newRent = updates.proposed_rent !== undefined ? updates.proposed_rent : tenancy.proposed_rent;
+  if (completing && !newRent) {
+    throw new ApiError(400, 'Enter the agreed new rent to complete the review');
+  }
 
-  await db('audit_log').insert({
-    actor_id: req.user.id,
-    actor_role: req.user.role,
-    action: 'RENT_REVIEW_UPDATED',
-    entity_type: 'tenancy',
-    entity_id: id,
-    meta: JSON.stringify(updates),
-    ip_address: req.ip || null
+  let applied = null;
+  await db.transaction(async (trx) => {
+    await trx('tenancies').where('id', id).update({
+      ...updates,
+      updated_at: trx.fn.now()
+    });
+
+    await trx('audit_log').insert({
+      actor_id: req.user.id,
+      actor_role: req.user.role,
+      action: 'RENT_REVIEW_UPDATED',
+      entity_type: 'tenancy',
+      entity_id: id,
+      meta: JSON.stringify(updates),
+      ip_address: req.ip || null
+    });
+
+    if (completing) {
+      const fromDate = toYmd(updates.rent_review_date !== undefined ? updates.rent_review_date : tenancy.rent_review_date);
+      // Looked up first: MySQL can't update rent_schedules while reading it in a subquery.
+      const onStatement = await trx('rent_payment_allocations')
+        .join('rent_schedules', 'rent_payment_allocations.schedule_id', 'rent_schedules.id')
+        .where('rent_schedules.tenancy_id', id)
+        .whereNotNull('rent_payment_allocations.statement_id')
+        .distinct('rent_payment_allocations.schedule_id')
+        .pluck('rent_payment_allocations.schedule_id');
+      const kept = await trx('rent_schedules').where('tenancy_id', id).where('due_date', '>=', fromDate)
+        .whereIn('id', onStatement).count('* as n').first();
+      const changed = await trx('rent_schedules').where('tenancy_id', id).where('due_date', '>=', fromDate)
+        .whereNotIn('id', onStatement).update({ amount: newRent });
+      await trx('tenancies').where('id', id).update({ rent_pcm: newRent });
+      await allocateTenancyPayments(trx, id);
+      applied = { old_rent: parseFloat(tenancy.rent_pcm).toFixed(2), new_rent: parseFloat(newRent).toFixed(2), from: fromDate, months_changed: changed, months_kept: Number(kept?.n || 0) };
+      await trx('audit_log').insert({
+        actor_id: req.user.id,
+        actor_role: req.user.role,
+        action: 'RENT_REVIEW_APPLIED',
+        entity_type: 'tenancy',
+        entity_id: id,
+        meta: JSON.stringify(applied),
+        ip_address: req.ip || null
+      });
+    }
   });
 
   const updated = await db('tenancies').where('id', id).first();
   res.json({
     success: true,
-    data: formatTenancy(updated)
+    message: applied
+      ? `New rent £${applied.new_rent} applied from ${applied.from} (${applied.months_changed} rent month${applied.months_changed === 1 ? '' : 's'} updated${applied.months_kept ? `, ${applied.months_kept} already on a statement kept` : ''})`
+      : 'Rent review saved',
+    data: formatTenancy(updated),
+    applied
   });
+});
+
+// GET /tenancies/rent-preview?start_date=&rent_pcm=&rent_due_day= — what the
+// first rent payment will be (pro-rata when the due day isn't the start day).
+export const getRentPreview = catchAsync(async (req, res) => {
+  const { start_date: start, rent_pcm: rent, rent_due_day: dueDay } = req.query;
+  if (!start || !/^\d{4}-\d{2}-\d{2}$/.test(start)) throw new ApiError(400, 'start_date must be YYYY-MM-DD');
+  const amount = parseFloat(rent);
+  if (!(amount > 0)) throw new ApiError(400, 'Enter the monthly rent');
+  const day = cleanRentDueDay(dueDay, start);
+  res.json({ success: true, data: { rent_due_day: dueDayOf(start, day), first_payment: firstRentMonth(start, day, amount) } });
+});
+
+// PATCH /tenancies/:id/rent-due-day { rent_due_day } — e.g. the landlord moves
+// rent to the 2nd. Rebuilds the tenancy's rent months from the start with the
+// pro-rata first payment, then re-applies the payments already received.
+// Refused once any statement exists for the tenancy (issued months never change).
+// Rent months can only be rebuilt while no statement exists for the tenancy
+// (issued statements never change).
+const assertNoStatement = async (tenancyId, what) => {
+  const statement = await db('landlord_statements').where('tenancy_id', tenancyId).first('statement_number');
+  if (statement) {
+    throw new ApiError(409, `Statement ${statement.statement_number} already exists for this tenancy, so its rent months can't be rebuilt. Delete the draft first, or keep the current ${what}.`);
+  }
+};
+
+// Rebuild a tenancy's rent months from its start date, rent and due day, then
+// re-allocate the payments already recorded (oldest month first).
+const rebuildRentMonths = async (trx, tenancy, { startYmd, rentPcm, dueDay }) => {
+  const ids = await trx('rent_schedules').where('tenancy_id', tenancy.id).pluck('id');
+  if (ids.length) await trx('rent_payment_allocations').whereIn('schedule_id', ids).delete();
+  // Payments point at their first rent month; re-allocation below sets it again.
+  await trx('rent_payments').where('tenancy_id', tenancy.id).update({ schedule_id: null });
+  await trx('rent_schedules').where('tenancy_id', tenancy.id).delete();
+  const rows = generateSchedules(startYmd, tenancy.end_date ? toYmd(tenancy.end_date) : null, rentPcm,
+    tenancy.statements_from ? toYmd(tenancy.statements_from) : null, dueDay);
+  if (rows.length) await trx('rent_schedules').insert(rows.map((r) => ({ ...r, tenancy_id: tenancy.id })));
+  await trx('tenancies').where('id', tenancy.id).update({ start_date: startYmd, rent_pcm: rentPcm, rent_due_day: dueDay, updated_at: trx.fn.now() });
+  await allocateTenancyPayments(trx, tenancy.id);
+  return rows.length;
+};
+
+export const updateRentDueDay = catchAsync(async (req, res) => {
+  const tenancy = await db('tenancies').where('id', req.params.id).first();
+  if (!tenancy) throw new ApiError(404, 'Tenancy not found');
+  await assertNoStatement(tenancy.id, 'due day');
+  const startYmd = toYmd(tenancy.start_date);
+  const day = cleanRentDueDay(req.body.rent_due_day, startYmd);
+
+  const result = await db.transaction(async (trx) => {
+    const months = await rebuildRentMonths(trx, tenancy, { startYmd, rentPcm: tenancy.rent_pcm, dueDay: day });
+    const first = firstRentMonth(startYmd, day, parseFloat(tenancy.rent_pcm));
+    await trx('audit_log').insert({
+      actor_id: req.user.id,
+      actor_role: req.user.role,
+      action: 'RENT_DUE_DAY_CHANGED',
+      entity_type: 'tenancy',
+      entity_id: tenancy.id,
+      meta: JSON.stringify({ from: tenancy.rent_due_day || null, to: day, first_payment: first ? first.amount : null, months }),
+      ip_address: req.ip || null
+    });
+    return { first, months };
+  });
+
+  const nth = (d) => `${d}${[11, 12, 13].includes(d) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[d % 10] || 'th')}`;
+  const uk = (s) => s.split('-').reverse().join('/');
+  res.json({
+    success: true,
+    message: result.first
+      ? `Rent now due on the ${nth(dueDayOf(startYmd, day))} of each month. First payment £${result.first.amount.toFixed(2)} due ${uk(startYmd)} (covers to ${uk(result.first.covered_to)}).`
+      : `Rent due on the start day (${nth(dueDayOf(startYmd, day))}) of each month.`,
+    data: { rent_due_day: dueDayOf(startYmd, day), first_payment: result.first, months: result.months }
+  });
+});
+
+// PATCH /tenancies/:id/setup { start_date, rent_pcm, rent_due_day } — correct
+// how a tenancy was entered (wrong start date, rent or due day) while no
+// statement exists. The rent months are rebuilt; recorded payments are kept
+// and re-allocated. After a statement, rent changes go through Rent review.
+export const updateTenancySetup = catchAsync(async (req, res) => {
+  const tenancy = await db('tenancies').where('id', req.params.id).first();
+  if (!tenancy) throw new ApiError(404, 'Tenancy not found');
+  await assertNoStatement(tenancy.id, 'start date, rent and due day');
+  const b = req.body || {};
+
+  const startYmd = b.start_date === undefined ? toYmd(tenancy.start_date) : String(b.start_date || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startYmd) || Number.isNaN(new Date(startYmd).getTime())) throw new ApiError(400, 'Enter a valid start date');
+  if (tenancy.end_date && startYmd > toYmd(tenancy.end_date)) throw new ApiError(400, 'The start date must be before the end date');
+  const rent = b.rent_pcm === undefined ? parseFloat(tenancy.rent_pcm) : parseFloat(b.rent_pcm);
+  if (Number.isNaN(rent) || rent <= 0) throw new ApiError(400, 'Rent must be a positive amount');
+  const rentPcm = rent.toFixed(2);
+  const dueDay = cleanRentDueDay(b.rent_due_day === undefined ? tenancy.rent_due_day : b.rent_due_day, startYmd);
+
+  const before = { start_date: toYmd(tenancy.start_date), rent_pcm: tenancy.rent_pcm, rent_due_day: tenancy.rent_due_day };
+  const after = { start_date: startYmd, rent_pcm: rentPcm, rent_due_day: dueDay };
+  if (before.start_date === after.start_date && parseFloat(before.rent_pcm) === rent && (before.rent_due_day || null) === dueDay) {
+    return res.json({ success: true, message: 'Nothing changed', data: after });
+  }
+
+  const months = await db.transaction(async (trx) => {
+    const n = await rebuildRentMonths(trx, tenancy, { startYmd, rentPcm, dueDay });
+    await trx('audit_log').insert({
+      actor_id: req.user.id,
+      actor_role: req.user.role,
+      action: 'TENANCY_SETUP_CORRECTED',
+      entity_type: 'tenancy',
+      entity_id: tenancy.id,
+      meta: JSON.stringify({ before, after, months: n }),
+      ip_address: req.ip || null
+    });
+    return n;
+  });
+  const first = firstRentMonth(startYmd, dueDay, rent);
+  res.json({
+    success: true,
+    message: `Tenancy updated: starts ${ukDate(startYmd)}, £${rentPcm} pcm, rent due on the ${nthDay(dueDayOf(startYmd, dueDay))}${first ? ` (first payment £${first.amount.toFixed(2)})` : ''}. Rent months rebuilt.`,
+    data: { ...after, months, first_payment: first }
+  });
+});
+
+// POST /tenancies/:id/deposit { amount, received_at, scheme } — a deposit that
+// wasn't known when the tenant was added. One deposit per tenancy; it must be
+// registered with the scheme within 30 days of being received.
+export const addTenancyDeposit = catchAsync(async (req, res) => {
+  const { id } = req.params;
+  const { amount, received_at: receivedAt, scheme = 'TDS' } = req.body;
+
+  const tenancy = await db('tenancies').where('id', id).first();
+  if (!tenancy) throw new ApiError(404, 'Tenancy not found');
+  if (await db('deposits').where('tenancy_id', id).first()) {
+    throw new ApiError(409, 'This tenancy already has a deposit. Change it on the Deposits page.');
+  }
+  const value = parseFloat(amount);
+  if (Number.isNaN(value) || value <= 0) throw new ApiError(400, 'Enter the deposit amount');
+  if (!receivedAt || !/^\d{4}-\d{2}-\d{2}$/.test(receivedAt) || Number.isNaN(new Date(receivedAt).getTime())) {
+    throw new ApiError(400, 'Enter the date the deposit was received');
+  }
+  if (receivedAt > todayYmd()) throw new ApiError(400, 'The date received cannot be in the future');
+  if (!DEPOSIT_SCHEMES.includes(scheme)) throw new ApiError(400, `Deposit scheme must be one of ${DEPOSIT_SCHEMES.join(', ')}`);
+
+  const deposit = await db.transaction(async (trx) => {
+    const [depositId] = await trx('deposits').insert({
+      tenancy_id: Number(id),
+      tenancy_deposit: value.toFixed(2),
+      scheme,
+      received_at: receivedAt,
+      register_due: addDays(receivedAt, 30),
+      status: 'pending_registration'
+    });
+    await trx('audit_log').insert({
+      actor_id: req.user.id,
+      actor_role: req.user.role,
+      action: 'DEPOSIT_ADDED',
+      entity_type: 'tenancy',
+      entity_id: id,
+      meta: JSON.stringify({ deposit_id: depositId, amount: value.toFixed(2), scheme, received_at: receivedAt }),
+      ip_address: req.ip || null
+    });
+    return trx('deposits').where('id', depositId).first();
+  });
+
+  res.status(201).json({ success: true, message: 'Deposit added', data: formatDeposit(deposit) });
 });
 
 export const updateTenancy = catchAsync(async (req, res, next) => {
@@ -919,30 +1143,31 @@ export const getAllTenants = catchAsync(async (req, res, next) => {
       'tenancies.id as tenancyId'
     );
 
+  // Balance as on the tenant page: payments received minus rent fallen due to
+  // date (negative = arrears). Counted by date, so it doesn't wait for the
+  // overnight job that marks months overdue.
   const tenancyIds = [...new Set(tenants.map(t => t.tenancyId))];
-  const overdueMap = {};
-
+  const dueMap = {};
+  const paidMap = {};
   if (tenancyIds.length > 0) {
-    const allOverdue = await db('rent_schedules')
+    const due = await db('rent_schedules')
       .whereIn('tenancy_id', tenancyIds)
-      .where('status', 'overdue');
-
-    for (const s of allOverdue) {
-      if (!overdueMap[s.tenancy_id]) {
-        overdueMap[s.tenancy_id] = [];
-      }
-      overdueMap[s.tenancy_id].push(s);
-    }
+      .where('due_date', '<=', db.raw('CURDATE()'))
+      .groupBy('tenancy_id')
+      .select('tenancy_id')
+      .sum('amount as total');
+    due.forEach((r) => { dueMap[r.tenancy_id] = parseFloat(r.total || 0); });
+    const paid = await db('rent_payments')
+      .whereIn('tenancy_id', tenancyIds)
+      .groupBy('tenancy_id')
+      .select('tenancy_id')
+      .sum('amount as total');
+    paid.forEach((r) => { paidMap[r.tenancy_id] = parseFloat(r.total || 0); });
   }
 
   const formatted = [];
   for (const t of tenants) {
-    const overdueSchedules = overdueMap[t.tenancyId] || [];
-    
-    let balanceVal = 0.0;
-    overdueSchedules.forEach(s => {
-      balanceVal -= parseFloat(s.amount) - parseFloat(s.paid_amount || 0);
-    });
+    const balanceVal = parseFloat(((paidMap[t.tenancyId] || 0) - (dueMap[t.tenancyId] || 0)).toFixed(2));
 
     formatted.push({
       id: `TNT-${t.id}`,
@@ -1103,6 +1328,8 @@ export const getTenantById = catchAsync(async (req, res, next) => {
     .sum('amount as total')
     .first();
   const balance = parseFloat(paymentSum?.total || 0) - parseFloat(scheduleSum?.total || 0);
+  const deposit = await db('deposits').where('tenancy_id', tenant.tenancy_id).first();
+  const hasStatement = !!(await db('landlord_statements').where('tenancy_id', tenant.tenancy_id).first('id'));
 
   res.json({
     success: true,
@@ -1116,8 +1343,14 @@ export const getTenantById = catchAsync(async (req, res, next) => {
         end_date: toYmd(tenancy.end_date),
         rent_pcm: tenancy.rent_pcm !== null ? parseFloat(tenancy.rent_pcm).toFixed(2) : null,
         property_address: `${tenancy.address_line1}${tenancy.address_line2 ? ', ' + tenancy.address_line2 : ''}, ${tenancy.city} ${tenancy.postcode}`,
+        // Day of the month rent falls due, and the pro-rata first payment if any.
+        rent_due_day: dueDayOf(toYmd(tenancy.start_date), tenancy.rent_due_day),
+        first_payment: firstRentMonth(toYmd(tenancy.start_date), tenancy.rent_due_day, parseFloat(tenancy.rent_pcm)),
+        // Start date, rent and due day can be corrected until a statement exists.
+        has_statement: hasStatement,
       } : null,
       co_tenants: coTenants,
+      deposit: formatDeposit(deposit),
       balance: parseFloat(balance.toFixed(2)),
       payment_history: payments.map(p => ({
         ...p,

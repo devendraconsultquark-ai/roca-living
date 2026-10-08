@@ -320,6 +320,7 @@ export const rocaLivingStatementPdfHtml = (statement, invoice) =>
 
 export const rocaLivingInvoicePdfHtml = (invoice) => page(invoice.invoice_number, invoiceSheet(invoice));
 
-// File name as ROCA names them: "RL_Statement PH_19_0002_INV_PH_19_0002.pdf"
+// File name as ROCA names them: "RL_PH_19_0002_INV_PH_19_0002.pdf" (statement
+// and invoice always share the sequence: invoice number = INV_ + statement number).
 export const rocaLivingPdfFileName = (statementNumber, invoiceNumber) =>
-  `RL_Statement ${statementNumber}${invoiceNumber ? `_${invoiceNumber}` : ''}.pdf`.replace(/[^A-Za-z0-9_. -]/g, '_');
+  `RL_${statementNumber}${invoiceNumber ? `_${invoiceNumber}` : ''}.pdf`.replace(/[^A-Za-z0-9_. -]/g, '_');

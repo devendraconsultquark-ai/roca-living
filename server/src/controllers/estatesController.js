@@ -62,11 +62,12 @@ const livingPropertiesByUnit = async () => {
     .where((w) => w.whereNotNull('properties.rocaem_property_id')
       .orWhere((x) => x.whereNotNull('properties.block_name').whereNotNull('properties.apartment_number')))
     .select('properties.id', 'properties.block_name', 'properties.apartment_number', 'properties.rent_pcm',
-      'properties.rocaem_property_id', 'properties.managed_by_rl', 'tenancies.id as tenancy_id');
+      'properties.rocaem_property_id', 'properties.managed_by_rl', 'tenancies.id as tenancy_id', 'tenancies.rent_pcm as tenancy_rent_pcm');
   const byRocaem = new Map();
   const byKey = new Map();
   for (const r of rows) {
-    const link = { property_id: r.id, rent_pcm: r.rent_pcm, has_tenant: !!r.tenancy_id, managed: !!r.managed_by_rl };
+    // Rent shown = the current tenancy's rent (what ROCA Living collects).
+    const link = { property_id: r.id, rent_pcm: r.tenancy_rent_pcm ?? r.rent_pcm, has_tenant: !!r.tenancy_id, managed: !!r.managed_by_rl };
     if (r.rocaem_property_id) {
       if (!byRocaem.has(r.rocaem_property_id) || link.has_tenant) byRocaem.set(r.rocaem_property_id, link);
     } else {
@@ -169,15 +170,19 @@ export const getEstateLandlords = catchAsync(async (req, res) => {
     const owned = ids.length
       ? await emDb('properties as p').leftJoin('buildings as b', 'p.building_id', 'b.id')
         .whereIn('p.landlord_id', ids)
-        .select('p.landlord_id', 'p.unit_code', 'p.unit_id', 'p.unit_number', 'b.name as building_name', 'b.short_code as building_short_code')
+        .select('p.id', 'p.landlord_id', 'p.unit_code', 'p.unit_id', 'p.unit_number', 'b.name as building_name', 'b.short_code as building_short_code')
       : [];
     return [list, owned];
   });
   const findLiving = await livingLandlordFinder();
+  const living = await livingPropertiesByUnit();
   const unitsBy = {};
+  const managedBy = {};
   for (const u of units) {
     const { block, apt } = estateUnitCodes(u);
     (unitsBy[u.landlord_id] ||= []).push(block && apt ? `${block}-${apt}` : u.unit_code);
+    const link = living.byRocaem.get(u.id) || living.byKey.get(unitKey(block, apt));
+    if (link?.managed) managedBy[u.landlord_id] = (managedBy[u.landlord_id] || 0) + 1;
   }
   res.json({
     success: true,
@@ -187,6 +192,8 @@ export const getEstateLandlords = catchAsync(async (req, res) => {
       company_name: niceName(l.company_name),
       secondary_owner_name: niceName(l.secondary_owner_name),
       units: unitsBy[l.id] || [],
+      // Flats of this landlord that ROCA Living manages (RL-003 switch).
+      managed_units: managedBy[l.id] || 0,
       roca_living_landlord_id: findLiving(l)
     }))
   });
