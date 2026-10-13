@@ -23,7 +23,6 @@ import { getInvoicesFrom, pushRentInvoices, SETTING_INVOICES_FROM } from '../uti
 // Which Xero accounts Roca Living books to (Settings → Xero → Accounts). Ids
 // and codes belong to one organisation, so they are cleared when it changes.
 const ACCOUNT_SETTINGS = {
-  xeroRentBankAccountId: { label: 'Rent bank account', kind: 'bank' },
   xeroRentIncomeAccountCode: { label: 'Rent invoices account', kind: 'code' },
   xeroFeeIncomeAccountCode: { label: 'Management fee income account', kind: 'code' },
   xeroLandlordBillAccountCode: { label: 'Landlord bills account', kind: 'code' }
@@ -33,7 +32,7 @@ const ACCOUNT_SETTINGS = {
 // settings pointed at the old one and would silently return nothing.
 const clearOrganisationSettings = async (trx) => {
   await trx('xero_import_accounts').delete();
-  await trx('settings').whereIn('key', [...Object.keys(ACCOUNT_SETTINGS), 'xeroRentInvoicesLast']).delete();
+  await trx('settings').whereIn('key', [...Object.keys(ACCOUNT_SETTINGS), 'xeroRentBankAccountId', 'xeroRentInvoicesLast']).delete();
   // Invoice and contact ids belong to the old organisation too.
   await trx('xero_rent_invoices').delete();
   await trx('xero_contact_links').delete();
@@ -230,7 +229,7 @@ export const getXeroAccountSettings = catchAsync(async (req, res) => {
   res.json({ success: true, data: values });
 });
 
-// PUT /xero/account-settings { xeroRentBankAccountId, ...Code } — each value must
+// PUT /xero/account-settings { xeroRentIncomeAccountCode, ...Code } — each value must
 // exist in the connected organisation (blank clears it).
 export const saveXeroAccountSettings = catchAsync(async (req, res) => {
   const b = req.body || {};
@@ -274,9 +273,8 @@ export const saveXeroAccountSettings = catchAsync(async (req, res) => {
 export const getXeroDiagnostics = catchAsync(async (req, res) => {
   const { connection } = await getValidAccessToken();
   const fresh = await getStoredConnection();
-  const rentBankId = (await db('settings').where({ key: 'xeroRentBankAccountId' }).first())?.value || null;
-  const firstImported = (await db('xero_import_accounts').first('xero_account_id'))?.xero_account_id || null;
-  const bankId = rentBankId || firstImported;
+  // Bank check: the first bank account ticked for import (Bank Transactions tab)
+  const bankId = (await db('xero_import_accounts').first('xero_account_id'))?.xero_account_id || null;
 
   const today = toYmd(new Date());
   const from = toYmd(new Date(Date.now() - 90 * 864e5));

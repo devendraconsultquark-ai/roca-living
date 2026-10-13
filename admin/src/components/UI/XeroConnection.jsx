@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Link2, Unlink, RefreshCw, AlertTriangle, CheckCircle2, Landmark, XCircle, MinusCircle } from 'lucide-react';
+import { Link2, Unlink, RefreshCw, AlertTriangle, CheckCircle2, Landmark, XCircle, MinusCircle, ChevronDown } from 'lucide-react';
 import { useToast } from './ToastContext';
 import { useConfirm } from './ConfirmContext';
 import { Button } from './Button';
@@ -25,7 +25,6 @@ const CALLBACK_ERRORS = {
 };
 
 const ACCOUNT_FIELDS = [
-  { key: 'xeroRentBankAccountId', label: 'Rent bank account', hint: 'The client account tenants pay rent into', bank: true },
   { key: 'xeroRentIncomeAccountCode', label: 'Rent invoices account', hint: 'What internal rent invoices are coded to' },
   { key: 'xeroFeeIncomeAccountCode', label: 'Management fee income', hint: "ROCA's 8% fee" },
   { key: 'xeroLandlordBillAccountCode', label: 'Landlord bills account', hint: 'What ROCA owes landlords (net rent)' },
@@ -58,7 +57,8 @@ export const XeroConnection = () => {
   // Internal rent invoices in Xero
   const [invoiceInfo, setInvoiceInfo] = useState(null);
   const [invoicesFrom, setInvoicesFrom] = useState('');
-  const [pushing, setPushing] = useState(false);
+  const [savingFrom, setSavingFrom] = useState(false);
+  const [showTroubleshooting, setShowTroubleshooting] = useState(false);
 
   // Surface the outcome of the OAuth round trip, then drop the query params so a
   // refresh doesn't repeat the toast.
@@ -167,20 +167,18 @@ export const XeroConnection = () => {
     return () => { cancelled = true; };
   }, [connected, reloadKey]);
 
-  const pushInvoices = async () => {
-    setPushing(true);
+  // The go-live date: rent months before it never get a Xero invoice.
+  const saveInvoicesFrom = async () => {
+    setSavingFrom(true);
     try {
-      if (invoicesFrom && invoicesFrom !== invoiceInfo?.invoices_from) {
-        await api.put('/xero/rent-invoices/settings', { invoices_from: invoicesFrom });
-      }
-      const res = await api.post('/xero/rent-invoices/push');
-      addToast(res.data.message, res.data.data.failed ? 'warning' : 'success');
+      await api.put('/xero/rent-invoices/settings', { invoices_from: invoicesFrom });
+      addToast('Saved — rent invoices start from this date', 'success');
       const fresh = await api.get('/xero/rent-invoices/settings', { skipInterceptorError: true });
       setInvoiceInfo(fresh.data.data);
     } catch (err) {
-      addToast(err.response?.data?.message || 'Failed to create the rent invoices in Xero', 'error');
+      addToast(err.response?.data?.message || 'Failed to save the date', 'error');
     } finally {
-      setPushing(false);
+      setSavingFrom(false);
     }
   };
 
@@ -219,13 +217,9 @@ export const XeroConnection = () => {
     }
   };
 
-  const accountOptions = (field) => (chartAccounts || [])
-    .filter((a) => (field.bank ? a.type === 'BANK' : !!a.code))
-    .map((a) => ({
-      value: field.bank ? a.account_id : a.code,
-      label: field.bank ? a.name : `${a.code} — ${a.name}`,
-      group: field.bank ? undefined : a.class,
-    }));
+  const accountOptions = () => (chartAccounts || [])
+    .filter((a) => !!a.code)
+    .map((a) => ({ value: a.code, label: `${a.code} — ${a.name}`, group: a.class }));
 
   const toggleImport = (id) => setImportIds((l) => (l.includes(id) ? l.filter((x) => x !== id) : [...l, id]));
 
@@ -440,14 +434,14 @@ export const XeroConnection = () => {
                 <p className="text-xs text-gray-400 font-semibold py-2">Loading Xero accounts…</p>
               ) : (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {ACCOUNT_FIELDS.map((field) => (
                       <div key={field.key} className="flex flex-col gap-1">
                         <Dropdown
                           id={field.key}
                           label={field.label}
                           searchable
-                          options={accountOptions(field)}
+                          options={accountOptions()}
                           value={accountSettings[field.key] || ''}
                           onChange={(v) => setAccountSettings((s) => ({ ...s, [field.key]: v }))}
                           placeholder="Not chosen"
@@ -470,14 +464,14 @@ export const XeroConnection = () => {
                 <p className="text-2xs font-bold text-status-muted uppercase tracking-wider">Rent Invoices in Xero</p>
                 <p className="text-xs-portal text-status-muted mt-1 max-w-2xl">
                   Roca Living raises an internal invoice in Xero for each rent month of a managed flat (never sent to the
-                  tenant), so Xero can match the tenant's payment to it. Runs after every Xero sync; months due up to
-                  14 days ahead get their invoice.
+                  tenant), so Xero can match the tenant's payment to it. This runs by itself — when Rent Cycle opens,
+                  every 30 minutes and on each Xero sync. Months due up to 14 days ahead get their invoice.
                 </p>
               </div>
               <div className="flex flex-wrap items-end gap-3">
                 <DatePicker label="Create invoices from" id="xeroInvoicesFrom" value={invoicesFrom} onChange={setInvoicesFrom} />
-                <Button variant="primary" size="sm" onClick={pushInvoices} disabled={pushing || !accountSettings.xeroRentIncomeAccountCode}>
-                  {pushing ? 'Creating…' : 'Create rent invoices now'}
+                <Button variant="primary" size="sm" onClick={saveInvoicesFrom} disabled={savingFrom || !invoicesFrom || invoicesFrom === invoiceInfo?.invoices_from}>
+                  {savingFrom ? 'Saving…' : 'Save date'}
                 </Button>
               </div>
               {!accountSettings.xeroRentIncomeAccountCode && (
@@ -495,16 +489,24 @@ export const XeroConnection = () => {
             </div>
 
             <div className="border-t border-card-border pt-4 flex flex-col gap-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-2xs font-bold text-status-muted uppercase tracking-wider">Test Xero Access</p>
-                  <p className="text-xs-portal text-status-muted mt-1">Checks what Roca Living can read in this organisation. Nothing is changed in Xero.</p>
+              <button
+                type="button"
+                onClick={() => setShowTroubleshooting((v) => !v)}
+                className="flex items-center gap-1.5 text-2xs font-bold text-status-muted uppercase tracking-wider cursor-pointer hover:text-brand-primary self-start"
+                aria-expanded={showTroubleshooting}
+              >
+                <ChevronDown size={14} className={`transition-transform ${showTroubleshooting ? 'rotate-180' : ''}`} />
+                Troubleshooting
+              </button>
+              {showTroubleshooting && (
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs-portal text-status-muted">Test Xero access: checks what Roca Living can read in this organisation. Nothing is changed in Xero.</p>
+                  <Button variant="secondary" size="sm" onClick={testAccess} disabled={testing}>
+                    {testing ? 'Testing…' : 'Test Xero access'}
+                  </Button>
                 </div>
-                <Button variant="secondary" size="sm" onClick={testAccess} disabled={testing}>
-                  {testing ? 'Testing…' : 'Test Xero access'}
-                </Button>
-              </div>
-              {diag && (
+              )}
+              {showTroubleshooting && diag && (
                 <div className="flex flex-col">
                   {diag.checks.map((c) => (
                     <div key={c.name} className="flex items-center justify-between gap-4 py-2 border-b border-card-border/60 last:border-0">
