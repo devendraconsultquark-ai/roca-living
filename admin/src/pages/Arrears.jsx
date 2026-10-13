@@ -4,7 +4,9 @@ import { BarChart, Bar, XAxis, YAxis, Cell } from 'recharts';
 import { StatCard } from '../components/UI/StatCard';
 import { Skeleton } from '../components/UI/Skeleton';
 import { useToast } from '../components/UI/ToastContext';
+import { ExportButton } from '../components/UI/ListToolbar';
 import api from '../utilities/api';
+import { downloadCsv } from '../utilities/csv';
 
 const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
@@ -114,18 +116,31 @@ export const Arrears = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Arrears table */}
         <div className="card-bg border border-card-border rounded-card shadow-premium p-5 flex flex-col gap-4 lg:col-span-2">
-          <div className="flex items-center gap-1 border-b border-card-border pb-3 flex-wrap">
-            {TABS.map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                  tab === t ? 'bg-brand-accent/10 text-brand-accent' : 'text-gray-400 hover:text-brand-primary hover:bg-surface-hover'
-                }`}
-              >
-                {t}
-              </button>
-            ))}
+          <div className="flex items-center justify-between gap-3 border-b border-card-border pb-3 flex-wrap">
+            <div className="flex items-center gap-1 flex-wrap">
+              {TABS.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                    tab === t ? 'bg-brand-accent/10 text-brand-accent' : 'text-gray-400 hover:text-brand-primary hover:bg-surface-hover'
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+            <ExportButton
+              disabled={loading || !visible.length}
+              onClick={() => downloadCsv('arrears.csv', visible, [
+                { key: 'tenant_name', label: 'Tenant' },
+                { key: 'property_address', label: 'Property' },
+                { key: 'landlord_name', label: 'Landlord' },
+                { key: (r) => fmtDate(r.oldest_due), label: 'Overdue Since' },
+                { key: 'days_overdue', label: 'Days Overdue' },
+                { key: (r) => r.total.toFixed(2), label: 'Total Arrears (£)' },
+              ])}
+            />
           </div>
 
           {loading ? (

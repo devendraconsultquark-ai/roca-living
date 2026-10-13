@@ -5,6 +5,7 @@ import {
   getPipelineReport,
   getDepositsNeedingAttention,
   getRecentActivity,
+  getAlerts,
   getDashboardSummary,
   getMgmtFeeAccount,
   getComplianceItems,
@@ -29,5 +30,6 @@ reportRouter.get('/compliance-expiries', getComplianceExpiriesReport);
 reportRouter.get('/pipeline', getPipelineReport);
 reportRouter.get('/deposits', getDepositsNeedingAttention);
 reportRouter.get('/recent-activity', getRecentActivity);
+reportRouter.get('/alerts', getAlerts);
 
 export default reportRouter;

@@ -248,7 +248,7 @@ export const RentCycle = () => {
                 <th className="p-3 text-right">Rent</th>
                 <th className="p-3 text-right">Received</th>
                 <th className="p-3 text-right">ROCA fee</th>
-                <th className="p-3 text-right">Landlord</th>
+                <th className="p-3 text-right">To landlord</th>
                 <th className="p-3">Stage</th>
                 <th className="p-3 text-right">Next</th>
               </tr>

@@ -6,7 +6,9 @@ import { StatCard } from '../components/UI/StatCard';
 import { Skeleton } from '../components/UI/Skeleton';
 import { Dropdown } from '../components/UI/Dropdown';
 import { useToast } from '../components/UI/ToastContext';
+import { ExportButton } from '../components/UI/ListToolbar';
 import api from '../utilities/api';
+import { downloadCsv } from '../utilities/csv';
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 
@@ -120,6 +122,16 @@ export const Compliance = () => {
                 value={statusFilter}
                 onChange={(v) => setStatusFilter(v || '')}
                 className="w-44"
+              />
+              <ExportButton
+                disabled={loading || !visible.length}
+                onClick={() => downloadCsv('compliance.csv', visible, [
+                  { key: (r) => CERT_LABELS[r.cert_type] || r.cert_type, label: 'Certificate' },
+                  { key: 'property_address', label: 'Property' },
+                  { key: 'landlord_name', label: 'Landlord' },
+                  { key: (r) => fmtDate(r.expires_at), label: 'Expires' },
+                  { key: (r) => BUCKETS[r.bucket]?.label || r.bucket, label: 'Status' },
+                ])}
               />
             </div>
           </div>

@@ -8,7 +8,9 @@ import { Dropdown } from '../components/UI/Dropdown';
 import { Skeleton } from '../components/UI/Skeleton';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
+import { ExportButton } from '../components/UI/ListToolbar';
 import api from '../utilities/api';
+import { downloadCsv } from '../utilities/csv';
 
 const formatContractor = (c) => ({
   id: c.id,
@@ -200,7 +202,19 @@ export const Contractors = () => {
   return (
     <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
       {/* Page actions (title lives in the layout header) */}
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <ExportButton
+          disabled={loading || !contractors.length}
+          onClick={() => downloadCsv('contractors.csv', contractors, [
+            { key: 'id', label: 'Contractor ID' },
+            { key: 'name', label: 'Company / Name' },
+            { key: 'trade', label: 'Trade' },
+            { key: 'phone', label: 'Phone' },
+            { key: 'email', label: 'Email' },
+            { key: 'rating', label: 'Rating' },
+            { key: 'status', label: 'Insurance Status' },
+          ])}
+        />
         <Button variant="primary" icon={UserCog} onClick={() => setIsModalOpen(true)}>
           Add Contractor
         </Button>

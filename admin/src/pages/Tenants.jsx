@@ -9,7 +9,11 @@ import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
 import { AddTenantModal } from '../components/UI/AddTenantModal';
 import { EditTenantModal } from '../components/UI/EditTenantModal';
+import { ListTabs, ExportButton } from '../components/UI/ListToolbar';
 import api from '../utilities/api';
+import { downloadCsv } from '../utilities/csv';
+
+const ukDate = (ymd) => (ymd ? ymd.split('-').reverse().join('/') : '—');
 
 export const Tenants = () => {
   const navigate = useNavigate();
@@ -22,6 +26,7 @@ export const Tenants = () => {
   const { addToast } = useToast();
   const confirm = useConfirm();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [tab, setTab] = useState('current');
 
   const handleEditClick = (row) => setEditingTenantId(row.rawId);
 
@@ -70,9 +75,26 @@ export const Tenants = () => {
     fetchTenants();
   }, []);
 
-  const totalTenants = tenants.length;
-  const paymentsUpToDate = tenants.filter(t => t.balance >= 0).length;
-  const tenantsInArrears = tenants.filter(t => t.balance < 0).length;
+  // Current = tenancy active, under notice or pending; Former = tenancy ended
+  const current = tenants.filter(t => t.tenancy_status !== 'ended');
+  const former = tenants.filter(t => t.tenancy_status === 'ended');
+  const visible = tab === 'former' ? former : current;
+
+  const totalTenants = current.length;
+  const paymentsUpToDate = current.filter(t => t.balance >= 0).length;
+  const tenantsInArrears = current.filter(t => t.balance < 0).length;
+
+  const exportCsv = () => downloadCsv(tab === 'former' ? 'former-tenants.csv' : 'tenants.csv', visible, [
+    { key: 'id', label: 'Tenant ID' },
+    { key: 'name', label: 'Full Name' },
+    { key: 'email', label: 'Email' },
+    { key: 'phone', label: 'Phone' },
+    { key: 'property', label: 'Property' },
+    { key: (r) => r.balance.toFixed(2), label: 'Account Balance (£)' },
+    ...(tab === 'former'
+      ? [{ key: (r) => ukDate(r.end_date), label: 'Tenancy Ended' }]
+      : [{ key: 'status', label: 'Account Status' }]),
+  ]);
 
   const columns = [
     { header: 'Tenant ID', accessor: 'id', sortable: true },
@@ -80,6 +102,12 @@ export const Tenants = () => {
     { header: 'Email Address', accessor: 'email', sortable: true },
     { header: 'Phone Number', accessor: 'phone' },
     { header: 'Property Address', accessor: 'property', sortable: true },
+    ...(tab === 'former' ? [{
+      header: 'Tenancy Ended',
+      accessor: 'end_date',
+      sortable: true,
+      renderCell: (row) => ukDate(row.end_date)
+    }] : []),
     { 
       header: 'Account Balance', 
       accessor: 'balance', 
@@ -94,7 +122,11 @@ export const Tenants = () => {
     { 
       header: 'Account Status', 
       accessor: 'status',
-      renderCell: (row) => (
+      renderCell: (row) => row.tenancy_status === 'ended' ? (
+        <span className="px-2 py-0.5 text-2xs font-bold rounded-sm border bg-surface-hover text-gray-400 border-card-border">
+          Moved out
+        </span>
+      ) : (
         <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border ${
           row.status === 'Active'
             ? 'bg-status-success-bg text-status-success border-status-success/15'
@@ -170,7 +202,18 @@ export const Tenants = () => {
       </div>
 
       {/* Grid container */}
-      <div className="card-bg border border-card-border rounded-card shadow-premium p-4">
+      <div className="card-bg border border-card-border rounded-card shadow-premium p-4 flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap border-b border-card-border pb-3">
+          <ListTabs
+            tabs={[
+              { id: 'current', label: 'Current tenants', count: current.length },
+              { id: 'former', label: 'Former tenants', count: former.length },
+            ]}
+            value={tab}
+            onChange={setTab}
+          />
+          <ExportButton onClick={exportCsv} disabled={loading || !visible.length} />
+        </div>
         {loading ? (
           <div className="space-y-4 py-4">
             <Skeleton radius="bar" className="h-10 w-full" />
@@ -185,7 +228,7 @@ export const Tenants = () => {
         ) : (
           <DataTable 
             columns={columns} 
-            data={tenants} 
+            data={visible}
             onRowClick={(row) => navigate(`/tenants/${row.rawId}`)} 
           />
         )}

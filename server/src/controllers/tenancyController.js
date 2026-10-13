@@ -1140,7 +1140,9 @@ export const getAllTenants = catchAsync(async (req, res, next) => {
       'properties.address_line1',
       'properties.city',
       'properties.postcode',
-      'tenancies.id as tenancyId'
+      'tenancies.id as tenancyId',
+      'tenancies.status as tenancy_status',
+      'tenancies.end_date as tenancy_end_date'
     );
 
   // Balance as on the tenant page: payments received minus rent fallen due to
@@ -1179,7 +1181,9 @@ export const getAllTenants = catchAsync(async (req, res, next) => {
       balance: balanceVal,
       status: balanceVal < 0 ? 'In Arrears' : 'Active',
       right_to_rent_status: t.right_to_rent_status || 'pending',
-      right_to_rent_expiry: toYmd(t.right_to_rent_expiry)
+      right_to_rent_expiry: toYmd(t.right_to_rent_expiry),
+      tenancy_status: t.tenancy_status,
+      end_date: toYmd(t.tenancy_end_date)
     });
   }
 

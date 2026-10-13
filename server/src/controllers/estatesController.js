@@ -62,12 +62,18 @@ const livingPropertiesByUnit = async () => {
     .where((w) => w.whereNotNull('properties.rocaem_property_id')
       .orWhere((x) => x.whereNotNull('properties.block_name').whereNotNull('properties.apartment_number')))
     .select('properties.id', 'properties.block_name', 'properties.apartment_number', 'properties.rent_pcm',
-      'properties.rocaem_property_id', 'properties.managed_by_rl', 'tenancies.id as tenancy_id', 'tenancies.rent_pcm as tenancy_rent_pcm');
+      'properties.rocaem_property_id', 'properties.managed_by_rl', 'tenancies.id as tenancy_id', 'tenancies.rent_pcm as tenancy_rent_pcm',
+      // Properties card view: photo and lead tenant
+      db.raw(`(SELECT id FROM property_images WHERE property_id = properties.id AND image_type = 'photo' ORDER BY is_primary DESC, created_at ASC LIMIT 1) as primary_image_id`),
+      db.raw('(SELECT name FROM tenants WHERE tenancy_id = tenancies.id ORDER BY is_lead_tenant DESC, id ASC LIMIT 1) as tenant_name'));
   const byRocaem = new Map();
   const byKey = new Map();
   for (const r of rows) {
     // Rent shown = the current tenancy's rent (what ROCA Living collects).
-    const link = { property_id: r.id, rent_pcm: r.tenancy_rent_pcm ?? r.rent_pcm, has_tenant: !!r.tenancy_id, managed: !!r.managed_by_rl };
+    const link = {
+      property_id: r.id, rent_pcm: r.tenancy_rent_pcm ?? r.rent_pcm, has_tenant: !!r.tenancy_id, managed: !!r.managed_by_rl,
+      primary_image_id: r.primary_image_id || null, tenant_name: r.tenant_name || null,
+    };
     if (r.rocaem_property_id) {
       if (!byRocaem.has(r.rocaem_property_id) || link.has_tenant) byRocaem.set(r.rocaem_property_id, link);
     } else {

@@ -212,3 +212,21 @@ body {
   font-weight: 500 !important;
   letter-spacing: normal !important;
 }
+
+/* Table headers: one clean style for every table (shared DataTable and the
+   hand-built tables alike) — single line, normal case, muted. th[class]
+   outranks the .text-2xs override above. */
+thead th,
+thead th[class] {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+  color: var(--status-muted) !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+thead th[class*="cursor-pointer"]:hover {
+  color: var(--color-brand-primary) !important;
+}

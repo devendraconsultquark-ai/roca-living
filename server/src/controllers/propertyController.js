@@ -123,9 +123,10 @@ export const getPropertyById = catchAsync(async (req, res, next) => {
 
   const formattedProperty = formatProperty(property);
 
-  // Active tenancy with tenants and deposit
+  // Current tenancy (active or under notice) with tenants and deposit
   const tenancy = await db('tenancies')
-    .where({ property_id: id, status: 'active' })
+    .where({ property_id: id })
+    .whereIn('status', ['active', 'notice'])
     .orderBy('start_date', 'desc')
     .first();
   let tenancyData = null;

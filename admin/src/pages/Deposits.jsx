@@ -7,7 +7,9 @@ import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
 import { useToast } from '../components/UI/ToastContext';
 import { Skeleton } from '../components/UI/Skeleton';
+import { ExportButton } from '../components/UI/ListToolbar';
 import api from '../utilities/api';
+import { downloadCsv } from '../utilities/csv';
 
 export const Deposits = () => {
   const [deposits, setDeposits] = useState([]);
@@ -221,7 +223,23 @@ export const Deposits = () => {
       </div>
 
       {/* Grid container */}
-      <div className="card-bg border border-card-border rounded-card shadow-premium p-4">
+      <div className="card-bg border border-card-border rounded-card shadow-premium p-4 flex flex-col gap-4">
+        <div className="flex justify-end border-b border-card-border pb-3">
+          <ExportButton
+            disabled={loading || !rows.length}
+            onClick={() => downloadCsv('deposits.csv', rows, [
+              { key: 'depositRef', label: 'Deposit ID' },
+              { key: 'tenancyRef', label: 'Tenancy' },
+              { key: 'tenant', label: 'Lead Tenant' },
+              { key: 'landlord', label: 'Landlord' },
+              { key: 'property', label: 'Property' },
+              { key: (r) => r.amount.toFixed(2), label: 'Amount Held (£)' },
+              { key: 'received', label: 'Date Received' },
+              { key: 'scheme', label: 'Scheme' },
+              { key: (r) => (r.isRegistered ? 'Protected' : r.isOverdue ? 'Overdue' : 'Awaiting protection'), label: 'Protection Status' },
+            ])}
+          />
+        </div>
         {loading ? (
           <div className="space-y-4 py-4">
             <Skeleton radius="bar" className="h-10 w-full" />

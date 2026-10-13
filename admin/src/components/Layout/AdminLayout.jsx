@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Home, UserCheck,
   Wallet, Wrench, PiggyBank, Droplet,
   FolderOpen, BarChart3, Settings, Menu, X, Bell, User, ChevronLeft, ChevronRight,
-  ChevronDown, LogOut, ClipboardCheck, Landmark, ShieldCheck, CalendarDays
+  ChevronDown, LogOut, ClipboardCheck, Landmark, ShieldCheck, CalendarDays, HelpCircle
 } from 'lucide-react';
 import { Logo } from '../UI/Logo';
 import { GlobalSearch } from './GlobalSearch';
@@ -36,6 +36,7 @@ const HEADERS = {
   'rent-reviews': { title: 'Rent Reviews', subtitle: 'Track, manage and process rent reviews across all tenancies.' },
   arrears: { title: 'Arrears', subtitle: 'Monitor and manage rent arrears across all tenancies.' },
   compliance: { title: 'Compliance', subtitle: 'Track safety certificates and compliance requirements across all properties.' },
+  'rent-cycle': { title: 'Rent Cycle', subtitle: "Each month's rent with Xero: approve the split, pay the landlord, make the statement." },
   calendar: { title: 'Operations Calendar', subtitle: 'Key dates, deadlines and renewals across your portfolio — live from the system.' },
 };
 
@@ -62,7 +63,6 @@ const NAV_ITEMS = [
       { name: 'Arrears', path: '/arrears' },
     ],
   },
-  { heading: 'Accounting' },
   {
     name: 'Accounting', icon: Wallet,
     children: [
@@ -73,9 +73,7 @@ const NAV_ITEMS = [
     ],
   },
   { name: 'Deposits', path: '/deposits', icon: PiggyBank },
-  { heading: 'Compliance' },
   { name: 'Compliance', path: '/compliance', icon: ShieldCheck },
-  { heading: 'Operations' },
   {
     name: 'Maintenance', icon: Wrench,
     children: [
@@ -87,7 +85,6 @@ const NAV_ITEMS = [
   { name: 'Inspections', path: '/inspections', icon: ClipboardCheck },
   { name: 'Utilities & Access', path: '/utilities', icon: Droplet },
   { name: 'Documents', path: '/documents', icon: FolderOpen },
-  { heading: 'Administration' },
   { name: 'Reports', path: '/reports', icon: BarChart3 },
   {
     name: 'System Administration', icon: Settings,
@@ -97,6 +94,18 @@ const NAV_ITEMS = [
     ],
   },
 ];
+
+// Header Help (?) panel: one line per main area, each opening its page.
+const QUICK_GUIDE = [
+  { name: 'Rent Cycle', path: '/rent-cycle', text: "Each month's rent: approve the split, pay the landlord, make the statement." },
+  { name: 'Tenants', path: '/tenants', text: 'Add a tenant to a managed flat; open a tenant for payments and documents.' },
+  { name: 'Statements', path: '/statements', text: 'Generate, email and mark landlord statements as paid.' },
+  { name: 'Compliance', path: '/compliance', text: 'Certificates due or expired across managed flats.' },
+  { name: 'Maintenance', path: '/maintenance', text: 'Repair tickets from report to completion.' },
+  { name: 'Calendar', path: '/calendar', text: 'Key dates: rent, inspections, certificates, move-ins and move-outs.' },
+];
+
+const ALERT_LABELS = { compliance: 'Compliance', deposit: 'Deposit', maintenance: 'Maintenance', landlord_payment: 'Landlord payment' };
 
 export const AdminLayout = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -142,7 +151,33 @@ export const AdminLayout = () => {
     return () => document.removeEventListener('mousedown', handler);
   }, [notifOpen]);
 
+  // Items needing attention (same list as the Dashboard's alerts): the bell's number
+  const [alerts, setAlerts] = useState(null);
+  const loadAlerts = () => api.get('/reports/alerts', { skipInterceptorError: true })
+    .then((res) => setAlerts(res.data.data))
+    .catch(() => {});
+  useEffect(() => { loadAlerts(); }, []);
+
+  // Help (?) panel
+  const [helpOpen, setHelpOpen] = useState(false);
+  const helpRef = useRef(null);
+  useEffect(() => {
+    if (!helpOpen) return;
+    const handler = (e) => {
+      if (helpRef.current && !helpRef.current.contains(e.target)) setHelpOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [helpOpen]);
+
+  const openRentCycleHelp = () => {
+    try { localStorage.setItem('rentCycleHelp', 'shown'); } catch { /* storage blocked */ }
+    setHelpOpen(false);
+    navigate('/rent-cycle');
+  };
+
   const handleBellClick = () => {
+    if (!notifOpen) loadAlerts();
     setNotifOpen((open) => !open);
     // Fetch once, on first open this session
     if (notifItems === null && !notifLoading) {
@@ -186,7 +221,6 @@ export const AdminLayout = () => {
   // Header title/subtitle derived from the current route (client-portal pattern)
   const sectionKey = location.pathname.split('/')[1] || 'dashboard';
   const flatNav = NAV_ITEMS
-    .filter((item) => !item.heading)
     .flatMap((item) => (item.children ? item.children : [item]));
   const activeItem = flatNav.find((item) => location.pathname.startsWith(item.path));
 
@@ -205,22 +239,8 @@ export const AdminLayout = () => {
   const headerTitle = headerEntry?.title || activeItem?.name || (sectionKey.charAt(0).toUpperCase() + sectionKey.slice(1).replace(/-/g, ' '));
   const headerSubtitle = headerEntry?.subtitle || 'Staff portal overview.';
 
-  // Render one nav entry: a section heading, a plain link, or a collapsible group
+  // Render one nav entry: a plain link or a collapsible group
   const renderNavItem = (item, isMobile = false) => {
-    if (item.heading) {
-      return (
-        <p
-          key={`heading-${item.heading}`}
-          className={`px-6 pt-4 pb-1 text-2xs font-bold text-sidebar-text-muted/70 tracking-widest select-none ${
-            isMobile ? 'block' : (collapsed ? 'hidden' : 'hidden lg:block')
-          }`}
-          style={{ textTransform: 'uppercase' }}
-        >
-          {item.heading}
-        </p>
-      );
-    }
-
     const Icon = item.icon;
     const isCollapsedState = !isMobile && collapsed;
     const labelClass = isMobile ? 'block' : (isCollapsedState ? 'hidden' : 'hidden lg:block');
@@ -517,13 +537,48 @@ export const AdminLayout = () => {
                 <button
                   onClick={handleBellClick}
                   className="p-2 rounded-lg text-brand-primary relative hover:bg-surface-hover cursor-pointer transition-colors duration-150"
-                  title="Recent activity"
+                  title="Notifications"
+                  aria-label={alerts?.total ? `Notifications: ${alerts.total} need attention` : 'Notifications'}
                 >
                   <Bell size={20} className="text-brand-primary" />
+                  {alerts?.total > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-status-danger text-white text-[10px] font-bold leading-[18px] text-center">
+                      {alerts.total > 9 ? '9+' : alerts.total}
+                    </span>
+                  )}
                 </button>
 
                 {notifOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-80 card-bg border border-card-border rounded-card shadow-premium max-h-96 overflow-y-auto z-50">
+                  <div className="absolute right-0 top-full mt-2 w-80 card-bg border border-card-border rounded-card shadow-premium max-h-[28rem] overflow-y-auto z-50">
+                    {alerts?.total > 0 && (
+                      <div className="border-b border-card-border">
+                        <div className="px-4 py-3 flex items-center justify-between">
+                          <h4 className="text-xs-portal font-bold text-brand-primary uppercase tracking-wider select-none">Needs attention ({alerts.total})</h4>
+                          <button
+                            onClick={() => { setNotifOpen(false); navigate('/dashboard'); }}
+                            className="text-2xs font-bold text-brand-accent hover:underline cursor-pointer"
+                          >
+                            View all on Dashboard
+                          </button>
+                        </div>
+                        <div className="divide-y divide-gray-50">
+                          {alerts.items.map((a, i) => (
+                            <div key={i} className="px-4 py-2.5">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex items-start gap-2.5 min-w-0">
+                                  <span className={`w-2 h-2 rounded-full mt-1 shrink-0 ${a.priority === 'high' ? 'bg-status-danger' : 'bg-status-warning'}`} />
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-bold text-brand-primary leading-tight">{a.description}</p>
+                                    <p className="text-2xs text-gray-400 font-semibold mt-1">{ALERT_LABELS[a.type] || a.type} · {a.related_to}</p>
+                                  </div>
+                                </div>
+                                {a.due && <span className="text-2xs font-bold text-gray-400 shrink-0">{a.due}</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="px-4 py-3 border-b border-card-border sticky top-0 card-bg">
                       <h4 className="text-xs-portal font-bold text-brand-primary uppercase tracking-wider select-none">Recent Activity</h4>
                     </div>
@@ -551,6 +606,42 @@ export const AdminLayout = () => {
                         ))}
                       </div>
                     )}
+                  </div>
+                )}
+              </div>
+
+              {/* Help (?) - quick guide */}
+              <div className="relative" ref={helpRef}>
+                <button
+                  onClick={() => setHelpOpen((open) => !open)}
+                  className="p-2 rounded-lg text-brand-primary hover:bg-surface-hover cursor-pointer transition-colors duration-150"
+                  title="Help"
+                  aria-label="Help"
+                >
+                  <HelpCircle size={20} />
+                </button>
+                {helpOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-80 card-bg border border-card-border rounded-card shadow-premium z-50">
+                    <div className="px-4 py-3 border-b border-card-border">
+                      <h4 className="text-xs-portal font-bold text-brand-primary uppercase tracking-wider select-none">Quick guide</h4>
+                    </div>
+                    <div className="divide-y divide-gray-50">
+                      {QUICK_GUIDE.map((g) => (
+                        <button
+                          key={g.path}
+                          onClick={() => { setHelpOpen(false); navigate(g.path); }}
+                          className="w-full text-left px-4 py-2.5 hover:bg-surface-light/50 cursor-pointer"
+                        >
+                          <p className="text-xs font-bold text-brand-primary">{g.name}</p>
+                          <p className="text-[11px] leading-snug text-gray-400 font-semibold mt-0.5">{g.text}</p>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="px-4 py-3 border-t border-card-border">
+                      <button onClick={openRentCycleHelp} className="text-xs font-bold text-brand-accent hover:underline cursor-pointer">
+                        How the rent cycle works →
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

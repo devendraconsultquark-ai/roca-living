@@ -203,6 +203,112 @@ export const getDepositsNeedingAttention = catchAsync(async (req, res, next) => 
   });
 });
 
+// Operational alerts derived from live data (no separate task system exists):
+// certificates due or expired, unprotected deposits, urgent repairs and
+// landlord payments to run. Used by the Dashboard and the header bell.
+const loadAlerts = async () => {
+  const int = (v) => parseInt(v || 0, 10);
+  const [certAlerts, depositAlerts, maintenanceAlerts, paymentAlerts] = await Promise.all([
+    db('property_certificates')
+      .join('properties', 'property_certificates.property_id', 'properties.id')
+      .select(
+        'property_certificates.cert_type',
+        db.raw("CONCAT(properties.address_line1, ', ', properties.city) as related_to"),
+        db.raw('DATEDIFF(property_certificates.expires_at, CURDATE()) as days_left')
+      )
+      .whereNotNull('property_certificates.expires_at')
+      .where('property_certificates.expires_at', '<=', db.raw('DATE_ADD(CURDATE(), INTERVAL 30 DAY)'))
+      .where('properties.managed_by_rl', true)
+      .orderBy('property_certificates.expires_at', 'asc')
+      .limit(25),
+    db('deposits')
+      .join('tenancies', 'deposits.tenancy_id', 'tenancies.id')
+      .join('properties', 'tenancies.property_id', 'properties.id')
+      .select(
+        db.raw("CONCAT(properties.address_line1, ', ', properties.city) as related_to"),
+        db.raw('DATEDIFF(deposits.register_due, CURDATE()) as days_left')
+      )
+      .whereNull('deposits.registered_at')
+      .orderBy('deposits.register_due', 'asc')
+      .limit(25),
+    db('maintenance_tickets')
+      .join('properties', 'maintenance_tickets.property_id', 'properties.id')
+      .select(
+        'maintenance_tickets.title',
+        'maintenance_tickets.urgency',
+        'maintenance_tickets.status',
+        db.raw("CONCAT(properties.address_line1, ', ', properties.city) as related_to")
+      )
+      .whereIn('maintenance_tickets.urgency', ['emergency', 'urgent'])
+      .whereNotIn('maintenance_tickets.status', ['complete', 'cancelled'])
+      .orderBy(db.raw("FIELD(maintenance_tickets.urgency, 'emergency', 'urgent')"))
+      .orderBy('maintenance_tickets.created_at', 'asc')
+      .limit(25),
+    db('landlord_statements')
+      .join('users', 'landlord_statements.landlord_id', 'users.id')
+      .select('landlord_statements.status', 'users.name as related_to')
+      .whereNot('landlord_statements.status', 'paid')
+      .orderBy('landlord_statements.period_end', 'asc')
+      .limit(25)
+  ]);
+
+  const CERT_LABELS = {
+    GAS: 'Gas Safety', EICR: 'EICR', EPC: 'EPC',
+    SMOKE_CO: 'Smoke & CO alarm', HMO: 'HMO licence', PAT: 'PAT'
+  };
+  const dueLabel = (days) => (days < 0 ? 'Overdue' : days === 0 ? 'Today' : `${days} days`);
+  return [
+    ...certAlerts.map((c) => {
+      const days = int(c.days_left);
+      return {
+        type: 'compliance',
+        description: `${CERT_LABELS[c.cert_type] || c.cert_type} certificate ${days < 0 ? 'expired' : `due in ${days} day${days === 1 ? '' : 's'}`}`,
+        related_to: c.related_to,
+        due: dueLabel(days),
+        priority: days < 0 ? 'high' : 'medium',
+        status: 'open',
+        _sort: days
+      };
+    }),
+    ...depositAlerts.map((d) => {
+      const days = int(d.days_left);
+      return {
+        type: 'deposit',
+        description: days < 0 ? 'Deposit protection registration overdue' : 'Deposit protection deadline approaching',
+        related_to: d.related_to,
+        due: dueLabel(days),
+        priority: days <= 5 ? 'high' : 'medium',
+        status: 'open',
+        _sort: days
+      };
+    }),
+    ...maintenanceAlerts.map((m) => ({
+      type: 'maintenance',
+      description: m.title,
+      related_to: m.related_to,
+      due: null,
+      priority: m.urgency === 'emergency' ? 'high' : 'medium',
+      status: m.status,
+      _sort: m.urgency === 'emergency' ? -1000 : 1
+    })),
+    ...paymentAlerts.map((p) => ({
+      type: 'landlord_payment',
+      description: 'Landlord payment ready to run',
+      related_to: p.related_to,
+      due: null,
+      priority: 'medium',
+      status: p.status === 'draft' ? 'open' : 'sent',
+      _sort: 2
+    }))
+  ].sort((a, b) => a._sort - b._sort);
+};
+
+// Header bell: how many items need attention, plus the top few.
+export const getAlerts = catchAsync(async (req, res) => {
+  const alerts = await loadAlerts();
+  res.json({ success: true, data: { total: alerts.length, items: alerts.slice(0, 8).map(({ _sort, ...rest }) => rest) } });
+});
+
 export const getDashboardSummary = catchAsync(async (req, res, next) => {
   // Calendar-month boundaries (YYYY-MM-DD, half-open interval). Month-scoped
   // figures (rent due/collected, payouts, fees, "new this month") follow
@@ -243,10 +349,7 @@ export const getDashboardSummary = catchAsync(async (req, res, next) => {
     topArrears,
     rentReviews,
     newsItems,
-    certAlerts,
-    depositAlerts,
-    maintenanceAlerts,
-    paymentAlerts
+    alerts
   ] = await Promise.all([
     db('users').where('role', 'LANDLORD').select(
       db.raw('COUNT(id) as total'),
@@ -331,47 +434,7 @@ export const getDashboardSummary = catchAsync(async (req, res, next) => {
       .orderBy('published_on', 'desc')
       .orderBy('id', 'desc')
       .limit(5),
-    db('property_certificates')
-      .join('properties', 'property_certificates.property_id', 'properties.id')
-      .select(
-        'property_certificates.cert_type',
-        db.raw("CONCAT(properties.address_line1, ', ', properties.city) as related_to"),
-        db.raw('DATEDIFF(property_certificates.expires_at, CURDATE()) as days_left')
-      )
-      .whereNotNull('property_certificates.expires_at')
-      .where('property_certificates.expires_at', '<=', db.raw('DATE_ADD(CURDATE(), INTERVAL 30 DAY)'))
-      .where('properties.managed_by_rl', true)
-      .orderBy('property_certificates.expires_at', 'asc')
-      .limit(25),
-    db('deposits')
-      .join('tenancies', 'deposits.tenancy_id', 'tenancies.id')
-      .join('properties', 'tenancies.property_id', 'properties.id')
-      .select(
-        db.raw("CONCAT(properties.address_line1, ', ', properties.city) as related_to"),
-        db.raw('DATEDIFF(deposits.register_due, CURDATE()) as days_left')
-      )
-      .whereNull('deposits.registered_at')
-      .orderBy('deposits.register_due', 'asc')
-      .limit(25),
-    db('maintenance_tickets')
-      .join('properties', 'maintenance_tickets.property_id', 'properties.id')
-      .select(
-        'maintenance_tickets.title',
-        'maintenance_tickets.urgency',
-        'maintenance_tickets.status',
-        db.raw("CONCAT(properties.address_line1, ', ', properties.city) as related_to")
-      )
-      .whereIn('maintenance_tickets.urgency', ['emergency', 'urgent'])
-      .whereNotIn('maintenance_tickets.status', ['complete', 'cancelled'])
-      .orderBy(db.raw("FIELD(maintenance_tickets.urgency, 'emergency', 'urgent')"))
-      .orderBy('maintenance_tickets.created_at', 'asc')
-      .limit(25),
-    db('landlord_statements')
-      .join('users', 'landlord_statements.landlord_id', 'users.id')
-      .select('landlord_statements.status', 'users.name as related_to')
-      .whereNot('landlord_statements.status', 'paid')
-      .orderBy('landlord_statements.period_end', 'asc')
-      .limit(25)
+    loadAlerts()
   ]);
 
   const num = (v) => parseFloat(v || 0);
@@ -381,56 +444,6 @@ export const getDashboardSummary = catchAsync(async (req, res, next) => {
   const rentDue = num(rentDueMonth?.total);
   const rentCollected = num(rentCollectedMonth?.total);
 
-  // Operational alerts derived from live data (no separate task system exists).
-  const CERT_LABELS = {
-    GAS: 'Gas Safety', EICR: 'EICR', EPC: 'EPC',
-    SMOKE_CO: 'Smoke & CO alarm', HMO: 'HMO licence', PAT: 'PAT'
-  };
-  const dueLabel = (days) => (days < 0 ? 'Overdue' : days === 0 ? 'Today' : `${days} days`);
-  const alerts = [
-    ...certAlerts.map((c) => {
-      const days = int(c.days_left);
-      return {
-        type: 'compliance',
-        description: `${CERT_LABELS[c.cert_type] || c.cert_type} certificate ${days < 0 ? 'expired' : `due in ${days} day${days === 1 ? '' : 's'}`}`,
-        related_to: c.related_to,
-        due: dueLabel(days),
-        priority: days < 0 ? 'high' : 'medium',
-        status: 'open',
-        _sort: days
-      };
-    }),
-    ...depositAlerts.map((d) => {
-      const days = int(d.days_left);
-      return {
-        type: 'deposit',
-        description: days < 0 ? 'Deposit protection registration overdue' : 'Deposit protection deadline approaching',
-        related_to: d.related_to,
-        due: dueLabel(days),
-        priority: days <= 5 ? 'high' : 'medium',
-        status: 'open',
-        _sort: days
-      };
-    }),
-    ...maintenanceAlerts.map((m) => ({
-      type: 'maintenance',
-      description: m.title,
-      related_to: m.related_to,
-      due: null,
-      priority: m.urgency === 'emergency' ? 'high' : 'medium',
-      status: m.status,
-      _sort: m.urgency === 'emergency' ? -1000 : 1
-    })),
-    ...paymentAlerts.map((p) => ({
-      type: 'landlord_payment',
-      description: 'Landlord payment ready to run',
-      related_to: p.related_to,
-      due: null,
-      priority: 'medium',
-      status: p.status === 'draft' ? 'open' : 'sent',
-      _sort: 2
-    }))
-  ].sort((a, b) => a._sort - b._sort);
   const alertsTotal = alerts.length;
   const alertsTop = alerts.slice(0, 8).map(({ _sort, ...rest }) => rest);
 
@@ -565,10 +578,11 @@ export const getCashflow = catchAsync(async (req, res, next) => {
   });
 });
 
-// Key dates for the Operations Calendar (?month=YYYY-MM, default current month).
+// Key dates for the Operations Calendar (?month=YYYY-MM, default current month;
+// or ?from=YYYY-MM-DD&to=YYYY-MM-DD for the week view, `to` inclusive).
 // Read-only aggregation of dates the system already tracks.
 export const getCalendarEvents = catchAsync(async (req, res, next) => {
-  const { month } = req.query;
+  const { month, from, to } = req.query;
   let base = new Date();
   if (month !== undefined) {
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(String(month))) {
@@ -578,12 +592,22 @@ export const getCalendarEvents = catchAsync(async (req, res, next) => {
     base = new Date(y, m - 1, 1);
   }
   const pad = (n) => String(n).padStart(2, '0');
-  const monthStart = `${base.getFullYear()}-${pad(base.getMonth() + 1)}-01`;
+  let monthStart = `${base.getFullYear()}-${pad(base.getMonth() + 1)}-01`;
   const followingMonth = new Date(base.getFullYear(), base.getMonth() + 1, 1);
-  const monthEnd = `${followingMonth.getFullYear()}-${pad(followingMonth.getMonth() + 1)}-01`;
+  let monthEnd = `${followingMonth.getFullYear()}-${pad(followingMonth.getMonth() + 1)}-01`;
+  if (from !== undefined || to !== undefined) {
+    const ymd = /^\d{4}-\d{2}-\d{2}$/;
+    if (!ymd.test(String(from)) || !ymd.test(String(to)) || String(from) > String(to)) {
+      throw new ApiError(400, 'from and to must be YYYY-MM-DD dates, from on or before to');
+    }
+    const end = new Date(`${to}T00:00:00`);
+    end.setDate(end.getDate() + 1);
+    monthStart = String(from);
+    monthEnd = `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}`;
+  }
   const inMonth = (qb, col) => qb.where(col, '>=', monthStart).andWhere(col, '<', monthEnd);
 
-  const [certs, inspections, rents, tenancyEnds, reviews, deposits] = await Promise.all([
+  const [certs, inspections, rents, tenancyEnds, reviews, deposits, moveIns, handovers] = await Promise.all([
     inMonth(
       db('property_certificates')
         .join('properties', 'property_certificates.property_id', 'properties.id')
@@ -651,6 +675,27 @@ export const getCalendarEvents = catchAsync(async (req, res, next) => {
           db.raw("CONCAT(properties.address_line1, ', ', properties.city) as place")
         ),
       'deposits.register_due'
+    ),
+    inMonth(
+      db('tenancies')
+        .join('properties', 'tenancies.property_id', 'properties.id')
+        .select(
+          'tenancies.start_date as date',
+          'tenancies.id as tenancy_id',
+          db.raw("CONCAT(properties.address_line1, ', ', properties.city) as place")
+        ),
+      'tenancies.start_date'
+    ),
+    inMonth(
+      db('utilities')
+        .join('properties', 'utilities.property_id', 'properties.id')
+        .select(
+          'utilities.handover_date as date',
+          'utilities.utility_type',
+          'utilities.direction',
+          db.raw("CONCAT(properties.address_line1, ', ', properties.city) as place")
+        ),
+      'utilities.handover_date'
     )
   ]);
 
@@ -676,10 +721,24 @@ export const getCalendarEvents = catchAsync(async (req, res, next) => {
       place: r.place,
       link: '/accounting'
     })),
+    ...moveIns.map((t) => ({
+      type: 'move_in',
+      date: toYmd(t.date),
+      title: 'Move-in (tenancy starts)',
+      place: t.place,
+      link: '/tenancies'
+    })),
+    ...handovers.map((u) => ({
+      type: 'utility',
+      date: toYmd(u.date),
+      title: `${String(u.utility_type || 'utility').replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())} handover${u.direction === 'out_of_tenant' ? ' (move-out)' : u.direction === 'into_tenant' ? ' (move-in)' : ''}`,
+      place: u.place,
+      link: '/utilities'
+    })),
     ...tenancyEnds.map((t) => ({
       type: 'tenancy',
       date: toYmd(t.date),
-      title: 'Tenancy ends',
+      title: 'Move-out (tenancy ends)',
       place: t.place,
       link: '/tenancies'
     })),

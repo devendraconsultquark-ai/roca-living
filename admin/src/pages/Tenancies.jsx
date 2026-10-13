@@ -8,7 +8,9 @@ import { Dropdown } from '../components/UI/Dropdown';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
 import { Skeleton } from '../components/UI/Skeleton';
+import { ListTabs, ExportButton } from '../components/UI/ListToolbar';
 import api from '../utilities/api';
+import { downloadCsv } from '../utilities/csv';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -30,6 +32,7 @@ export const Tenancies = () => {
   const [tenancies, setTenancies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
+  const [tab, setTab] = useState('all');
   const { addToast } = useToast();
   const confirm = useConfirm();
 
@@ -200,6 +203,36 @@ export const Tenancies = () => {
     ? withTerm.reduce((s, t) => s + (new Date(t.rawEndDate) - new Date(t.start)) / (DAY_MS * 30.44), 0) / withTerm.length
     : null;
 
+  // Status tabs (design: All / Active / Ending soon / Expired / Terminated)
+  const TAB_FILTERS = {
+    all: () => true,
+    active: (t) => t.rawStatus === 'active',
+    ending: expiringSoon,
+    notice: (t) => t.rawStatus === 'notice',
+    pending: (t) => t.rawStatus === 'pending',
+    ended: (t) => t.rawStatus === 'ended',
+  };
+  const tabs = [
+    { id: 'all', label: 'All' },
+    { id: 'active', label: 'Active' },
+    { id: 'ending', label: 'Ending soon' },
+    { id: 'notice', label: 'Notice given' },
+    { id: 'pending', label: 'Pending' },
+    { id: 'ended', label: 'Ended' },
+  ].map((t) => ({ ...t, count: tenancies.filter(TAB_FILTERS[t.id]).length }));
+  const visible = tenancies.filter(TAB_FILTERS[tab]);
+
+  const exportCsv = () => downloadCsv('tenancies.csv', visible, [
+    { key: 'id', label: 'Tenancy ID' },
+    { key: 'tenant', label: 'Lead Tenant' },
+    { key: 'landlord', label: 'Landlord' },
+    { key: 'property', label: 'Property' },
+    { key: 'start', label: 'Start Date' },
+    { key: 'end', label: 'End Date' },
+    { key: (r) => r.rent.toFixed(2), label: 'Monthly Rent (£)' },
+    { key: (r) => STATUS_LABELS[r.rawStatus] || r.rawStatus, label: 'Status' },
+  ]);
+
   const columns = [
     { header: 'Tenancy ID', accessor: 'id', sortable: true },
     { header: 'Lead Tenant', accessor: 'tenant', sortable: true },
@@ -304,7 +337,11 @@ export const Tenancies = () => {
       </div>
 
       {/* Grid container */}
-      <div className="card-bg border border-card-border rounded-card shadow-premium p-4">
+      <div className="card-bg border border-card-border rounded-card shadow-premium p-4 flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap border-b border-card-border pb-3">
+          <ListTabs tabs={tabs} value={tab} onChange={setTab} />
+          <ExportButton onClick={exportCsv} disabled={loading || !visible.length} />
+        </div>
         {loading ? (
           <div className="space-y-4 py-4">
             <Skeleton radius="bar" className="h-10 w-full" />
@@ -313,7 +350,7 @@ export const Tenancies = () => {
             <Skeleton className="h-16 w-full" />
           </div>
         ) : (
-          <DataTable columns={columns} data={tenancies} />
+          <DataTable columns={columns} data={visible} />
         )}
       </div>
 

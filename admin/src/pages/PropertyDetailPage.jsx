@@ -74,6 +74,14 @@ export const PropertyDetailPage = () => {
     fetchProperty();
   }, [id, navigate, addToast, reloadKey]);
 
+  // Next inspection for the top strip: from the latest logged inspection
+  const [nextInspection, setNextInspection] = useState(null);
+  useEffect(() => {
+    api.get('/inspections', { params: { property_id: id }, skipInterceptorError: true })
+      .then((res) => setNextInspection((res.data.data || []).find((i) => i.next_inspection_due)?.next_inspection_due || null))
+      .catch(() => setNextInspection(null));
+  }, [id]);
+
   // Documents linked to this property — property-scoped docs plus tenancy-scoped
   // docs whose entity reference points at this property.
   const propertyRef = data?.property_reference || `PRP-${id}`;
@@ -292,6 +300,41 @@ export const PropertyDetailPage = () => {
         editLabel="Edit Details"
         onEdit={openEditModal}
       />
+
+      {/* Top strip (design): tenancy at a glance */}
+      {(() => {
+        const t = data.active_tenancy;
+        const dep = t?.deposit;
+        const depAmount = dep?.tenancy_deposit != null ? parseFloat(dep.tenancy_deposit) : null;
+        const fmtMoney = (v) => `£${Number(v).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        const fmtDate = (ymd) => (ymd ? new Date(ymd).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
+        const items = [
+          { label: 'Tenancy Status', value: t ? (t.status === 'notice' ? 'Notice given' : 'Let') : 'Vacant', tone: t ? (t.status === 'notice' ? 'text-status-warning' : 'text-status-success') : 'text-gray-400' },
+          { label: 'Tenant', value: t?.tenants?.length ? t.tenants.map((x) => x.name).join(', ') : '—' },
+          { label: 'Monthly Rent', value: t?.rent_pcm ? `${fmtMoney(t.rent_pcm)} pcm` : (data.rent_pcm ? `${fmtMoney(data.rent_pcm)} pcm` : '—') },
+          {
+            label: 'Deposit Held',
+            value: depAmount ? fmtMoney(depAmount) : '—',
+            badge: depAmount ? (dep.registered_at ? 'Protected' : 'Not protected') : null,
+            badgeTone: dep?.registered_at ? 'bg-status-success-bg text-status-success' : 'bg-status-warning/10 text-status-warning',
+          },
+          { label: 'Next Inspection', value: fmtDate(nextInspection) },
+          { label: 'Landlord', value: data.landlord_name || '—' },
+        ];
+        return (
+          <div className="card-bg border border-card-border rounded-card shadow-premium px-5 py-4 mb-6 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+            {items.map((it) => (
+              <div key={it.label} className="min-w-0">
+                <p className="text-2xs font-bold text-status-muted">{it.label}</p>
+                <p className={`text-sm font-bold mt-1 truncate ${it.tone || 'text-brand-primary'}`} title={it.value}>
+                  {it.value}
+                  {it.badge && <span className={`ml-2 px-1.5 py-0.5 rounded-sm text-2xs font-bold align-middle ${it.badgeTone}`}>{it.badge}</span>}
+                </p>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       <DetailTabs tabs={tabs} activeTab={activeTab} setActiveTab={setActiveTab} />
 

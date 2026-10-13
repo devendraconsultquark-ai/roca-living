@@ -7,7 +7,9 @@ import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
 import { useToast } from '../components/UI/ToastContext';
 import { Skeleton } from '../components/UI/Skeleton';
+import { ExportButton } from '../components/UI/ListToolbar';
 import api from '../utilities/api';
+import { downloadCsv } from '../utilities/csv';
 
 const RATING_OPTIONS = [
   { value: 'excellent', label: 'Excellent' },
@@ -161,7 +163,19 @@ export const Inspections = () => {
   return (
     <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
       {/* Page actions (title lives in the layout header) */}
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <ExportButton
+          disabled={loading || !inspections.length}
+          onClick={() => downloadCsv('inspections.csv', inspections, [
+            { key: 'id', label: 'ID' },
+            { key: 'property', label: 'Property' },
+            { key: 'inspector', label: 'Inspector' },
+            { key: 'date', label: 'Inspected' },
+            { key: 'nextDue', label: 'Next Due' },
+            { key: 'rating', label: 'Rating' },
+            { key: 'notes', label: 'Notes' },
+          ])}
+        />
         <Button variant="primary" icon={ClipboardCheck} onClick={() => setIsModalOpen(true)}>
           Log Inspection
         </Button>

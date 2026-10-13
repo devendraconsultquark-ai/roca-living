@@ -5,14 +5,7 @@ import { DataTable } from '../components/UI/DataTable';
 import { useToast } from '../components/UI/ToastContext';
 import { Skeleton } from '../components/UI/Skeleton';
 import api from '../utilities/api';
-
-const toCsv = (rows, headers) => {
-  const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  return [
-    headers.map((h) => escape(h.label)).join(','),
-    ...rows.map((r) => headers.map((h) => escape(r[h.key])).join(','))
-  ].join('\n');
-};
+import { downloadCsv } from '../utilities/csv';
 
 export const Reports = () => {
   const [pipeline, setPipeline] = useState(null);
@@ -48,22 +41,13 @@ export const Reports = () => {
       addToast('No overdue rent to export', 'info');
       return;
     }
-    const csv = toCsv(arrears.overdue_schedules, [
+    downloadCsv('arrears-report.csv', arrears.overdue_schedules, [
       { key: 'tenancy_id', label: 'Tenancy ID' },
       { key: 'landlord_name', label: 'Landlord' },
       { key: 'property_address', label: 'Property' },
       { key: 'due_date', label: 'Due Date' },
       { key: 'amount', label: 'Amount (£)' },
     ]);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'arrears-report.csv');
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
     addToast(`Exported ${arrears.overdue_schedules.length} overdue schedules to CSV`, 'success');
   };
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Home, Users, X, ExternalLink, Search, Lock } from 'lucide-react';
+import { Building2, Home, Users, X, ExternalLink, Search, Lock, LayoutGrid, List, ChevronLeft, ChevronRight } from 'lucide-react';
 import { DataTable } from './DataTable';
 import { Dropdown } from './Dropdown';
 import { StatCard } from './StatCard';
@@ -10,7 +10,10 @@ import { Button } from './Button';
 import { LandlordChooser } from './LandlordChooser';
 import { useToast } from './ToastContext';
 import { useConfirm } from './ConfirmContext';
+import { ExportButton } from './ListToolbar';
+import { PropertyThumb } from './PropertyImage';
 import api from '../../utilities/api';
+import { downloadCsv } from '../../utilities/csv';
 import { emptyNewLandlord, landlordChoiceError, landlordChoicePayload } from '../../utilities/landlordChoice';
 
 // ROCA Estates (rocaem) blocks, apartments and landlords, shown read-only.
@@ -270,6 +273,38 @@ const ApartmentDetail = ({ id, onClose }) => {
   );
 };
 
+// Properties card view (design): photo, status, unit, landlord, tenant, rent.
+const ApartmentCard = ({ unit, busy, onToggle, onOpen }) => {
+  const link = unit.roca_living;
+  return (
+    <div className="border border-card-border rounded-card overflow-hidden bg-white flex flex-col">
+      <div className="relative">
+        <PropertyThumb imageId={link?.primary_image_id} alt={unit.unit_ref} className="w-full h-36" iconSize={28} />
+        <span className="absolute top-2 left-2"><EstateStatus status={unit.status} /></span>
+      </div>
+      <div className="p-4 flex flex-col gap-2 flex-1">
+        <div>
+          <p className="font-bold text-brand-primary">{unit.unit_ref}{unit.name ? ` · ${unit.name}` : ''}</p>
+          <p className="text-xs text-status-muted">{dash(unit.building_name)}</p>
+        </div>
+        <div className="text-xs flex flex-col gap-1">
+          <div className="flex justify-between gap-2"><span className="text-status-muted">Landlord</span><span className="font-semibold text-right truncate">{unit.landlord_name || 'Not linked'}</span></div>
+          <div className="flex justify-between gap-2"><span className="text-status-muted">Tenant</span><span className="font-semibold text-right truncate">{link?.has_tenant ? (link.tenant_name || 'Let') : '—'}</span></div>
+          <div className="flex justify-between gap-2"><span className="text-status-muted">Rent (pcm)</span><span className="font-semibold">{link?.has_tenant && link.rent_pcm ? money(link.rent_pcm) : '—'}</span></div>
+        </div>
+        <div className="flex items-center justify-between gap-2 mt-auto pt-2 border-t border-card-border/60">
+          <span className="flex items-center gap-2 text-2xs text-status-muted">
+            <ManagedSwitch unit={unit} busy={busy} onToggle={onToggle} /> Managed
+          </span>
+          <Button variant="secondary" size="sm" onClick={() => onOpen(unit.id)}>View</Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const CARDS_PER_PAGE = 12;
+
 export const EstatesApartments = () => {
   const { addToast } = useToast();
   const confirm = useConfirm();
@@ -283,6 +318,15 @@ export const EstatesApartments = () => {
   const [openId, setOpenId] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const [chooserFor, setChooserFor] = useState(null);
+  // Grid (cards) or list (table), remembered per browser
+  const [view, setView] = useState(() => {
+    try { return localStorage.getItem('propertiesView') === 'grid' ? 'grid' : 'list'; } catch { return 'list'; }
+  });
+  const [cardPage, setCardPage] = useState(0);
+  const chooseView = (v) => {
+    setView(v);
+    try { localStorage.setItem('propertiesView', v); } catch { /* storage blocked */ }
+  };
 
   // Returns true when saved. The list is updated in place (no reload flash).
   const saveManaged = async (unit, managed, extra = {}) => {
@@ -340,6 +384,22 @@ export const EstatesApartments = () => {
     && (!managedFilter || (managedFilter === 'managed') === !!u.roca_living?.managed)
     && (!q || [u.unit_ref, u.name, u.unit_code, u.landlord_name].some((v) => String(v || '').toLowerCase().includes(q))));
 
+  const pageCount = Math.max(1, Math.ceil(shown.length / CARDS_PER_PAGE));
+  const page = Math.min(cardPage, pageCount - 1);
+  const cards = shown.slice(page * CARDS_PER_PAGE, (page + 1) * CARDS_PER_PAGE);
+
+  const exportCsv = () => downloadCsv('properties.csv', shown, [
+    { key: 'unit_ref', label: 'Unit' },
+    { key: 'name', label: 'Apartment' },
+    { key: 'building_name', label: 'Block' },
+    { key: 'landlord_name', label: 'Landlord' },
+    { key: (r) => pretty(r.unit_type), label: 'Type' },
+    { key: (r) => pretty(r.status), label: 'Status' },
+    { key: (r) => (r.roca_living?.has_tenant ? r.roca_living.tenant_name || '' : ''), label: 'Tenant' },
+    { key: (r) => (r.roca_living?.has_tenant && r.roca_living.rent_pcm ? parseFloat(r.roca_living.rent_pcm).toFixed(2) : ''), label: 'Rent pcm (£)' },
+    { key: (r) => (r.roca_living?.managed ? 'Yes' : 'No'), label: 'Managed by ROCA Living' },
+  ]);
+
   const columns = [
     { header: 'Unit', accessor: 'unit_ref', sortable: true, renderCell: (r) => <span className="font-bold">{r.unit_ref}</span> },
     { header: 'Apartment', accessor: 'name', sortable: true },
@@ -389,7 +449,7 @@ export const EstatesApartments = () => {
         <div className="flex flex-col md:flex-row md:items-end gap-3 justify-between">
           <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
             <div className="w-full md:w-72">
-              <Dropdown id="estateBlock" label="Block" options={blockOptions} value={block} onChange={setBlock} placeholder="All blocks" />
+              <Dropdown id="estateBlock" label="Block" options={blockOptions} value={block} onChange={(v) => { setBlock(v); setCardPage(0); }} placeholder="All blocks" />
             </div>
             <div className="w-full md:w-64">
               <Dropdown
@@ -401,16 +461,51 @@ export const EstatesApartments = () => {
                   { value: 'not', label: 'Not managed' },
                 ]}
                 value={managedFilter}
-                onChange={setManagedFilter}
+                onChange={(v) => { setManagedFilter(v); setCardPage(0); }}
                 placeholder="All apartments"
               />
             </div>
           </div>
-          <SearchBox value={search} onChange={setSearch} placeholder="Search unit, apartment or landlord…" />
+          <div className="flex flex-col md:flex-row md:items-center gap-3">
+            <SearchBox value={search} onChange={(v) => { setSearch(v); setCardPage(0); }} placeholder="Search unit, apartment or landlord…" />
+            <div className="flex items-center gap-2">
+              <div className="flex border border-card-border rounded-lg overflow-hidden">
+                <button type="button" onClick={() => chooseView('grid')} aria-label="Grid view" title="Grid view"
+                  className={`p-2 cursor-pointer ${view === 'grid' ? 'bg-brand-accent text-white' : 'text-status-muted hover:bg-surface-hover'}`}>
+                  <LayoutGrid size={16} />
+                </button>
+                <button type="button" onClick={() => chooseView('list')} aria-label="List view" title="List view"
+                  className={`p-2 cursor-pointer ${view === 'list' ? 'bg-brand-accent text-white' : 'text-status-muted hover:bg-surface-hover'}`}>
+                  <List size={16} />
+                </button>
+              </div>
+              <ExportButton onClick={exportCsv} disabled={loading || !shown.length} />
+            </div>
+          </div>
         </div>
         <ReadOnlyNote extra='Only the "Managed by ROCA Living" switch is set here, in Roca Living.' />
         <LoadState loading={loading} error={error}>
-          <DataTable columns={columns} data={shown} initialPageSize={25} onRowClick={(r) => setOpenId(r.id)} />
+          {view === 'list' ? (
+            <DataTable columns={columns} data={shown} initialPageSize={25} onRowClick={(r) => setOpenId(r.id)} />
+          ) : !shown.length ? (
+            <p className="text-sm text-status-muted py-10 text-center">No apartments match the filters.</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                {cards.map((u) => (
+                  <ApartmentCard key={u.id} unit={u} busy={busyId === u.id} onToggle={toggleManaged} onOpen={setOpenId} />
+                ))}
+              </div>
+              <div className="flex items-center justify-between text-xs text-status-muted">
+                <span>Showing {page * CARDS_PER_PAGE + 1} to {Math.min((page + 1) * CARDS_PER_PAGE, shown.length)} of {shown.length} apartments</span>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" icon={ChevronLeft} onClick={() => setCardPage(page - 1)} disabled={page === 0} aria-label="Previous page" />
+                  <span className="font-semibold">{page + 1} / {pageCount}</span>
+                  <Button variant="ghost" size="sm" icon={ChevronRight} onClick={() => setCardPage(page + 1)} disabled={page >= pageCount - 1} aria-label="Next page" />
+                </div>
+              </div>
+            </>
+          )}
         </LoadState>
       </div>
 
@@ -576,7 +671,20 @@ export const EstatesLandlords = () => {
               placeholder="Landlords of managed flats"
             />
           </div>
-          <SearchBox value={search} onChange={setSearch} placeholder="Search name, email, company or unit…" />
+          <div className="flex flex-col md:flex-row md:items-center gap-3">
+            <SearchBox value={search} onChange={setSearch} placeholder="Search name, email, company or unit…" />
+            <ExportButton
+              disabled={loading || !shown.length}
+              onClick={() => downloadCsv('landlords.csv', shown, [
+                { key: 'name', label: 'Landlord' },
+                { key: 'email', label: 'Email' },
+                { key: 'phone', label: 'Phone' },
+                { key: (r) => ownershipLabel(r), label: 'Ownership' },
+                { key: (r) => r.units.join(', '), label: 'Apartments' },
+                { key: (r) => (r.roca_living_landlord_id ? 'Has account' : ''), label: 'Roca Living' },
+              ])}
+            />
+          </div>
         </div>
         <ReadOnlyNote />
         <LoadState loading={loading} error={error}>

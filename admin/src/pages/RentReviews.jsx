@@ -4,7 +4,9 @@ import { CalendarClock, AlertTriangle, CheckCircle2, TrendingUp, PoundSterling }
 import { StatCard } from '../components/UI/StatCard';
 import { Skeleton } from '../components/UI/Skeleton';
 import { useToast } from '../components/UI/ToastContext';
+import { ExportButton } from '../components/UI/ListToolbar';
 import api from '../utilities/api';
+import { downloadCsv } from '../utilities/csv';
 
 const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
@@ -127,9 +129,22 @@ export const RentReviews = () => {
               </button>
             ))}
           </div>
-          <Link to="/tenancies" className="text-2xs font-bold text-brand-accent hover:text-brand-accent-hover">
-            Manage reviews on Tenancies
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link to="/tenancies" className="text-2xs font-bold text-brand-accent hover:text-brand-accent-hover">
+              Manage reviews on Tenancies
+            </Link>
+            <ExportButton
+              disabled={loading || !visible.length}
+              onClick={() => downloadCsv('rent-reviews.csv', visible, [
+                { key: 'tenant', label: 'Tenant' },
+                { key: 'property', label: 'Property' },
+                { key: (r) => fmtDate(r.reviewDate), label: 'Review Date' },
+                { key: (r) => r.current.toFixed(2), label: 'Current Rent (£)' },
+                { key: (r) => (r.proposed !== null ? r.proposed.toFixed(2) : ''), label: 'Proposed Rent (£)' },
+                { key: (r) => pillFor(r).label, label: 'Status' },
+              ])}
+            />
+          </div>
         </div>
 
         {loading ? (

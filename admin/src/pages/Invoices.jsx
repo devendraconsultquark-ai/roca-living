@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Calendar, Plus, Trash2, Receipt, Send, CheckCircle2, Ban, X } from 'lucide-react';
+import { Download, Calendar, Plus, Trash2, Receipt, Send, CheckCircle2, Ban, X, FileText, Clock, PencilLine } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
@@ -8,12 +8,18 @@ import { Dropdown } from '../components/UI/Dropdown';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
 import { Skeleton } from '../components/UI/Skeleton';
+import { StatCard } from '../components/UI/StatCard';
+import { ListTabs, ExportButton } from '../components/UI/ListToolbar';
 import api from '../utilities/api';
+import { downloadCsv } from '../utilities/csv';
+
+const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export const Invoices = () => {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [tab, setTab] = useState('all');
   
   // Modal & Form State
   const [showModal, setShowModal] = useState(false);
@@ -65,6 +71,7 @@ export const Invoices = () => {
           property: inv.property_address || inv.property_name || '—',
           period: periodStartStr || periodEndStr ? `${periodStartStr} - ${periodEndStr}` : '—',
           date: inv.created_at ? new Date(inv.created_at).toLocaleDateString('en-GB') : '-',
+          year: inv.created_at ? new Date(inv.created_at).getFullYear() : null,
           gross: parseFloat(inv.gross || 0),
           discounts: parseFloat(inv.discounts || 0),
           net: parseFloat(inv.net || 0),
@@ -296,27 +303,27 @@ export const Invoices = () => {
   };
 
   const columns = [
-    { header: 'Invoice Number', accessor: 'invoice_number', sortable: true },
+    { header: 'Invoice No.', accessor: 'invoice_number', sortable: true },
     { header: 'Landlord', accessor: 'landlord', sortable: true },
     { header: 'Property', accessor: 'property', sortable: true },
-    { header: 'Billing Period', accessor: 'period', sortable: true },
-    { header: 'Issue Date', accessor: 'date', sortable: true },
+    { header: 'Period', accessor: 'period', sortable: true },
+    { header: 'Issued', accessor: 'date', sortable: true },
     { 
-      header: 'Gross Fees', 
+      header: 'Gross', 
       accessor: 'gross', 
       align: 'right', 
       sortable: true,
       renderCell: (row) => `£${row.gross.toFixed(2)}`
     },
     { 
-      header: 'Discounts', 
+      header: 'Discount', 
       accessor: 'discounts', 
       align: 'right', 
       sortable: true,
       renderCell: (row) => `-£${row.discounts.toFixed(2)}`
     },
     { 
-      header: 'Net Fees Due', 
+      header: 'Net Due', 
       accessor: 'net', 
       align: 'right', 
       sortable: true,
@@ -402,8 +409,71 @@ export const Invoices = () => {
     }
   ];
 
+  // KPI cards (voided invoices left out) and status tabs
+  const thisYear = new Date().getFullYear();
+  const live = invoices.filter((i) => i.rawStatus !== 'voided');
+  const sumNet = (list) => list.reduce((s, i) => s + i.net, 0);
+  const invoicedYear = live.filter((i) => i.year === thisYear);
+  const paidYear = invoicedYear.filter((i) => i.rawStatus === 'paid');
+  const outstanding = live.filter((i) => i.rawStatus === 'sent');
+  const drafts = live.filter((i) => i.rawStatus === 'draft');
+
+  const tabs = [
+    { id: 'all', label: 'All' },
+    { id: 'draft', label: 'Draft' },
+    { id: 'sent', label: 'Sent' },
+    { id: 'paid', label: 'Paid' },
+    { id: 'voided', label: 'Void' },
+  ].map((t) => ({ ...t, count: t.id === 'all' ? invoices.length : invoices.filter((i) => i.rawStatus === t.id).length }));
+  const visible = tab === 'all' ? invoices : invoices.filter((i) => i.rawStatus === tab);
+
+  const exportCsv = () => downloadCsv('invoices.csv', visible, [
+    { key: 'invoice_number', label: 'Invoice Number' },
+    { key: 'landlord', label: 'Landlord' },
+    { key: 'property', label: 'Property' },
+    { key: 'period', label: 'Billing Period' },
+    { key: 'date', label: 'Issue Date' },
+    { key: (r) => r.gross.toFixed(2), label: 'Gross Fees (£)' },
+    { key: (r) => r.discounts.toFixed(2), label: 'Discounts (£)' },
+    { key: (r) => r.net.toFixed(2), label: 'Net Fees Due (£)' },
+    { key: 'status', label: 'Status' },
+  ]);
+
   return (
     <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        <StatCard
+          label={`Total Invoiced (${thisYear})`}
+          value={loading ? '…' : money(sumNet(invoicedYear))}
+          icon={FileText}
+          iconColor="text-brand-accent bg-brand-accent/10"
+          sub={<span className="text-gray-400">{invoicedYear.length} invoice{invoicedYear.length === 1 ? '' : 's'}</span>}
+        />
+        <StatCard
+          label={`Paid (${thisYear})`}
+          value={loading ? '…' : money(sumNet(paidYear))}
+          icon={CheckCircle2}
+          iconColor="text-status-success bg-status-success/10"
+          sub={<span className="text-gray-400">{paidYear.length} invoice{paidYear.length === 1 ? '' : 's'}</span>}
+        />
+        <StatCard
+          label="Outstanding"
+          value={loading ? '…' : money(sumNet(outstanding))}
+          icon={Clock}
+          iconColor="text-status-warning bg-status-warning/10"
+          valueColor={outstanding.length ? 'text-status-warning' : undefined}
+          sub={<span className="text-gray-400">{outstanding.length} sent, not paid</span>}
+        />
+        <StatCard
+          label="Draft"
+          value={loading ? '…' : money(sumNet(drafts))}
+          icon={PencilLine}
+          iconColor="text-status-info bg-status-info-bg"
+          sub={<span className="text-gray-400">{drafts.length} not sent yet</span>}
+        />
+      </div>
+
       {/* Page actions (title lives in the layout header) */}
       <div className="flex justify-end">
         <Button
@@ -416,7 +486,11 @@ export const Invoices = () => {
       </div>
 
       {/* Grid Table Container */}
-      <div className="card-bg border border-card-border rounded-card shadow-premium p-4">
+      <div className="card-bg border border-card-border rounded-card shadow-premium p-4 flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap border-b border-card-border pb-3">
+          <ListTabs tabs={tabs} value={tab} onChange={setTab} />
+          <ExportButton onClick={exportCsv} disabled={loading || !visible.length} />
+        </div>
         {loading ? (
           <div className="space-y-4 py-4">
             <Skeleton radius="bar" className="h-10 w-full" />
@@ -429,7 +503,7 @@ export const Invoices = () => {
             {error}
           </div>
         ) : (
-          <DataTable columns={columns} data={invoices} />
+          <DataTable columns={columns} data={visible} />
         )}
       </div>
 
