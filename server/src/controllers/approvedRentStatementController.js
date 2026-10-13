@@ -65,6 +65,13 @@ const buildDocument = async (t, payments, from, to, statementNumber) => {
   const totalRent = round2(payments.reduce((s, p) => s + Number(p.amount), 0));
   const totalFee = round2(payments.reduce((s, p) => s + Number(p.fee_amount || 0), 0));
   const net = round2(payments.reduce((s, p) => s + Number(p.net_amount ?? p.amount), 0));
+  // Costs taken out of the landlord's share when the rent was approved
+  // (cleaning, repairs…), each shown as its own expenditure line.
+  const deductions = payments.length
+    ? await db('rent_payment_deductions').whereIn('rent_payment_id', payments.map((p) => p.id)).orderBy('id')
+      .select('description', 'supplier', 'amount')
+    : [];
+  const totalDeductions = round2(deductions.reduce((s, d) => s + Number(d.amount), 0));
   const invoiceNumber = totalFee > 0 ? `INV_${statementNumber}` : null;
   const common = {
     landlord_name: details.landlord_name,
@@ -88,9 +95,12 @@ const buildDocument = async (t, payments, from, to, statementNumber) => {
       description: `Rent received — ${t.tenant_name || 'Tenant'} (${uk(toYmd(p.received_at))})`,
       amount: round2(p.amount)
     })),
-    expenditure_lines: invoiceNumber ? [{ description: `Invoice No. ${invoiceNumber} (see accompanying invoice)`, amount: totalFee }] : [],
+    expenditure_lines: [
+      ...(invoiceNumber ? [{ description: `Invoice No. ${invoiceNumber} (see accompanying invoice)`, amount: totalFee }] : []),
+      ...deductions.map((d) => ({ description: [d.description, d.supplier].filter(Boolean).join(' — '), amount: round2(d.amount) }))
+    ],
     total_income: totalRent,
-    total_expenditure: totalFee,
+    total_expenditure: round2(totalFee + totalDeductions),
     payment_amount: net,
     payment_confirmed: false
   };
@@ -108,7 +118,7 @@ const buildDocument = async (t, payments, from, to, statementNumber) => {
     total_discount: 0,
     total_net: totalFee
   } : null;
-  return { statementData, invoiceData, totalRent, totalFee, net, invoiceNumber, landlordName: details.landlord_name };
+  return { statementData, invoiceData, totalRent, totalFee, totalDeductions, net, invoiceNumber, landlordName: details.landlord_name };
 };
 
 const renderPdfs = async (statementData, invoiceData) => ({
@@ -226,6 +236,7 @@ export const createApprovedStatement = catchAsync(async (req, res) => {
       period_end: to,
       total_rent: doc.totalRent.toFixed(2),
       total_fee: doc.totalFee.toFixed(2),
+      total_deductions: doc.totalDeductions.toFixed(2),
       net_payout: doc.net.toFixed(2),
       landlord_name: doc.landlordName || null,
       document_id: docId,
@@ -236,7 +247,7 @@ export const createApprovedStatement = catchAsync(async (req, res) => {
     await trx('audit_log').insert({
       actor_id: req.user.id, actor_role: req.user.role, action: 'APPROVED_RENT_STATEMENT_CREATED',
       entity_type: 'approved_rent_statement', entity_id: statementId,
-      meta: JSON.stringify({ number, payments: payments.map((p) => p.id), rent: doc.totalRent, fee: doc.totalFee, net: doc.net }),
+      meta: JSON.stringify({ number, payments: payments.map((p) => p.id), rent: doc.totalRent, fee: doc.totalFee, deductions: doc.totalDeductions, net: doc.net }),
       ip_address: req.ip || null
     });
     return statementId;

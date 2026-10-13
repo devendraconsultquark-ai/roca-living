@@ -89,7 +89,7 @@ export const ForgotPasswordPage = () => {
               disabled={isLoading || !!successMessage}
               icon={ArrowRight}
               iconPosition="left"
-              className="py-[16px] px-6 rounded-2xl shadow-lg uppercase tracking-widest text-xs font-bold font-sans flex items-center justify-center gap-2"
+              className="py-[16px] px-6 rounded-2xl shadow-lg capitalize text-xs font-bold font-sans flex items-center justify-center gap-2"
             >
               {isLoading ? "Submitting..." : "Send Reset Link"}
             </Button>

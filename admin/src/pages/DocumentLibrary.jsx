@@ -191,7 +191,7 @@ export const DocumentLibrary = () => {
         
         {/* Left Pane: Folder Tree */}
         <div className="lg:col-span-1 card-bg border border-card-border rounded-card shadow-premium p-5 flex flex-col gap-4">
-          <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider pb-3 border-b border-card-border select-none">Folder Tree</h3>
+          <h3 className="text-sm-portal font-bold text-brand-primary capitalize pb-3 border-b border-card-border select-none">Folder Tree</h3>
           
           <div className="flex flex-col gap-2">
             {folders.map(folder => {

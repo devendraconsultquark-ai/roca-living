@@ -226,7 +226,7 @@ export const Inspections = () => {
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-status-muted uppercase tracking-wide">Property <span className="text-status-danger">*</span></label>
+                <label className="text-xs font-semibold text-status-muted capitalize tracking-wide">Property <span className="text-status-danger">*</span></label>
                 <Dropdown
                   id="i-property"
                   placeholder="Select property..."
@@ -239,7 +239,7 @@ export const Inspections = () => {
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-status-muted uppercase tracking-wide">Tenancy (Optional)</label>
+                <label className="text-xs font-semibold text-status-muted capitalize tracking-wide">Tenancy (Optional)</label>
                 <Dropdown
                   id="i-tenancy"
                   placeholder="Select tenancy..."
@@ -277,7 +277,7 @@ export const Inspections = () => {
               />
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-status-muted uppercase tracking-wide">Rating</label>
+                <label className="text-xs font-semibold text-status-muted capitalize tracking-wide">Rating</label>
                 <Dropdown
                   id="i-rating"
                   placeholder="Select rating..."

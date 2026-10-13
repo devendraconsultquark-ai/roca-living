@@ -28,6 +28,7 @@ const ACCOUNT_FIELDS = [
   { key: 'xeroRentIncomeAccountCode', label: 'Rent invoices account', hint: 'What internal rent invoices are coded to' },
   { key: 'xeroFeeIncomeAccountCode', label: 'Management fee income', hint: "ROCA's 8% fee" },
   { key: 'xeroLandlordBillAccountCode', label: 'Landlord bills account', hint: 'What ROCA owes landlords (net rent)' },
+  { key: 'xeroLandlordExpenseAccountCode', label: 'Landlord expenses account', hint: 'Cleaning, repairs etc. deducted from landlords' },
 ];
 
 // Xero connection panel (integration phase X1). Our platform stays the property
@@ -258,7 +259,7 @@ export const XeroConnection = () => {
 
   return (
     <div className="card-bg border border-card-border rounded-card p-6 md:p-8 shadow-premium flex flex-col gap-5">
-      <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider flex items-center gap-2 select-none">
+      <h3 className="text-sm-portal font-bold text-brand-primary capitalize flex items-center gap-2 select-none">
         <Landmark size={16} className="text-brand-accent" />
         Accounting Integration — Xero
       </h3>
@@ -369,7 +370,7 @@ export const XeroConnection = () => {
 
             <div className="border-t border-card-border pt-4">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-2xs font-bold text-status-muted uppercase tracking-wider">Bank Accounts</p>
+                <p className="text-2xs font-bold text-status-muted capitalize">Bank Accounts</p>
                 {banks?.total_balance !== null && banks?.total_balance !== undefined && (
                   <p className="text-xs font-bold text-brand-primary">Total {money(banks.total_balance)}</p>
                 )}
@@ -423,7 +424,7 @@ export const XeroConnection = () => {
 
             <div className="border-t border-card-border pt-4 flex flex-col gap-3">
               <div>
-                <p className="text-2xs font-bold text-status-muted uppercase tracking-wider">Xero Accounts Roca Living Uses</p>
+                <p className="text-2xs font-bold text-status-muted capitalize">Xero Accounts Roca Living Uses</p>
                 <p className="text-xs-portal text-status-muted mt-1 max-w-2xl">
                   Where rent, ROCA's management fee and the money owed to landlords are recorded in Xero. Your accountant
                   should confirm these once. Tip: using the same "rent held for landlords" account for rent invoices and
@@ -434,7 +435,7 @@ export const XeroConnection = () => {
                 <p className="text-xs text-gray-400 font-semibold py-2">Loading Xero accounts…</p>
               ) : (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                     {ACCOUNT_FIELDS.map((field) => (
                       <div key={field.key} className="flex flex-col gap-1">
                         <Dropdown
@@ -461,7 +462,7 @@ export const XeroConnection = () => {
 
             <div className="border-t border-card-border pt-4 flex flex-col gap-3">
               <div>
-                <p className="text-2xs font-bold text-status-muted uppercase tracking-wider">Rent Invoices in Xero</p>
+                <p className="text-2xs font-bold text-status-muted capitalize">Rent Invoices in Xero</p>
                 <p className="text-xs-portal text-status-muted mt-1 max-w-2xl">
                   Roca Living raises an internal invoice in Xero for each rent month of a managed flat (never sent to the
                   tenant), so Xero can match the tenant's payment to it. This runs by itself — when Rent Cycle opens,
@@ -492,7 +493,7 @@ export const XeroConnection = () => {
               <button
                 type="button"
                 onClick={() => setShowTroubleshooting((v) => !v)}
-                className="flex items-center gap-1.5 text-2xs font-bold text-status-muted uppercase tracking-wider cursor-pointer hover:text-brand-primary self-start"
+                className="flex items-center gap-1.5 text-2xs font-bold text-status-muted capitalize cursor-pointer hover:text-brand-primary self-start"
                 aria-expanded={showTroubleshooting}
               >
                 <ChevronDown size={14} className={`transition-transform ${showTroubleshooting ? 'rotate-180' : ''}`} />

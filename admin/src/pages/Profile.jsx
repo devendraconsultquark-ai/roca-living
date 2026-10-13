@@ -112,7 +112,7 @@ export const Profile = () => {
       if (passwordData.newPassword.length < 8) {
         errs.newPassword = 'Password must be at least 8 characters long';
       } else if (!/[A-Z]/.test(passwordData.newPassword)) {
-        errs.newPassword = 'Password must contain at least one uppercase letter';
+        errs.newPassword = 'Password must contain at least one capitalize letter';
       } else if (!/[a-z]/.test(passwordData.newPassword)) {
         errs.newPassword = 'Password must contain at least one lowercase letter';
       } else if (!/[^A-Za-z0-9]/.test(passwordData.newPassword)) {
@@ -169,7 +169,7 @@ export const Profile = () => {
         <form onSubmit={handleSave} className="card-bg border border-card-border rounded-card p-6 shadow-premium flex flex-col gap-6">
           <div className="flex flex-col gap-4">
             <div className="flex justify-between items-center w-full">
-              <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider flex items-center gap-2 select-none">
+              <h3 className="text-sm-portal font-bold text-brand-primary capitalize flex items-center gap-2 select-none">
                 <User size={16} className="text-brand-accent" />
                 Contact Information
               </h3>
@@ -258,7 +258,7 @@ export const Profile = () => {
         <div className="card-bg border border-card-border rounded-card p-6 shadow-premium flex flex-col gap-6">
           <form onSubmit={handlePasswordChange} className="flex flex-col gap-6">
             <div className="flex flex-col gap-4">
-              <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider flex items-center gap-2 select-none">
+              <h3 className="text-sm-portal font-bold text-brand-primary capitalize flex items-center gap-2 select-none">
                 <Shield size={16} className="text-brand-accent" />
                 Change Password
               </h3>

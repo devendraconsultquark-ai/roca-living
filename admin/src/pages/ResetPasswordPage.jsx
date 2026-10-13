@@ -41,7 +41,7 @@ export const ResetPasswordPage = () => {
       !/[^A-Za-z0-9]/.test(password)
     ) {
       setError(
-        "Password must be at least 8 characters long, contain at least one uppercase letter, one lowercase letter, and one special character.",
+        "Password must be at least 8 characters long, contain at least one capitalize letter, one lowercase letter, and one special character.",
       );
       return;
     }
@@ -110,7 +110,7 @@ export const ResetPasswordPage = () => {
             id="password"
             type="password"
             required
-            placeholder="Min. 8 chars, 1 uppercase, 1 lowercase, 1 special char"
+            placeholder="Min. 8 chars, 1 capitalize, 1 lowercase, 1 special char"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             disabled={isLoading || !!successMessage}

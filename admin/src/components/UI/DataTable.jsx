@@ -98,7 +98,7 @@ export const DataTable = ({
         <table className="w-full text-xs-portal text-left border-collapse">
           {/* Table Header */}
           <thead>
-            <tr className="border-b border-card-border text-2xs text-gray-400 font-bold uppercase tracking-wider select-none">
+            <tr className="border-b border-card-border text-2xs text-gray-400 font-bold capitalize select-none">
               {enableBulkSelect && (
                 <th className="py-3 px-2 w-12 text-center">
                   <input

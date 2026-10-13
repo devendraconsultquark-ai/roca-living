@@ -69,7 +69,7 @@ export const GlobalSearch = () => {
   const section = (label, Icon, rows, rowMain, rowSub, pathFor) =>
     rows.length > 0 && (
       <div key={label}>
-        <p className="px-4 pt-3 pb-1.5 text-2xs font-bold text-gray-400 uppercase tracking-wider select-none">{label}</p>
+        <p className="px-4 pt-3 pb-1.5 text-2xs font-bold text-gray-400 capitalize select-none">{label}</p>
         {rows.map((row) => (
           <button
             key={`${label}-${row.id}`}

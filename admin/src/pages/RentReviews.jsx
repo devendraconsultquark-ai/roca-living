@@ -160,13 +160,13 @@ export const RentReviews = () => {
             <table className="w-full min-w-[760px]">
               <thead>
                 <tr className="text-left">
-                  <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3">Tenant</th>
-                  <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3">Property</th>
-                  <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3">Review Date</th>
-                  <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3 text-right">Current Rent</th>
-                  <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3 text-right">Proposed Rent</th>
-                  <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3 text-right">Increase</th>
-                  <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2">Status</th>
+                  <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Tenant</th>
+                  <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Property</th>
+                  <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Review Date</th>
+                  <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3 text-right">Current Rent</th>
+                  <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3 text-right">Proposed Rent</th>
+                  <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3 text-right">Increase</th>
+                  <th className="text-2xs font-bold text-gray-400 capitalize pb-2">Status</th>
                 </tr>
               </thead>
               <tbody>

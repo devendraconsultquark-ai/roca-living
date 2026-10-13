@@ -154,7 +154,7 @@ export const Reports = () => {
             return (
               <div key={idx} className="card-bg border border-card-border rounded-card shadow-premium p-6 flex flex-col gap-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-2xs font-bold text-gray-400 uppercase tracking-wider">{rep.name}</span>
+                  <span className="text-2xs font-bold text-gray-400 capitalize">{rep.name}</span>
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
                     rep.type === 'success'
                       ? 'bg-status-success/10 text-status-success'
@@ -177,7 +177,7 @@ export const Reports = () => {
 
       {/* Arrears by Landlord */}
       <div className="card-bg border border-card-border rounded-card shadow-premium p-4">
-        <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider px-2 pt-2 pb-3 border-b border-card-border mb-3">Arrears by Landlord</h3>
+        <h3 className="text-sm-portal font-bold text-brand-primary capitalize px-2 pt-2 pb-3 border-b border-card-border mb-3">Arrears by Landlord</h3>
         {loading ? renderSkeleton() : (
           arrears.landlord_summary.length === 0 ? (
             <div className="text-center py-8 text-sm text-gray-400 font-medium">No rent arrears — all schedules up to date.</div>
@@ -189,7 +189,7 @@ export const Reports = () => {
 
       {/* Compliance Expiries */}
       <div className="card-bg border border-card-border rounded-card shadow-premium p-4">
-        <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider px-2 pt-2 pb-3 border-b border-card-border mb-3">Compliance Expiries (Next 90 Days)</h3>
+        <h3 className="text-sm-portal font-bold text-brand-primary capitalize px-2 pt-2 pb-3 border-b border-card-border mb-3">Compliance Expiries (Next 90 Days)</h3>
         {loading ? renderSkeleton() : (
           expiries.length === 0 ? (
             <div className="text-center py-8 text-sm text-gray-400 font-medium">No certificates expiring in the next 90 days.</div>

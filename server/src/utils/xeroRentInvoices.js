@@ -187,8 +187,9 @@ const createInvoice = async (row, accountCode, actorId) => {
 
 // Live, unpaid invoices whose rent month no longer exists (due day / start date
 // changed) or whose amount changed (rent review) are voided in Xero; the
-// correct month is invoiced again by the push. Money already paid against an
-// invoice is never undone — that row is flagged for the admin instead.
+// correct month is invoiced again by the push. So is an unpaid duplicate for a
+// month that already has a paid / part-paid invoice. Money already paid against
+// an invoice is never undone — that row is flagged for the admin instead.
 export const voidChangedInvoices = async () => {
   const live = await db('xero_rent_invoices as x')
     .leftJoin('rent_schedules as s', function () {
@@ -197,13 +198,17 @@ export const voidChangedInvoices = async () => {
     .join('tenancies as t', 't.id', 'x.tenancy_id')
     .join('properties as p', 'p.id', 't.property_id')
     .where('x.status', 'created')
-    .select('x.id', 'x.xero_invoice_id', 'x.invoice_number', 'x.amount', 's.id as schedule_id', 's.amount as schedule_amount',
-      'p.block_name', 'p.apartment_number');
-  // Month gone, amount changed, or the flat has no block code / flat number
-  // (it should never have been invoiced — statements refuse such flats too).
+    .select('x.id', 'x.tenancy_id', 'x.due_date', 'x.xero_invoice_id', 'x.invoice_number', 'x.amount', 's.id as schedule_id',
+      's.amount as schedule_amount', 'p.block_name', 'p.apartment_number');
+  const settled = new Set((await db('xero_rent_invoices').whereIn('status', ['paid', 'part']).select('tenancy_id', 'due_date'))
+    .map((r) => `${r.tenancy_id}|${toYmd(r.due_date)}`));
+  // Month gone, amount changed, the flat has no block code / flat number (it
+  // should never have been invoiced — statements refuse such flats too), or the
+  // month is already paid through another invoice.
   const changed = live.filter((x) => !x.schedule_id
     || Number(x.schedule_amount) !== Number(x.amount)
-    || !hasUnitCodes(x.block_name, x.apartment_number));
+    || !hasUnitCodes(x.block_name, x.apartment_number)
+    || settled.has(`${x.tenancy_id}|${toYmd(x.due_date)}`));
 
   let voided = 0, attention = 0;
   for (const inv of changed) {
@@ -252,9 +257,11 @@ export const pushRentInvoices = async (actorId = null) => {
   const months = all.filter((r) => hasUnitCodes(r.block_name, r.apartment_number));
   let created = 0, failed = 0, skipped = 0;
   for (const row of months) {
+    // Already invoiced (paid or not). Roca puts money on the oldest month first,
+    // so a month whose Xero invoice is paid can still look unpaid in Roca.
     const live = await db('xero_rent_invoices')
       .where({ tenancy_id: row.tenancy_id }).where('due_date', toYmd(row.due_date))
-      .whereIn('status', ['created', 'attention']).first('id');
+      .whereIn('status', ['created', 'attention', 'part', 'paid']).first('id');
     if (live) { skipped++; continue; }
     // A failed earlier attempt is retried under the same number.
     await db('xero_rent_invoices')

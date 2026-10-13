@@ -154,12 +154,12 @@ export const Arrears = () => {
               <table className="w-full min-w-[680px]">
                 <thead>
                   <tr className="text-left">
-                    <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3">Tenant</th>
-                    <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3">Property</th>
-                    <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3">Landlord</th>
-                    <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3">Overdue Since</th>
-                    <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3">Days</th>
-                    <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 text-right">Total Arrears</th>
+                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Tenant</th>
+                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Property</th>
+                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Landlord</th>
+                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Overdue Since</th>
+                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Days</th>
+                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 text-right">Total Arrears</th>
                   </tr>
                 </thead>
                 <tbody>

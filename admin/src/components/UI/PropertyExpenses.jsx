@@ -124,7 +124,7 @@ export const PropertyExpenses = ({ propertyId }) => {
   return (
     <div className="flex flex-col gap-6">
       <div className="card-bg border border-card-border rounded-card shadow-premium p-5">
-        <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-1">Add expense</h3>
+        <h3 className="text-sm-portal font-bold text-brand-primary capitalize mb-1">Add expense</h3>
         <p className="text-xs-portal text-status-muted mb-4">
           Money spent on this apartment (e.g. cleaning). It is deducted from the rent on the landlord's statement for that month.
         </p>
@@ -151,7 +151,7 @@ export const PropertyExpenses = ({ propertyId }) => {
 
       <div className="card-bg border border-card-border rounded-card shadow-premium p-5">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider">Expenses</h3>
+          <h3 className="text-sm-portal font-bold text-brand-primary capitalize">Expenses</h3>
           <span className="text-xs-portal text-status-muted">Not yet deducted: <strong className="text-brand-primary">{money(pending)}</strong></span>
         </div>
         {loading ? (

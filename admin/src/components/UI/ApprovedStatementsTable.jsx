@@ -60,6 +60,7 @@ export const ApprovedStatementsTable = ({ rows, onChanged, emptyText = 'No state
             <th className="p-3">Period</th>
             <th className="p-3 text-right">Rent</th>
             <th className="p-3 text-right">Fee</th>
+            <th className="p-3 text-right">Deductions</th>
             <th className="p-3 text-right">To landlord</th>
             <th className="p-3" />
           </tr>
@@ -73,6 +74,7 @@ export const ApprovedStatementsTable = ({ rows, onChanged, emptyText = 'No state
               <td className="p-3 whitespace-nowrap">{ukDate(s.period_start)} – {ukDate(s.period_end)}</td>
               <td className="p-3 text-right">{money(s.total_rent)}</td>
               <td className="p-3 text-right">−{money(s.total_fee)}</td>
+              <td className="p-3 text-right">{Number(s.total_deductions) > 0 ? `−${money(s.total_deductions)}` : '—'}</td>
               <td className="p-3 text-right font-semibold">{money(s.net_payout)}</td>
               <td className="p-3">
                 <div className="flex justify-end gap-1">

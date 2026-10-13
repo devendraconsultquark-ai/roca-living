@@ -248,7 +248,7 @@ export const Utilities = () => {
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-status-muted uppercase tracking-wide">Property <span className="text-status-danger">*</span></label>
+                <label className="text-xs font-semibold text-status-muted capitalize tracking-wide">Property <span className="text-status-danger">*</span></label>
                 <Dropdown
                   id="u-property"
                   placeholder="Select property..."
@@ -261,7 +261,7 @@ export const Utilities = () => {
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-status-muted uppercase tracking-wide">Tenancy (Optional)</label>
+                <label className="text-xs font-semibold text-status-muted capitalize tracking-wide">Tenancy (Optional)</label>
                 <Dropdown
                   id="u-tenancy"
                   placeholder="Select tenancy..."
@@ -273,7 +273,7 @@ export const Utilities = () => {
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-status-muted uppercase tracking-wide">Utility Type <span className="text-status-danger">*</span></label>
+                <label className="text-xs font-semibold text-status-muted capitalize tracking-wide">Utility Type <span className="text-status-danger">*</span></label>
                 <Dropdown
                   id="u-type"
                   placeholder="Select utility type..."
@@ -285,7 +285,7 @@ export const Utilities = () => {
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-status-muted uppercase tracking-wide">Direction <span className="text-status-danger">*</span></label>
+                <label className="text-xs font-semibold text-status-muted capitalize tracking-wide">Direction <span className="text-status-danger">*</span></label>
                 <Dropdown
                   id="u-direction"
                   placeholder="Select direction..."

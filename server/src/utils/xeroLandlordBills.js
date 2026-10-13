@@ -11,7 +11,8 @@ import { xeroThrottled as xero, xeroMessage, xeroDateYmd, round2 } from './xeroR
 // per approved rent payment:
 //   line 1  rent received                 +£595.00  → landlord bills account
 //   line 2  management fee 8%             −£47.60   → management fee income
-//   total   what ROCA owes the landlord    £547.40
+//   line 3… deductions (cleaning, repairs) −£…       → landlord expenses account
+//   total   what ROCA owes the landlord    £547.40 (less any deductions)
 // When the admin pays the landlord from the bank, Xero matches that line to the
 // bill; Roca Living reads the bill's status and shows the landlord as paid.
 
@@ -48,6 +49,23 @@ const chooseBillNumber = async (base, total, contact) => {
   throw new Error(`No free bill number for ${base}`);
 };
 
+// The bill's lines: rent (+), ROCA's fee (−) and each deduction (−). Their sum
+// is what ROCA owes the landlord (the payment's net).
+export const landlordBillLines = ({ flat, tenantName, receivedUk, amount, feePct, fee }, deductions, codes) => {
+  const lines = [{
+    Description: `Rent ${flat} ${tenantName || ''}, received ${receivedUk}`.replace(/\s+/g, ' ').trim(),
+    Quantity: 1, UnitAmount: round2(amount), AccountCode: codes.bill
+  }];
+  if (fee > 0) lines.push({ Description: `Management fee ${Number(feePct)}%`, Quantity: 1, UnitAmount: -round2(fee), AccountCode: codes.fee });
+  for (const d of deductions) {
+    lines.push({
+      Description: [d.description, d.supplier].filter(Boolean).join(' — ').slice(0, 4000),
+      Quantity: 1, UnitAmount: -round2(d.amount), AccountCode: codes.expense
+    });
+  }
+  return lines;
+};
+
 // Everything about one approved rent payment that the bill and the card need.
 export const paymentContext = (paymentId) => db('rent_payments as p')
   .join('tenancies as t', 'p.tenancy_id', 't.id')
@@ -73,11 +91,18 @@ export const postLandlordBill = async (paymentId, actorId = null) => {
   const feeCode = await getSetting('xeroFeeIncomeAccountCode', null);
   if (!billCode || !feeCode) throw new ApiError(400, 'Choose the "Landlord bills account" and "Management fee income" in Settings → Xero first');
 
+  const deductions = await db('rent_payment_deductions').where('rent_payment_id', p.id).orderBy('id').select('description', 'supplier', 'amount');
+  const expenseCode = deductions.length ? await getSetting('xeroLandlordExpenseAccountCode', null) : null;
+  if (deductions.length && !expenseCode) {
+    throw new ApiError(400, 'This payment has deductions: choose the "Landlord expenses account" in Settings → Xero first');
+  }
+
   const received = toYmd(p.received_at);
   const flat = `${String(p.block_name || '').toUpperCase()}-${p.apartment_number}`;
   const amount = round2(p.amount);
   const fee = round2(p.fee_amount || 0);
-  const net = round2(p.net_amount ?? amount - fee);
+  const deducted = round2(deductions.reduce((s, d) => s + Number(d.amount), 0));
+  const net = round2(amount - fee - deducted);
   const base = `PAY-${String(p.block_name || '').toUpperCase()}${pad2(p.apartment_number)}-${received.replace(/-/g, '')}`;
   const contact = await landlordContactFor(p.landlord_id, p.landlord_name);
 
@@ -86,13 +111,11 @@ export const postLandlordBill = async (paymentId, actorId = null) => {
     const { number, existing } = await chooseBillNumber(base, net.toFixed(2), contact);
     bill = existing ? { ...existing, InvoiceNumber: number } : null;
     if (!bill) {
-      const lines = [{
-        Description: `Rent ${flat} ${p.tenant_name || ''}, received ${uk(received)}`.replace(/\s+/g, ' ').trim(),
-        Quantity: 1, UnitAmount: amount, AccountCode: billCode
-      }];
-      if (fee > 0) {
-        lines.push({ Description: `Management fee ${Number(p.fee_pct)}%`, Quantity: 1, UnitAmount: -fee, AccountCode: feeCode });
-      }
+      const lines = landlordBillLines(
+        { flat, tenantName: p.tenant_name, receivedUk: uk(received), amount, feePct: p.fee_pct, fee },
+        deductions,
+        { bill: billCode, fee: feeCode, expense: expenseCode }
+      );
       const r = await xero('PUT', '/Invoices', {
         searchParams: { summarizeErrors: 'false' },
         body: {
@@ -134,7 +157,7 @@ export const postLandlordBill = async (paymentId, actorId = null) => {
     await trx('audit_log').insert({
       actor_id: actorId, actor_role: actorId ? 'ADMIN' : 'SYSTEM', action: 'XERO_LANDLORD_BILL_POSTED',
       entity_type: 'rent_payment', entity_id: p.id,
-      meta: JSON.stringify({ bill: bill.InvoiceNumber, rent: amount, fee, net }), ip_address: null
+      meta: JSON.stringify({ bill: bill.InvoiceNumber, rent: amount, fee, deductions: deducted, net }), ip_address: null
     });
   });
   return { status: 'posted', number: bill.InvoiceNumber, net };

@@ -26,6 +26,21 @@ const hasUnitCodes = (b, a) => UNIT_CODE_RE.test(String(b ?? '').trim().toUpperC
 const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 const pad2 = (n) => String(n).padStart(2, '0');
 
+// Roca Living's own copy of a landlord name is sometimes ALL CAPS ("PAUL BELEMA").
+// Show it like the live ROCA Estates names: "Paul Belema". Mixed-case names are
+// left as they are; initials such as GKP / UK / LLP stay in capitals.
+const niceWord = (w) => {
+  if (w === 'ltd') return 'Ltd';
+  if (w === 'and' || w === 'of') return w;
+  if (!/[aeiouy]/.test(w) || ['uk', 'plc', 'llp'].includes(w)) return w.toUpperCase();
+  return w.replace(/(^|')([a-z])/g, (_, p, c) => p + c.toUpperCase());
+};
+const niceName = (name) => {
+  const s = String(name || '').trim();
+  if (!s || s !== s.toUpperCase() || !/[A-Z]/.test(s)) return s || null;
+  return s.toLowerCase().replace(/[a-z][a-z']*/g, niceWord);
+};
+
 const monthRange = (month) => {
   const m = /^(\d{4})-(\d{2})$/.exec(String(month || ''));
   const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, 1) : new Date();
@@ -82,19 +97,23 @@ export const getRentCycle = catchAsync(async (req, res) => {
       const live = m.rocaem_property_id ? await estateDisplayFor(m.rocaem_property_id) : null;
       liveNames.set(m.rocaem_property_id, live?.landlord_name || null);
     }
-    return liveNames.get(m.rocaem_property_id) || (m.landlord_name ? String(m.landlord_name).trim() : null);
+    return liveNames.get(m.rocaem_property_id) || niceName(m.landlord_name);
   };
   for (const m of months) {
     const due = toYmd(m.due_date);
     const flat = hasUnitCodes(m.block_name, m.apartment_number) ? `${String(m.block_name).toUpperCase()}-${m.apartment_number}` : (m.address_line1 || '—');
-    const invoice = await db('xero_rent_invoices')
+    // A month can have more than one invoice (one replaced after the due day
+    // changed, say): its payments are on any of them; the paid one is shown.
+    const invoices = await db('xero_rent_invoices')
       .where({ tenancy_id: m.tenancy_id }).where('due_date', due)
       .whereIn('status', ['created', 'part', 'paid', 'attention'])
-      .orderBy('id', 'desc').first('invoice_number', 'status', 'amount_paid', 'error');
+      .orderByRaw("FIELD(status, 'paid', 'part', 'attention', 'created')").orderBy('id', 'desc')
+      .select('invoice_number', 'status', 'amount_paid', 'error');
+    const invoice = invoices[0] || null;
     const payments = invoice
-      ? await db('rent_payments').where('xero_invoice_number', invoice.invoice_number).whereNotNull('xero_payment_id')
+      ? await db('rent_payments').whereIn('xero_invoice_number', invoices.map((i) => i.invoice_number)).whereNotNull('xero_payment_id')
         .select('id', 'amount', 'received_at', 'fee_pct', 'fee_amount', 'net_amount', 'approval_status', 'approved_at', 'split_note',
-          'xero_bill_number', 'xero_bill_status', 'xero_bill_error', 'landlord_paid_at', 'approved_statement_id')
+          'xero_bill_number', 'xero_bill_status', 'xero_bill_error', 'landlord_paid_at', 'approved_statement_id', 'deductions_amount')
       : [];
 
     let st;
@@ -103,7 +122,18 @@ export const getRentCycle = catchAsync(async (req, res) => {
     } else if (invoice?.status === 'attention') {
       st = { stage: 'attention', reason: invoice.error || 'Rent changed after money was paid in Xero' };
     } else if (!invoice && m.schedule_status === 'paid') {
-      st = { stage: 'statement', outside: true, reason: 'Paid and recorded in Roca by hand (not through Xero)' };
+      // No Xero invoice for this month (e.g. before "Create invoices from"), yet
+      // paid: by hand in Roca, or by a Xero payment Roca put on the oldest month.
+      const fromXero = await db('rent_payment_allocations as a')
+        .join('rent_payments as rp', 'rp.id', 'a.payment_id')
+        .where('a.schedule_id', m.schedule_id).whereNotNull('rp.xero_payment_id').first('a.id');
+      st = {
+        stage: 'statement',
+        outside: true,
+        reason: fromXero
+          ? "Paid from the tenant's Xero payment (money goes to the oldest rent month first)"
+          : 'Paid and recorded in Roca by hand (not through Xero)'
+      };
     } else {
       st = stageOf(payments);
     }
@@ -126,6 +156,7 @@ export const getRentCycle = catchAsync(async (req, res) => {
       invoice_number: invoice?.invoice_number || null,
       received: round2(payments.reduce((s, p) => s + Number(p.amount), 0)),
       fee: round2(payments.reduce((s, p) => s + Number(p.fee_amount || 0), 0)),
+      deductions: round2(payments.reduce((s, p) => s + Number(p.deductions_amount || 0), 0)),
       net: round2(payments.reduce((s, p) => s + Number(p.net_amount ?? p.amount), 0)),
       fee_pct: payments[0]?.fee_pct ? Number(payments[0].fee_pct) : Number(m.mgmt_fee_pct ?? 8),
       split_note: payments.find((p) => p.split_note)?.split_note || null,
@@ -192,7 +223,7 @@ export const refreshRentCycle = catchAsync(async (req, res) => {
 export const approveAndSend = catchAsync(async (req, res) => {
   const ids = Array.isArray(req.body?.payment_ids) ? req.body.payment_ids.map(Number).filter(Number.isInteger) : [];
   if (!ids.length) throw new ApiError(400, 'Nothing to approve');
-  const payments = await db('rent_payments').whereIn('id', ids).select('id', 'approval_status', 'amount', 'fee_pct', 'fee_amount', 'net_amount', 'xero_invoice_number');
+  const payments = await db('rent_payments').whereIn('id', ids).select('id', 'approval_status', 'amount', 'fee_pct', 'fee_amount', 'deductions_amount', 'net_amount', 'xero_invoice_number');
   let approved = 0, sent = 0, failed = 0;
   const errors = [];
   for (const p of payments) {
@@ -202,7 +233,7 @@ export const approveAndSend = catchAsync(async (req, res) => {
         await trx('audit_log').insert({
           actor_id: req.user.id, actor_role: req.user.role, action: 'RENT_SPLIT_APPROVED',
           entity_type: 'rent_payment', entity_id: p.id,
-          meta: JSON.stringify({ amount: p.amount, fee_pct: p.fee_pct, fee_amount: p.fee_amount, net_amount: p.net_amount, invoice: p.xero_invoice_number, via: 'rent_cycle' }),
+          meta: JSON.stringify({ amount: p.amount, fee_pct: p.fee_pct, fee_amount: p.fee_amount, deductions: p.deductions_amount, net_amount: p.net_amount, invoice: p.xero_invoice_number, via: 'rent_cycle' }),
           ip_address: req.ip || null
         });
       });

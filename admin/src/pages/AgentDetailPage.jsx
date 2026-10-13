@@ -253,7 +253,7 @@ export const AgentDetailPage = () => {
         backLabel="Back to Letting Agents"
         title={data.company_name}
         badge={
-          <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border tracking-wide uppercase ${
+          <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border capitalize ${
             data.status === 'active' ? 'bg-status-success-bg text-status-success border-status-success/15' : 'bg-status-danger-bg text-status-danger border-status-danger/15'
           }`}>
             {data.status}
@@ -296,7 +296,7 @@ export const AgentDetailPage = () => {
                   ].map(stat => (
                     <div key={stat.label} className="bg-surface-light border border-card-border rounded-xl p-4 flex flex-col justify-center items-center text-center">
                       <p className={`text-2xl font-bold ${stat.color || 'text-brand-primary'}`}>{stat.value}</p>
-                      <p className="text-2xs font-bold text-gray-400 uppercase tracking-wider mt-1">{stat.label}</p>
+                      <p className="text-2xs font-bold text-gray-400 capitalize mt-1">{stat.label}</p>
                     </div>
                   ))}
                 </div>
@@ -317,7 +317,7 @@ export const AgentDetailPage = () => {
                 <div className="overflow-x-auto rounded-xl border border-card-border">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-card-border text-2xs text-gray-400 font-bold uppercase tracking-wider">
+                      <tr className="border-b border-card-border text-2xs text-gray-400 font-bold capitalize">
                         {['Property', 'Landlord', 'Marketing Rent', 'Fee', 'Viewings', 'Status', 'Instructed', 'Actions'].map(h => (
                           <th key={h} className="text-left py-3 px-4">{h}</th>
                         ))}
@@ -344,7 +344,7 @@ export const AgentDetailPage = () => {
                               </button>
                             </td>
                             <td className="py-3 px-4">
-                              <span className={`text-2xs font-bold px-2 py-0.5 rounded-sm border uppercase tracking-wider ${statusColors[ins.status] || statusColors.active}`}>
+                              <span className={`text-2xs font-bold px-2 py-0.5 rounded-sm border capitalize ${statusColors[ins.status] || statusColors.active}`}>
                                 {ins.status}
                               </span>
                             </td>
@@ -375,7 +375,7 @@ export const AgentDetailPage = () => {
                                 ) : (
                                   <table className="w-full text-xs-portal">
                                     <thead>
-                                      <tr className="text-2xs text-gray-400 font-bold uppercase tracking-wider">
+                                      <tr className="text-2xs text-gray-400 font-bold capitalize">
                                         <th className="text-left py-1.5 pr-4">Viewed At</th>
                                         <th className="text-left py-1.5 pr-4">Applicant</th>
                                         <th className="text-left py-1.5 pr-4">Reference</th>
@@ -390,7 +390,7 @@ export const AgentDetailPage = () => {
                                           <td className="py-1.5 pr-4">{v.applicant_name || '—'}</td>
                                           <td className="py-1.5 pr-4 text-status-muted">{v.applicant_ref || '—'}</td>
                                           <td className="py-1.5 pr-4">
-                                            <span className="text-2xs font-bold uppercase tracking-wider">{v.outcome ? v.outcome.replace(/_/g, ' ') : '—'}</span>
+                                            <span className="text-2xs font-bold capitalize">{v.outcome ? v.outcome.replace(/_/g, ' ') : '—'}</span>
                                           </td>
                                           <td className="py-1.5 text-status-muted">{v.feedback || '—'}</td>
                                         </tr>

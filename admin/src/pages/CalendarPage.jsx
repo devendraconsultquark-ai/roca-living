@@ -161,7 +161,7 @@ export const CalendarPage = () => {
                 return (
                   <div key={dateStr} className="min-h-[420px] border-r border-card-border/40 last:border-r-0 flex flex-col">
                     <div className="px-2 py-2 border-b border-card-border flex items-center gap-2">
-                      <span className="text-2xs font-bold text-gray-400 uppercase tracking-wider">{WEEKDAYS[(d.getDay() + 6) % 7]}</span>
+                      <span className="text-2xs font-bold text-gray-400 capitalize">{WEEKDAYS[(d.getDay() + 6) % 7]}</span>
                       <span className={`text-2xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-brand-accent text-white' : 'text-brand-primary'}`}>
                         {d.getDate()}
                       </span>
@@ -179,7 +179,7 @@ export const CalendarPage = () => {
             <>
               <div className="grid grid-cols-7 border-b border-card-border">
                 {WEEKDAYS.map((d) => (
-                  <div key={d} className="px-2 py-2 text-2xs font-bold text-gray-400 uppercase tracking-wider">{d}</div>
+                  <div key={d} className="px-2 py-2 text-2xs font-bold text-gray-400 capitalize">{d}</div>
                 ))}
               </div>
               <div className="grid grid-cols-7">

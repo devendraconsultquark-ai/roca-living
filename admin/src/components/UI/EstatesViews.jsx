@@ -101,7 +101,7 @@ const DetailModal = ({ title, subtitle, onClose, children, footer }) => (
 
 const Section = ({ title, rows }) => (
   <div>
-    <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-2">{title}</h3>
+    <h3 className="text-sm-portal font-bold text-brand-primary capitalize mb-2">{title}</h3>
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 border border-card-border rounded-card p-4">
       {rows.map(([label, value]) => (
         <div key={label} className="flex justify-between gap-3 text-sm border-b border-card-border/60 pb-1.5 last:border-b-0">
@@ -590,7 +590,7 @@ const LandlordDetail = ({ id, onClose }) => {
               ['AML next review', ukDate(ll.aml_next_review)]
             ]} />
             <div>
-              <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-2">Apartments ({ll.units.length})</h3>
+              <h3 className="text-sm-portal font-bold text-brand-primary capitalize mb-2">Apartments ({ll.units.length})</h3>
               {ll.units.length === 0 ? (
                 <p className="text-sm text-status-muted">No apartments linked to this landlord in ROCA Estates.</p>
               ) : (

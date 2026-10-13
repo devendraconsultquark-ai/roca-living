@@ -563,12 +563,12 @@ export const Dashboard = () => {
               <table className="w-full min-w-[640px]">
                 <thead>
                   <tr className="text-left">
-                    <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3">Type</th>
-                    <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3">Description</th>
-                    <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3">Related To</th>
-                    <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3">Due</th>
-                    <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3">Priority</th>
-                    <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2">Status</th>
+                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Type</th>
+                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Description</th>
+                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Related To</th>
+                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Due</th>
+                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Priority</th>
+                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2">Status</th>
                   </tr>
                 </thead>
                 <tbody>

@@ -549,7 +549,7 @@ export const Invoices = () => {
 
               {/* Section 1: Landlord & References */}
               <div className="border-b pb-4 border-card-border">
-                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-3">Landlord & References Details</h3>
+                <h3 className="text-sm-portal font-bold text-brand-primary capitalize mb-3">Landlord & References Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input 
                     label="Landlord / Company Name *"
@@ -586,7 +586,7 @@ export const Invoices = () => {
 
               {/* Section 2: Property & Tenancy Details */}
               <div className="border-b pb-4 border-card-border">
-                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-3">Property & Tenancy Details</h3>
+                <h3 className="text-sm-portal font-bold text-brand-primary capitalize mb-3">Property & Tenancy Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input 
                     label="Property Details / Address"
@@ -624,7 +624,7 @@ export const Invoices = () => {
 
               {/* Section 3: Billing Period */}
               <div className="border-b pb-4 border-card-border">
-                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-3">Billing Period</h3>
+                <h3 className="text-sm-portal font-bold text-brand-primary capitalize mb-3">Billing Period</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <DatePicker 
                     label="Invoice Period Start"
@@ -644,7 +644,7 @@ export const Invoices = () => {
               {/* Section 4: Line Items */}
               <div className="border-b pb-4 border-card-border">
                 <div className="flex justify-between items-center mb-3">
-                  <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider">Invoice Line Items</h3>
+                  <h3 className="text-sm-portal font-bold text-brand-primary capitalize">Invoice Line Items</h3>
                   <Button 
                     type="button" 
                     variant="secondary" 

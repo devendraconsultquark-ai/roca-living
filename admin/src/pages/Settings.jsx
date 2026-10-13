@@ -133,7 +133,7 @@ export const Settings = () => {
 
         {/* Billing Section */}
         <div className="flex flex-col gap-4">
-          <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider flex items-center gap-2 select-none">
+          <h3 className="text-sm-portal font-bold text-brand-primary capitalize flex items-center gap-2 select-none">
             <SettingsIcon size={16} className="text-brand-accent" />
             Financial Settings
           </h3>
@@ -164,7 +164,7 @@ export const Settings = () => {
 
         {/* Deposit scheme parameters */}
         <div className="flex flex-col gap-4 mt-2">
-          <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider flex items-center gap-2 select-none">
+          <h3 className="text-sm-portal font-bold text-brand-primary capitalize flex items-center gap-2 select-none">
             <SettingsIcon size={16} className="text-brand-accent" />
             Deposit Protection Settings
           </h3>
@@ -199,7 +199,7 @@ export const Settings = () => {
 
       {/* Legislation & News manager — feeds the dashboard's "Legislation & News" card */}
       <div className="card-bg border border-card-border rounded-card p-6 md:p-8 shadow-premium flex flex-col gap-5">
-        <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider flex items-center gap-2 select-none">
+        <h3 className="text-sm-portal font-bold text-brand-primary capitalize flex items-center gap-2 select-none">
           <Newspaper size={16} className="text-brand-accent" />
           Legislation &amp; News
         </h3>

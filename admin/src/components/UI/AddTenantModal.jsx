@@ -143,7 +143,7 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
 
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider">Tenant(s)</h3>
+              <h3 className="text-sm-portal font-bold text-brand-primary capitalize">Tenant(s)</h3>
               <Button type="button" variant="ghost" size="sm" icon={Plus} onClick={() => setTenants((l) => [...l, emptyTenant()])}>
                 Add joint tenant
               </Button>
@@ -226,7 +226,7 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
           </div>
 
           <div className="flex flex-col gap-2 border-t border-card-border pt-4">
-            <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider">Already managed before? (optional)</h3>
+            <h3 className="text-sm-portal font-bold text-brand-primary capitalize">Already managed before? (optional)</h3>
             <p className="text-xs-portal text-status-muted">
               For a tenancy you have been statementing by hand: rent before the first period here is not counted as owed, and statement numbers continue after the last one you issued.
             </p>

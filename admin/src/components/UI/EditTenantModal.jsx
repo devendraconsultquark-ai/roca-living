@@ -120,7 +120,7 @@ export const EditTenantModal = ({ tenantId, onClose, onSaved }) => {
           <p className="text-sm text-status-muted py-8 text-center">Loading…</p>
         ) : (
           <form onSubmit={submit} className="flex flex-col gap-4">
-            <h4 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider">Tenant</h4>
+            <h4 className="text-sm-portal font-bold text-brand-primary capitalize">Tenant</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input label="Full Name" id="edit-t-name" required value={form.name} onChange={(e) => set('name')(e.target.value)} error={errors.name} />
               <Input label="Email Address" id="edit-t-email" type="email" value={form.email} onChange={(e) => set('email')(e.target.value)} />
@@ -145,7 +145,7 @@ export const EditTenantModal = ({ tenantId, onClose, onSaved }) => {
 
             {t && (
               <div className="border-t border-card-border pt-4 flex flex-col gap-4">
-                <h4 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider">Tenancy</h4>
+                <h4 className="text-sm-portal font-bold text-brand-primary capitalize">Tenancy</h4>
                 {canFixSetup ? (
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

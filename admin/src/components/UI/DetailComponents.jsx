@@ -72,7 +72,7 @@ export const DetailHeader = ({
           {badge}
         </div>
         {subtitle && (
-          <p className="text-2xs font-bold text-gray-400 uppercase tracking-wider mt-1">
+          <p className="text-2xs font-bold text-gray-400 capitalize mt-1">
             {subtitle}
           </p>
         )}

@@ -24,7 +24,7 @@ import {
   ignoreBankTransaction,
   undoBankTransaction
 } from '../controllers/xeroBankController.js';
-import { listRentApprovals, approveRentPayment, changeRentSplit, pullRentPayments, sendRentToXero, sendAllRentToXero, undoSendRentToXero } from '../controllers/rentApprovalController.js';
+import { listRentApprovals, approveRentPayment, changeRentSplit, getRentDeductions, saveRentDeductions, pullRentPayments, sendRentToXero, sendAllRentToXero, undoSendRentToXero } from '../controllers/rentApprovalController.js';
 import { getRentCycle, refreshRentCycle, approveAndSend } from '../controllers/rentCycleController.js';
 import { protect } from '../middlewares/protect.js';
 import { restrictTo } from '../middlewares/restrictTo.js';
@@ -54,6 +54,8 @@ xeroRouter.post('/rent-invoices/pull-payments', pullRentPayments);
 xeroRouter.get('/rent-approvals', listRentApprovals);
 xeroRouter.post('/rent-approvals/:id/approve', approveRentPayment);
 xeroRouter.patch('/rent-approvals/:id/split', changeRentSplit);
+xeroRouter.get('/rent-approvals/:id/deductions', getRentDeductions);
+xeroRouter.put('/rent-approvals/:id/deductions', saveRentDeductions);
 xeroRouter.post('/rent-approvals/send-all', sendAllRentToXero);
 xeroRouter.post('/rent-approvals/:id/send-to-xero', sendRentToXero);
 xeroRouter.post('/rent-approvals/:id/undo-send', undoSendRentToXero);

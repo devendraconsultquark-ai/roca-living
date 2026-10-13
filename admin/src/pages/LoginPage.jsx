@@ -127,7 +127,7 @@ export const LoginPage = () => {
               fullWidth
               icon={ArrowRight}
               iconPosition="right"
-              className="py-4 px-6 rounded-xl shadow-lg flex items-center justify-center gap-2 text-sm font-bold uppercase tracking-wider transition-all duration-300"
+              className="py-4 px-6 rounded-xl shadow-lg flex items-center justify-center gap-2 text-sm font-bold capitalize transition-all duration-300"
             >
               {isLoading ? "Signing In..." : "Sign In"}
             </Button>
@@ -139,7 +139,7 @@ export const LoginPage = () => {
 
           <div className="mt-8 flex items-center gap-3">
             <div className="h-px flex-1 bg-surface-hover" />
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest">
+            <span className="text-xs font-semibold text-gray-400 capitalize">
               Secure Access
             </span>
             <div className="h-px flex-1 bg-surface-hover" />
@@ -158,7 +158,7 @@ export const LoginPage = () => {
             <div className="space-y-4">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-black/20 border border-brand-accent/30 backdrop-blur-sm">
                 <span className="w-2 h-2 rounded-full bg-brand-accent animate-pulse" />
-                <span className="text-2xs text-white uppercase tracking-widest">
+                <span className="text-2xs text-white capitalize">
                   Staff Portal
                 </span>
               </div>

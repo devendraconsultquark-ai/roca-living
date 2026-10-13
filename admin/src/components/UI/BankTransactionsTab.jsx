@@ -176,10 +176,10 @@ export const BankTransactionsTab = () => {
             <thead>
               <tr className="text-left">
                 {['Date', '', 'From / To', 'Reference', 'Account'].map((h, i) => (
-                  <th key={i} className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3">{h}</th>
+                  <th key={i} className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">{h}</th>
                 ))}
-                <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3 text-right">Amount</th>
-                <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3">
+                <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3 text-right">Amount</th>
+                <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">
                   {status === 'unreconciled' ? 'Suggested' : 'Linked to'}
                 </th>
                 <th className="pb-2" />

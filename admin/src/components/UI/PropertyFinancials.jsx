@@ -112,10 +112,10 @@ export const PropertyFinancials = ({ propertyId }) => {
               <table className="w-full">
                 <thead>
                   <tr className="text-left">
-                    <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3">Date</th>
-                    <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3">Type</th>
-                    <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3">Description</th>
-                    <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 text-right">Amount</th>
+                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Date</th>
+                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Type</th>
+                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Description</th>
+                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 text-right">Amount</th>
                   </tr>
                 </thead>
                 <tbody>

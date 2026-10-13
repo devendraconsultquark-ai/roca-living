@@ -375,7 +375,7 @@ export const MaintenanceBoard = () => {
 
             <form onSubmit={handleModalSubmit} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-status-muted uppercase tracking-wide">Property <span className="text-status-danger">*</span></label>
+                <label className="text-xs font-semibold text-status-muted capitalize tracking-wide">Property <span className="text-status-danger">*</span></label>
                 <Dropdown
                   id="modal-property"
                   placeholder="Select property..."
@@ -388,7 +388,7 @@ export const MaintenanceBoard = () => {
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-status-muted uppercase tracking-wide">Urgency <span className="text-status-danger">*</span></label>
+                <label className="text-xs font-semibold text-status-muted capitalize tracking-wide">Urgency <span className="text-status-danger">*</span></label>
                 <Dropdown
                   id="modal-urgency"
                   placeholder="Select urgency..."
@@ -414,7 +414,7 @@ export const MaintenanceBoard = () => {
               />
 
               <div className="flex flex-col gap-1">
-                <label htmlFor="modal-description" className="text-xs font-semibold text-status-muted uppercase tracking-wide">
+                <label htmlFor="modal-description" className="text-xs font-semibold text-status-muted capitalize tracking-wide">
                   Description <span className="text-status-danger">*</span>
                 </label>
                 <textarea
@@ -477,19 +477,19 @@ export const MaintenanceBoard = () => {
             <p className="text-xs text-status-muted mb-4">{detailTicket.address}</p>
 
             <div className="flex items-center gap-2 mb-4">
-              <span className="text-2xs font-bold bg-surface-hover text-brand-primary border border-card-border px-2 py-0.5 rounded-sm uppercase tracking-wider">
+              <span className="text-2xs font-bold bg-surface-hover text-brand-primary border border-card-border px-2 py-0.5 rounded-sm capitalize">
                 {detailTicket.status}
               </span>
-              <span className="text-2xs font-bold bg-surface-hover text-brand-primary border border-card-border px-2 py-0.5 rounded-sm uppercase tracking-wider">
+              <span className="text-2xs font-bold bg-surface-hover text-brand-primary border border-card-border px-2 py-0.5 rounded-sm capitalize">
                 {detailTicket.urgency}
               </span>
               {detailTicket.raw.landlord_approved === 1 && (
-                <span className="text-2xs font-bold bg-status-success-bg text-status-success border border-status-success/15 px-2 py-0.5 rounded-sm uppercase tracking-wider">
+                <span className="text-2xs font-bold bg-status-success-bg text-status-success border border-status-success/15 px-2 py-0.5 rounded-sm capitalize">
                   Landlord Approved
                 </span>
               )}
               {detailTicket.raw.landlord_approved === 0 && detailTicket.raw.landlord_approved_at === null && detailTicket.raw.status === 'cancelled' && (
-                <span className="text-2xs font-bold bg-status-danger-bg text-status-danger border border-status-danger/15 px-2 py-0.5 rounded-sm uppercase tracking-wider">
+                <span className="text-2xs font-bold bg-status-danger-bg text-status-danger border border-status-danger/15 px-2 py-0.5 rounded-sm capitalize">
                   Quote Declined
                 </span>
               )}
@@ -525,7 +525,7 @@ export const MaintenanceBoard = () => {
 
               {detailImages.length > 0 && (
                 <div className="flex flex-col gap-2">
-                  <span className="text-xs font-semibold text-status-muted uppercase tracking-wide">Photos ({detailImages.length})</span>
+                  <span className="text-xs font-semibold text-status-muted capitalize tracking-wide">Photos ({detailImages.length})</span>
                   <div className="grid grid-cols-3 gap-2">
                     {detailImages.map((img) => (
                       img.url ? (

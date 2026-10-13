@@ -221,7 +221,7 @@ export const TenantDetailPage = () => {
         backLabel="Back to Tenants"
         title={data.name}
         badge={
-          <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border tracking-wide uppercase ${
+          <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border capitalize ${
             balance < 0 ? 'bg-status-danger-bg text-status-danger border-status-danger/15' : 'bg-status-success-bg text-status-success border-status-success/15'
           }`}>
             Balance: {balance < 0 ? `-£${Math.abs(balance).toFixed(2)}` : `£${balance.toFixed(2)}`}
@@ -305,7 +305,7 @@ export const TenantDetailPage = () => {
                     </div>
 
                     <div className="border-t border-card-border pt-4">
-                      <h4 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-2">Deposit</h4>
+                      <h4 className="text-sm-portal font-bold text-brand-primary capitalize mb-2">Deposit</h4>
                       {data.deposit ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-1">
                           <div>
@@ -362,7 +362,7 @@ export const TenantDetailPage = () => {
                             <p className="text-sm font-bold text-brand-primary">{t.name}</p>
                           </div>
                         </div>
-                        {t.is_lead_tenant ? <span className="text-2xs uppercase font-bold bg-brand-accent/10 text-brand-accent px-2 py-1 rounded-md">Lead</span> : null}
+                        {t.is_lead_tenant ? <span className="text-2xs capitalize font-bold bg-brand-accent/10 text-brand-accent px-2 py-1 rounded-md">Lead</span> : null}
                       </div>
                     ))}
                   </div>
@@ -398,7 +398,7 @@ export const TenantDetailPage = () => {
                 <div className="overflow-x-auto rounded-xl border border-card-border">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-card-border text-2xs text-gray-400 font-bold uppercase tracking-wider">
+                      <tr className="border-b border-card-border text-2xs text-gray-400 font-bold capitalize">
                         <th className="text-left py-3 px-4">Date</th>
                         <th className="text-left py-3 px-4">Amount</th>
                         <th className="text-left py-3 px-4">Method</th>

@@ -553,7 +553,7 @@ export const LandlordDetailPage = () => {
         backLabel="Back to Landlords"
         title={data.name}
         badge={
-          <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border tracking-wider uppercase ${kycBadge.classes}`}>
+          <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border capitalize ${kycBadge.classes}`}>
             {kycBadge.label}
           </span>
         }
@@ -714,15 +714,15 @@ export const LandlordDetailPage = () => {
                     <div className="space-y-1">
                       <div className="mb-3">
                         {data.change_pending ? (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-2xs font-bold rounded-sm border tracking-wider uppercase bg-status-warning/10 text-status-warning border-status-warning/15">
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-2xs font-bold rounded-sm border capitalize bg-status-warning/10 text-status-warning border-status-warning/15">
                             <AlertTriangle size={12} /> Pending Verification
                           </span>
                         ) : data.verified_at ? (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-2xs font-bold rounded-sm border tracking-wider uppercase bg-status-success-bg text-status-success border-status-success/15">
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-2xs font-bold rounded-sm border capitalize bg-status-success-bg text-status-success border-status-success/15">
                             <CheckCircle2 size={12} /> Verified {new Date(data.verified_at).toLocaleDateString('en-GB')}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-2xs font-bold rounded-sm border tracking-wider uppercase bg-status-danger-bg text-status-danger border-status-danger/15">
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-2xs font-bold rounded-sm border capitalize bg-status-danger-bg text-status-danger border-status-danger/15">
                             <AlertTriangle size={12} /> Never Verified
                           </span>
                         )}
@@ -761,7 +761,7 @@ export const LandlordDetailPage = () => {
                   })}
                 </div>
                 <div className="mt-4 pt-4 border-t border-card-border">
-                  <p className="text-2xs font-bold text-gray-400 mb-2" style={{ textTransform: 'uppercase' }}>Account Manager</p>
+                  <p className="text-2xs font-bold text-gray-400 mb-2" style={{ textTransform: 'capitalize' }}>Account Manager</p>
                   {data.account_manager_name ? (
                     <div className="flex items-center gap-3">
                       <span className="w-9 h-9 rounded-full bg-brand-accent text-white flex items-center justify-center text-xs font-bold uppercase shrink-0">
@@ -896,15 +896,15 @@ export const LandlordDetailPage = () => {
               <Card title="Financial Summary">
                 <div className="grid grid-cols-3 gap-4 mb-8">
                   <div className="bg-surface-light p-4 rounded-card border border-card-border">
-                    <p className="text-2xs font-bold text-gray-400 uppercase tracking-wider mb-1">YTD Income</p>
+                    <p className="text-2xs font-bold text-gray-400 capitalize mb-1">YTD Income</p>
                     <p className="text-2xl font-bold text-status-success">{money(ytdIncome)}</p>
                   </div>
                   <div className="bg-surface-light p-4 rounded-card border border-card-border">
-                    <p className="text-2xs font-bold text-gray-400 uppercase tracking-wider mb-1">YTD Fees & Costs</p>
+                    <p className="text-2xs font-bold text-gray-400 capitalize mb-1">YTD Fees & Costs</p>
                     <p className="text-2xl font-bold text-status-danger">{money(ytdExpenses)}</p>
                   </div>
                   <div className="bg-surface-light p-4 rounded-card border border-card-border">
-                    <p className="text-2xs font-bold text-gray-400 uppercase tracking-wider mb-1">Pending Payout</p>
+                    <p className="text-2xs font-bold text-gray-400 capitalize mb-1">Pending Payout</p>
                     <p className="text-2xl font-bold text-brand-primary">{money(pendingPayout)}</p>
                   </div>
                 </div>
@@ -923,11 +923,11 @@ export const LandlordDetailPage = () => {
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-card-border">
-                          <th className="text-left py-2 pr-3 text-2xs font-bold text-gray-400 uppercase tracking-wider">Date</th>
-                          <th className="text-left py-2 pr-3 text-2xs font-bold text-gray-400 uppercase tracking-wider">Description</th>
-                          <th className="text-left py-2 pr-3 text-2xs font-bold text-gray-400 uppercase tracking-wider">Property</th>
-                          <th className="text-left py-2 pr-3 text-2xs font-bold text-gray-400 uppercase tracking-wider">Type</th>
-                          <th className="text-right py-2 text-2xs font-bold text-gray-400 uppercase tracking-wider">Amount</th>
+                          <th className="text-left py-2 pr-3 text-2xs font-bold text-gray-400 capitalize">Date</th>
+                          <th className="text-left py-2 pr-3 text-2xs font-bold text-gray-400 capitalize">Description</th>
+                          <th className="text-left py-2 pr-3 text-2xs font-bold text-gray-400 capitalize">Property</th>
+                          <th className="text-left py-2 pr-3 text-2xs font-bold text-gray-400 capitalize">Type</th>
+                          <th className="text-right py-2 text-2xs font-bold text-gray-400 capitalize">Amount</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1008,12 +1008,12 @@ export const LandlordDetailPage = () => {
                 <table className="w-full min-w-[640px]">
                   <thead>
                     <tr className="text-left border-b border-card-border">
-                      <th className="py-2 pr-3 text-2xs font-bold text-gray-400 uppercase tracking-wider">Period</th>
-                      <th className="py-2 pr-3 text-2xs font-bold text-gray-400 uppercase tracking-wider text-right">Gross Rent</th>
-                      <th className="py-2 pr-3 text-2xs font-bold text-gray-400 uppercase tracking-wider text-right">Mgmt Fee</th>
-                      <th className="py-2 pr-3 text-2xs font-bold text-gray-400 uppercase tracking-wider text-right">Net Paid</th>
-                      <th className="py-2 pr-3 text-2xs font-bold text-gray-400 uppercase tracking-wider">Generated</th>
-                      <th className="py-2 text-2xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
+                      <th className="py-2 pr-3 text-2xs font-bold text-gray-400 capitalize">Period</th>
+                      <th className="py-2 pr-3 text-2xs font-bold text-gray-400 capitalize text-right">Gross Rent</th>
+                      <th className="py-2 pr-3 text-2xs font-bold text-gray-400 capitalize text-right">Mgmt Fee</th>
+                      <th className="py-2 pr-3 text-2xs font-bold text-gray-400 capitalize text-right">Net Paid</th>
+                      <th className="py-2 pr-3 text-2xs font-bold text-gray-400 capitalize">Generated</th>
+                      <th className="py-2 text-2xs font-bold text-gray-400 capitalize">Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1053,10 +1053,10 @@ export const LandlordDetailPage = () => {
                     <table className="w-full min-w-[560px]">
                       <thead>
                         <tr className="text-left border-b border-card-border">
-                          <th className="py-2 pr-3 text-2xs font-bold text-gray-400 uppercase tracking-wider">Certificate</th>
-                          <th className="py-2 pr-3 text-2xs font-bold text-gray-400 uppercase tracking-wider">Property</th>
-                          <th className="py-2 pr-3 text-2xs font-bold text-gray-400 uppercase tracking-wider">Expires</th>
-                          <th className="py-2 text-2xs font-bold text-gray-400 uppercase tracking-wider">Status</th>
+                          <th className="py-2 pr-3 text-2xs font-bold text-gray-400 capitalize">Certificate</th>
+                          <th className="py-2 pr-3 text-2xs font-bold text-gray-400 capitalize">Property</th>
+                          <th className="py-2 pr-3 text-2xs font-bold text-gray-400 capitalize">Expires</th>
+                          <th className="py-2 text-2xs font-bold text-gray-400 capitalize">Status</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1194,7 +1194,7 @@ export const LandlordDetailPage = () => {
                   {data.compliance_checklist?.length > 0 ? data.compliance_checklist.map(item => (
                     <div key={item.id} className="flex items-center justify-between pb-3 border-b border-gray-50 last:border-0 last:pb-0">
                       <span className="text-xs-portal font-semibold text-brand-primary">{item.item_label}</span>
-                      <span className={`text-2xs uppercase tracking-wider font-bold px-2 py-0.5 rounded-sm border ${
+                      <span className={`text-2xs capitalize font-bold px-2 py-0.5 rounded-sm border ${
                         item.status === 'complete' ? 'bg-status-success-bg text-status-success border-status-success/15' : 'bg-status-warning/10 text-status-warning border-status-warning/15'
                       }`}>
                         {item.status}
@@ -1357,15 +1357,15 @@ export const LandlordDetailPage = () => {
                   <div className="space-y-1">
                     <div className="flex items-center justify-between mb-3">
                       {data.change_pending ? (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-2xs font-bold rounded-sm border tracking-wider uppercase bg-status-warning/10 text-status-warning border-status-warning/15">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-2xs font-bold rounded-sm border capitalize bg-status-warning/10 text-status-warning border-status-warning/15">
                           <AlertTriangle size={12} /> Pending Verification
                         </span>
                       ) : data.verified_at ? (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-2xs font-bold rounded-sm border tracking-wider uppercase bg-status-success-bg text-status-success border-status-success/15">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-2xs font-bold rounded-sm border capitalize bg-status-success-bg text-status-success border-status-success/15">
                           <CheckCircle2 size={12} /> Verified {new Date(data.verified_at).toLocaleDateString('en-GB')}
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-2xs font-bold rounded-sm border tracking-wider uppercase bg-status-danger-bg text-status-danger border-status-danger/15">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-2xs font-bold rounded-sm border capitalize bg-status-danger-bg text-status-danger border-status-danger/15">
                           <AlertTriangle size={12} /> Never Verified
                         </span>
                       )}

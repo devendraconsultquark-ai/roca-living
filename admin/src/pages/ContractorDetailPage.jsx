@@ -126,7 +126,7 @@ export const ContractorDetailPage = () => {
         backLabel="Back to Contractors"
         title={data.company_name}
         badge={
-          <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border tracking-wide uppercase ${
+          <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border capitalize ${
             data.status === 'active' ? 'bg-status-success-bg text-status-success border-status-success/15' : 'bg-status-danger-bg text-status-danger border-status-danger/15'
           }`}>
             {data.status}
@@ -170,7 +170,7 @@ export const ContractorDetailPage = () => {
                   ].map(stat => (
                     <div key={stat.label} className="bg-surface-light border border-card-border rounded-xl p-4 flex flex-col justify-center items-center text-center">
                       <p className={`text-2xl font-bold ${stat.color || 'text-brand-primary'}`}>{stat.value}</p>
-                      <p className="text-2xs font-bold text-gray-400 uppercase tracking-wider mt-1">{stat.label}</p>
+                      <p className="text-2xs font-bold text-gray-400 capitalize mt-1">{stat.label}</p>
                     </div>
                   ))}
                 </div>
@@ -186,7 +186,7 @@ export const ContractorDetailPage = () => {
                 <div className="overflow-x-auto rounded-xl border border-card-border">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-card-border text-2xs text-gray-400 font-bold uppercase tracking-wider">
+                      <tr className="border-b border-card-border text-2xs text-gray-400 font-bold capitalize">
                         {['Job', 'Property', 'Urgency', 'Quote', 'Status', 'Date'].map(h => (
                           <th key={h} className="text-left py-3 px-4">{h}</th>
                         ))}
@@ -198,13 +198,13 @@ export const ContractorDetailPage = () => {
                           <td className="py-3 px-4 font-bold text-brand-primary max-w-[200px] truncate">{t.title}</td>
                           <td className="py-3 px-4 text-status-muted text-xs">{t.property_address}</td>
                           <td className="py-3 px-4">
-                            <span className={`text-2xs font-bold px-2 py-0.5 rounded-sm border uppercase tracking-wider ${urgencyColor[t.urgency] || urgencyColor.routine}`}>
+                            <span className={`text-2xs font-bold px-2 py-0.5 rounded-sm border capitalize ${urgencyColor[t.urgency] || urgencyColor.routine}`}>
                               {t.urgency}
                             </span>
                           </td>
                           <td className="py-3 px-4 font-semibold text-brand-primary">{t.quote_amount ? `£${parseFloat(t.quote_amount).toLocaleString('en-GB', { minimumFractionDigits: 2 })}` : '—'}</td>
                           <td className="py-3 px-4">
-                            <span className="flex items-center gap-1.5 text-2xs font-bold px-2 py-0.5 rounded-sm border uppercase tracking-wider w-fit bg-surface-hover text-gray-400 border-card-border">
+                            <span className="flex items-center gap-1.5 text-2xs font-bold px-2 py-0.5 rounded-sm border capitalize w-fit bg-surface-hover text-gray-400 border-card-border">
                               {ticketStatusIcon[t.status] || <Clock size={13} className="text-gray-400" />}
                               {t.status?.replace(/_/g, ' ')}
                             </span>

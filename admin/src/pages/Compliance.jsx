@@ -149,11 +149,11 @@ export const Compliance = () => {
               <table className="w-full min-w-[720px]">
                 <thead>
                   <tr className="text-left">
-                    <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3">Certificate</th>
-                    <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3">Property</th>
-                    <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3">Landlord</th>
-                    <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2 pr-3">Expires</th>
-                    <th className="text-2xs font-bold text-gray-400 uppercase tracking-wider pb-2">Status</th>
+                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Certificate</th>
+                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Property</th>
+                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Landlord</th>
+                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Expires</th>
+                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2">Status</th>
                   </tr>
                 </thead>
                 <tbody>

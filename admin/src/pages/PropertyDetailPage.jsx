@@ -423,7 +423,7 @@ export const PropertyDetailPage = () => {
                               </div>
                               <span className="text-sm font-bold text-brand-primary">{t.name}</span>
                             </div>
-                            {t.is_lead_tenant && <span className="text-2xs uppercase tracking-wider font-bold bg-status-info-bg text-status-info border border-status-info/15 px-2 py-0.5 rounded-sm">Lead Tenant</span>}
+                            {t.is_lead_tenant && <span className="text-2xs capitalize font-bold bg-status-info-bg text-status-info border border-status-info/15 px-2 py-0.5 rounded-sm">Lead Tenant</span>}
                           </div>
                         ))}
                       </div>
@@ -458,10 +458,10 @@ export const PropertyDetailPage = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`text-2xs font-bold px-2 py-0.5 rounded-sm border uppercase tracking-wider ${urgencyColor[t.urgency] || urgencyColor.routine}`}>
+                        <span className={`text-2xs font-bold px-2 py-0.5 rounded-sm border capitalize ${urgencyColor[t.urgency] || urgencyColor.routine}`}>
                           {t.urgency}
                         </span>
-                        <span className="text-2xs font-bold bg-surface-hover text-gray-400 border border-card-border px-2 py-0.5 rounded-sm uppercase tracking-wider">
+                        <span className="text-2xs font-bold bg-surface-hover text-gray-400 border border-card-border px-2 py-0.5 rounded-sm capitalize">
                           {t.status?.replace(/_/g, ' ')}
                         </span>
                       </div>
@@ -524,7 +524,7 @@ export const PropertyDetailPage = () => {
                     <div key={item.id} className="flex items-center justify-between pb-3 border-b border-gray-50 last:border-0 last:pb-0">
                       <span className="text-xs-portal font-semibold text-brand-primary">{item.item_label}</span>
                       <div className="flex items-center gap-2">
-                        <span className={`text-2xs uppercase tracking-wider font-bold px-2 py-0.5 rounded-sm border ${
+                        <span className={`text-2xs capitalize font-bold px-2 py-0.5 rounded-sm border ${
                           item.status === 'complete'
                             ? 'bg-status-success-bg text-status-success border-status-success/15'
                             : 'bg-status-warning/10 text-status-warning border-status-warning/15'
@@ -757,7 +757,7 @@ export const PropertyDetailPage = () => {
               />
 
               <div className="flex flex-col gap-1">
-                <label htmlFor="cert_file" className="text-xs font-semibold text-status-muted uppercase tracking-wide">
+                <label htmlFor="cert_file" className="text-xs font-semibold text-status-muted capitalize tracking-wide">
                   Certificate File (PDF / JPEG / PNG{certModalCert.document_path ? ' — replaces the current file' : ''})
                 </label>
                 <input

@@ -25,7 +25,8 @@ import { getInvoicesFrom, pushRentInvoices, SETTING_INVOICES_FROM } from '../uti
 const ACCOUNT_SETTINGS = {
   xeroRentIncomeAccountCode: { label: 'Rent invoices account', kind: 'code' },
   xeroFeeIncomeAccountCode: { label: 'Management fee income account', kind: 'code' },
-  xeroLandlordBillAccountCode: { label: 'Landlord bills account', kind: 'code' }
+  xeroLandlordBillAccountCode: { label: 'Landlord bills account', kind: 'code' },
+  xeroLandlordExpenseAccountCode: { label: 'Landlord expenses account', kind: 'code' }
 };
 
 // The organisation changed: bank accounts ticked for import and the account

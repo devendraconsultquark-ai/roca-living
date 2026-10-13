@@ -237,7 +237,7 @@ export const Dropdown = ({
       {label && (
         <label
           htmlFor={id}
-          className="text-xs font-semibold text-status-muted uppercase tracking-wide"
+          className="text-xs font-semibold text-status-muted capitalize tracking-wide"
         >
           {label}
         </label>
@@ -378,7 +378,7 @@ export const Dropdown = ({
                   return (
                     <React.Fragment key={opt.value ?? idx}>
                       {groupHeader && (
-                        <li className="px-3 py-1 mt-1 text-xs-portal font-bold text-gray-400 uppercase tracking-wider select-none">
+                        <li className="px-3 py-1 mt-1 text-xs-portal font-bold text-gray-400 capitalize select-none">
                           {groupHeader}
                         </li>
                       )}

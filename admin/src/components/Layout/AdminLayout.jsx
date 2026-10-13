@@ -553,7 +553,7 @@ export const AdminLayout = () => {
                     {alerts?.total > 0 && (
                       <div className="border-b border-card-border">
                         <div className="px-4 py-3 flex items-center justify-between">
-                          <h4 className="text-xs-portal font-bold text-brand-primary uppercase tracking-wider select-none">Needs attention ({alerts.total})</h4>
+                          <h4 className="text-xs-portal font-bold text-brand-primary capitalize select-none">Needs attention ({alerts.total})</h4>
                           <button
                             onClick={() => { setNotifOpen(false); navigate('/dashboard'); }}
                             className="text-2xs font-bold text-brand-accent hover:underline cursor-pointer"
@@ -580,7 +580,7 @@ export const AdminLayout = () => {
                       </div>
                     )}
                     <div className="px-4 py-3 border-b border-card-border sticky top-0 card-bg">
-                      <h4 className="text-xs-portal font-bold text-brand-primary uppercase tracking-wider select-none">Recent Activity</h4>
+                      <h4 className="text-xs-portal font-bold text-brand-primary capitalize select-none">Recent Activity</h4>
                     </div>
                     {notifLoading ? (
                       <p className="text-xs text-gray-400 font-semibold px-4 py-6 text-center">Loading activity...</p>
@@ -623,7 +623,7 @@ export const AdminLayout = () => {
                 {helpOpen && (
                   <div className="absolute right-0 top-full mt-2 w-80 card-bg border border-card-border rounded-card shadow-premium z-50">
                     <div className="px-4 py-3 border-b border-card-border">
-                      <h4 className="text-xs-portal font-bold text-brand-primary uppercase tracking-wider select-none">Quick guide</h4>
+                      <h4 className="text-xs-portal font-bold text-brand-primary capitalize select-none">Quick guide</h4>
                     </div>
                     <div className="divide-y divide-gray-50">
                       {QUICK_GUIDE.map((g) => (

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, RefreshCw, CheckCircle2, Percent, FileText, X, HelpCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw, CheckCircle2, Percent, FileText, X, HelpCircle, Plus, Trash2 } from 'lucide-react';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { useToast } from '../components/UI/ToastContext';
@@ -32,6 +32,8 @@ const STAGES = [
   { id: 'attention', label: 'Needs a look', tone: 'bg-status-danger/10 text-status-danger' },
 ];
 const stageInfo = (id) => STAGES.find((s) => s.id === id) || STAGES[0];
+const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+const emptyDeduction = () => ({ description: '', supplier: '', amount: '' });
 
 // Accounting → Rent Cycle: each managed flat's rent for the month, from "waiting
 // for rent" to "done", with the one thing to do next on each row. Xero is
@@ -45,6 +47,8 @@ export const RentCycle = () => {
   const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(null);
   const [feeFor, setFeeFor] = useState(null); // { row, fee_pct, reason }
+  // Approve popup: deductions (cleaning, repairs…) before the landlord bill goes to Xero
+  const [approveFor, setApproveFor] = useState(null); // { row, paymentId, items, saved, max, loading }
   // Statements from approved rent, shown in the View statements popup (this month, or all)
   const [showStatements, setShowStatements] = useState(false);
   const [statements, setStatements] = useState(null);
@@ -123,6 +127,45 @@ export const RentCycle = () => {
     }
   };
 
+  // One row: open the Approve popup with the deductions already saved on its
+  // latest payment.
+  const openApprove = async (row) => {
+    const paymentId = Math.max(...row.payment_ids);
+    setApproveFor({ row, paymentId, items: [], saved: 0, max: null, loading: true });
+    try {
+      const res = await api.get(`/xero/rent-approvals/${paymentId}/deductions`, { skipInterceptorError: true });
+      const d = res.data.data;
+      const items = d.items.map((i) => ({ description: i.description, supplier: i.supplier || '', amount: String(i.amount) }));
+      setApproveFor({ row, paymentId, items, saved: round2(d.items.reduce((t, i) => t + i.amount, 0)), max: d.max, loading: false });
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Could not load the deductions', 'error');
+      setApproveFor(null);
+    }
+  };
+
+  const setDeduction = (idx, field, value) => setApproveFor((a) => ({
+    ...a, items: a.items.map((it, i) => (i === idx ? { ...it, [field]: value } : it)),
+  }));
+
+  const approveWithDeductions = async () => {
+    const { row, paymentId, items } = approveFor;
+    const clean = items.filter((i) => i.description.trim() || i.supplier.trim() || i.amount !== '');
+    setBusy('approve');
+    try {
+      await api.put(`/xero/rent-approvals/${paymentId}/deductions`, {
+        items: clean.map((i) => ({ description: i.description, supplier: i.supplier, amount: Number(i.amount) })),
+      }, { skipInterceptorError: true });
+      const res = await api.post('/xero/rent-cycle/approve', { payment_ids: row.payment_ids });
+      addToast(res.data.message, res.data.data.failed ? 'warning' : 'success');
+      setApproveFor(null);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to approve', 'error');
+    } finally {
+      setBusy(null);
+      load();
+    }
+  };
+
   const makeStatements = async (list) => {
     setBusy('statement');
     let made = 0;
@@ -168,7 +211,7 @@ export const RentCycle = () => {
         return (
           <div className="flex justify-end gap-2">
             {!r.approved_not_sent && <Button variant="ghost" size="sm" icon={Percent} onClick={() => setFeeFor({ row: r, fee_pct: String(r.fee_pct), reason: '' })} disabled={!!busy}>Change fee</Button>}
-            <Button variant="primary" size="sm" icon={CheckCircle2} onClick={() => approve([r])} disabled={!!busy}>{r.approved_not_sent ? 'Send to Xero' : 'Approve'}</Button>
+            <Button variant="primary" size="sm" icon={CheckCircle2} onClick={() => openApprove(r)} disabled={!!busy}>{r.approved_not_sent ? 'Send to Xero' : 'Approve'}</Button>
           </div>
         );
       case 'pay_landlord':
@@ -181,7 +224,7 @@ export const RentCycle = () => {
         return (
           <div className="flex justify-end items-center gap-2">
             <span className="text-xs text-status-danger">{r.reason}</span>
-            {r.retry_send && <Button variant="secondary" size="sm" onClick={() => approve([r])} disabled={!!busy}>Try again</Button>}
+            {r.retry_send && <Button variant="secondary" size="sm" onClick={() => openApprove(r)} disabled={!!busy}>Try again</Button>}
           </div>
         );
     }
@@ -262,7 +305,10 @@ export const RentCycle = () => {
                   <td className="p-3 text-right whitespace-nowrap">{money(r.rent_due)}<div className="text-xs text-status-muted">{ukDate(r.due_date)}</div></td>
                   <td className="p-3 text-right">{r.received ? money(r.received) : '—'}</td>
                   <td className="p-3 text-right">{r.received ? <>{money(r.fee)}<div className="text-xs text-status-muted">{r.fee_pct}%</div></> : '—'}</td>
-                  <td className="p-3 text-right font-semibold">{r.received ? money(r.net) : '—'}</td>
+                  <td className="p-3 text-right font-semibold">
+                    {r.received ? money(r.net) : '—'}
+                    {r.deductions > 0 && <div className="text-xs font-normal text-status-muted whitespace-nowrap">after {money(r.deductions)} deductions</div>}
+                  </td>
                   <td className="p-3"><span className={`px-2 py-1 rounded-md text-xs font-semibold whitespace-nowrap ${stageInfo(r.stage).tone}`}>{stageInfo(r.stage).label}</span>{r.split_note && <div className="text-xs text-status-warning mt-1">Note: {r.split_note}</div>}</td>
                   <td className="p-3 text-right">{nextAction(r)}</td>
                 </tr>
@@ -313,6 +359,76 @@ export const RentCycle = () => {
           </div>
         </div>
       )}
+
+      {approveFor && (() => {
+        const { row, items, saved, max, loading } = approveFor;
+        const total = round2(items.reduce((t, i) => t + (Number(i.amount) || 0), 0));
+        const toLandlord = round2(row.net + saved - total);
+        const tooMuch = max !== null && total > max;
+        const incomplete = items.some((i) => (i.description.trim() || i.supplier.trim() || i.amount !== '') && (!i.description.trim() || !(Number(i.amount) > 0)));
+        return (
+          <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl border border-card-border overflow-hidden my-8">
+              <div className="bg-brand-primary text-white p-5 font-bold flex items-center gap-2 select-none">
+                <CheckCircle2 size={18} />
+                <span>{row.approved_not_sent || row.retry_send ? 'Send to Xero' : 'Approve rent'} — {row.flat} · {row.tenant_name || 'Tenant'}</span>
+                <button type="button" onClick={() => setApproveFor(null)} disabled={busy === 'approve'} className="ml-auto p-1 rounded-md text-white/80 hover:text-white hover:bg-white/10 cursor-pointer" aria-label="Close">
+                  <X size={20} />
+                </button>
+              </div>
+              {loading ? (
+                <p className="text-sm text-status-muted py-10 text-center">Loading…</p>
+              ) : (
+                <div className="p-6 flex flex-col gap-4">
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                    <span className="text-status-muted">Rent received</span><span className="text-right font-semibold">{money(row.received)}</span>
+                    <span className="text-status-muted">ROCA fee ({row.fee_pct}%)</span><span className="text-right font-semibold">−{money(row.fee)}</span>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-bold text-brand-primary">Deductions</p>
+                      <span className="text-xs text-status-muted">Cleaning, repairs etc. ROCA paid for this flat</span>
+                    </div>
+                    {items.length === 0 && <p className="text-xs text-status-muted">No deductions. Add one if something should come out of the landlord's share.</p>}
+                    {items.map((it, idx) => (
+                      <div key={idx} className="grid grid-cols-[1fr_1fr_110px_auto] gap-2 items-center">
+                        <input aria-label="Description" placeholder="Description, e.g. End of tenancy clean" value={it.description} onChange={(e) => setDeduction(idx, 'description', e.target.value)}
+                          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-accent" maxLength={255} />
+                        <input aria-label="Supplier" placeholder="Supplier (optional)" value={it.supplier} onChange={(e) => setDeduction(idx, 'supplier', e.target.value)}
+                          className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-accent" maxLength={255} />
+                        <input aria-label="Amount" type="number" min="0" step="0.01" placeholder="£" value={it.amount} onChange={(e) => setDeduction(idx, 'amount', e.target.value)}
+                          className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-right focus:outline-none focus:border-brand-accent" />
+                        <button type="button" onClick={() => setApproveFor((a) => ({ ...a, items: a.items.filter((_, i) => i !== idx) }))}
+                          className="p-2 text-status-muted hover:text-status-danger cursor-pointer" aria-label="Remove deduction"><Trash2 size={16} /></button>
+                      </div>
+                    ))}
+                    <div>
+                      <Button variant="ghost" size="sm" icon={Plus} onClick={() => setApproveFor((a) => ({ ...a, items: [...a.items, emptyDeduction()] }))}>Add deduction</Button>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-card-border pt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                    {total > 0 && <><span className="text-status-muted">Deductions</span><span className="text-right font-semibold">−{money(total)}</span></>}
+                    <span className="font-bold text-brand-primary">To landlord ({row.landlord_name || 'landlord'})</span>
+                    <span className={`text-right font-bold ${tooMuch ? 'text-status-danger' : 'text-brand-primary'}`}>{money(toLandlord)}</span>
+                  </div>
+                  {tooMuch && <p className="text-xs text-status-danger">Deductions ({money(total)}) can't be more than the landlord's share ({money(max)}).</p>}
+                  {incomplete && !tooMuch && <p className="text-xs text-status-warning">Each deduction needs a description and an amount.</p>}
+                  <p className="text-xs text-status-muted">Approving sends the landlord's bill to Xero for {money(toLandlord)}{total > 0 ? ', with each deduction as its own line' : ''}. Deductions also show on the statement.</p>
+
+                  <div className="flex gap-3 justify-end pt-2 border-t border-card-border">
+                    <Button variant="ghost" onClick={() => setApproveFor(null)} disabled={busy === 'approve'}>Cancel</Button>
+                    <Button variant="primary" icon={CheckCircle2} onClick={approveWithDeductions} disabled={busy === 'approve' || tooMuch || incomplete}>
+                      {busy === 'approve' ? 'Sending…' : 'Approve & send to Xero'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {feeFor && (
         <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50 p-4">
