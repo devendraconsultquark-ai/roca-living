@@ -376,6 +376,23 @@ export const TenantDetailPage = () => {
 
         {activeTab === 'payments' && (
           <div className="grid grid-cols-1 gap-6">
+            {data.xero_invoices?.length > 0 && (
+              <Card title={`Rent Invoices in Xero (${data.xero_invoices.length})`}>
+                <p className="text-xs text-status-muted mb-3">Internal invoices Roca Living raised in Xero so the tenant's payments can be matched there. Never sent to the tenant.</p>
+                <div className="flex flex-col">
+                  {data.xero_invoices.map((x) => (
+                    <div key={x.invoice_number} className="flex flex-wrap items-center justify-between gap-3 py-2 border-b border-card-border/60 last:border-0 text-sm">
+                      <span className="font-semibold text-brand-primary">{x.invoice_number}</span>
+                      <span className="text-status-muted">Due {new Date(x.due_date).toLocaleDateString('en-GB')}</span>
+                      <span className="font-semibold">£{parseFloat(x.amount).toLocaleString('en-GB', { minimumFractionDigits: 2 })}</span>
+                      <span className={x.status === 'created' ? 'text-status-success font-semibold' : 'text-status-danger font-semibold'}>
+                        {x.status === 'created' ? 'In Xero' : x.status === 'failed' ? `Failed: ${x.error}` : x.error || x.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
             <Card title={`Rent Payment History (${data.payment_history?.length || 0})`}>
               {data.payment_history?.length > 0 ? (
                 <div className="overflow-x-auto rounded-xl border border-card-border">

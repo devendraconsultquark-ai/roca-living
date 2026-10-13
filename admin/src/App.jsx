@@ -21,6 +21,8 @@ import { TenantDetailPage } from './pages/TenantDetailPage';
 import { Agents } from './pages/Agents';
 import { AgentDetailPage } from './pages/AgentDetailPage';
 import { Statements } from './pages/Statements';
+import { ApprovedRentStatements } from './pages/ApprovedRentStatements';
+import { RentCycle } from './pages/RentCycle';
 import { Invoices } from './pages/Invoices';
 import { Contractors } from './pages/Contractors';
 import { ContractorDetailPage } from './pages/ContractorDetailPage';
@@ -75,6 +77,8 @@ function App() {
               <Route path="/agents/:id" element={<AgentDetailPage />} />
               <Route path="/accounting" element={<AccountingHub />} />
               <Route path="/statements" element={<Statements />} />
+              <Route path="/statements/approved" element={<ApprovedRentStatements />} />
+              <Route path="/rent-cycle" element={<RentCycle />} />
               <Route path="/invoices" element={<Invoices />} />
               <Route path="/maintenance" element={<MaintenanceBoard />} />
               <Route path="/contractors" element={<Contractors />} />

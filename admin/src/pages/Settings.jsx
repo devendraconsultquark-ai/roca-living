@@ -138,14 +138,19 @@ export const Settings = () => {
             Financial Settings
           </h3>
           <div className="border-t border-card-border pt-4 grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <Input
-              label="Standard Management Commission Fee (%)"
-              id="agencyFee"
-              required
-              value={agencyFee}
-              onChange={(e) => setAgencyFee(e.target.value)}
-              disabled={loading}
-            />
+            <div className="flex flex-col gap-1.5">
+              <Input
+                label="Standard Management Commission Fee (%)"
+                id="agencyFee"
+                required
+                value={agencyFee}
+                onChange={(e) => setAgencyFee(e.target.value)}
+                disabled={loading}
+              />
+              <p className="text-xs text-status-muted">
+                Default for flats newly managed by ROCA Living (0–30%). Each flat’s own fee is on its lettings record (Properties → flat → Lettings record) and is what statements charge.
+              </p>
+            </div>
             <Input
               label="Value Added Tax (VAT) rate (%)"
               id="vatRate"

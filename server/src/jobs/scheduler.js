@@ -148,7 +148,27 @@ const syncXeroDaily = async () => {
   }
   const { runXeroSync } = await import('../controllers/xeroBankController.js');
   const result = await runXeroSync(null);
-  logger.info(`Xero daily sync: ${result.imported} imported, ${result.auto_matched} auto-matched`);
+  logger.info(`Xero daily sync: ${result.imported} imported, ${result.auto_matched} auto-matched`
+    + (result.invoices ? `, rent invoices ${result.invoices.created} created / ${result.invoices.voided} voided / ${result.invoices.failed} failed` : ""));
+};
+
+// Job 7: Rent Cycle — every 30 minutes keep the rent invoices, rent paid in
+// Xero and landlord bills up to date, so the Rent Cycle page is current even
+// before anyone opens it. Only once Xero is connected and set up.
+const refreshRentCycleJob = async () => {
+  const connection = await db('xero_connections').where('status', 'active').first();
+  const rentAccount = await db('settings').where({ key: 'xeroRentIncomeAccountCode' }).first();
+  if (!connection || !rentAccount?.value) return;
+  const { pushRentInvoices, pullInvoicePayments } = await import('../utils/xeroRentInvoices.js');
+  const { pullLandlordBillStatus } = await import('../utils/xeroLandlordBills.js');
+  const inv = await pushRentInvoices(null);
+  const pay = await pullInvoicePayments(null);
+  const bills = await pullLandlordBillStatus();
+  await db('settings').where({ key: 'xeroRentCycleRefreshedAt' }).delete();
+  await db('settings').insert({ key: 'xeroRentCycleRefreshedAt', value: new Date().toISOString() });
+  if (inv.created || inv.voided || pay.recorded || pay.linked || bills.paid) {
+    logger.info(`Rent cycle: ${inv.created} invoice(s) created, ${inv.voided} voided, ${pay.recorded + pay.linked} payment(s) in, ${bills.paid} landlord(s) paid`);
+  }
 };
 
 // Prevents a job from overlapping with its own next tick (single-instance overlap guard).
@@ -205,6 +225,9 @@ export const startScheduler = () => {
 
   // Job 6: Xero bank transaction sync - Daily at 6:30 AM
   cron.schedule('30 6 * * *', runExclusive('syncXeroDaily', syncXeroDaily));
+
+  // Rent Cycle refresh every 30 minutes (Xero invoices, rent paid, landlords paid)
+  cron.schedule('*/30 * * * *', runExclusive('refreshRentCycleJob', refreshRentCycleJob));
 
   // Job 7: Rent schedule top-up - Daily at 5:00 AM (before the Xero sync and
   // the arrears check, so both see the new months)

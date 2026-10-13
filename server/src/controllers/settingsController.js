@@ -29,6 +29,18 @@ export const updateSettings = catchAsync(async (req, res, next) => {
   if (invalid.length > 0) {
     throw new ApiError(400, `Unknown setting key(s): ${invalid.join(', ')}`);
   }
+  // The fee is copied onto every flat newly managed by ROCA Living, so a typo
+  // (80 instead of 8) would be charged on its statements.
+  const inRange = (value, max) => {
+    const n = Number(value);
+    return String(value ?? '').trim() !== '' && Number.isFinite(n) && n >= 0 && n <= max;
+  };
+  if ('agencyFee' in settings && !inRange(settings.agencyFee, 30)) {
+    throw new ApiError(400, 'Management fee must be between 0 and 30%');
+  }
+  if ('vatRate' in settings && !inRange(settings.vatRate, 100)) {
+    throw new ApiError(400, 'VAT rate must be between 0 and 100%');
+  }
 
   await db.transaction(async (trx) => {
     for (const [key, value] of Object.entries(settings)) {

@@ -66,6 +66,7 @@ const NAV_ITEMS = [
   {
     name: 'Accounting', icon: Wallet,
     children: [
+      { name: 'Rent Cycle', path: '/rent-cycle' },
       { name: 'Overview', path: '/accounting' },
       { name: 'Invoices', path: '/invoices' },
       { name: 'Statements', path: '/statements' },

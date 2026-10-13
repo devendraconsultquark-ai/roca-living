@@ -9,6 +9,7 @@ import { useConfirm } from '../components/UI/ConfirmContext';
 import { Skeleton } from '../components/UI/Skeleton';
 import { TenantStatementModal } from '../components/UI/TenantStatementModal';
 import { StatementEmailModal } from '../components/UI/StatementEmailModal';
+import { useNavigate } from 'react-router-dom';
 import api from '../utilities/api';
 
 // "24 Sep 2026" / "24 Sep"
@@ -26,6 +27,7 @@ const gbp = (n) => `£${n.toLocaleString('en-GB', { minimumFractionDigits: 2, ma
 const MONEY = 'tabular-nums whitespace-nowrap';
 
 export const Statements = () => {
+  const navigate = useNavigate();
   const [statements, setStatements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -280,7 +282,11 @@ export const Statements = () => {
   return (
     <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
       {/* Page actions (title lives in the layout header) */}
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-3">
+        {/* Separate trial flow next to the existing one (client compares both) */}
+        <Button variant="secondary" onClick={() => navigate('/statements/approved')} icon={FileSpreadsheet}>
+          Statement from approved rent
+        </Button>
         <Button
           variant="primary"
           onClick={() => setShowModal(true)}

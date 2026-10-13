@@ -705,8 +705,9 @@ export const deletePropertyInternal = async (trx, propertyId) => {
 
     await trx('tenants').whereIn('tenancy_id', tenancyIds).delete();
     await trx('deposits').whereIn('tenancy_id', tenancyIds).delete();
-    await trx('rent_schedules').whereIn('tenancy_id', tenancyIds).delete();
+    // Payments first: they point at their rent month (schedule_id).
     await trx('rent_payments').whereIn('tenancy_id', tenancyIds).delete();
+    await trx('rent_schedules').whereIn('tenancy_id', tenancyIds).delete();
     await trx('fire_safety_signoffs').whereIn('tenancy_id', tenancyIds).delete();
     await trx('transactions').whereIn('tenancy_id', tenancyIds).delete();
     await trx('folders').where({ owner_type: 'tenancy' }).whereIn('owner_id', tenancyIds).delete();

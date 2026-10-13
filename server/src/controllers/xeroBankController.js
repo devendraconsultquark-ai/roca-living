@@ -3,6 +3,9 @@ import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
 import logger from '../utils/logger.js';
 import { getStoredConnection, xeroApiGet } from '../utils/xero.js';
+import { pushRentInvoices, pullInvoicePayments } from '../utils/xeroRentInvoices.js';
+import { pullLandlordBillStatus } from '../utils/xeroLandlordBills.js';
+import { getSetting } from '../utils/settings.js';
 import { allocateTenancyPayments } from '../utils/rentAllocation.js';
 import { findSimilarPayment } from '../utils/rentPayments.js';
 
@@ -183,7 +186,27 @@ export const runXeroSync = async (actorId = null) => {
   }
 
   await db('xero_connections').where('id', connection.id).update({ last_synced_at: db.fn.now() });
-  return { fetched, imported: staged.length, auto_matched: autoMatched };
+
+  // Keep the internal rent invoices up to date too, once their account is chosen.
+  // A Xero hiccup here never fails the sync itself.
+  let invoices = null;
+  let payments = null;
+  if (await getSetting('xeroRentIncomeAccountCode', null)) {
+    try {
+      invoices = await pushRentInvoices(actor);
+    } catch (err) {
+      logger.warn(`[XeroSync] Rent invoices not pushed: ${err.message}`);
+    }
+    // Rent paid against those invoices in Xero → recorded here, split to approve.
+    try {
+      payments = await pullInvoicePayments(actor);
+      // Landlord bills sent from Roca Living: has the landlord been paid?
+      payments.landlord_bills = await pullLandlordBillStatus();
+    } catch (err) {
+      logger.warn(`[XeroSync] Rent payments not read: ${err.message}`);
+    }
+  }
+  return { fetched, imported: staged.length, auto_matched: autoMatched, accounts: accounts.map((a) => a.name), from: fromYmd, invoices, payments };
 };
 
 // POST /xero/sync
@@ -200,7 +223,11 @@ export const syncXero = catchAsync(async (req, res) => {
   });
   res.json({
     success: true,
-    message: `${result.imported} new transaction(s) imported, ${result.auto_matched} matched automatically`,
+    // Says what Xero itself returned, so "nothing new" and "Xero has nothing" differ.
+    message: `Xero returned ${result.fetched} transaction(s) for ${result.accounts.join(', ')} since ${ukDate(result.from)}: `
+      + `${result.imported} new, ${result.auto_matched} matched automatically`
+      + (result.invoices ? `. Rent invoices: ${result.invoices.created} created, ${result.invoices.voided} voided, ${result.invoices.failed} failed` : '')
+      + (result.payments ? `. Rent paid in Xero: ${result.payments.recorded + result.payments.linked} new to approve` : ''),
     data: result
   });
 });

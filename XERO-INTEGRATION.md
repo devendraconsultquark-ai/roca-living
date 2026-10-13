@@ -1,6 +1,34 @@
 # Xero Integration — Design
 
-**Status:** X1 (Connect) **built 22 Jul 2026**; X2–X4 not yet built
+## Current state (12 Oct 2026) — read this first; older sections below are history
+
+**Built:**
+- **Connect (OAuth).** Encrypted tokens and automatic refresh. The organisation is chosen when the login sees several (`needs_org_choice`), and switching organisation clears its stale account ids.
+- **Bank transactions pull** from `GET /BankTransactions` for the ticked accounts since the import date. This includes suggestions, auto-match for known payers, Confirm / Reconcile / Ignore / Undo and the duplicate check (`xeroBankController.js`). The sync message says what Xero returned.
+- **Settings → Xero:**
+  - a "Reconnect" banner when permissions are missing
+  - the 4 accounts Roca Living books to (rent bank account, rent invoices, fee income, landlord bills), validated against the organisation
+  - a read-only **Test Xero access** table (`GET /xero/diagnostics`)
+
+**Permissions** (granular; apps created after 2 Mar 2026 can't use `accounting.transactions`):
+`accounting.settings.read accounting.banktransactions accounting.contacts accounting.invoices accounting.payments accounting.reports.banksummary.read`
+
+**Not available to our app (confirmed 9 Oct 2026):**
+- **Bank statement lines.** Both `accounting.reports.bankstatement.read` and `finance.bankstatementsplus.read` return `invalid_scope`. The Finance API is for lending partners only, and the bank statement report needs a Xero support request plus an addendum.
+- **Reconciling a statement line through the API.** No endpoint exists, and Xero said on 2 Sep 2026 it has no plans to add one.
+- Consequence: Roca Living only sees money once a transaction exists in Xero.
+
+**Agreed rent cycle (12 Oct 2026), being built in phases:**
+1. Roca Living creates internal rent invoices in Xero, one per rent month and never sent to tenants, with tenant contacts created automatically.
+2. Xero's bank feed and auto-reconcile match the tenant's payment to that invoice.
+3. Roca Living reads the Payment, marks the rent month paid, and shows an approval card: 8% fee to ROCA, the net to the landlord.
+4. When the admin approves, Roca Living writes the fee and a landlord bill to Xero. The payout is matched back, and the statement uses the same figures.
+
+Built: phase 1 (connection and settings), phase 2 (internal rent invoices: `server/src/utils/xeroRentInvoices.js`, table `xero_rent_invoices`; numbers skip any number Xero already holds, voided included) and phase 3 (payments against those invoices are read after every sync, recorded as rent, and split for approval in Accounting → Rent to Approve: `rentApprovalController.js`). Phase 4 is built as a SEPARATE flow next to the existing statements: "Send to Xero" on approved rent creates a landlord bill (rent line − fee line = net) and the landlord shows as paid once Xero matches the payout (`utils/xeroLandlordBills.js`); "Statement from approved rent" (Statements page, own button and page `/statements/approved`, numbers AR-PH_08_0001, `approvedRentStatementController.js`) builds a statement from approved rent only, reusing the PDF design unchanged. The two statement flows are to be merged once the client decides. **The statement flow is not changed by any of this, by client request.**
+
+---
+
+**Status (historic):** X1 (Connect) **built 22 Jul 2026**; X2–X4 not yet built
 **Companion to:** `SPEC-COVERAGE.md` §10 (E1), §13 (decisions)
 **Context:** ROCA runs its money through Xero — landlord payouts leave the Xero-connected bank
 account. The client is non-technical; decisions here were taken on their behalf.

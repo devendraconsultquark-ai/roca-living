@@ -15,22 +15,38 @@ const TOKEN_URL = 'https://identity.xero.com/connect/token';
 const CONNECTIONS_URL = 'https://api.xero.com/connections';
 const API_BASE = 'https://api.xero.com/api.xro/2.0';
 
-// Read-only. Xero apps created after 2 March 2026 must use granular scopes —
-// the broad accounting.transactions / accounting.reports.read are rejected
-// with "invalid_scope" (same constraint the rocaem integration hit):
-//   banktransactions.read  → money in / out for reconciliation
-//   settings.read          → the bank accounts list
+// Xero apps created after 2 March 2026 must use granular scopes — the broad
+// accounting.transactions / accounting.reports.read are rejected with
+// "invalid_scope" (same constraint the rocaem integration hit):
+//   settings.read            → bank accounts and the chart of accounts
+//   banktransactions         → money in / out (read; write for later phases)
+//   contacts                 → tenant and landlord contacts created by Roca Living
+//   invoices                 → internal rent invoices and landlord bills
+//   payments                 → rent paid against those invoices
 //   reports.banksummary.read → live account balances in Settings
+// Bank statement lines (accounting.reports.bankstatement.read /
+// finance.bankstatementsplus.read) are not granted to our app by Xero.
 // Adding a scope later requires the admin to reconnect Xero.
-export const XERO_SCOPES = [
+export const XERO_SCOPE_LIST = [
   'offline_access',
   'openid',
   'profile',
   'email',
   'accounting.settings.read',
-  'accounting.banktransactions.read',
+  'accounting.banktransactions',
+  'accounting.contacts',
+  'accounting.invoices',
+  'accounting.payments',
   'accounting.reports.banksummary.read'
-].join(' ');
+];
+export const XERO_SCOPES = XERO_SCOPE_LIST.join(' ');
+
+// Scopes we ask for that the stored connection was not granted (it was made
+// before they were added) — the admin must reconnect Xero to get them.
+export const missingXeroScopes = (granted) => {
+  const have = new Set(String(granted || '').split(/\s+/).filter(Boolean));
+  return XERO_SCOPE_LIST.filter((s) => !have.has(s));
+};
 
 export const isXeroConfigured = () =>
   Boolean(process.env.XERO_CLIENT_ID && process.env.XERO_CLIENT_SECRET && process.env.XERO_REDIRECT_URI);
@@ -184,29 +200,50 @@ export const getValidAccessToken = async () => {
   }
 };
 
-// GET against the Accounting API for the connected organisation.
-export const xeroApiGet = async (path, searchParams = {}) => {
+// Xero's error text, trimmed for the log (error bodies never carry tokens).
+const xeroErrorText = async (res) => {
+  try {
+    return (await res.text()).replace(/\s+/g, ' ').slice(0, 400);
+  } catch {
+    return '';
+  }
+};
+
+// One request to the connected organisation. Returns { status, ok, body } and
+// never throws on an HTTP error — callers that only want data use xeroApiGet.
+// `base` defaults to the Accounting API; a full URL can be passed as `path`.
+export const xeroApiRaw = async (method, path, { searchParams = {}, body } = {}) => {
   const { connection, accessToken } = await getValidAccessToken();
   const query = new URLSearchParams(searchParams).toString();
-  const url = `${API_BASE}${path}${query ? `?${query}` : ''}`;
-
+  const url = `${/^https:\/\//.test(path) ? path : `${API_BASE}${path}`}${query ? `?${query}` : ''}`;
   const res = await fetch(url, {
+    method,
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Xero-Tenant-Id': connection.tenant_id,
-      Accept: 'application/json'
+      Accept: 'application/json',
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {})
     },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     signal: AbortSignal.timeout(30000)
   });
+  if (res.ok) return { status: res.status, ok: true, body: await res.json().catch(() => null) };
+  return { status: res.status, ok: false, body: null, error: await xeroErrorText(res) };
+};
 
-  if (res.status === 429) {
+// Any Accounting API request; throws an ApiError when Xero refuses it.
+export const xeroApiRequest = async (method, path, { searchParams = {}, body } = {}) => {
+  const r = await xeroApiRaw(method, path, { searchParams, body });
+  if (r.status === 429) {
     logger.warn('Xero API rate limit hit');
     throw new ApiError(429, 'Xero rate limit reached — please try again shortly');
   }
-  if (!res.ok) {
-    logger.error(`Xero API GET ${path} failed: HTTP ${res.status}`);
+  if (!r.ok) {
+    logger.error(`Xero API ${method} ${path} failed: HTTP ${r.status} ${r.error || ''}`);
     throw new ApiError(502, 'Xero request failed');
   }
-
-  return res.json();
+  return r.body;
 };
+
+// GET against the Accounting API for the connected organisation.
+export const xeroApiGet = (path, searchParams = {}) => xeroApiRequest('GET', path, { searchParams });

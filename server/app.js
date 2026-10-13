@@ -26,6 +26,7 @@ import invoiceRouter from './src/routes/invoiceRoutes.js';
 import settingsRouter from './src/routes/settingsRoutes.js';
 import newsRouter from './src/routes/newsRoutes.js';
 import xeroRouter from './src/routes/xeroRoutes.js';
+import approvedRentStatementRouter from './src/routes/approvedRentStatementRoutes.js';
 import estatesRouter from './src/routes/estatesRoutes.js';
 import previewRouter from './src/routes/previewRoutes.js';
 import transactionRouter from './src/routes/transactionRoutes.js';
@@ -131,6 +132,8 @@ app.use('/api/v1/invoices', invoiceRouter);
 app.use('/api/v1/settings', settingsRouter);
 app.use('/api/v1/news', newsRouter);
 app.use('/api/v1/xero', xeroRouter);
+// Separate "statement from approved rent" flow; /statements is unchanged.
+app.use('/api/v1/approved-statements', approvedRentStatementRouter);
 app.use('/api/v1/estates', estatesRouter);
 app.use('/api/v1/transactions', transactionRouter);
 app.use('/api/v1/contact', contactRouter);

@@ -29,6 +29,12 @@ export const paymentDeleteBlocks = async (conn, paymentIds) => {
   for (const x of linked) {
     blocks[x.rent_payment_id] = 'This payment is linked to a Xero bank line — undo it on the Bank Transactions tab';
   }
+  // Paid against a Roca Living rent invoice in Xero: undo the match in Xero and
+  // the next sync removes it here (deleting it here would just bring it back).
+  const fromXero = await conn('rent_payments').whereIn('id', paymentIds).whereNotNull('xero_payment_id').where('xero_linked_existing', false).select('id');
+  for (const p of fromXero) {
+    blocks[p.id] = blocks[p.id] || 'This payment came from Xero — undo the match in Xero and it is removed here at the next sync';
+  }
   const claimed = await conn('rent_payment_allocations as a')
     .join('landlord_statements as s', 'a.statement_id', 's.id')
     .whereIn('a.payment_id', paymentIds)

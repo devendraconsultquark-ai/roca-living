@@ -1330,6 +1330,11 @@ export const getTenantById = catchAsync(async (req, res, next) => {
   const balance = parseFloat(paymentSum?.total || 0) - parseFloat(scheduleSum?.total || 0);
   const deposit = await db('deposits').where('tenancy_id', tenant.tenancy_id).first();
   const hasStatement = !!(await db('landlord_statements').where('tenancy_id', tenant.tenancy_id).first('id'));
+  // Internal rent invoices raised in Xero for this tenancy (rent cycle phase 2).
+  const xeroInvoices = await db('xero_rent_invoices')
+    .where('tenancy_id', tenant.tenancy_id).whereNot('status', 'voided')
+    .orderBy('due_date', 'desc').limit(24)
+    .select('invoice_number', 'due_date', 'amount', 'status', 'error');
 
   res.json({
     success: true,
@@ -1351,6 +1356,7 @@ export const getTenantById = catchAsync(async (req, res, next) => {
       } : null,
       co_tenants: coTenants,
       deposit: formatDeposit(deposit),
+      xero_invoices: xeroInvoices.map((x) => ({ ...x, due_date: toYmd(x.due_date), amount: parseFloat(x.amount).toFixed(2) })),
       balance: parseFloat(balance.toFixed(2)),
       payment_history: payments.map(p => ({
         ...p,

@@ -28,6 +28,10 @@ import { runPhase24Migrations } from './src/db/migrations/phase24_statement_paym
 import { runPhase25Migrations } from './src/db/migrations/phase25_statement_email_draft.js';
 import { runPhase26Migrations } from './src/db/migrations/phase26_managed_flag.js';
 import { runPhase27Migrations } from './src/db/migrations/phase27_rent_due_day.js';
+import { runPhase28Migrations } from './src/db/migrations/phase28_xero_org_choice.js';
+import { runPhase29Migrations } from './src/db/migrations/phase29_xero_rent_invoices.js';
+import { runPhase30Migrations } from './src/db/migrations/phase30_rent_payment_approval.js';
+import { runPhase31Migrations } from './src/db/migrations/phase31_approved_rent_flow.js';
 import { startScheduler } from './src/jobs/scheduler.js';
 import { ensurePuppeteerDependencies } from './src/utils/puppeteerGenerator.js';
 const PORT = Number(process.env.PORT) || 9000;
@@ -125,6 +129,10 @@ const startServer = async () => {
   logger.info('Phase 26 migrations complete');
 
   await runPhase27Migrations();
+  await runPhase28Migrations();
+  await runPhase29Migrations();
+  await runPhase30Migrations();
+  await runPhase31Migrations();
   logger.info('Phase 27 migrations complete');
 
   await ensurePuppeteerDependencies();
