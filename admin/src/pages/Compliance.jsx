@@ -6,7 +6,10 @@ import { StatCard } from '../components/UI/StatCard';
 import { Skeleton } from '../components/UI/Skeleton';
 import { Dropdown } from '../components/UI/Dropdown';
 import { useToast } from '../components/UI/ToastContext';
-import { ExportButton } from '../components/UI/ListToolbar';
+import { ListTabs, ExportButton } from '../components/UI/ListToolbar';
+import { DummyBanner } from './mock/MockKit';
+import { TenantComplianceMock } from './mock/TenantComplianceMock';
+import { TENANT_COMPLIANCE } from '../utilities/plannedPages';
 import api from '../utilities/api';
 import { downloadCsv } from '../utilities/csv';
 
@@ -44,6 +47,8 @@ export const Compliance = () => {
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  // Landlord Compliance (certificates) | Tenant Compliance (design p27/p28)
+  const [tab, setTab] = useState('landlord');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -78,6 +83,22 @@ export const Compliance = () => {
 
   return (
     <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
+      <ListTabs
+        tabs={[
+          { id: 'landlord', label: 'Landlord Compliance' },
+          { id: 'tenant', label: 'Tenant Compliance' },
+        ]}
+        value={tab}
+        onChange={setTab}
+      />
+
+      {tab === 'tenant' ? (
+        <>
+          <DummyBanner related={TENANT_COMPLIANCE.related} />
+          <TenantComplianceMock />
+        </>
+      ) : (
+      <>
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
         <StatCard label="Total Compliance Items" value={loading ? '…' : String(total)} icon={ClipboardList} iconColor="text-brand-accent bg-brand-accent/10" />
@@ -248,6 +269,8 @@ export const Compliance = () => {
           )}
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 };

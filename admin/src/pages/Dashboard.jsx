@@ -10,11 +10,12 @@ import { PieChart, Pie, Cell } from 'recharts';
 import { Button } from '../components/UI/Button';
 import { StatCard } from '../components/UI/StatCard';
 import { Skeleton } from '../components/UI/Skeleton';
+import { AlertsTable } from '../components/UI/AlertsTable';
+import { NewsList } from '../components/UI/NewsList';
 import api from '../utilities/api';
 
 const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
-const NEW_BADGE_DAYS = 14;
 
 // Month-picker helpers: keys are YYYY-MM, labels render "01 May – 31 May 2024"
 const monthKeyOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -55,26 +56,6 @@ const QUICK_ACTIONS = [
   { label: 'Upload Document', to: '/documents', icon: Upload },
   { label: 'Run Compliance Report', to: '/reports', icon: BarChart3 },
 ];
-
-// Recent Alerts & Tasks pill styling (types/statuses come from the alerts feed)
-const ALERT_TYPES = {
-  compliance: { label: 'Compliance', cls: 'bg-status-danger-bg text-status-danger' },
-  deposit: { label: 'Deposit', cls: 'bg-brand-accent/10 text-brand-accent' },
-  maintenance: { label: 'Maintenance', cls: 'bg-status-warning/10 text-status-warning' },
-  landlord_payment: { label: 'Landlord Payment', cls: 'bg-status-success-bg text-status-success' },
-};
-const ALERT_STATUSES = {
-  open: { label: 'Open', cls: 'bg-status-danger-bg text-status-danger' },
-  sent: { label: 'Sent', cls: 'bg-status-info-bg text-status-info' },
-  new: { label: 'New', cls: 'bg-status-info-bg text-status-info' },
-  triaged: { label: 'Triaged', cls: 'bg-brand-accent/10 text-brand-accent' },
-  awaiting_approval: { label: 'Awaiting Approval', cls: 'bg-status-warning/10 text-status-warning' },
-  in_progress: { label: 'In Progress', cls: 'bg-status-info-bg text-status-info' },
-};
-const PRIORITY_STYLES = {
-  high: 'bg-status-danger-bg text-status-danger',
-  medium: 'bg-status-warning/10 text-status-warning',
-};
 
 const CardTitle = ({ children, linkTo, linkLabel }) => (
   <div className="flex items-center justify-between pb-3 border-b border-card-border select-none">
@@ -450,33 +431,7 @@ export const Dashboard = () => {
               No news items yet — add them under Settings.
             </p>
           ) : (
-            <div className="flex flex-col">
-              {news.map((item) => {
-                const isNew = (new Date() - new Date(item.published_on)) / 86400000 <= NEW_BADGE_DAYS;
-                return (
-                  <div key={item.id} className="flex items-start justify-between gap-3 py-2.5 border-b border-card-border/60 last:border-0">
-                    <span className="flex items-start gap-2.5 min-w-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-brand-accent mt-1.5 shrink-0" />
-                      <span className="min-w-0 text-xs font-semibold text-brand-primary leading-snug">
-                        {item.url ? (
-                          <a href={item.url} target="_blank" rel="noreferrer" className="hover:text-brand-accent transition-colors">
-                            {item.title}
-                          </a>
-                        ) : (
-                          item.title
-                        )}
-                        {isNew && (
-                          <span className="ml-2 px-1.5 py-0.5 rounded-sm bg-brand-accent/10 text-brand-accent text-2xs font-bold align-middle">
-                            New
-                          </span>
-                        )}
-                      </span>
-                    </span>
-                    <span className="text-2xs font-semibold text-gray-400 shrink-0">{fmtDate(item.published_on)}</span>
-                  </div>
-                );
-              })}
-            </div>
+            <NewsList news={news} />
           )}
         </div>
 
@@ -548,7 +503,7 @@ export const Dashboard = () => {
                 </span>
               )}
             </h3>
-            <Link to="/reports" className="text-2xs font-bold text-brand-accent hover:text-brand-accent-hover transition-colors shrink-0">
+            <Link to="/tasks-alerts" className="text-2xs font-bold text-brand-accent hover:text-brand-accent-hover transition-colors shrink-0">
               View all tasks &amp; alerts
             </Link>
           </div>
@@ -559,48 +514,7 @@ export const Dashboard = () => {
               Nothing needs attention — no expiring certificates, unregistered deposits, urgent maintenance or pending payments.
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px]">
-                <thead>
-                  <tr className="text-left">
-                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Type</th>
-                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Description</th>
-                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Related To</th>
-                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Due</th>
-                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Priority</th>
-                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {alerts.map((a, i) => {
-                    const type = ALERT_TYPES[a.type] || { label: a.type, cls: 'bg-surface-hover text-gray-400' };
-                    const status = ALERT_STATUSES[a.status] || { label: a.status, cls: 'bg-surface-hover text-gray-400' };
-                    return (
-                      <tr key={i} className="border-t border-card-border/60">
-                        <td className="py-2.5 pr-3">
-                          <span className={`px-2 py-0.5 rounded-sm text-2xs font-bold whitespace-nowrap ${type.cls}`}>{type.label}</span>
-                        </td>
-                        <td className="py-2.5 pr-3 text-xs font-semibold text-brand-primary">{a.description}</td>
-                        <td className="py-2.5 pr-3 text-xs font-semibold text-gray-400 whitespace-nowrap">{a.related_to}</td>
-                        <td className={`py-2.5 pr-3 text-xs font-bold whitespace-nowrap ${
-                          a.due === 'Overdue' ? 'text-status-danger' : a.due === 'Today' ? 'text-status-warning' : 'text-gray-400'
-                        }`}>
-                          {a.due || '—'}
-                        </td>
-                        <td className="py-2.5 pr-3">
-                          <span className={`px-2 py-0.5 rounded-sm text-2xs font-bold ${PRIORITY_STYLES[a.priority] || ''}`}>
-                            {a.priority === 'high' ? 'High' : 'Medium'}
-                          </span>
-                        </td>
-                        <td className="py-2.5">
-                          <span className={`px-2 py-0.5 rounded-sm text-2xs font-bold whitespace-nowrap ${status.cls}`}>{status.label}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <AlertsTable alerts={alerts} />
           )}
         </div>
 

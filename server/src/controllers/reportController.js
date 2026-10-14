@@ -304,9 +304,11 @@ const loadAlerts = async () => {
 };
 
 // Header bell: how many items need attention, plus the top few.
+// ?all=1 (Tasks & Alerts page) returns every item.
 export const getAlerts = catchAsync(async (req, res) => {
   const alerts = await loadAlerts();
-  res.json({ success: true, data: { total: alerts.length, items: alerts.slice(0, 8).map(({ _sort, ...rest }) => rest) } });
+  const items = req.query.all === '1' ? alerts : alerts.slice(0, 8);
+  res.json({ success: true, data: { total: alerts.length, items: items.map(({ _sort, ...rest }) => rest) } });
 });
 
 export const getDashboardSummary = catchAsync(async (req, res, next) => {

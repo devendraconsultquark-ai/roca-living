@@ -4,12 +4,15 @@ import {
   LayoutDashboard, Users, Home, UserCheck,
   Wallet, Wrench, PiggyBank, Droplet,
   FolderOpen, BarChart3, Settings, Menu, X, Bell, User, ChevronLeft, ChevronRight,
-  ChevronDown, LogOut, ClipboardCheck, Landmark, ShieldCheck, CalendarDays, HelpCircle
+  ChevronDown, LogOut, ClipboardCheck, Landmark, ShieldCheck, CalendarDays, HelpCircle,
+  RefreshCcw, MessageSquare, Newspaper, HardHat, Receipt
 } from 'lucide-react';
 import { Logo } from '../UI/Logo';
 import { GlobalSearch } from './GlobalSearch';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utilities/api';
+import { PLANNED_PAGES } from '../../utilities/plannedPages';
+import { isNewsNew } from '../../utilities/news';
 
 // The single page header: each page's title/subtitle lives HERE (pages no
 // longer render their own title block — this is the only header).
@@ -19,7 +22,6 @@ const HEADERS = {
   properties: { title: 'Properties Portfolio', subtitle: 'Manage standard parameters, safety compliance certificates, and occupancies.' },
   tenancies: { title: 'Tenancy Agreements', subtitle: 'Review active leases, rental terms, and upcoming expiries. New tenancies are created via the onboarding wizard.' },
   tenants: { title: 'Tenants CRM', subtitle: 'Manage tenant communications, contact directory, and ledger account balances.' },
-  agents: { title: 'Letting Agents', subtitle: 'Review internal staff portfolios, active roles, branches, and client managers.' },
   accounting: { title: 'Accounting Hub', subtitle: 'Manage, reconcile, and audit the financial statements and cashflows.' },
   statements: { title: 'Landlord Statements Library', subtitle: 'Audit, export, and review statements issued to landlords.' },
   invoices: { title: 'Landlord Invoices', subtitle: 'Audit, export, and manage service charge invoices issued to landlords.' },
@@ -38,19 +40,26 @@ const HEADERS = {
   compliance: { title: 'Compliance', subtitle: 'Track safety certificates and compliance requirements across all properties.' },
   'rent-cycle': { title: 'Rent Cycle', subtitle: "Each month's rent with Xero: approve the split, pay the landlord, make the statement." },
   calendar: { title: 'Operations Calendar', subtitle: 'Key dates, deadlines and renewals across your portfolio — live from the system.' },
+  'tasks-alerts': { title: 'Tasks & Alerts', subtitle: 'Everything that needs attention across your portfolio.' },
+  'legislation-news': { title: 'Legislation & News', subtitle: 'Latest legislation and industry updates. Items are managed under Settings.' },
+  ...Object.fromEntries(PLANNED_PAGES.map((p) => [p.slug, { title: p.title, subtitle: p.subtitle }])),
 };
 
-// Navigation configuration — grouped sections with sub-tabs per the approved
-// design spec. Every entry maps to a page that actually exists; spec groups
-// whose pages don't exist yet (Communications, Tasks & Alerts, …) are omitted
-// rather than rendered as dead links.
+// Navigation configuration — same items and order as the approved design
+// (RL_Admin_Portal Design.pdf, p1–p4). Design pages we have no page for yet
+// open the "Under development" page (utilities/plannedPages.js). Rent Cycle is
+// ours (not in the design) and sits inside Accounting. `badge`: 'alerts' shows
+// the live alerts count, 'news' a New pill when there is recent news.
 const NAV_ITEMS = [
   { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
   {
     name: 'Landlords', icon: Users,
     children: [
       { name: 'All Landlords', path: '/landlords' },
-      { name: 'Letting Agents', path: '/agents' },
+      { name: 'Onboarding', path: '/landlord-onboarding' },
+      { name: 'Landlord Groups', path: '/landlord-groups' },
+      { name: 'Referral Partners', path: '/referral-partners' },
+      { name: 'Management Packages', path: '/management-packages' },
     ],
   },
   { name: 'Properties', path: '/properties', icon: Home },
@@ -61,31 +70,36 @@ const NAV_ITEMS = [
       { name: 'Tenancies', path: '/tenancies' },
       { name: 'Rent Reviews', path: '/rent-reviews' },
       { name: 'Arrears', path: '/arrears' },
+      { name: 'Renewals', path: '/renewals' },
     ],
   },
   {
     name: 'Accounting', icon: Wallet,
     children: [
-      { name: 'Rent Cycle', path: '/rent-cycle' },
       { name: 'Overview', path: '/accounting' },
+      { name: 'Rent Cycle', path: '/rent-cycle' },
       { name: 'Invoices', path: '/invoices' },
+      { name: 'Payments Received', path: '/payments-received' },
+      { name: 'Expenses', path: '/expenses' },
       { name: 'Statements', path: '/statements' },
+      { name: 'Bank Reconciliation', path: '/bank-reconciliation' },
+      { name: 'VAT', path: '/vat' },
     ],
   },
-  { name: 'Deposits', path: '/deposits', icon: PiggyBank },
+  { name: 'Statements & Payments', path: '/statements-payments', icon: Receipt },
   { name: 'Compliance', path: '/compliance', icon: ShieldCheck },
-  {
-    name: 'Maintenance', icon: Wrench,
-    children: [
-      { name: 'Maintenance Board', path: '/maintenance' },
-      { name: 'Contractors', path: '/contractors' },
-    ],
-  },
-  { name: 'Calendar', path: '/calendar', icon: CalendarDays },
+  { name: 'Deposits', path: '/deposits', icon: PiggyBank },
+  { name: 'Maintenance', path: '/maintenance', icon: Wrench },
   { name: 'Inspections', path: '/inspections', icon: ClipboardCheck },
+  { name: 'Tenancy Lifecycle', path: '/tenancy-lifecycle', icon: RefreshCcw },
+  { name: 'Calendar', path: '/calendar', icon: CalendarDays },
   { name: 'Utilities & Access', path: '/utilities', icon: Droplet },
   { name: 'Documents', path: '/documents', icon: FolderOpen },
+  { name: 'Communications', path: '/communications', icon: MessageSquare },
+  { name: 'Tasks & Alerts', path: '/tasks-alerts', icon: Bell, badge: 'alerts' },
   { name: 'Reports', path: '/reports', icon: BarChart3 },
+  { name: 'Legislation & News', path: '/legislation-news', icon: Newspaper, badge: 'news' },
+  { name: 'Contractors', path: '/contractors', icon: HardHat },
   {
     name: 'System Administration', icon: Settings,
     children: [
@@ -94,6 +108,11 @@ const NAV_ITEMS = [
     ],
   },
 ];
+
+// A nav path covers itself and its sub-pages (/landlords/12), but not a
+// sibling that only shares a prefix (/statements vs /statements-payments).
+const coversPath = (pathname, path) => pathname === path || pathname.startsWith(`${path}/`);
+
 
 // Header Help (?) panel: one line per main area, each opening its page.
 const QUICK_GUIDE = [
@@ -196,7 +215,7 @@ export const AdminLayout = () => {
   const [groupOverrides, setGroupOverrides] = useState({});
 
   const isGroupOpen = (item) =>
-    groupOverrides[item.name] ?? item.children.some((c) => location.pathname.startsWith(c.path));
+    groupOverrides[item.name] ?? item.children.some((c) => coversPath(location.pathname, c.path));
 
   const handleGroupClick = (item) => {
     // In icon-only mode a group has nowhere to show its children — expand first.
@@ -207,6 +226,14 @@ export const AdminLayout = () => {
     }
     setGroupOverrides((g) => ({ ...g, [item.name]: !isGroupOpen(item) }));
   };
+
+  // Legislation & News "New" pill: shown while there is recent news
+  const [hasNewNews, setHasNewNews] = useState(false);
+  useEffect(() => {
+    api.get('/news', { params: { status: 'active' }, skipInterceptorError: true })
+      .then((res) => setHasNewNews((res.data.data || []).some(isNewsNew)))
+      .catch(() => {});
+  }, []);
 
   // Management Fee Account tile (sidebar footer) — live YTD fees from the ledger
   const [feeAccount, setFeeAccount] = useState(null);
@@ -222,7 +249,7 @@ export const AdminLayout = () => {
   const sectionKey = location.pathname.split('/')[1] || 'dashboard';
   const flatNav = NAV_ITEMS
     .flatMap((item) => (item.children ? item.children : [item]));
-  const activeItem = flatNav.find((item) => location.pathname.startsWith(item.path));
+  const activeItem = flatNav.find((item) => coversPath(location.pathname, item.path));
 
   // Breadcrumb trail for nested routes (e.g. Landlords / #12)
   const pathSegments = location.pathname.split('/').filter(Boolean);
@@ -272,7 +299,17 @@ export const AdminLayout = () => {
                 <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-brand-accent rounded-r-full" />
               )}
               <Icon size={18} className="shrink-0" />
-              <span className={labelClass}>{item.name}</span>
+              <span className={`flex-1 ${labelClass}`}>{item.name}</span>
+              {item.badge === 'alerts' && alerts?.total > 0 && (
+                <span className={`min-w-[20px] h-5 px-1.5 rounded-full bg-status-danger text-white text-[10px] font-bold leading-5 text-center ${labelClass}`}>
+                  {alerts.total > 99 ? '99+' : alerts.total}
+                </span>
+              )}
+              {item.badge === 'news' && hasNewNews && (
+                <span className={`px-1.5 py-0.5 rounded-sm bg-brand-accent text-white text-[10px] font-bold leading-none ${labelClass}`}>
+                  NEW
+                </span>
+              )}
             </>
           )}
         </NavLink>
@@ -280,7 +317,7 @@ export const AdminLayout = () => {
     }
 
     const isOpen = isGroupOpen(item);
-    const childActive = item.children.some((c) => location.pathname.startsWith(c.path));
+    const childActive = item.children.some((c) => coversPath(location.pathname, c.path));
     const showChildren = isOpen && (isMobile || !collapsed);
 
     return (
@@ -555,10 +592,10 @@ export const AdminLayout = () => {
                         <div className="px-4 py-3 flex items-center justify-between">
                           <h4 className="text-xs-portal font-bold text-brand-primary capitalize select-none">Needs attention ({alerts.total})</h4>
                           <button
-                            onClick={() => { setNotifOpen(false); navigate('/dashboard'); }}
+                            onClick={() => { setNotifOpen(false); navigate('/tasks-alerts'); }}
                             className="text-2xs font-bold text-brand-accent hover:underline cursor-pointer"
                           >
-                            View all on Dashboard
+                            View all tasks &amp; alerts
                           </button>
                         </div>
                         <div className="divide-y divide-gray-50">

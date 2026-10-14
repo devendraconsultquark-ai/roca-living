@@ -18,8 +18,6 @@ import { PropertyDetailPage } from './pages/PropertyDetailPage';
 import { Tenancies } from './pages/Tenancies';
 import { Tenants } from './pages/Tenants';
 import { TenantDetailPage } from './pages/TenantDetailPage';
-import { Agents } from './pages/Agents';
-import { AgentDetailPage } from './pages/AgentDetailPage';
 import { Statements } from './pages/Statements';
 import { ApprovedRentStatements } from './pages/ApprovedRentStatements';
 import { RentCycle } from './pages/RentCycle';
@@ -38,6 +36,10 @@ import { Settings } from './pages/Settings';
 import { Profile } from './pages/Profile';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { TasksAlerts } from './pages/TasksAlerts';
+import { LegislationNews } from './pages/LegislationNews';
+import { MockPage } from './pages/mock/MockPage';
+import { PLANNED_PAGES } from './utilities/plannedPages';
 
 // Wildcard 404 handler to prevent blank pages (P6-8 recommendation)
 const NotFound = () => (
@@ -73,8 +75,6 @@ function App() {
               <Route path="/tenancies" element={<Tenancies />} />
               <Route path="/tenants" element={<Tenants />} />
               <Route path="/tenants/:id" element={<TenantDetailPage />} />
-              <Route path="/agents" element={<Agents />} />
-              <Route path="/agents/:id" element={<AgentDetailPage />} />
               <Route path="/accounting" element={<AccountingHub />} />
               <Route path="/statements" element={<Statements />} />
               <Route path="/statements/approved" element={<ApprovedRentStatements />} />
@@ -94,6 +94,12 @@ function App() {
               <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/tasks-alerts" element={<TasksAlerts />} />
+              <Route path="/legislation-news" element={<LegislationNews />} />
+              {/* Design pages not built yet → dummy-data copy of the design */}
+              {PLANNED_PAGES.map((p) => (
+                <Route key={p.slug} path={`/${p.slug}`} element={<MockPage slug={p.slug} related={p.related} />} />
+              ))}
             </Route>
 
             {/* Catch-all Route */}
