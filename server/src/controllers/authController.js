@@ -125,7 +125,8 @@ export const login = catchAsync(async (req, res, next) => {
         to: user.email,
         subject: "Roca Living - New Sign-in Detected",
         text,
-        html
+        html,
+        essential: true
       }).catch(err => logger.error(`Failed to send login alert email: ${err.message}`));
     } catch (emailErr) {
       logger.error(`Error building login alert email: ${emailErr.message}`);
@@ -460,7 +461,7 @@ export const forgotPassword = catchAsync(async (req, res, next) => {
   const html = getForgotPasswordEmail(user.name, resetUrl);
 
   try {
-    await sendEmail({ to: user.email, subject, text, html });
+    await sendEmail({ to: user.email, subject, text, html, essential: true });
   } catch (mailErr) {
     logger.error(`Could not send password reset email to ${user.email}: ${mailErr.message}`);
   }

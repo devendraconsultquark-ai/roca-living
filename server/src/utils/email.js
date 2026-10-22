@@ -11,6 +11,18 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// ─── Email kill switch (developer setting, .env only) ───────────────────────
+// Emails go out only when EMAIL_ENABLED=true. Otherwise (development, or the
+// flag unset) they are logged and skipped, and the caller gets a result shaped
+// like a real send, so flows such as "Send statement" still complete without
+// emailing a real landlord. Live must set EMAIL_ENABLED=true.
+// Exception: `essential` emails (password reset link, new-login alert) always
+// send; they only ever go to the person who is signing in or resetting.
+const EMAIL_ENABLED = process.env.EMAIL_ENABLED === "true";
+if (!EMAIL_ENABLED) {
+  logger.warn("EMAIL SENDING IS DISABLED (EMAIL_ENABLED is not 'true'): only password reset links and login alerts are sent.");
+}
+
 /**
  * Send an email using configured transporter
  * @param {Object} options
@@ -19,9 +31,15 @@ const transporter = nodemailer.createTransport({
  * @param {string} options.text - Plain text content
  * @param {string} options.html - HTML rich text content
  * @param {Array}  [options.attachments] - nodemailer attachments, e.g. [{ filename, content }]
+ * @param {boolean} [options.essential] - send even when EMAIL_ENABLED is off (reset links, login alerts)
  * @returns the send info, or null when SMTP is not configured (nothing sent)
  */
-export const sendEmail = async ({ to, cc, subject, text, html, attachments }) => {
+export const sendEmail = async ({ to, cc, subject, text, html, attachments, essential = false }) => {
+  if (!EMAIL_ENABLED && !essential) {
+    logger.warn(`[EMAIL DISABLED] Suppressed email to ${to}${cc ? ` (cc ${cc})` : ''}. Subject: ${subject}`);
+    return { messageId: "suppressed", accepted: [], rejected: [], response: "Email suppressed: EMAIL_ENABLED is not 'true'" };
+  }
+
   // If SMTP user/password is not configured, warn and skip sending (fallback to logging)
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
     logger.warn(`[SMTP NOT CONFIGURED] Skipping actual email to ${to}. Subject: ${subject}`);
