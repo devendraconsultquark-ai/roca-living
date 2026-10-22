@@ -1,31 +1,44 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { CalendarClock, AlertTriangle, CheckCircle2, TrendingUp, PoundSterling } from 'lucide-react';
-import { StatCard } from '../components/UI/StatCard';
+import { useNavigate } from 'react-router-dom';
+import { CalendarClock, AlertTriangle, CheckCircle2, TrendingUp, PoundSterling, Plus, FileText, BarChart3 } from 'lucide-react';
+import { DataTable } from '../components/UI/DataTable';
+import { Button } from '../components/UI/Button';
 import { Skeleton } from '../components/UI/Skeleton';
 import { useToast } from '../components/UI/ToastContext';
-import { ExportButton } from '../components/UI/ListToolbar';
+import { ListTabs, ExportButton } from '../components/UI/ListToolbar';
+import {
+  PageActions, KpiRow, KpiCard, WithRail, SectionCard, Donut, QuickActions, UpcomingList,
+  InfoFooter, Pill, PersonCell, Two, SearchInput,
+} from '../components/UI/DesignKit';
+import { C, gbp, shortDate, daysUntil, pct } from '../utilities/designTokens';
 import api from '../utilities/api';
 import { downloadCsv } from '../utilities/csv';
 
-const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-const TABS = ['All Reviews', 'Upcoming', 'Overdue', 'Completed'];
-
-const pillFor = (row) => {
-  if (row.reviewStatus === 'completed') return { label: 'Completed', cls: 'bg-status-success-bg text-status-success' };
-  if (row.reviewStatus === 'in_progress') return { label: 'In Progress', cls: 'bg-status-info-bg text-status-info' };
-  if (row.daysUntil < 0) return { label: 'Overdue', cls: 'bg-status-danger-bg text-status-danger' };
-  return { label: 'Scheduled', cls: 'bg-brand-accent/10 text-brand-accent' };
+// Design p17 (Rent Reviews). Reviews are scheduled and completed with the
+// "Rent Review" action on Tenancies; this page tracks them.
+const statusOf = (row) => {
+  if (row.reviewStatus === 'completed') return 'completed';
+  if (row.reviewStatus === 'in_progress') return 'in_progress';
+  if (row.daysUntil < 0) return 'overdue';
+  if (row.daysUntil <= 90) return 'upcoming';
+  return 'scheduled';
+};
+const STATUS = {
+  completed: { label: 'Completed', tone: 'green' },
+  in_progress: { label: 'In Progress', tone: 'blue' },
+  overdue: { label: 'Overdue', tone: 'red' },
+  upcoming: { label: 'Upcoming', tone: 'orange' },
+  scheduled: { label: 'Scheduled', tone: 'indigo' },
 };
 
 export const RentReviews = () => {
+  const navigate = useNavigate();
   const { addToast } = useToast();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('All Reviews');
+  const [tab, setTab] = useState('all');
+  const [search, setSearch] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -33,19 +46,19 @@ export const RentReviews = () => {
         const res = await api.get('/tenancies');
         const reviews = (res.data.data || [])
           .filter((t) => t.rent_review_status && t.rent_review_status !== 'none' && t.rent_review_date)
-          .map((t) => {
-            const daysUntil = Math.ceil((new Date(t.rent_review_date) - new Date()) / DAY_MS);
-            return {
-              id: t.id,
-              tenant: t.lead_tenant_name || '—',
-              property: `${t.address_line1 || ''}, ${t.city || ''}`.replace(/^, /, ''),
-              reviewDate: t.rent_review_date,
-              daysUntil,
-              current: parseFloat(t.rent_pcm || 0),
-              proposed: t.proposed_rent !== null && t.proposed_rent !== undefined ? parseFloat(t.proposed_rent) : null,
-              reviewStatus: t.rent_review_status,
-            };
-          })
+          .map((t) => ({
+            id: t.id,
+            tenant: t.lead_tenant_name || '—',
+            tenantEmail: t.lead_tenant_email || null,
+            tenantId: t.lead_tenant_id || null,
+            property: t.property_name || `${t.address_line1 || ''}, ${t.city || ''}`.replace(/^, /, ''),
+            postcode: t.postcode || null,
+            reviewDate: t.rent_review_date,
+            daysUntil: daysUntil(t.rent_review_date),
+            current: parseFloat(t.rent_pcm || 0),
+            proposed: t.proposed_rent !== null && t.proposed_rent !== undefined ? parseFloat(t.proposed_rent) : null,
+            reviewStatus: t.rent_review_status,
+          }))
           .sort((a, b) => (a.reviewDate < b.reviewDate ? -1 : 1));
         setRows(reviews);
       } catch (err) {
@@ -55,163 +68,157 @@ export const RentReviews = () => {
       }
     };
     fetchData();
-  }, [addToast]);
+  }, [addToast, reloadKey]);
 
   const open = rows.filter((r) => r.reviewStatus !== 'completed');
   const dueSoon = open.filter((r) => r.daysUntil >= 0 && r.daysUntil <= 90);
   const overdue = open.filter((r) => r.daysUntil < 0);
   const completed = rows.filter((r) => r.reviewStatus === 'completed');
+  const thisYear = String(new Date().getFullYear());
+  const completedYtd = completed.filter((r) => String(r.reviewDate).startsWith(thisYear));
 
-  const withIncrease = rows.filter((r) => r.proposed !== null && r.current > 0);
-  const avgIncrease = withIncrease.length
-    ? withIncrease.reduce((s, r) => s + ((r.proposed - r.current) / r.current) * 100, 0) / withIncrease.length
-    : null;
-  const projectedAnnual = open
-    .filter((r) => r.proposed !== null)
-    .reduce((s, r) => s + (r.proposed - r.current) * 12, 0);
+  const increaseOf = (r) => (r.proposed !== null && r.current > 0 ? ((r.proposed - r.current) / r.current) * 100 : null);
+  const ytdIncreases = completedYtd.map(increaseOf).filter((v) => v !== null);
+  const avgIncrease = ytdIncreases.length ? ytdIncreases.reduce((s, v) => s + v, 0) / ytdIncreases.length : null;
+  const ytdExtra = completedYtd.filter((r) => r.proposed !== null).reduce((s, r) => s + (r.proposed - r.current), 0);
+  const projectedAnnual = open.filter((r) => r.proposed !== null).reduce((s, r) => s + (r.proposed - r.current) * 12, 0);
+  const rentOf = (list) => list.reduce((s, r) => s + r.current, 0);
 
-  const visible = tab === 'Upcoming' ? dueSoon
-    : tab === 'Overdue' ? overdue
-    : tab === 'Completed' ? completed
-    : rows;
+  const TAB_FILTERS = {
+    all: () => true,
+    upcoming: (r) => dueSoon.includes(r),
+    overdue: (r) => overdue.includes(r),
+    completed: (r) => r.reviewStatus === 'completed',
+  };
+  const tabs = [
+    { id: 'all', label: 'All Reviews' },
+    { id: 'upcoming', label: 'Upcoming' },
+    { id: 'overdue', label: 'Overdue' },
+    { id: 'completed', label: 'Completed' },
+  ].map((t) => ({ ...t, count: rows.filter(TAB_FILTERS[t.id]).length }));
+  const q = search.trim().toLowerCase();
+  const visible = rows.filter(TAB_FILTERS[tab])
+    .filter((r) => !q || [r.tenant, r.tenantEmail, r.property].some((v) => String(v || '').toLowerCase().includes(q)));
+
+  const counts = { upcoming: 0, overdue: 0, scheduled: 0, completed: 0, in_progress: 0 };
+  rows.forEach((r) => { counts[statusOf(r)] += 1; });
+  const donut = [
+    { label: 'Upcoming (≤ 90 days)', value: counts.upcoming + counts.in_progress, color: C.amber },
+    { label: 'Overdue', value: counts.overdue, color: C.red },
+    { label: 'Scheduled (> 90 days)', value: counts.scheduled, color: C.blue },
+    { label: 'Completed', value: counts.completed, color: C.green },
+  ].map((d) => ({ ...d, display: `${d.value} (${pct(d.value, rows.length)})` }));
+
+  const exportCsv = () => downloadCsv('rent-reviews.csv', visible, [
+    { key: 'tenant', label: 'Tenant' },
+    { key: 'property', label: 'Property' },
+    { key: (r) => shortDate(r.reviewDate), label: 'Review Date' },
+    { key: (r) => r.current.toFixed(2), label: 'Current Rent (£)' },
+    { key: (r) => (r.proposed !== null ? r.proposed.toFixed(2) : ''), label: 'Proposed Rent (£)' },
+    { key: (r) => { const i = increaseOf(r); return i !== null ? i.toFixed(2) : ''; }, label: 'Increase (%)' },
+    { key: (r) => STATUS[statusOf(r)].label, label: 'Status' },
+  ]);
+
+  const columns = [
+    { header: 'Tenant', accessor: 'tenant', sortable: true, renderCell: (r) => <PersonCell name={r.tenant} sub={r.tenantEmail} /> },
+    { header: 'Property', accessor: 'property', sortable: true, renderCell: (r) => <Two top={r.property} bottom={r.postcode} /> },
+    {
+      header: 'Review Date',
+      accessor: 'reviewDate',
+      sortable: true,
+      renderCell: (r) => (
+        <Two
+          top={shortDate(r.reviewDate)}
+          bottom={r.reviewStatus === 'completed' ? 'completed'
+            : r.daysUntil < 0 ? <span className="text-status-danger">overdue by {Math.abs(r.daysUntil)} days</span>
+              : r.daysUntil === 0 ? 'today' : `in ${r.daysUntil} days`}
+        />
+      ),
+    },
+    { header: 'Current Rent (PCM)', accessor: 'current', align: 'right', sortable: true, renderCell: (r) => gbp(r.current) },
+    { header: 'Proposed Rent (PCM)', accessor: 'proposed', align: 'right', sortable: true, renderCell: (r) => (r.proposed !== null ? gbp(r.proposed) : '—') },
+    {
+      header: 'Increase',
+      accessor: 'proposed',
+      align: 'right',
+      sortValue: (r) => increaseOf(r) ?? -999,
+      sortable: true,
+      renderCell: (r) => {
+        const i = increaseOf(r);
+        if (i === null) return '—';
+        return (
+          <span className={i >= 0 ? 'text-status-success' : 'text-status-danger'}>
+            {i.toFixed(2)}%
+            <span className="block text-[11px] text-gray-400 font-semibold">{i >= 0 ? '+' : '-'}{gbp(Math.abs(r.proposed - r.current))}</span>
+          </span>
+        );
+      },
+    },
+    { header: 'Status', accessor: 'reviewStatus', sortValue: (r) => statusOf(r), sortable: true, renderCell: (r) => { const s = STATUS[statusOf(r)]; return <Pill tone={s.tone}>{s.label}</Pill>; } },
+  ];
+
+  const upcoming = open.filter((r) => r.daysUntil !== null).slice(0, 4);
 
   return (
     <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-        <StatCard
-          label="Reviews Due (90 Days)"
-          value={loading ? '…' : String(dueSoon.length)}
-          icon={CalendarClock}
-          iconColor="text-brand-accent bg-brand-accent/10"
-        />
-        <StatCard
-          label="Overdue Reviews"
-          value={loading ? '…' : String(overdue.length)}
-          icon={AlertTriangle}
-          iconColor="text-status-danger bg-status-danger/10"
-          valueColor={overdue.length > 0 ? 'text-status-danger' : 'text-brand-primary'}
-        />
-        <StatCard
-          label="Completed"
-          value={loading ? '…' : String(completed.length)}
-          icon={CheckCircle2}
-          iconColor="text-status-success bg-status-success/10"
-        />
-        <StatCard
-          label="Average Proposed Increase"
-          value={loading ? '…' : (avgIncrease !== null ? `${avgIncrease.toFixed(1)}%` : '—')}
-          icon={TrendingUp}
-          iconColor="text-status-info bg-status-info-bg"
-        />
-        <StatCard
-          label="Projected Additional Rent (12m)"
-          value={loading ? '…' : money(projectedAnnual)}
-          icon={PoundSterling}
-          iconColor="text-status-warning bg-status-warning/10"
-          sub={<span className="text-gray-400">From open reviews with proposals</span>}
-        />
-      </div>
+      <PageActions>
+        <ExportButton onClick={exportCsv} disabled={loading || !visible.length} />
+        <Button variant="accent" icon={Plus} onClick={() => navigate('/tenancies')}>New Rent Review</Button>
+      </PageActions>
 
-      {/* Review list */}
-      <div className="card-bg border border-card-border rounded-card shadow-premium p-5 flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-4 flex-wrap border-b border-card-border pb-3">
-          <div className="flex items-center gap-1">
-            {TABS.map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                  tab === t ? 'bg-brand-accent/10 text-brand-accent' : 'text-gray-400 hover:text-brand-primary hover:bg-surface-hover'
-                }`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-3">
-            <Link to="/tenancies" className="text-2xs font-bold text-brand-accent hover:text-brand-accent-hover">
-              Manage reviews on Tenancies
-            </Link>
-            <ExportButton
-              disabled={loading || !visible.length}
-              onClick={() => downloadCsv('rent-reviews.csv', visible, [
-                { key: 'tenant', label: 'Tenant' },
-                { key: 'property', label: 'Property' },
-                { key: (r) => fmtDate(r.reviewDate), label: 'Review Date' },
-                { key: (r) => r.current.toFixed(2), label: 'Current Rent (£)' },
-                { key: (r) => (r.proposed !== null ? r.proposed.toFixed(2) : ''), label: 'Proposed Rent (£)' },
-                { key: (r) => pillFor(r).label, label: 'Status' },
-              ])}
-            />
-          </div>
-        </div>
+      <KpiRow>
+        <KpiCard icon={CalendarClock} tone="indigo" label="Reviews Due (90 days)" value={dueSoon.length} sub={`Total rent: ${gbp(rentOf(dueSoon))}`} link="View upcoming" onClick={() => setTab('upcoming')} loading={loading} />
+        <KpiCard icon={AlertTriangle} tone="orange" label="Overdue Reviews" value={overdue.length} sub={`Total rent: ${gbp(rentOf(overdue))}`} subTone={overdue.length ? 'red' : undefined} link="View overdue" onClick={() => setTab('overdue')} loading={loading} />
+        <KpiCard icon={CheckCircle2} tone="green" label="Completed (YTD)" value={completedYtd.length} sub={`Increase: ${gbp(ytdExtra)} pcm`} link="View completed" onClick={() => setTab('completed')} loading={loading} />
+        <KpiCard icon={TrendingUp} tone="blue" label="Average Increase (YTD)" value={avgIncrease !== null ? `${avgIncrease.toFixed(1)}%` : '—'} sub="Completed reviews this year" loading={loading} />
+        <KpiCard icon={PoundSterling} tone="indigo" label="Projected Additional Rent (12m)" value={gbp(projectedAnnual)} sub="From open reviews with a proposal" loading={loading} />
+      </KpiRow>
 
-        {loading ? (
-          <Skeleton radius="card" className="h-48 w-full" />
-        ) : visible.length === 0 ? (
-          <p className="text-xs text-gray-400 font-semibold py-10 text-center">
-            {rows.length === 0
-              ? 'No rent reviews scheduled yet — use the "Rent Review" action on an active tenancy to schedule one.'
-              : 'No reviews in this view.'}
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px]">
-              <thead>
-                <tr className="text-left">
-                  <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Tenant</th>
-                  <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Property</th>
-                  <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Review Date</th>
-                  <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3 text-right">Current Rent</th>
-                  <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3 text-right">Proposed Rent</th>
-                  <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3 text-right">Increase</th>
-                  <th className="text-2xs font-bold text-gray-400 capitalize pb-2">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((row) => {
-                  const pill = pillFor(row);
-                  const increasePct = row.proposed !== null && row.current > 0
-                    ? ((row.proposed - row.current) / row.current) * 100
-                    : null;
-                  return (
-                    <tr key={row.id} className="border-t border-card-border/60">
-                      <td className="py-2.5 pr-3 text-xs font-bold text-brand-primary whitespace-nowrap">{row.tenant}</td>
-                      <td className="py-2.5 pr-3 text-xs font-semibold text-gray-400">{row.property}</td>
-                      <td className="py-2.5 pr-3 text-xs font-semibold whitespace-nowrap">
-                        {fmtDate(row.reviewDate)}
-                        {row.reviewStatus !== 'completed' && (
-                          <span className={`block text-2xs font-bold ${row.daysUntil < 0 ? 'text-status-danger' : 'text-gray-400'}`}>
-                            {row.daysUntil < 0 ? `overdue by ${Math.abs(row.daysUntil)} days` : row.daysUntil === 0 ? 'today' : `in ${row.daysUntil} days`}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2.5 pr-3 text-xs font-bold text-right tabular-nums">{money(row.current)}</td>
-                      <td className="py-2.5 pr-3 text-xs font-bold text-right tabular-nums">
-                        {row.proposed !== null ? money(row.proposed) : '—'}
-                      </td>
-                      <td className="py-2.5 pr-3 text-xs font-bold text-right tabular-nums">
-                        {increasePct !== null ? (
-                          <span className={increasePct >= 0 ? 'text-status-success' : 'text-status-danger'}>
-                            {increasePct.toFixed(1)}%
-                            <span className="block text-2xs text-gray-400 font-semibold">
-                              {increasePct >= 0 ? '+' : ''}{money(row.proposed - row.current).replace('£-', '-£')}
-                            </span>
-                          </span>
-                        ) : '—'}
-                      </td>
-                      <td className="py-2.5">
-                        <span className={`px-2 py-0.5 rounded-sm text-2xs font-bold whitespace-nowrap ${pill.cls}`}>{pill.label}</span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+      <WithRail
+        rail={(
+          <>
+            <SectionCard title="Rent Review Overview" action="View Report" to="/reports">
+              <Donut data={donut} centre={rows.length} sub="Total" />
+            </SectionCard>
+            <SectionCard title="Upcoming Rent Reviews" action="View all" onAction={() => setTab('upcoming')}>
+              <UpcomingList
+                empty="No rent reviews coming up."
+                items={upcoming.map((r) => ({
+                  key: r.id,
+                  title: r.tenant,
+                  sub: r.property,
+                  date: shortDate(r.reviewDate),
+                  badge: r.daysUntil < 0 ? `${Math.abs(r.daysUntil)} days late` : `${r.daysUntil} days`,
+                  badgeTone: r.daysUntil < 0 ? 'red' : r.daysUntil <= 30 ? 'orange' : 'grey',
+                }))}
+              />
+            </SectionCard>
+            <QuickActions items={[
+              { icon: Plus, label: 'Create New Rent Review', sub: 'Set up a rent review for a tenancy', to: '/tenancies' },
+              { icon: FileText, label: 'Tenancies', sub: 'Current rent and review dates', to: '/tenancies' },
+              { icon: BarChart3, label: 'Reports', sub: 'Rent and portfolio reports', to: '/reports' },
+            ]} />
+          </>
         )}
-      </div>
+      >
+        <SectionCard>
+          <div className="flex items-end justify-between gap-3 flex-wrap border-b border-card-border">
+            <ListTabs tabs={tabs} value={tab} onChange={setTab} />
+          </div>
+          <SearchInput value={search} onChange={setSearch} placeholder="Search rent reviews…" className="w-full md:w-96" />
+          {loading ? (
+            <Skeleton radius="card" className="h-48 w-full" />
+          ) : rows.length === 0 ? (
+            <p className="text-xs text-gray-400 font-semibold py-10 text-center">
+              No rent reviews scheduled yet — use the &quot;Rent Review&quot; action on an active tenancy to schedule one.
+            </p>
+          ) : (
+            <DataTable columns={columns} data={visible} onRowClick={(r) => r.tenantId && navigate(`/tenants/${r.tenantId}`)} />
+          )}
+        </SectionCard>
+      </WithRail>
+
+      <InfoFooter text="Rent reviews are scheduled and completed from Tenancies (the Rent Review action)." onRefresh={() => setReloadKey((k) => k + 1)} />
     </div>
   );
 };

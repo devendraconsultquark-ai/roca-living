@@ -19,9 +19,10 @@ export const DataRow = ({ icon: Icon, label, value }) => (
   </div>
 );
 
+// Same title size and padding as the design kit's SectionCard.
 export const Card = ({ title, children }) => (
-  <div className="card-bg rounded-card p-6 shadow-premium border border-card-border">
-    <h3 className="text-base-portal font-semibold text-brand-primary tracking-tight mb-4">{title}</h3>
+  <div className="card-bg rounded-card p-5 shadow-premium border border-card-border">
+    <h3 className="text-[15px] font-bold text-brand-primary tracking-tight mb-4">{title}</h3>
     {children}
   </div>
 );

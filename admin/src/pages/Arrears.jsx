@@ -1,39 +1,45 @@
 import { useState, useEffect } from 'react';
-import { PoundSterling, Users, Clock, AlertTriangle, BarChart3 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Cell } from 'recharts';
-import { StatCard } from '../components/UI/StatCard';
+import { useNavigate } from 'react-router-dom';
+import { PoundSterling, CalendarDays, Clock, AlertTriangle, BarChart3, Banknote, Users, FileText } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Cell, LabelList } from 'recharts';
+import { DataTable } from '../components/UI/DataTable';
 import { Skeleton } from '../components/UI/Skeleton';
 import { useToast } from '../components/UI/ToastContext';
-import { ExportButton } from '../components/UI/ListToolbar';
+import { ListTabs, ExportButton } from '../components/UI/ListToolbar';
+import {
+  PageActions, KpiRow, KpiCard, WithRail, SectionCard, Donut, QuickActions, UpcomingList,
+  InfoFooter, Pill, PersonCell, Two, SearchInput,
+} from '../components/UI/DesignKit';
+import { C, gbp, shortDate, pct } from '../utilities/designTokens';
 import api from '../utilities/api';
 import { downloadCsv } from '../utilities/csv';
 
-const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
-
-// Ageing buckets mirror the design; colors mirror the chart tokens in index.css.
+// Design p18 (Arrears): KPI row by age, arrears per tenancy with last payment,
+// summary donut, ageing bars, top 5 and quick actions.
 const BUCKETS = [
-  { key: '1-30', label: '1–30 Days', min: 0, max: 30, color: '#E8A020' },
-  { key: '31-60', label: '31–60 Days', min: 31, max: 60, color: '#F16900' },
-  { key: '61-90', label: '61–90 Days', min: 61, max: 90, color: '#C62828' },
-  { key: '90+', label: '90+ Days', min: 91, max: Infinity, color: '#7C3AED' },
+  { key: '1-30', label: '1–30 days', min: 0, max: 30, color: C.amber, tone: 'orange' },
+  { key: '31-60', label: '31–60 days', min: 31, max: 60, color: C.red, tone: 'red' },
+  { key: '61-90', label: '61–90 days', min: 61, max: 90, color: C.indigo, tone: 'indigo' },
+  { key: '90+', label: '90+ days', min: 91, max: Infinity, color: C.purple, tone: 'indigo' },
 ];
-
-const TABS = ['All Arrears', 'Over 30 Days', 'Over 60 Days', 'Over 90 Days'];
-
-const bucketOf = (days) => BUCKETS.find((b) => days >= b.min && days <= b.max) || BUCKETS[0];
+const overLabel = (days) => (days > 90 ? 'Over 90 days' : days > 60 ? 'Over 60 days' : days > 30 ? 'Over 30 days' : 'Under 30 days');
 
 export const Arrears = () => {
+  const navigate = useNavigate();
   const { addToast } = useToast();
   const [schedules, setSchedules] = useState([]);
+  const [lastPayments, setLastPayments] = useState({});
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('All Arrears');
+  const [tab, setTab] = useState('all');
+  const [search, setSearch] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const res = await api.get('/reports/arrears');
         setSchedules(res.data.data?.overdue_schedules || []);
+        setLastPayments(res.data.data?.last_payments || {});
       } catch (err) {
         addToast(err.response?.data?.message || 'Failed to load arrears', 'error');
       } finally {
@@ -41,9 +47,9 @@ export const Arrears = () => {
       }
     };
     fetchData();
-  }, [addToast]);
+  }, [addToast, reloadKey]);
 
-  // Group overdue schedules per tenancy so one tenant appears once with a total
+  // One row per tenancy with its total and oldest overdue month
   const byTenancy = Object.values(
     schedules.reduce((acc, s) => {
       const key = s.tenancy_id;
@@ -51,8 +57,12 @@ export const Arrears = () => {
         acc[key] = {
           tenancy_id: s.tenancy_id,
           tenant_name: s.tenant_name || '—',
+          tenant_email: s.tenant_email,
+          tenant_id: s.tenant_id,
           landlord_name: s.landlord_name,
+          property: s.property_name || s.property_address,
           property_address: s.property_address,
+          postcode: s.postcode,
           total: 0,
           oldest_due: s.due_date,
           days_overdue: s.days_overdue,
@@ -63,167 +73,123 @@ export const Arrears = () => {
       if (s.days_overdue > acc[key].days_overdue) acc[key].days_overdue = s.days_overdue;
       return acc;
     }, {})
-  ).sort((a, b) => b.total - a.total);
+  ).map((r) => ({ ...r, last: lastPayments[r.tenancy_id] || null })).sort((a, b) => b.total - a.total);
 
   const totalOutstanding = byTenancy.reduce((s, t) => s + t.total, 0);
-  const bucketTotals = BUCKETS.map((b) => ({
-    ...b,
-    total: schedules
-      .filter((s) => s.days_overdue >= b.min && s.days_overdue <= b.max)
-      .reduce((sum, s) => sum + parseFloat(s.amount), 0),
-  }));
-
+  const bucketTotals = BUCKETS.map((b) => {
+    const inBucket = schedules.filter((s) => s.days_overdue >= b.min && s.days_overdue <= b.max);
+    return { ...b, total: inBucket.reduce((sum, s) => sum + parseFloat(s.amount), 0), tenancies: new Set(inBucket.map((s) => s.tenancy_id)).size };
+  });
   const over = (days) => byTenancy.filter((t) => t.days_overdue > days);
-  const visible = tab === 'Over 30 Days' ? over(30) : tab === 'Over 60 Days' ? over(60) : tab === 'Over 90 Days' ? over(90) : byTenancy;
+  // Money more than N days late (by rent month, like the ageing chart)
+  const sumOver = (days) => schedules.filter((s) => s.days_overdue > days).reduce((sum, s) => sum + parseFloat(s.amount), 0);
+
+  const q = search.trim().toLowerCase();
+  const visible = (tab === 'over30' ? over(30) : tab === 'over60' ? over(60) : tab === 'over90' ? over(90) : byTenancy)
+    .filter((r) => !q || [r.tenant_name, r.tenant_email, r.property, r.landlord_name].some((v) => String(v || '').toLowerCase().includes(q)));
+
+  const tabs = [
+    { id: 'all', label: 'All Arrears', count: byTenancy.length },
+    { id: 'over30', label: 'Over 30 days', count: over(30).length },
+    { id: 'over60', label: 'Over 60 days', count: over(60).length },
+    { id: 'over90', label: 'Over 90 days', count: over(90).length },
+  ];
+
+  const exportCsv = () => downloadCsv('arrears.csv', visible, [
+    { key: 'tenant_name', label: 'Tenant' },
+    { key: 'property_address', label: 'Property' },
+    { key: 'landlord_name', label: 'Landlord' },
+    { key: (r) => shortDate(r.oldest_due), label: 'Overdue Since' },
+    { key: 'days_overdue', label: 'Days Overdue' },
+    { key: (r) => (r.last ? shortDate(r.last.date) : ''), label: 'Last Payment Date' },
+    { key: (r) => (r.last ? r.last.amount : ''), label: 'Last Payment (£)' },
+    { key: (r) => r.total.toFixed(2), label: 'Total Arrears (£)' },
+  ]);
+
+  const columns = [
+    { header: 'Tenant', accessor: 'tenant_name', sortable: true, renderCell: (r) => <PersonCell name={r.tenant_name} sub={r.tenant_email} /> },
+    { header: 'Property', accessor: 'property', sortable: true, renderCell: (r) => <Two top={r.property} bottom={[r.postcode, r.landlord_name && `Landlord: ${r.landlord_name}`].filter(Boolean).join(' · ')} width="max-w-[200px]" /> },
+    { header: 'Total Arrears', accessor: 'total', align: 'right', sortable: true, renderCell: (r) => <span className="text-status-danger font-bold whitespace-nowrap">{gbp(r.total)}</span> },
+    { header: 'Overdue Since', accessor: 'oldest_due', sortable: true, renderCell: (r) => shortDate(r.oldest_due) },
+    { header: 'Days Overdue', accessor: 'days_overdue', sortable: true, renderCell: (r) => <span className="font-semibold whitespace-nowrap">{r.days_overdue} days</span> },
+    { header: 'Last Payment', accessor: 'last', sortValue: (r) => r.last?.date || '', sortable: true, renderCell: (r) => (r.last ? <Two top={shortDate(r.last.date)} bottom={gbp(r.last.amount)} /> : <span className="text-gray-400">None</span>) },
+    { header: 'Status', accessor: 'days_overdue', renderCell: (r) => <Pill tone={r.days_overdue > 60 ? 'red' : 'orange'}>{overLabel(r.days_overdue)}</Pill> },
+  ];
 
   return (
     <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-        <StatCard
-          label="Total Outstanding"
-          value={loading ? '…' : money(totalOutstanding)}
-          icon={PoundSterling}
-          iconColor="text-status-danger bg-status-danger/10"
-          valueColor={totalOutstanding > 0 ? 'text-status-danger' : 'text-brand-primary'}
-        />
-        <StatCard
-          label="Tenancies In Arrears"
-          value={loading ? '…' : String(byTenancy.length)}
-          icon={Users}
-          iconColor="text-status-warning bg-status-warning/10"
-        />
-        <StatCard
-          label="Over 30 Days"
-          value={loading ? '…' : money(bucketTotals.slice(1).reduce((s, b) => s + b.total, 0))}
-          icon={Clock}
-          iconColor="text-status-warning bg-status-warning/10"
-        />
-        <StatCard
-          label="Over 60 Days"
-          value={loading ? '…' : money(bucketTotals.slice(2).reduce((s, b) => s + b.total, 0))}
-          icon={AlertTriangle}
-          iconColor="text-status-danger bg-status-danger/10"
-        />
-        <StatCard
-          label="Over 90 Days"
-          value={loading ? '…' : money(bucketTotals[3].total)}
-          icon={BarChart3}
-          iconColor="text-brand-accent bg-brand-accent/10"
-        />
-      </div>
+      <PageActions>
+        <ExportButton onClick={exportCsv} disabled={loading || !visible.length} />
+      </PageActions>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Arrears table */}
-        <div className="card-bg border border-card-border rounded-card shadow-premium p-5 flex flex-col gap-4 lg:col-span-2">
-          <div className="flex items-center justify-between gap-3 border-b border-card-border pb-3 flex-wrap">
-            <div className="flex items-center gap-1 flex-wrap">
-              {TABS.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setTab(t)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                    tab === t ? 'bg-brand-accent/10 text-brand-accent' : 'text-gray-400 hover:text-brand-primary hover:bg-surface-hover'
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-            <ExportButton
-              disabled={loading || !visible.length}
-              onClick={() => downloadCsv('arrears.csv', visible, [
-                { key: 'tenant_name', label: 'Tenant' },
-                { key: 'property_address', label: 'Property' },
-                { key: 'landlord_name', label: 'Landlord' },
-                { key: (r) => fmtDate(r.oldest_due), label: 'Overdue Since' },
-                { key: 'days_overdue', label: 'Days Overdue' },
-                { key: (r) => r.total.toFixed(2), label: 'Total Arrears (£)' },
-              ])}
-            />
+      <KpiRow>
+        <KpiCard icon={PoundSterling} tone="red" label="Total Outstanding" value={gbp(totalOutstanding)} sub={`Across ${byTenancy.length} tenanc${byTenancy.length === 1 ? 'y' : 'ies'}`} link="View all arrears" onClick={() => setTab('all')} loading={loading} />
+        <KpiCard icon={CalendarDays} tone="orange" label="Tenancies in Arrears" value={byTenancy.length} sub="With rent overdue" link="View tenants" to="/tenants" loading={loading} />
+        <KpiCard icon={Clock} tone="blue" label="Over 30 days" value={gbp(sumOver(30))} sub={`${over(30).length} tenanc${over(30).length === 1 ? 'y' : 'ies'}`} link="View over 30 days" onClick={() => setTab('over30')} loading={loading} />
+        <KpiCard icon={AlertTriangle} tone="red" label="Over 60 days" value={gbp(sumOver(60))} sub={`${over(60).length} tenanc${over(60).length === 1 ? 'y' : 'ies'}`} link="View over 60 days" onClick={() => setTab('over60')} loading={loading} />
+        <KpiCard icon={BarChart3} tone="indigo" label="Over 90 days" value={gbp(sumOver(90))} sub={`${over(90).length} tenanc${over(90).length === 1 ? 'y' : 'ies'}`} link="View over 90 days" onClick={() => setTab('over90')} loading={loading} />
+      </KpiRow>
+
+      <WithRail
+        rail={(
+          <>
+            <SectionCard title="Arrears Summary" action="View Report" to="/reports">
+              <Donut
+                data={bucketTotals.map((b) => ({ label: b.label, value: b.total, color: b.color, display: `${gbp(b.total)} (${pct(b.total, totalOutstanding)})` }))}
+                centre={gbp(totalOutstanding).replace(/\.\d\d$/, '')}
+                sub="Total"
+              />
+            </SectionCard>
+            <SectionCard title="Arrears Ageing">
+              {totalOutstanding === 0 ? (
+                <p className="text-[11px] text-gray-400 font-semibold py-2">Nothing outstanding.</p>
+              ) : (
+                <BarChart width={290} height={170} data={bucketTotals} margin={{ top: 18, right: 8, left: 8, bottom: 0 }}>
+                  <XAxis dataKey="label" tick={{ fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} />
+                  <YAxis hide />
+                  <Bar dataKey="total" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                    <LabelList dataKey="total" position="top" formatter={(v) => (v ? gbp(v).replace(/\.\d\d$/, '') : '')} style={{ fontSize: 10, fontWeight: 700 }} />
+                    {bucketTotals.map((b) => <Cell key={b.key} fill={b.color} />)}
+                  </Bar>
+                </BarChart>
+              )}
+            </SectionCard>
+            <SectionCard title="Top 5 Arrears by Amount">
+              <UpcomingList
+                empty="No arrears."
+                items={byTenancy.slice(0, 5).map((r) => ({
+                  key: r.tenancy_id,
+                  title: r.tenant_name,
+                  sub: r.property,
+                  date: gbp(r.total),
+                  to: r.tenant_id ? `/tenants/${r.tenant_id}` : undefined,
+                }))}
+              />
+            </SectionCard>
+            <QuickActions items={[
+              { icon: Banknote, label: 'Record Manual Payment', sub: 'Record a payment on the tenant page', to: '/tenants' },
+              { icon: Users, label: 'Tenants', sub: 'Balances and contact details', to: '/tenants' },
+              { icon: FileText, label: 'Generate Arrears Report', sub: 'Arrears by landlord and property', to: '/reports' },
+            ]} />
+          </>
+        )}
+      >
+        <SectionCard>
+          <div className="flex items-end justify-between gap-3 flex-wrap border-b border-card-border">
+            <ListTabs tabs={tabs} value={tab} onChange={setTab} />
           </div>
-
+          <SearchInput value={search} onChange={setSearch} placeholder="Search tenants, properties…" className="w-full md:w-96" />
           {loading ? (
             <Skeleton radius="card" className="h-48 w-full" />
-          ) : visible.length === 0 ? (
-            <p className="text-xs text-gray-400 font-semibold py-10 text-center">
-              {byTenancy.length === 0 ? 'No arrears — all rent is up to date.' : 'No arrears in this view.'}
-            </p>
+          ) : byTenancy.length === 0 ? (
+            <p className="text-xs text-gray-400 font-semibold py-10 text-center">No arrears — all rent is up to date.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[680px]">
-                <thead>
-                  <tr className="text-left">
-                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Tenant</th>
-                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Property</th>
-                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Landlord</th>
-                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Overdue Since</th>
-                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 pr-3">Days</th>
-                    <th className="text-2xs font-bold text-gray-400 capitalize pb-2 text-right">Total Arrears</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visible.map((row) => {
-                    const bucket = bucketOf(row.days_overdue);
-                    return (
-                      <tr key={row.tenancy_id} className="border-t border-card-border/60">
-                        <td className="py-2.5 pr-3 text-xs font-bold text-brand-primary whitespace-nowrap">{row.tenant_name}</td>
-                        <td className="py-2.5 pr-3 text-xs font-semibold text-gray-400">{row.property_address}</td>
-                        <td className="py-2.5 pr-3 text-xs font-semibold text-gray-400 whitespace-nowrap">{row.landlord_name}</td>
-                        <td className="py-2.5 pr-3 text-xs font-semibold whitespace-nowrap">{fmtDate(row.oldest_due)}</td>
-                        <td className="py-2.5 pr-3">
-                          <span
-                            className="px-2 py-0.5 rounded-sm text-2xs font-bold whitespace-nowrap"
-                            style={{ backgroundColor: `${bucket.color}1A`, color: bucket.color }}
-                          >
-                            {row.days_overdue} days
-                          </span>
-                        </td>
-                        <td className="py-2.5 text-xs font-bold text-status-danger text-right tabular-nums">{money(row.total)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <DataTable columns={columns} data={visible} onRowClick={(r) => r.tenant_id && navigate(`/tenants/${r.tenant_id}`)} />
           )}
-        </div>
+        </SectionCard>
+      </WithRail>
 
-        {/* Ageing summary */}
-        <div className="card-bg border border-card-border rounded-card shadow-premium p-5 flex flex-col gap-4">
-          <h3 className="text-sm-portal font-bold text-brand-primary border-b border-card-border pb-3">Arrears Ageing</h3>
-          {loading ? (
-            <Skeleton radius="card" className="h-48 w-full" />
-          ) : totalOutstanding === 0 ? (
-            <p className="text-xs text-gray-400 font-semibold py-10 text-center">Nothing outstanding.</p>
-          ) : (
-            <>
-              <BarChart width={300} height={180} data={bucketTotals} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                <XAxis dataKey="label" tick={{ fontSize: 10, fontWeight: 600 }} axisLine={false} tickLine={false} />
-                <YAxis hide />
-                <Bar dataKey="total" radius={[4, 4, 0, 0]} isAnimationActive={false}>
-                  {bucketTotals.map((b) => (
-                    <Cell key={b.key} fill={b.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-              <div className="flex flex-col gap-2">
-                {bucketTotals.map((b) => (
-                  <div key={b.key} className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-2 text-2xs font-semibold text-gray-400">
-                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: b.color }} />
-                      {b.label}
-                    </span>
-                    <span className="text-2xs font-bold text-brand-primary tabular-nums">
-                      {money(b.total)}{totalOutstanding > 0 ? ` (${Math.round((b.total / totalOutstanding) * 100)}%)` : ''}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+      <InfoFooter text="Arrears are rent months past their due date and not fully paid." onRefresh={() => setReloadKey((k) => k + 1)} />
     </div>
   );
 };

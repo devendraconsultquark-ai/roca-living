@@ -15,6 +15,8 @@ import { Landlords } from './pages/Landlords';
 import { LandlordDetailPage } from './pages/LandlordDetailPage';
 import { Properties } from './pages/Properties';
 import { PropertyDetailPage } from './pages/PropertyDetailPage';
+import { EstatesLandlordPage } from './pages/EstatesLandlordPage';
+import { EstatesApartmentPage } from './pages/EstatesApartmentPage';
 import { Tenancies } from './pages/Tenancies';
 import { Tenants } from './pages/Tenants';
 import { TenantDetailPage } from './pages/TenantDetailPage';
@@ -70,8 +72,11 @@ function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/landlords" element={<Landlords />} />
               <Route path="/landlords/:id" element={<LandlordDetailPage />} />
+              {/* ROCA Estates records with no Roca Living page yet (rocaem ids) */}
+              <Route path="/landlords/estates/:rocaemId" element={<EstatesLandlordPage />} />
               <Route path="/properties" element={<Properties />} />
               <Route path="/properties/:id" element={<PropertyDetailPage />} />
+              <Route path="/properties/estates/:rocaemId" element={<EstatesApartmentPage />} />
               <Route path="/tenancies" element={<Tenancies />} />
               <Route path="/tenants" element={<Tenants />} />
               <Route path="/tenants/:id" element={<TenantDetailPage />} />

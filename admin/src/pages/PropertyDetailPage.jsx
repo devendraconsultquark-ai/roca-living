@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Home, ShieldCheck, Users, Wrench, FileText, Clock, Building2, MapPin, Hash, Receipt, Download, Upload, Image as ImageIcon, X, PoundSterling
+  Home, ShieldCheck, Users, Wrench, FileText, Clock, Receipt, Download, Upload, Image as ImageIcon, X, PoundSterling, ClipboardCheck, Zap, History, StickyNote
 } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
 import { StatusPill } from '../components/UI/StatusPill';
@@ -14,7 +14,13 @@ import { DocumentUploadModal } from '../components/UI/DocumentUploadModal';
 import { PropertyFinancials } from '../components/UI/PropertyFinancials';
 import { PropertyPhotos } from '../components/UI/PropertyPhotos';
 import { PropertyExpenses } from '../components/UI/PropertyExpenses';
+import { PropertyOverview } from '../components/UI/PropertyOverview';
+import { PropertyInspections, PropertyUtilities, PropertyTimeline, PropertyNotesTab } from '../components/UI/PropertyExtraTabs';
 import { PropertyThumb } from '../components/UI/PropertyImage';
+import { EstatesApartmentInfo } from '../components/UI/EstatesViews';
+import { EstatesApartmentForm } from '../components/UI/EstatesApartmentForm';
+import { useEstatesEditable } from '../utilities/useEstatesEditable';
+import { EstatesDeleteModal } from '../components/UI/EstatesDeleteModal';
 import api from '../utilities/api';
 
 export const PropertyDetailPage = () => {
@@ -58,6 +64,10 @@ export const PropertyDetailPage = () => {
 
   // Bump to re-fetch after a mutation (certificate update).
   const [reloadKey, setReloadKey] = useState(0);
+  // ROCA Estates apartment details, edited here and saved there.
+  const estatesEditable = useEstatesEditable();
+  const [editingEstates, setEditingEstates] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const fetchProperty = async () => {
@@ -275,15 +285,20 @@ export const PropertyDetailPage = () => {
 
   if (!data) return null;
 
+  // Design order (p5–p13), then Roca Living's own Photos and Expenses tabs
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Home },
-    { id: 'photos', label: 'Photos', icon: ImageIcon },
+    { id: 'safety', label: 'Compliance', icon: ShieldCheck },
     { id: 'financials', label: 'Financials', icon: Receipt },
     { id: 'tenancy', label: 'Tenancy', icon: Users },
-    { id: 'expenses', label: 'Expenses', icon: PoundSterling },
+    { id: 'documents', label: 'Documents', icon: FileText },
     { id: 'maintenance', label: 'Maintenance', icon: Wrench },
-    { id: 'safety', label: 'Safety & Compliance', icon: ShieldCheck },
-    { id: 'documents', label: 'Documents', icon: FileText }
+    { id: 'inspections', label: 'Inspections', icon: ClipboardCheck },
+    { id: 'utilities', label: 'Utilities', icon: Zap },
+    { id: 'timeline', label: 'Timeline', icon: History },
+    { id: 'notes', label: 'Notes', icon: StickyNote },
+    { id: 'photos', label: 'Photos', icon: ImageIcon },
+    { id: 'expenses', label: 'Expenses', icon: PoundSterling }
   ];
 
   const address = `${data.address_line1}${data.address_line2 ? ', ' + data.address_line2 : ''}, ${data.city} ${data.postcode}`;
@@ -291,6 +306,13 @@ export const PropertyDetailPage = () => {
 
   return (
     <DetailContainer>
+      {/* Upload input shared by the Overview and Documents tabs */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={(e) => handleDocUpload(e.target.files?.[0])}
+      />
       <DetailHeader
         backPath="/properties"
         backLabel="Back to Properties"
@@ -299,6 +321,8 @@ export const PropertyDetailPage = () => {
         subtitle={`${data.property_reference} • ${address} • Added ${new Date(data.created_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`}
         editLabel="Edit Details"
         onEdit={openEditModal}
+        deleteLabel="Delete"
+        onDelete={estatesEditable && data.rocaem_property_id ? () => setDeleting(true) : undefined}
       />
 
       {/* Top strip (design): tenancy at a glance */}
@@ -322,7 +346,14 @@ export const PropertyDetailPage = () => {
           { label: 'Landlord', value: data.landlord_name || '—' },
         ];
         return (
-          <div className="card-bg border border-card-border rounded-card shadow-premium px-5 py-4 mb-6 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+          <div className="card-bg border border-card-border rounded-card shadow-premium p-3 mb-6 flex flex-col md:flex-row md:items-center gap-4">
+            <PropertyThumb
+              imageId={primaryImage?.id}
+              alt={data.name || data.address_line1}
+              className="w-full md:w-48 h-28 rounded-card border border-card-border shrink-0"
+              iconSize={26}
+            />
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 flex-1 px-2">
             {items.map((it) => (
               <div key={it.label} className="min-w-0">
                 <p className="text-2xs font-bold text-status-muted">{it.label}</p>
@@ -332,6 +363,7 @@ export const PropertyDetailPage = () => {
                 </p>
               </div>
             ))}
+            </div>
           </div>
         );
       })()}
@@ -343,53 +375,28 @@ export const PropertyDetailPage = () => {
         {activeTab === 'photos' && <PropertyPhotos propertyId={id} onChanged={() => setReloadKey((k) => k + 1)} />}
         {activeTab === 'financials' && <PropertyFinancials propertyId={id} />}
         {activeTab === 'expenses' && <PropertyExpenses propertyId={id} />}
+        {activeTab === 'inspections' && <PropertyInspections propertyId={id} />}
+        {activeTab === 'utilities' && <PropertyUtilities propertyId={id} />}
+        {activeTab === 'timeline' && <PropertyTimeline data={data} documents={documents} />}
+        {activeTab === 'notes' && <PropertyNotesTab data={data} onEdit={openEditModal} />}
         {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 flex flex-col gap-6">
-              {primaryImage && (
-                <PropertyThumb
-                  imageId={primaryImage.id}
-                  alt={data.name || data.address_line1}
-                  className="w-full h-64 rounded-card border border-card-border"
-                  iconSize={28}
-                />
-              )}
-              <Card title="Property Summary">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-1">
-                  <div>
-                    <DataRow icon={Building2} label="Property Type" value={data.property_type} />
-                    <DataRow icon={Home} label="Bedrooms" value={data.bedrooms != null ? `${data.bedrooms} Bed` : null} />
-                    <DataRow icon={MapPin} label="Full Address" value={address} />
-                    <DataRow icon={Hash} label="Key Reference" value={data.key_ref} />
-                  </div>
-                  <div>
-                    <DataRow icon={Receipt} label="Monthly Rent" value={data.rent_pcm ? `£${parseFloat(data.rent_pcm).toLocaleString('en-GB', { minimumFractionDigits: 2 })}` : null} />
-                    <DataRow icon={Receipt} label="Management Fee" value={data.mgmt_fee_pct ? `${data.mgmt_fee_pct}%` : null} />
-                    <DataRow icon={Users} label="Landlord" value={data.landlord_name} />
-                  </div>
-                </div>
-                {data.notes && (
-                  <div className="mt-6 bg-surface-light rounded-card p-4 text-sm text-status-muted border border-card-border">
-                    <p className="font-semibold text-brand-primary mb-1">Notes</p>
-                    {data.notes}
-                  </div>
-                )}
-              </Card>
-            </div>
-            <div className="lg:col-span-1 space-y-6">
-              <Card title="Quick Status">
-                <div className="flex flex-col gap-4">
-                  <div className="flex items-center justify-between pb-3 border-b border-gray-50">
-                    <span className="text-sm font-medium text-status-muted">Current Occupancy</span>
-                    <span className="text-sm font-bold text-brand-primary">{data.status === 'let' ? 'Occupied' : data.status === 'onboarding' ? 'Onboarding' : 'Vacant'}</span>
-                  </div>
-                  <div className="flex items-center justify-between pb-3 border-b border-gray-50">
-                    <span className="text-sm font-medium text-status-muted">Active Tickets</span>
-                    <span className="text-sm font-bold text-brand-primary">{data.maintenance_tickets?.filter(t => t.status !== 'complete' && t.status !== 'cancelled').length || 0}</span>
-                  </div>
-                </div>
-              </Card>
-            </div>
+          <div className="flex flex-col gap-6">
+            <PropertyOverview
+              data={data}
+              documents={documents}
+              onTab={setActiveTab}
+              onDownloadDoc={handleDocDownload}
+              onUploadDoc={() => fileInputRef.current?.click()}
+              onEditNotes={openEditModal}
+            />
+            {/* What the ROCA Estates pop-up on the Properties list used to show */}
+            <Card title="Apartment (ROCA Estates)">
+              <EstatesApartmentInfo
+                key={reloadKey}
+                rocaemId={data.rocaem_property_id}
+                onEdit={estatesEditable && data.rocaem_property_id ? () => setEditingEstates(true) : undefined}
+              />
+            </Card>
           </div>
         )}
 
@@ -554,12 +561,6 @@ export const PropertyDetailPage = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
               <Card title="Property Documents">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  className="hidden"
-                  onChange={(e) => handleDocUpload(e.target.files?.[0])}
-                />
                 {documents.length > 0 ? (
                   <div className="flex flex-col gap-3">
                     <div className="flex justify-end">
@@ -792,6 +793,22 @@ export const PropertyDetailPage = () => {
           setDocsReloadKey((k) => k + 1);
         }}
       />
+      {editingEstates && (
+        <EstatesApartmentForm
+          rocaemId={data.rocaem_property_id}
+          onClose={() => setEditingEstates(false)}
+          onSaved={() => { setEditingEstates(false); setReloadKey((k) => k + 1); }}
+        />
+      )}
+      {deleting && (
+        <EstatesDeleteModal
+          kind="apartment"
+          rocaemId={data.rocaem_property_id}
+          confirmWord={data.block_name && data.apartment_number ? `${data.block_name}-${data.apartment_number}` : (data.name || data.address_line1)}
+          onClose={() => setDeleting(false)}
+          onDeleted={() => navigate('/properties', { replace: true })}
+        />
+      )}
     </DetailContainer>
   );
 };

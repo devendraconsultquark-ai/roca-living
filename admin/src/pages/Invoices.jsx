@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Calendar, Plus, Trash2, Receipt, Send, CheckCircle2, Ban, X, FileText, Clock, PencilLine } from 'lucide-react';
+import { Calendar, Plus, Trash2, Receipt, CheckCircle2, X, FileText, Clock, PencilLine } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
@@ -8,8 +8,12 @@ import { Dropdown } from '../components/UI/Dropdown';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
 import { Skeleton } from '../components/UI/Skeleton';
-import { StatCard } from '../components/UI/StatCard';
 import { ListTabs, ExportButton } from '../components/UI/ListToolbar';
+import {
+  PageActions, KpiRow, KpiCard, WithRail, SectionCard, Donut, QuickActions, UpcomingList,
+  InfoFooter, Pill, Two, SearchInput, RowMenu, NotTracked,
+} from '../components/UI/DesignKit';
+import { C, gbp, shortDate, daysUntil, pct } from '../utilities/designTokens';
 import api from '../utilities/api';
 import { downloadCsv } from '../utilities/csv';
 
@@ -71,6 +75,8 @@ export const Invoices = () => {
           property: inv.property_address || inv.property_name || '—',
           period: periodStartStr || periodEndStr ? `${periodStartStr} - ${periodEndStr}` : '—',
           date: inv.created_at ? new Date(inv.created_at).toLocaleDateString('en-GB') : '-',
+          rawDate: inv.created_at || null,
+          propertyName: inv.property_name || null,
           year: inv.created_at ? new Date(inv.created_at).getFullYear() : null,
           gross: parseFloat(inv.gross || 0),
           discounts: parseFloat(inv.discounts || 0),
@@ -302,87 +308,41 @@ export const Invoices = () => {
     setNotes('');
   };
 
+  const STATUS_TONE = { paid: 'green', sent: 'blue', draft: 'orange', voided: 'grey' };
   const columns = [
-    { header: 'Invoice No.', accessor: 'invoice_number', sortable: true },
-    { header: 'Landlord', accessor: 'landlord', sortable: true },
-    { header: 'Property', accessor: 'property', sortable: true },
-    { header: 'Period', accessor: 'period', sortable: true },
-    { header: 'Issued', accessor: 'date', sortable: true },
-    { 
-      header: 'Gross', 
-      accessor: 'gross', 
-      align: 'right', 
-      sortable: true,
-      renderCell: (row) => `£${row.gross.toFixed(2)}`
-    },
-    { 
-      header: 'Discount', 
-      accessor: 'discounts', 
-      align: 'right', 
-      sortable: true,
-      renderCell: (row) => `-£${row.discounts.toFixed(2)}`
-    },
-    { 
-      header: 'Net Due', 
-      accessor: 'net', 
-      align: 'right', 
+    { header: 'Invoice No.', accessor: 'invoice_number', sortable: true, renderCell: (row) => <span className="font-bold text-brand-accent whitespace-nowrap">{row.invoice_number}</span> },
+    { header: 'Date', accessor: 'rawDate', sortable: true, renderCell: (row) => (row.rawDate ? shortDate(row.rawDate) : '—') },
+    { header: 'Landlord', accessor: 'landlord', sortable: true, renderCell: (row) => <Two top={row.landlord} width="max-w-[170px]" /> },
+    { header: 'Property', accessor: 'property', sortable: true, renderCell: (row) => <Two top={row.propertyName || row.property} bottom={row.propertyName && row.property !== row.propertyName ? row.property : null} width="max-w-[190px]" /> },
+    { header: 'Period', accessor: 'period', sortable: true, renderCell: (row) => { const [from, to] = String(row.period || '').split(' - '); return to ? <Two top={from} bottom={`– ${to}`} width="max-w-[110px]" /> : row.period; } },
+    {
+      header: 'Amount',
+      accessor: 'net',
+      align: 'right',
       sortable: true,
       renderCell: (row) => (
-        <span className="font-bold text-brand-primary">
-          £{row.net.toFixed(2)}
-        </span>
-      )
+        <Two
+          top={<span className="whitespace-nowrap">{gbp(row.net)}</span>}
+          bottom={row.discounts > 0 ? <span className="whitespace-nowrap">{gbp(row.gross)} − {gbp(row.discounts)}</span> : null}
+        />
+      ),
     },
-    {
-      header: 'Status',
-      accessor: 'status',
-      renderCell: (row) => {
-        let style = 'bg-status-warning/10 text-status-warning border-status-warning/15';
-        if (row.status === 'Paid') {
-          style = 'bg-status-success-bg text-status-success border-status-success/15';
-        } else if (row.status === 'Sent') {
-          style = 'bg-status-info-bg text-status-info border-status-info/15';
-        } else if (row.status === 'Voided') {
-          style = 'bg-surface-hover text-gray-400 border-card-border';
-        }
-        return (
-          <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border ${style}`}>
-            {row.status}
-          </span>
-        );
-      }
-    },
+    { header: 'Status', accessor: 'status', sortable: true, renderCell: (row) => <Pill tone={STATUS_TONE[row.rawStatus] || 'orange'}>{row.status}</Pill> },
     {
       header: 'Actions',
       accessor: 'id',
+      align: 'center',
       renderCell: (row) => (
-        <div className="flex items-center gap-1">
-          {row.rawStatus === 'draft' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleStatusChange(row, 'sent')}
-              icon={Send}
-            >
-              Mark Sent
-            </Button>
-          )}
-          {(row.rawStatus === 'draft' || row.rawStatus === 'sent') && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleStatusChange(row, 'paid')}
-              icon={CheckCircle2}
-            >
-              Mark Paid
-            </Button>
-          )}
-          {(row.rawStatus === 'draft' || row.rawStatus === 'sent') && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-status-danger"
-              onClick={async () => {
+        <RowMenu
+          label={`Actions for ${row.invoice_number}`}
+          items={[
+            row.rawStatus === 'draft' && { label: 'Mark Sent', onClick: () => handleStatusChange(row, 'sent') },
+            (row.rawStatus === 'draft' || row.rawStatus === 'sent') && { label: 'Mark Paid', onClick: () => handleStatusChange(row, 'paid') },
+            { label: 'Download PDF', onClick: () => handleDownload(row.id, row.invoice_number) },
+            (row.rawStatus === 'draft' || row.rawStatus === 'sent') && {
+              label: 'Void',
+              danger: true,
+              onClick: async () => {
                 const ok = await confirm({
                   title: 'Void Invoice',
                   message: `Void invoice ${row.invoice_number}? A voided invoice cannot be sent or paid afterwards.`,
@@ -390,23 +350,12 @@ export const Invoices = () => {
                   confirmText: 'Void Invoice',
                 });
                 if (ok) handleStatusChange(row, 'voided');
-              }}
-              icon={Ban}
-            >
-              Void
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleDownload(row.id, row.invoice_number)}
-            icon={Download}
-          >
-            PDF
-          </Button>
-        </div>
-      )
-    }
+              },
+            },
+          ]}
+        />
+      ),
+    },
   ];
 
   // KPI cards (voided invoices left out) and status tabs
@@ -419,13 +368,25 @@ export const Invoices = () => {
   const drafts = live.filter((i) => i.rawStatus === 'draft');
 
   const tabs = [
-    { id: 'all', label: 'All' },
+    { id: 'all', label: 'All Invoices' },
     { id: 'draft', label: 'Draft' },
     { id: 'sent', label: 'Sent' },
     { id: 'paid', label: 'Paid' },
     { id: 'voided', label: 'Void' },
   ].map((t) => ({ ...t, count: t.id === 'all' ? invoices.length : invoices.filter((i) => i.rawStatus === t.id).length }));
-  const visible = tab === 'all' ? invoices : invoices.filter((i) => i.rawStatus === tab);
+  const [search, setSearch] = useState('');
+  const q = search.trim().toLowerCase();
+  const visible = (tab === 'all' ? invoices : invoices.filter((i) => i.rawStatus === tab))
+    .filter((i) => !q || [i.invoice_number, i.landlord, i.property, i.propertyName].some((v) => String(v || '').toLowerCase().includes(q)));
+  const counts = { paid: 0, sent: 0, draft: 0, voided: 0 };
+  invoices.forEach((i) => { counts[i.rawStatus] = (counts[i.rawStatus] || 0) + 1; });
+  const donut = [
+    { label: 'Paid', value: counts.paid, color: C.green },
+    { label: 'Sent (unpaid)', value: counts.sent, color: C.blue },
+    { label: 'Draft', value: counts.draft, color: C.amber },
+    { label: 'Void', value: counts.voided, color: C.grey },
+  ].map((d) => ({ ...d, display: `${d.value} (${pct(d.value, invoices.length)})` }));
+  const byDate = [...invoices].filter((i) => i.rawDate).sort((x, y) => new Date(y.rawDate) - new Date(x.rawDate));
 
   const exportCsv = () => downloadCsv('invoices.csv', visible, [
     { key: 'invoice_number', label: 'Invoice Number' },
@@ -441,71 +402,80 @@ export const Invoices = () => {
 
   return (
     <div className="py-6 max-w-[1440px] mx-auto px-8 flex flex-col gap-6 font-sans text-brand-primary">
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard
-          label={`Total Invoiced (${thisYear})`}
-          value={loading ? '…' : money(sumNet(invoicedYear))}
-          icon={FileText}
-          iconColor="text-brand-accent bg-brand-accent/10"
-          sub={<span className="text-gray-400">{invoicedYear.length} invoice{invoicedYear.length === 1 ? '' : 's'}</span>}
-        />
-        <StatCard
-          label={`Paid (${thisYear})`}
-          value={loading ? '…' : money(sumNet(paidYear))}
-          icon={CheckCircle2}
-          iconColor="text-status-success bg-status-success/10"
-          sub={<span className="text-gray-400">{paidYear.length} invoice{paidYear.length === 1 ? '' : 's'}</span>}
-        />
-        <StatCard
-          label="Outstanding"
-          value={loading ? '…' : money(sumNet(outstanding))}
-          icon={Clock}
-          iconColor="text-status-warning bg-status-warning/10"
-          valueColor={outstanding.length ? 'text-status-warning' : undefined}
-          sub={<span className="text-gray-400">{outstanding.length} sent, not paid</span>}
-        />
-        <StatCard
-          label="Draft"
-          value={loading ? '…' : money(sumNet(drafts))}
-          icon={PencilLine}
-          iconColor="text-status-info bg-status-info-bg"
-          sub={<span className="text-gray-400">{drafts.length} not sent yet</span>}
-        />
-      </div>
+      <PageActions>
+        <ExportButton onClick={exportCsv} disabled={loading || !visible.length} />
+        <Button variant="accent" onClick={() => setShowModal(true)} icon={Receipt}>Generate Invoice</Button>
+      </PageActions>
 
-      {/* Page actions (title lives in the layout header) */}
-      <div className="flex justify-end">
-        <Button
-          variant="primary"
-          onClick={() => setShowModal(true)}
-          icon={Receipt}
-        >
-          Generate Invoice
-        </Button>
-      </div>
+      <KpiRow>
+        <KpiCard icon={FileText} tone="green" label={`Total Invoiced (${thisYear})`} value={money(sumNet(invoicedYear))} sub={`${invoicedYear.length} invoice${invoicedYear.length === 1 ? '' : 's'}`} link="View all" onClick={() => setTab('all')} loading={loading} />
+        <KpiCard icon={CheckCircle2} tone="indigo" label={`Paid (${thisYear})`} value={money(sumNet(paidYear))} sub={`${paidYear.length} invoice${paidYear.length === 1 ? '' : 's'}`} link="View paid" onClick={() => setTab('paid')} loading={loading} />
+        <KpiCard icon={Clock} tone="orange" label="Outstanding" value={money(sumNet(outstanding))} sub={`${outstanding.length} sent, not paid`} link="View outstanding" onClick={() => setTab('sent')} loading={loading} />
+        <KpiCard icon={Clock} tone="red" label="Overdue" value={<NotTracked what="Invoice due dates" />} sub="Invoices have no due date yet" loading={loading} />
+        <KpiCard icon={PencilLine} tone="blue" label="Draft" value={money(sumNet(drafts))} sub={`${drafts.length} not sent yet`} link="View draft" onClick={() => setTab('draft')} loading={loading} />
+      </KpiRow>
 
-      {/* Grid Table Container */}
-      <div className="card-bg border border-card-border rounded-card shadow-premium p-4 flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap border-b border-card-border pb-3">
-          <ListTabs tabs={tabs} value={tab} onChange={setTab} />
-          <ExportButton onClick={exportCsv} disabled={loading || !visible.length} />
-        </div>
-        {loading ? (
-          <div className="space-y-4 py-4">
-            <Skeleton radius="bar" className="h-10 w-full" />
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-16 w-full" />
-          </div>
-        ) : error ? (
-          <div className="border border-status-danger/15 bg-status-danger-bg rounded-card p-6 text-center text-status-danger font-semibold">
-            {error}
-          </div>
-        ) : (
-          <DataTable columns={columns} data={visible} />
+      <WithRail
+        rail={(
+          <>
+            <SectionCard title="Invoice Summary" action="View Report" to="/reports">
+              <Donut data={donut} centre={invoices.length} sub="Total" />
+            </SectionCard>
+            <SectionCard title="Outstanding Invoices" action="View all" onAction={() => setTab('sent')}>
+              <UpcomingList
+                empty="No unpaid invoices."
+                items={outstanding.slice(0, 5).map((i) => {
+                  const age = i.rawDate ? -daysUntil(i.rawDate) : null;
+                  return {
+                    key: i.id,
+                    title: `${i.invoice_number} · ${i.landlord}`,
+                    sub: i.propertyName || i.property,
+                    date: gbp(i.net),
+                    badge: age !== null ? `${age} day${age === 1 ? '' : 's'}` : null,
+                    badgeTone: age > 30 ? 'red' : 'grey',
+                  };
+                })}
+              />
+            </SectionCard>
+            <QuickActions items={[
+              { icon: Receipt, label: 'Create New Invoice', sub: 'Generate and send a new invoice', onClick: () => setShowModal(true) },
+              { icon: FileText, label: 'Statements', sub: 'Landlord statements', to: '/statements' },
+              { icon: CheckCircle2, label: 'Accounting Overview', sub: 'Payments and bank transactions', to: '/accounting' },
+            ]} />
+            <SectionCard title="Recent Invoice Activity">
+              <UpcomingList
+                empty="No invoices yet."
+                items={byDate.slice(0, 3).map((i) => ({
+                  key: i.id,
+                  title: `${i.status}: ${i.invoice_number}`,
+                  sub: i.landlord,
+                  date: shortDate(i.rawDate),
+                }))}
+              />
+            </SectionCard>
+          </>
         )}
-      </div>
+      >
+        <SectionCard>
+          <div className="flex items-end justify-between gap-3 flex-wrap border-b border-card-border">
+            <ListTabs tabs={tabs} value={tab} onChange={setTab} />
+          </div>
+          <SearchInput value={search} onChange={setSearch} placeholder="Search invoices…" className="w-full md:w-96" />
+          {loading ? (
+            <div className="space-y-4 py-4">
+              <Skeleton radius="bar" className="h-10 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+          ) : error ? (
+            <div className="border border-status-danger/15 bg-status-danger-bg rounded-card p-6 text-center text-status-danger font-semibold">{error}</div>
+          ) : (
+            <DataTable columns={columns} data={visible} />
+          )}
+        </SectionCard>
+      </WithRail>
+
+      <InfoFooter text="Management fee invoices to landlords. Voided invoices are left out of the totals." onRefresh={fetchInvoices} />
 
       {/* Invoice Generation Modal */}
       {showModal && (

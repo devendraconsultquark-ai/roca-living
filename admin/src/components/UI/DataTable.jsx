@@ -156,9 +156,10 @@ export const DataTable = ({
                     </td>
                   )}
                   {columns.map((col, colIdx) => {
-                    // cellClassName (optional) replaces the default right-aligned mono styling.
+                    // cellClassName (optional) replaces the default right-aligned number styling
+                    // (normal font with aligned digits, as in the design).
                     const alignClass = col.align === 'right'
-                      ? `text-right ${col.cellClassName ?? 'font-semibold font-mono'}`
+                      ? `text-right ${col.cellClassName ?? 'font-semibold tabular-nums whitespace-nowrap'}`
                       : `${col.align === 'center' ? 'text-center' : 'text-left'} ${col.cellClassName || ''}`;
                     return (
                       <td key={colIdx} className={`py-3 px-2 text-brand-primary font-medium ${alignClass}`}>

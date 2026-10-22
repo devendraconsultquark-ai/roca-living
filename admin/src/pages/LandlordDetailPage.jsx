@@ -4,7 +4,7 @@ import {
   Hash, Mail, Phone, MapPin,
   Building2, Flag, Calendar, ShieldCheck, Banknote, Home,
   CheckCircle2, AlertTriangle, Clock, FileText, User, Download,
-  Wallet, Upload, Wrench, PoundSterling, ClipboardList, TrendingUp, X
+  Wallet, Upload, Wrench, PoundSterling, ClipboardList, TrendingUp, X, MessageSquare
 } from 'lucide-react';
 import { PieChart, Pie, Cell } from 'recharts';
 import { useToast } from '../components/UI/ToastContext';
@@ -18,6 +18,12 @@ import { DatePicker } from '../components/UI/DatePicker';
 import { Button } from '../components/UI/Button';
 import { DocumentUploadModal } from '../components/UI/DocumentUploadModal';
 import { PropertyThumb } from '../components/UI/PropertyImage';
+import { EstatesLandlordInfo } from '../components/UI/EstatesViews';
+import { KpiRow, KpiCard } from '../components/UI/DesignKit';
+import { DataTable } from '../components/UI/DataTable';
+import { EstatesLandlordForm } from '../components/UI/EstatesLandlordForm';
+import { useEstatesEditable } from '../utilities/useEstatesEditable';
+import { EstatesDeleteModal } from '../components/UI/EstatesDeleteModal';
 import api from '../utilities/api';
 
 const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -97,6 +103,11 @@ export const LandlordDetailPage = () => {
   });
   const [editErrors, setEditErrors] = useState({});
   const [editSaving, setEditSaving] = useState(false);
+  // Linked landlords: Edit Details edits the ROCA Estates record (saved there).
+  const estatesEditable = useEstatesEditable();
+  const [estatesRecord, setEstatesRecord] = useState(null);
+  const [estatesKey, setEstatesKey] = useState(0);
+  const [deleting, setDeleting] = useState(false);
 
   // Financials / statements / arrears data
   const [transactions, setTransactions] = useState([]);
@@ -206,6 +217,15 @@ export const LandlordDetailPage = () => {
     };
     fetchDocuments();
   }, [addToast, docsReloadKey]);
+
+  const openEstatesEdit = async () => {
+    try {
+      const res = await api.get(`/estates/landlords/${data.rocaem_user_id}`);
+      setEstatesRecord(res.data.data);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Could not load the landlord from ROCA Estates', 'error');
+    }
+  };
 
   const openEditModal = () => {
     setEditForm({
@@ -447,6 +467,7 @@ export const LandlordDetailPage = () => {
     { id: 'statements', label: 'Statements', icon: FileText },
     { id: 'compliance', label: 'Compliance', icon: ShieldCheck },
     { id: 'documents', label: 'Documents', icon: Download },
+    { id: 'communications', label: 'Communications', icon: MessageSquare },
     { id: 'timeline', label: 'Timeline', icon: Calendar },
     { id: 'settings', label: 'Settings', icon: User },
   ];
@@ -464,7 +485,8 @@ export const LandlordDetailPage = () => {
   const letProps = properties.filter((p) => p.status === 'let');
   const vacantProps = properties.filter((p) => p.status === 'vacant');
   const onboardingProps = properties.filter((p) => p.status === 'onboarding');
-  const rentRoll = letProps.reduce((s, p) => s + (parseFloat(p.rent_pcm) || 0), 0);
+  // Current tenancy rent first (the property's own rent is often blank for ROCA Estates flats)
+  const rentRoll = letProps.reduce((s, p) => s + (parseFloat(p.current_rent_pcm ?? p.rent_pcm) || 0), 0);
   const avgRent = letProps.length ? rentRoll / letProps.length : 0;
 
   const portfolioDonut = [
@@ -492,6 +514,12 @@ export const LandlordDetailPage = () => {
   const certsWithBucket = myCerts.map((c) => ({ ...c, bucket: certBucketOf(c) }));
   const compliantCount = certsWithBucket.filter((c) => c.bucket === 'compliant').length;
   const compliancePct = certsWithBucket.length ? Math.round((compliantCount / certsWithBucket.length) * 100) : null;
+  // Compliance % of one property's certificates (null when it has none)
+  const propCompliance = (propertyId) => {
+    const list = certsWithBucket.filter((c) => c.property_id === propertyId);
+    return list.length ? Math.round((list.filter((c) => c.bucket === 'compliant').length / list.length) * 100) : null;
+  };
+  const fmtYmd = (ymd) => (ymd ? new Date(`${ymd}T12:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 
   // Outstanding actions — derived from live verification/compliance state
   const outstanding = [];
@@ -564,12 +592,20 @@ export const LandlordDetailPage = () => {
           data.account_manager_name ? `Account Manager: ${data.account_manager_name}` : null,
         ].filter(Boolean).join(' • ')}
         editLabel="Edit Details"
-        onEdit={() => openEditModal()}
+        onEdit={fromEstates ? (estatesEditable ? openEstatesEdit : undefined) : () => openEditModal()}
+        deleteLabel="Delete"
+        onDelete={fromEstates && estatesEditable ? () => setDeleting(true) : undefined}
       />
 
       {/* KPI strip (spec p.2) — Portfolio Value & client-account balance need
           modules that don't exist yet; Arrears and Net Paid are the honest stand-ins. */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
+      <div className="flex flex-col xl:flex-row gap-4 mb-6">
+      <div className="hidden xl:flex w-24 shrink-0 card-bg border border-card-border rounded-card shadow-premium items-center justify-center">
+        <span className="w-16 h-16 rounded-full bg-brand-accent/10 text-brand-accent text-xl font-bold flex items-center justify-center uppercase">
+          {String(data.name || '?').trim().split(/\s+/).map((n) => n[0]).join('').slice(0, 2)}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 flex-1">
         <StatCard
           label="Monthly Rent Roll"
           value={money(rentRoll)}
@@ -606,19 +642,22 @@ export const LandlordDetailPage = () => {
           sub={outstanding.length > 0 ? <span className="text-status-danger">Requires attention</span> : <span className="text-status-success">All clear</span>}
         />
       </div>
+      </div>
 
       <DetailTabs tabs={tabs} activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {/* Tab Content */}
       <div className="w-full">
         {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
+          // Design p2: three rows of cards
+          <div className="flex flex-col gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <div className="flex flex-col gap-6 min-w-0">
               <Card title="Portfolio Summary">
                 {properties.length === 0 ? (
                   <p className="text-sm text-gray-400 italic">No properties managed yet.</p>
                 ) : (
-                  <div className="flex flex-col sm:flex-row items-center gap-8">
+                  <div className="flex flex-col sm:flex-row items-center gap-6">
                     <div className="relative w-[140px] h-[140px] shrink-0">
                       <PieChart width={140} height={140}>
                         <Pie
@@ -641,7 +680,7 @@ export const LandlordDetailPage = () => {
                         <span className="text-2xs text-gray-400 font-semibold mt-1">Propert{properties.length === 1 ? 'y' : 'ies'}</span>
                       </div>
                     </div>
-                    <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-x-10">
+                    <div className="flex-1 w-full grid grid-cols-1 gap-x-10">
                       <div>
                         <div className="flex items-center justify-between py-2 border-b border-card-border/60">
                           <span className="text-xs font-semibold text-gray-400">Monthly Rent Roll</span>
@@ -679,68 +718,8 @@ export const LandlordDetailPage = () => {
                   </div>
                 )}
               </Card>
-
-              <Card title="Properties Overview">
-                <div className="flex flex-col gap-3">
-                  {properties.length > 0 ? properties.map(p => (
-                    <div key={p.id} onClick={() => navigate(`/properties/${p.id}`)} className="flex items-center justify-between p-4 bg-gray-50/50 border border-card-border rounded-xl hover:border-brand-accent cursor-pointer transition-colors group">
-                      <div className="flex items-center gap-4 min-w-0">
-                        <PropertyThumb imageId={p.primary_image_id} className="w-10 h-10 rounded-xl shrink-0" iconSize={20} />
-                        <div className="min-w-0">
-                          <h4 className="font-bold text-brand-primary group-hover:text-brand-accent transition-colors truncate">{p.name || p.address_line1}</h4>
-                          <p className="text-xs font-semibold text-status-muted mt-0.5 truncate">
-                            {p.property_reference || `Property #${p.id}`} • {p.city}, {p.postcode}
-                            {p.rent_pcm ? ` • ${money(p.rent_pcm)} pcm` : ''}
-                          </p>
-                        </div>
-                      </div>
-                      <StatusPill status={p.status} />
-                    </div>
-                  )) : <p className="text-sm text-gray-400 italic">No properties managed.</p>}
-                </div>
-              </Card>
-
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <Card title="Key Information">
-                  <DataRow icon={Hash} label="Landlord ID" value={data.landlord_reference || `LND-${String(data.id).padStart(3, '0')}`} />
-                  <DataRow icon={Mail} label="Email Address" value={data.email} />
-                  <DataRow icon={Phone} label="Phone Number" value={data.phone} />
-                  <DataRow icon={MapPin} label="Full Address" value={data.address} />
-                  <DataRow icon={Building2} label="Company Name" value={data.company_name || '—'} />
-                  <DataRow icon={Flag} label="Residency" value={data.is_overseas ? 'Overseas (NRL)' : 'United Kingdom'} />
-                </Card>
-                <Card title="Bank Details">
-                  {data.bank_name ? (
-                    <div className="space-y-1">
-                      <div className="mb-3">
-                        {data.change_pending ? (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-2xs font-bold rounded-sm border capitalize bg-status-warning/10 text-status-warning border-status-warning/15">
-                            <AlertTriangle size={12} /> Pending Verification
-                          </span>
-                        ) : data.verified_at ? (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-2xs font-bold rounded-sm border capitalize bg-status-success-bg text-status-success border-status-success/15">
-                            <CheckCircle2 size={12} /> Verified {new Date(data.verified_at).toLocaleDateString('en-GB')}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-2xs font-bold rounded-sm border capitalize bg-status-danger-bg text-status-danger border-status-danger/15">
-                            <AlertTriangle size={12} /> Never Verified
-                          </span>
-                        )}
-                      </div>
-                      <DataRow icon={Banknote} label="Bank Name" value={data.bank_name} />
-                      <DataRow icon={User} label="Account Name" value={data.account_name} />
-                      <DataRow icon={Hash} label="Account No." value={data.account_number ? `****${String(data.account_number).slice(-4)}` : '—'} />
-                      <DataRow icon={Hash} label="Sort Code" value={data.sort_code} />
-                      <p className="text-2xs text-gray-400 font-semibold pt-2">Manage under the Settings tab.</p>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-400 italic">No bank details recorded — add them under Settings.</p>
-                  )}
-                </Card>
-              </div>
             </div>
-
-            <div className="lg:col-span-1 space-y-6">
+            <div className="flex flex-col gap-6 min-w-0">
               <Card title="Quick Actions">
                 <div className="grid grid-cols-2 gap-2">
                   {quickActions.map(({ label, icon: Icon, action, href }) => {
@@ -777,30 +756,8 @@ export const LandlordDetailPage = () => {
                   )}
                 </div>
               </Card>
-
-              <Card title="Outstanding Actions">
-                {outstanding.length === 0 ? (
-                  <p className="flex items-center gap-2 text-xs font-bold text-status-success py-2">
-                    <CheckCircle2 size={15} /> Nothing outstanding — all checks complete.
-                  </p>
-                ) : (
-                  <div className="flex flex-col">
-                    {outstanding.map((o, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setActiveTab(o.tab)}
-                        className="flex items-center justify-between gap-3 py-2.5 border-b border-card-border/60 last:border-0 text-left cursor-pointer hover:bg-surface-light/60 rounded-lg px-2 transition-colors"
-                      >
-                        <span className="text-xs font-semibold text-brand-primary min-w-0">{o.label}</span>
-                        <span className={`px-2 py-0.5 rounded-sm text-2xs font-bold shrink-0 ${severityPill[o.severity]}`}>
-                          {o.severity === 'high' ? 'High' : 'Medium'}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </Card>
-
+            </div>
+            <div className="flex flex-col gap-6 min-w-0">
               <Card title="Recent Activity">
                 {activity.length === 0 ? (
                   <p className="text-xs text-gray-400 font-semibold py-2">No recorded activity yet.</p>
@@ -829,7 +786,113 @@ export const LandlordDetailPage = () => {
                   </div>
                 )}
               </Card>
-
+            </div>
+          </div>
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <div className="xl:col-span-2 min-w-0">
+              <Card title="Properties Overview">
+                {properties.length === 0 ? (
+                  <p className="text-sm text-gray-400 italic">No properties managed yet.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                    {properties.slice(0, 4).map((p) => (
+                      <div key={p.id} className="border border-card-border rounded-card overflow-hidden flex flex-col">
+                        <div className="relative">
+                          <PropertyThumb imageId={p.primary_image_id} className="w-full h-28" iconSize={24} />
+                          <span className="absolute top-2 right-2"><StatusPill status={p.status} size="sm" /></span>
+                        </div>
+                        <div className="p-3 flex flex-col gap-1.5 flex-1">
+                          <p className="text-xs font-bold text-brand-primary truncate">{p.name || p.address_line1}</p>
+                          <p className="text-[11px] text-gray-400 font-semibold truncate">{[p.city, p.postcode].filter(Boolean).join(', ') || p.property_reference}</p>
+                          <div className="flex justify-between gap-2 text-[11px]"><span className="text-gray-400 font-semibold">Tenant</span><span className="font-bold text-brand-primary truncate">{p.current_tenant_name || '—'}</span></div>
+                          <div className="flex justify-between gap-2 text-[11px]"><span className="text-gray-400 font-semibold">Rent (pcm)</span><span className="font-bold text-brand-primary">{p.current_rent_pcm ? money(p.current_rent_pcm) : '—'}</span></div>
+                          <div className="flex justify-between gap-2 text-[11px]"><span className="text-gray-400 font-semibold">Next Inspection</span><span className="font-bold text-brand-primary">{p.next_inspection_due ? new Date(`${p.next_inspection_due}T12:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</span></div>
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/properties/${p.id}`)}
+                            className="mt-2 text-2xs font-bold text-brand-accent border border-card-border rounded-lg py-1.5 hover:bg-surface-hover cursor-pointer"
+                          >
+                            View Property
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {properties.length > 4 && (
+                  <button type="button" onClick={() => setActiveTab('properties')} className="mt-3 text-2xs font-bold text-brand-accent hover:underline cursor-pointer">
+                    View all {properties.length} properties
+                  </button>
+                )}
+              </Card>
+            </div>
+            <div className="flex flex-col gap-6 min-w-0">
+              <Card title="Outstanding Actions">
+                {outstanding.length === 0 ? (
+                  <p className="flex items-center gap-2 text-xs font-bold text-status-success py-2">
+                    <CheckCircle2 size={15} /> Nothing outstanding — all checks complete.
+                  </p>
+                ) : (
+                  <div className="flex flex-col">
+                    {outstanding.map((o, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setActiveTab(o.tab)}
+                        className="flex items-center justify-between gap-3 py-2.5 border-b border-card-border/60 last:border-0 text-left cursor-pointer hover:bg-surface-light/60 rounded-lg px-2 transition-colors"
+                      >
+                        <span className="text-xs font-semibold text-brand-primary min-w-0">{o.label}</span>
+                        <span className={`px-2 py-0.5 rounded-sm text-2xs font-bold shrink-0 ${severityPill[o.severity]}`}>
+                          {o.severity === 'high' ? 'High' : 'Medium'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <div className="flex flex-col gap-6 min-w-0">
+              <Card title="Key Information">
+                <DataRow icon={Hash} label="Landlord ID" value={data.landlord_reference || `LND-${String(data.id).padStart(3, '0')}`} />
+                <DataRow icon={Mail} label="Email Address" value={data.email} />
+                <DataRow icon={Phone} label="Phone Number" value={data.phone} />
+                <DataRow icon={MapPin} label="Full Address" value={data.address} />
+                <DataRow icon={Building2} label="Company Name" value={data.company_name || '—'} />
+                <DataRow icon={Flag} label="Residency" value={data.is_overseas ? 'Overseas (NRL)' : 'United Kingdom'} />
+              </Card>
+            </div>
+            <div className="flex flex-col gap-6 min-w-0">
+              <Card title="Bank Details">
+                {data.bank_name ? (
+                  <div className="space-y-1">
+                    <div className="mb-3">
+                      {data.change_pending ? (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-2xs font-bold rounded-sm border capitalize bg-status-warning/10 text-status-warning border-status-warning/15">
+                          <AlertTriangle size={12} /> Pending Verification
+                        </span>
+                      ) : data.verified_at ? (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-2xs font-bold rounded-sm border capitalize bg-status-success-bg text-status-success border-status-success/15">
+                          <CheckCircle2 size={12} /> Verified {new Date(data.verified_at).toLocaleDateString('en-GB')}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-2xs font-bold rounded-sm border capitalize bg-status-danger-bg text-status-danger border-status-danger/15">
+                          <AlertTriangle size={12} /> Never Verified
+                        </span>
+                      )}
+                    </div>
+                    <DataRow icon={Banknote} label="Bank Name" value={data.bank_name} />
+                    <DataRow icon={User} label="Account Name" value={data.account_name} />
+                    <DataRow icon={Hash} label="Account No." value={data.account_number ? `****${String(data.account_number).slice(-4)}` : '—'} />
+                    <DataRow icon={Hash} label="Sort Code" value={data.sort_code} />
+                    <p className="text-2xs text-gray-400 font-semibold pt-2">Manage under the Settings tab.</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 italic">No bank details recorded — add them under Settings.</p>
+                )}
+              </Card>
+            </div>
+            <div className="flex flex-col gap-6 min-w-0">
               <Card title="Notes">
                 <textarea
                   value={notesDraft}
@@ -846,47 +909,67 @@ export const LandlordDetailPage = () => {
               </Card>
             </div>
           </div>
+          </div>
         )}
 
         {activeTab === 'properties' && (
+          // Design p4: KPI row, property cards, then the full list
           <div className="flex flex-col gap-6">
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-              <StatCard label="Total Properties" value={String(properties.length)} icon={Building2} iconColor="text-brand-accent bg-brand-accent/10" />
-              <StatCard label="Let" value={String(letProps.length)} icon={CheckCircle2} iconColor="text-status-success bg-status-success/10" />
-              <StatCard label="Vacant" value={String(vacantProps.length)} icon={AlertTriangle} iconColor="text-status-warning bg-status-warning/10" />
-              <StatCard label="Monthly Rent Roll" value={money(rentRoll)} icon={PoundSterling} iconColor="text-status-info bg-status-info-bg" />
-              <StatCard label="Average Rent (pcm)" value={money(avgRent)} icon={TrendingUp} iconColor="text-brand-accent bg-brand-accent/10" />
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2">
-                <Card title="Managed Properties">
-                  <div className="flex flex-col gap-3">
-                    {properties.length > 0 ? properties.map(p => (
-                      <div key={p.id} onClick={() => navigate(`/properties/${p.id}`)} className="flex items-center justify-between p-4 bg-gray-50/50 border border-card-border rounded-xl hover:border-brand-accent cursor-pointer transition-colors group">
-                        <div className="flex items-center gap-4 min-w-0">
-                          <PropertyThumb imageId={p.primary_image_id} className="w-10 h-10 rounded-xl shrink-0" iconSize={20} />
-                          <div className="min-w-0">
-                            <h4 className="font-bold text-brand-primary group-hover:text-brand-accent transition-colors truncate">{p.name || p.address_line1}</h4>
-                            <p className="text-xs font-semibold text-status-muted mt-0.5 truncate">
-                              {p.property_reference || `Property #${p.id}`} • {p.city}, {p.postcode} • {p.property_type}
-                              {p.rent_pcm ? ` • ${money(p.rent_pcm)} pcm` : ''}
-                            </p>
-                          </div>
+            <KpiRow cols={6}>
+              <KpiCard icon={Building2} tone="indigo" label="Total Properties" value={properties.length} sub="All properties" />
+              <KpiCard icon={CheckCircle2} tone="green" label="Let Properties" value={letProps.length} sub={properties.length ? `${Math.round((letProps.length / properties.length) * 100)}%` : '0%'} />
+              <KpiCard icon={AlertTriangle} tone="orange" label="Vacant Properties" value={vacantProps.length} sub={properties.length ? `${Math.round((vacantProps.length / properties.length) * 100)}%` : '0%'} />
+              <KpiCard icon={PoundSterling} tone="green" label="Monthly Rent Roll" value={money(rentRoll)} sub={`Across ${letProps.length} propert${letProps.length === 1 ? 'y' : 'ies'}`} />
+              <KpiCard icon={TrendingUp} tone="indigo" label="Average Rent (pcm)" value={money(avgRent)} />
+              <KpiCard icon={ShieldCheck} tone="indigo" label="Compliance" value={compliancePct !== null ? `${compliancePct}%` : '—'} sub={compliancePct === 100 ? 'All compliant' : `${certsWithBucket.length} certificates`} />
+            </KpiRow>
+
+            {properties.length === 0 ? (
+              <Card title="Properties"><p className="text-sm text-gray-400 italic">No properties managed.</p></Card>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                  {properties.map((p) => {
+                    const pc = propCompliance(p.id);
+                    return (
+                      <div key={p.id} className="card-bg border border-card-border rounded-card shadow-premium overflow-hidden flex flex-col">
+                        <div className="relative">
+                          <PropertyThumb imageId={p.primary_image_id} className="w-full h-32" iconSize={24} />
+                          <span className="absolute top-2 left-2"><StatusPill status={p.status} size="sm" /></span>
                         </div>
-                        <StatusPill status={p.status} />
+                        <div className="p-4 flex flex-col gap-1.5 flex-1">
+                          <p className="text-sm font-bold text-brand-primary truncate">{p.name || p.address_line1}</p>
+                          <p className="text-[11px] text-gray-400 font-semibold truncate">{[p.address_line1, p.city, p.postcode].filter(Boolean).join(', ')}</p>
+                          <div className="flex justify-between gap-2 text-xs mt-1"><span className="text-gray-400 font-semibold">Tenant</span><span className="font-bold text-brand-primary truncate">{p.current_tenant_name || '—'}</span></div>
+                          <div className="flex justify-between gap-2 text-xs"><span className="text-gray-400 font-semibold">Rent (pcm)</span><span className="font-bold text-brand-primary">{p.current_rent_pcm ? money(p.current_rent_pcm) : '—'}</span></div>
+                          <div className="flex justify-between gap-2 text-xs"><span className="text-gray-400 font-semibold">Next Inspection</span><span className="font-bold text-brand-primary">{fmtYmd(p.next_inspection_due)}</span></div>
+                          <div className="flex justify-between gap-2 text-xs"><span className="text-gray-400 font-semibold">Compliance</span><span className={`font-bold ${pc === null ? 'text-gray-400' : pc >= 100 ? 'text-status-success' : 'text-status-warning'}`}>{pc === null ? '—' : `${pc}%`}</span></div>
+                          <button type="button" onClick={() => navigate(`/properties/${p.id}`)} className="mt-3 text-xs font-bold text-brand-accent border border-card-border rounded-lg py-2 hover:bg-surface-hover cursor-pointer">
+                            View Property
+                          </button>
+                        </div>
                       </div>
-                    )) : <p className="text-sm text-gray-400 italic">No properties managed.</p>}
-                  </div>
+                    );
+                  })}
+                </div>
+
+                <Card title={`All Properties (${properties.length})`}>
+                  <DataTable
+                    columns={[
+                      { header: 'Property', accessor: 'name', sortable: true, renderCell: (p) => <span className="font-bold text-brand-accent">{p.name || p.address_line1}</span> },
+                      { header: 'Type', accessor: 'property_type', renderCell: (p) => p.property_type || 'Apartment' },
+                      { header: 'Status', accessor: 'status', sortable: true, renderCell: (p) => <StatusPill status={p.status} size="sm" /> },
+                      { header: 'Tenant', accessor: 'current_tenant_name', sortable: true, renderCell: (p) => p.current_tenant_name || '—' },
+                      { header: 'Rent (pcm)', accessor: 'current_rent_pcm', align: 'right', sortable: true, renderCell: (p) => (p.current_rent_pcm ? money(p.current_rent_pcm) : '—') },
+                      { header: 'Compliance', accessor: 'id', renderCell: (p) => { const pc = propCompliance(p.id); return pc === null ? '—' : `${pc}%`; } },
+                      { header: 'Next Inspection', accessor: 'next_inspection_due', sortable: true, renderCell: (p) => fmtYmd(p.next_inspection_due) },
+                    ]}
+                    data={properties}
+                    onRowClick={(p) => navigate(`/properties/${p.id}`)}
+                  />
                 </Card>
-              </div>
-              <div className="lg:col-span-1">
-                <Card title="Important Dates">
-                  <DataRow icon={Calendar} label="Terms Signed" value={data.tob_signed_at ? new Date(data.tob_signed_at).toLocaleDateString('en-GB') : '—'} />
-                  <DataRow icon={Clock} label="Account Created" value={new Date(data.created_at).toLocaleDateString('en-GB')} />
-                  <DataRow icon={User} label="Last Login" value={lastLogin || 'Never'} />
-                </Card>
-              </div>
-            </div>
+              </>
+            )}
           </div>
         )}
 
@@ -1207,6 +1290,19 @@ export const LandlordDetailPage = () => {
           </div>
         )}
 
+        {activeTab === 'communications' && (
+          <Card title="Communications">
+            <div className="flex flex-col items-center gap-3 py-10 text-center">
+              <MessageSquare size={28} className="text-gray-300" />
+              <p className="text-sm font-semibold text-status-muted">Not tracked yet</p>
+              <p className="text-xs text-gray-400 max-w-md">
+                Messages to landlords aren&apos;t recorded in Roca Living yet. Statement emails are sent from Statements.
+              </p>
+              <Button variant="secondary" size="sm" onClick={() => navigate('/communications')}>Open Communications</Button>
+            </div>
+          </Card>
+        )}
+
         {activeTab === 'timeline' && (
           <Card title="Timeline">
             {activity.length === 0 ? (
@@ -1417,28 +1513,47 @@ export const LandlordDetailPage = () => {
                 <DataRow icon={Flag} label="NRL Number (HMRC)" value={data.nrl_hmrc_ref || '—'} />
                 <DataRow icon={CheckCircle2} label="NRL HMRC Approved" value={data.nrl_hmrc_approved ? 'Yes' : 'No'} />
                 <DataRow icon={Hash} label="NRL Withholding" value={data.nrl_withhold_pct != null ? `${data.nrl_withhold_pct}%` : '—'} />
-                <p className="text-2xs text-gray-400 font-semibold pt-2">
-                  Edit these via “Edit Profile” in the page header.
-                </p>
+                <Button type="button" variant="secondary" size="sm" className="mt-3" onClick={openEditModal}>
+                  Edit lettings details
+                </Button>
+              </Card>
+            </div>
+
+            {/* What the ROCA Estates pop-up on the Landlords list used to show */}
+            <div className="lg:col-span-3">
+              <Card title="ROCA Estates Details">
+                <EstatesLandlordInfo key={estatesKey} rocaemId={data.rocaem_user_id} editable={estatesEditable} />
               </Card>
             </div>
           </div>
         )}
       </div>
 
+      {estatesRecord && (
+        <EstatesLandlordForm
+          landlord={estatesRecord}
+          onClose={() => setEstatesRecord(null)}
+          onSaved={() => {
+            setEstatesRecord(null);
+            setEstatesKey((k) => k + 1);
+            refetchLandlord();
+          }}
+        />
+      )}
+
       {/* Edit Profile Modal */}
       {isEditModalOpen && (
         <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-xl mx-4 border border-card-border max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start gap-3 mb-1">
-              <h3 className="text-lg font-bold text-brand-primary">Edit Landlord Details</h3>
+              <h3 className="text-lg font-bold text-brand-primary">{fromEstates ? 'Edit Lettings Details' : 'Edit Landlord Details'}</h3>
               <button type="button" onClick={() => { setIsEditModalOpen(false); setEditErrors({}); }} className="text-gray-400 hover:text-brand-primary cursor-pointer" aria-label="Close">
                 <X size={20} />
               </button>
             </div>
             <p className="text-xs text-status-muted mb-4">
               {fromEstates
-                ? 'Name, email, phone and address come from ROCA Estates — change them there. Each statement can still be adjusted on the statement form, for that statement only.'
+                ? "Roca Living's own statement settings. Name, email, phone and address are kept in ROCA Estates: change them with Edit Details at the top of the page. Each statement can still be adjusted on the statement form, for that statement only."
                 : 'Name and address exactly as they should print on statements. Statements are emailed to this email address.'}
             </p>
 
@@ -1610,6 +1725,15 @@ export const LandlordDetailPage = () => {
           setDocsReloadKey((k) => k + 1);
         }}
       />
+      {deleting && (
+        <EstatesDeleteModal
+          kind="landlord"
+          rocaemId={data.rocaem_user_id}
+          confirmWord={data.name}
+          onClose={() => setDeleting(false)}
+          onDeleted={() => navigate('/landlords', { replace: true })}
+        />
+      )}
     </DetailContainer>
   );
 };

@@ -19,13 +19,13 @@ import { isNewsNew } from '../../utilities/news';
 const HEADERS = {
   dashboard: { title: 'Dashboard', subtitle: 'Overview of your managed portfolio and business performance.' },
   landlords: { title: 'Landlords Directory', subtitle: 'Review contact records, active portfolios, and compliance details for registered landlords.' },
-  properties: { title: 'Properties Portfolio', subtitle: 'Manage standard parameters, safety compliance certificates, and occupancies.' },
-  tenancies: { title: 'Tenancy Agreements', subtitle: 'Review active leases, rental terms, and upcoming expiries. New tenancies are created via the onboarding wizard.' },
-  tenants: { title: 'Tenants CRM', subtitle: 'Manage tenant communications, contact directory, and ledger account balances.' },
-  accounting: { title: 'Accounting Hub', subtitle: 'Manage, reconcile, and audit the financial statements and cashflows.' },
+  properties: { title: 'Properties', subtitle: 'View and manage all properties across your landlord portfolio.' },
+  tenancies: { title: 'Tenancies', subtitle: 'View and manage all active and past tenancies across your portfolio.' },
+  tenants: { title: 'Tenants', subtitle: 'Manage all tenants across your portfolio.' },
+  accounting: { title: 'Accounting', subtitle: 'Overview of financial performance, transactions, invoices & payments.' },
   statements: { title: 'Landlord Statements Library', subtitle: 'Audit, export, and review statements issued to landlords.' },
-  invoices: { title: 'Landlord Invoices', subtitle: 'Audit, export, and manage service charge invoices issued to landlords.' },
-  maintenance: { title: 'Maintenance Board', subtitle: 'Drag and drop tickets to manage their progress lifecycle.' },
+  invoices: { title: 'Invoices', subtitle: 'View, manage and track all invoices issued to landlords.' },
+  maintenance: { title: 'Maintenance', subtitle: 'Manage maintenance requests from tenants through to completion.' },
   contractors: { title: 'Contractors Directory', subtitle: 'Review contact records, active insurance statuses, and ratings of maintenance contractors.' },
   deposits: { title: 'Deposit Protection', subtitle: 'Track deposit scheme registrations and outstanding protection deadlines.' },
   inspections: { title: 'Property Inspections', subtitle: 'Log routine inspections and track when the next visit is due. Inspections appear on the landlord portal.' },
@@ -37,9 +37,9 @@ const HEADERS = {
   onboarding: { title: 'New-Let Onboarding Wizard', subtitle: 'Complete the 6 onboarding stages to register the landlord, property, and move-in details.' },
   'rent-reviews': { title: 'Rent Reviews', subtitle: 'Track, manage and process rent reviews across all tenancies.' },
   arrears: { title: 'Arrears', subtitle: 'Monitor and manage rent arrears across all tenancies.' },
-  compliance: { title: 'Compliance', subtitle: 'Track safety certificates and compliance requirements across all properties.' },
+  compliance: { title: 'Compliance', subtitle: 'Track and manage all compliance requirements for landlords, properties and tenants.' },
   'rent-cycle': { title: 'Rent Cycle', subtitle: "Each month's rent with Xero: approve the split, pay the landlord, make the statement." },
-  calendar: { title: 'Operations Calendar', subtitle: 'Key dates, deadlines and renewals across your portfolio — live from the system.' },
+  calendar: { title: 'Operations Calendar', subtitle: 'Your master calendar for all key dates, tasks and deadlines across your portfolio.' },
   'tasks-alerts': { title: 'Tasks & Alerts', subtitle: 'Everything that needs attention across your portfolio.' },
   'legislation-news': { title: 'Legislation & News', subtitle: 'Latest legislation and industry updates. Items are managed under Settings.' },
   ...Object.fromEntries(PLANNED_PAGES.map((p) => [p.slug, { title: p.title, subtitle: p.subtitle }])),
@@ -251,16 +251,18 @@ export const AdminLayout = () => {
     .flatMap((item) => (item.children ? item.children : [item]));
   const activeItem = flatNav.find((item) => coversPath(location.pathname, item.path));
 
-  // Breadcrumb trail for nested routes (e.g. Landlords / #12)
+  // Breadcrumb trail for nested routes (e.g. Landlords / #12). A ROCA Estates
+  // record (/landlords/estates/5) shows as "ROCA Estates #5": /estates alone is no page.
   const pathSegments = location.pathname.split('/').filter(Boolean);
   const crumbs = pathSegments.length > 1
     ? pathSegments.map((seg, i) => {
+        if (seg === 'estates' && i > 0) return null;
         const path = '/' + pathSegments.slice(0, i + 1).join('/');
         const navMatch = flatNav.find((item) => item.path === path);
         const label = navMatch?.name
-          || (/^\d+$/.test(seg) ? `#${seg}` : seg.charAt(0).toUpperCase() + seg.slice(1).replace(/-/g, ' '));
+          || (/^\d+$/.test(seg) ? `${pathSegments[i - 1] === 'estates' ? 'ROCA Estates ' : ''}#${seg}` : seg.charAt(0).toUpperCase() + seg.slice(1).replace(/-/g, ' '));
         return { path, label, isLast: i === pathSegments.length - 1 };
-      })
+      }).filter(Boolean)
     : null;
   const headerEntry = HEADERS[sectionKey];
   const headerTitle = headerEntry?.title || activeItem?.name || (sectionKey.charAt(0).toUpperCase() + sectionKey.slice(1).replace(/-/g, ' '));
@@ -523,7 +525,8 @@ export const AdminLayout = () => {
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
 
         {/* Top Header Bar */}
-        <header className="h-24 py-8 bg-white shadow-sm sticky top-0 z-40 shrink-0 font-sans w-full flex items-center px-8">
+        {/* Same colour as the page (design): title and page buttons read as one band */}
+        <header className="h-24 py-3 bg-app-bg border-b border-card-border/60 sticky top-0 z-40 shrink-0 font-sans w-full flex items-center px-8">
           <div className="max-w-[1440px] w-full mx-auto flex items-center justify-between">
             {/* Left Section: Hamburger & Title Info */}
             <div className="flex items-center gap-4 min-w-0">
@@ -553,10 +556,11 @@ export const AdminLayout = () => {
                     ))}
                   </nav>
                 )}
-                <h1 className="text-base-portal font-medium text-brand-primary leading-tight tracking-tight">
+                {/* Design: large bold page title with a grey line under it */}
+                <h1 className="text-2xl font-bold text-brand-primary leading-tight tracking-tight truncate">
                   {headerTitle}
                 </h1>
-                <span className="text-xs-portal text-status-muted font-semibold leading-none mt-1">
+                <span className="text-[13px] text-status-muted font-medium leading-snug mt-0.5 truncate">
                   {headerSubtitle}
                 </span>
               </div>

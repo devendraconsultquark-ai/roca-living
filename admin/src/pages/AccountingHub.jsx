@@ -9,6 +9,7 @@ import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
 import { Skeleton } from '../components/UI/Skeleton';
 import { CashflowOverview } from '../components/UI/CashflowOverview';
+import { AccountingKpis } from '../components/UI/AccountingKpis';
 import { BankTransactionsTab } from '../components/UI/BankTransactionsTab';
 import api from '../utilities/api';
 
@@ -478,6 +479,8 @@ export const AccountingHub = () => {
       </div>
 
       {/* Cash-flow overview (12-month ledger charts) */}
+      <AccountingKpis />
+
       <CashflowOverview />
 
       {/* Tabs Header Navigation */}

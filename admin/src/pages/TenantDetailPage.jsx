@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
-  User, Users, Phone, Mail, ShieldCheck,
-  Home, CreditCard, Clock, AlertTriangle, Hash, FileText, X, Download, Upload, Trash2
+  User, Users, ShieldCheck,
+  Home, CreditCard, Clock, FileText, X, Download, Upload, Trash2
 } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
 import { DataRow, Card, DetailContainer, DetailSkeleton, DetailHeader, DetailTabs } from '../components/UI/DetailComponents';
+import { SectionCard, KeyValues, Pill } from '../components/UI/DesignKit';
+import { gbp, shortDate } from '../utilities/designTokens';
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
 import { Button } from '../components/UI/Button';
@@ -220,55 +222,163 @@ export const TenantDetailPage = () => {
         backPath="/tenants"
         backLabel="Back to Tenants"
         title={data.name}
-        badge={
-          <span className={`px-2 py-0.5 text-2xs font-bold rounded-sm border capitalize ${
-            balance < 0 ? 'bg-status-danger-bg text-status-danger border-status-danger/15' : 'bg-status-success-bg text-status-success border-status-success/15'
-          }`}>
-            Balance: {balance < 0 ? `-£${Math.abs(balance).toFixed(2)}` : `£${balance.toFixed(2)}`}
-          </span>
-        }
-        subtitle={`${data.is_lead_tenant ? 'LEAD TENANT' : 'CO-TENANT'} • Added ${new Date(data.created_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`}
+        subtitle={`TNT-${data.id.toString().padStart(4, '0')} • ${data.is_lead_tenant ? 'Lead tenant' : 'Co-tenant'} • Added ${new Date(data.created_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`}
         editLabel="Edit Profile"
         onEdit={openEditModal}
         onDelete={handleDelete}
       />
+
+      {/* Top strip (design): the tenancy at a glance */}
+      {(() => {
+        const t = data.tenancy;
+        const dep = data.deposit;
+        const depAmount = dep?.tenancy_deposit != null ? parseFloat(dep.tenancy_deposit) : null;
+        const items = [
+          {
+            label: 'Property',
+            value: t ? <Link to={`/properties/${t.property_id}`} className="text-brand-accent hover:underline">{t.property_name || t.address_line1}</Link> : '—',
+            title: t?.property_address,
+          },
+          { label: 'Monthly Rent', value: t?.rent_pcm ? `${gbp(t.rent_pcm)} pcm` : '—' },
+          { label: 'Tenancy', value: t ? `${shortDate(t.start_date)} – ${t.end_date ? shortDate(t.end_date) : 'Periodic'}` : 'No tenancy' },
+          {
+            label: 'Deposit',
+            value: depAmount ? gbp(depAmount) : '—',
+            pill: depAmount ? <Pill tone={dep.registered_at ? 'green' : 'orange'}>{dep.registered_at ? 'Protected' : 'Not protected'}</Pill> : null,
+          },
+          {
+            label: 'Balance',
+            value: balance < 0 ? `${gbp(Math.abs(balance))} owed` : balance > 0 ? `${gbp(balance)} credit` : gbp(0),
+            tone: balance < 0 ? 'text-status-danger' : 'text-status-success',
+          },
+          {
+            label: 'Right to Rent',
+            value: data.right_to_rent_status === 'verified' ? 'Verified' : 'Not verified',
+            tone: data.right_to_rent_status === 'verified' ? 'text-status-success' : 'text-status-warning',
+          },
+        ];
+        return (
+          <div className="card-bg border border-card-border rounded-card shadow-premium p-4 mb-6 flex flex-col md:flex-row md:items-center gap-5">
+            <span className="w-14 h-14 rounded-full bg-brand-accent/10 text-brand-accent text-lg font-bold flex items-center justify-center shrink-0 uppercase">
+              {String(data.name || '?').trim().split(/\s+/).map((n) => n[0]).join('').slice(0, 2)}
+            </span>
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 flex-1">
+              {items.map((it) => (
+                <div key={it.label} className="min-w-0">
+                  <p className="text-xs font-semibold text-gray-500">{it.label}</p>
+                  <p className={`text-sm font-bold mt-1 truncate flex items-center gap-2 ${it.tone || 'text-brand-primary'}`} title={it.title || (typeof it.value === 'string' ? it.value : undefined)}>
+                    <span className="truncate">{it.value}</span>
+                    {it.pill}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       <DetailTabs tabs={tabs} activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {/* Tab Content */}
       <div className="w-full">
         {activeTab === 'overview' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <Card title="Tenant Summary">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-1">
-                  <div>
-                    <DataRow icon={Hash} label="Tenant ID" value={`TNT-${data.id.toString().padStart(4, '0')}`} />
-                    <DataRow icon={Mail} label="Email Address" value={data.email} />
-                    <DataRow icon={Phone} label="Phone Number" value={data.phone} />
+          <div className="flex flex-col gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <SectionCard title="Tenant Details" action="Edit profile" onAction={openEditModal}>
+                <KeyValues rows={[
+                  ['Tenant ID', `TNT-${data.id.toString().padStart(4, '0')}`],
+                  ['Email', data.email ? <a key="e" href={`mailto:${data.email}`} className="text-brand-accent hover:underline break-all">{data.email}</a> : '—'],
+                  ['Phone', data.phone || '—'],
+                  ['Role', data.is_lead_tenant ? 'Lead tenant' : 'Co-tenant'],
+                  ['Right to Rent', <Pill key="r" tone={data.right_to_rent_status === 'verified' ? 'green' : 'orange'}>{data.right_to_rent_status === 'verified' ? 'Verified' : 'Awaiting check'}</Pill>],
+                  ['Right to Rent expiry', data.right_to_rent_expiry ? shortDate(data.right_to_rent_expiry) : '—'],
+                  ['Added', shortDate(data.created_at)],
+                ]} />
+              </SectionCard>
+
+              <SectionCard title="Current Tenancy" action={data.tenancy ? 'View tenancy' : undefined} onAction={() => setActiveTab('tenancy')}>
+                {data.tenancy ? (
+                  <KeyValues rows={[
+                    ['Property', <Link key="p" to={`/properties/${data.tenancy.property_id}`} className="text-brand-accent hover:underline">{data.tenancy.property_name || data.tenancy.address_line1}</Link>],
+                    ['Landlord', data.tenancy.landlord_name || '—'],
+                    ['Start date', shortDate(data.tenancy.start_date)],
+                    ['End date', data.tenancy.end_date ? shortDate(data.tenancy.end_date) : 'Periodic'],
+                    ['Rent', `${gbp(data.tenancy.rent_pcm)} pcm`],
+                    ['Rent due', `${ordinal(data.tenancy.rent_due_day)} of each month`],
+                    ['Deposit', data.deposit?.tenancy_deposit ? gbp(data.deposit.tenancy_deposit) : 'Not recorded'],
+                  ]} />
+                ) : (
+                  <p className="text-xs text-gray-400 font-semibold py-6 text-center">Not assigned to a property.</p>
+                )}
+              </SectionCard>
+
+              <SectionCard title="Recent Payments" action="View payment history" onAction={() => setActiveTab('payments')}>
+                {data.payment_history?.length ? (
+                  <div className="flex flex-col">
+                    {data.payment_history.slice(0, 5).map((p) => (
+                      <div key={p.id} className="flex items-center justify-between gap-3 py-2 border-b border-card-border/40 last:border-0">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-brand-primary">{shortDate(p.received_at)}</p>
+                          <p className="text-[11px] text-gray-400 font-semibold truncate">{methodLabel[p.method] || p.method}{p.reference ? ` · ${p.reference}` : ''}</p>
+                        </div>
+                        <span className="text-xs font-bold text-status-success tabular-nums whitespace-nowrap">{gbp(p.amount)}</span>
+                      </div>
+                    ))}
                   </div>
-                  <div>
-                    <DataRow icon={User} label="Tenant Role" value={data.is_lead_tenant ? 'Lead Tenant' : 'Co-Tenant'} />
-                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400 font-semibold py-6 text-center">No payments recorded yet.</p>
+                )}
+                <div className={`flex items-center justify-between rounded-lg px-3 py-2 mt-auto ${balance < 0 ? 'bg-status-danger-bg' : 'bg-status-success-bg'}`}>
+                  <span className="text-xs font-semibold text-gray-600">Balance</span>
+                  <span className={`text-sm font-bold tabular-nums ${balance < 0 ? 'text-status-danger' : 'text-status-success'}`}>
+                    {balance < 0 ? `${gbp(Math.abs(balance))} owed` : gbp(balance)}
+                  </span>
                 </div>
-              </Card>
+              </SectionCard>
             </div>
-            <div className="lg:col-span-1 space-y-6">
-              <Card title="Right to Rent">
-                <div className="flex items-start gap-4">
-                  <div className={`flex items-center justify-center w-12 h-12 rounded-full shrink-0 ${
-                    data.right_to_rent_status === 'verified' ? 'bg-status-success-bg text-status-success' : 'bg-status-warning/10 text-status-warning'
-                  }`}>
-                    {data.right_to_rent_status === 'verified' ? <ShieldCheck size={24} /> : <AlertTriangle size={24} />}
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <SectionCard title="Co-Tenants">
+                {data.co_tenants?.length > 0 ? (
+                  <div className="flex flex-col">
+                    {data.co_tenants.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => navigate(`/tenants/${t.id}`)}
+                        className="flex items-center justify-between gap-3 py-2 border-b border-card-border/40 last:border-0 text-left cursor-pointer hover:text-brand-accent"
+                      >
+                        <span className="text-xs font-bold text-brand-primary">{t.name}</span>
+                        {t.is_lead_tenant ? <Pill tone="indigo">Lead</Pill> : null}
+                      </button>
+                    ))}
                   </div>
-                  <div>
-                    <h4 className="text-brand-primary font-bold text-lg capitalize">{data.right_to_rent_status || 'Pending'}</h4>
-                    <p className="text-xs text-status-muted mt-1 leading-relaxed">
-                      {data.right_to_rent_status === 'verified' ? `Expiry: ${data.right_to_rent_expiry ? new Date(data.right_to_rent_expiry).toLocaleDateString('en-GB') : 'N/A'}` : 'Awaiting verification'}
-                    </p>
-                  </div>
-                </div>
-              </Card>
+                ) : (
+                  <p className="text-xs text-gray-400 font-semibold py-6 text-center">No co-tenants.</p>
+                )}
+              </SectionCard>
+
+              <div className="lg:col-span-2">
+                <SectionCard title={`Documents (${documents.length})`} action="View all documents" onAction={() => setActiveTab('documents')}>
+                  {documents.length ? (
+                    <div className="flex flex-col">
+                      {documents.slice(0, 5).map((d) => (
+                        <div key={d.id} className="flex items-center justify-between gap-3 py-2 border-b border-card-border/40 last:border-0">
+                          <span className="flex items-center gap-2 min-w-0">
+                            <FileText size={14} className="text-gray-400 shrink-0" />
+                            <span className="text-xs font-bold text-brand-primary truncate">{d.name}</span>
+                          </span>
+                          <button type="button" onClick={() => handleDocDownload(d)} className="text-xs font-bold text-brand-accent hover:underline cursor-pointer shrink-0">
+                            Download
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-400 font-semibold py-6 text-center">No documents for this tenancy yet.</p>
+                  )}
+                </SectionCard>
+              </div>
             </div>
           </div>
         )}

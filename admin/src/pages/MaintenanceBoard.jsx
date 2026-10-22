@@ -1,11 +1,18 @@
 import { useState, useEffect } from 'react';
 import { DndContext, useDraggable, useDroppable } from '@dnd-kit/core';
-import { Plus, X, Ban } from 'lucide-react';
+import { Plus, X, Ban, List, LayoutGrid, Mail, ClipboardList, UserCheck, Hammer, CheckCircle2, HardHat, Calendar } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
 import { Skeleton } from '../components/UI/Skeleton';
+import { DataTable } from '../components/UI/DataTable';
+import { ListTabs } from '../components/UI/ListToolbar';
+import {
+  PageActions, KpiRow, KpiCard, WithRail, SectionCard, Donut, QuickActions, UpcomingList,
+  InfoFooter, Pill, Two, SearchInput,
+} from '../components/UI/DesignKit';
+import { C, gbp, shortDate, pct } from '../utilities/designTokens';
 import api from '../utilities/api';
 
 // ─── Status mapping: API values ↔ board column IDs ──────────────────────────
@@ -167,6 +174,17 @@ export const MaintenanceBoard = () => {
   const [detailForm, setDetailForm] = useState({ contractor_id: '', quote_amount: '' });
   const [detailSaving, setDetailSaving] = useState(false);
   const [detailImages, setDetailImages] = useState([]); // [{id, original_name, url}]
+
+  // List (design) or board (drag and drop), remembered per browser
+  const [view, setView] = useState(() => {
+    try { return localStorage.getItem('maintenanceView') === 'board' ? 'board' : 'list'; } catch { return 'list'; }
+  });
+  const chooseView = (v) => {
+    setView(v);
+    try { localStorage.setItem('maintenanceView', v); } catch { /* storage blocked */ }
+  };
+  const [stage, setStage] = useState('All');
+  const [search, setSearch] = useState('');
 
   const fetchTickets = async () => {
     setLoading(true);
@@ -337,30 +355,123 @@ export const MaintenanceBoard = () => {
     }
   };
 
+  // Design p29: KPI row, requests table with stage tabs and a right column.
+  // The drag-and-drop board stays as the second view.
+  const counts = COLUMNS.reduce((acc, c) => ({ ...acc, [c]: tickets.filter((t) => t.status === c).length }), {});
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const completedThisMonth = tickets.filter((t) => t.status === 'Complete' && String(t.raw.updated_at || '').startsWith(thisMonth)).length;
+  const q = search.trim().toLowerCase();
+  const visible = tickets
+    .filter((t) => stage === 'All' || t.status === stage)
+    .filter((t) => !q || [t.title, t.description, t.address, t.contractor, `MR-${t.id}`].some((v) => String(v || '').toLowerCase().includes(q)));
+  const STATUS_TONE = { New: 'blue', Triaged: 'indigo', 'Awaiting Approval': 'orange', 'In Progress': 'blue', Complete: 'green', Cancelled: 'grey' };
+  const URGENCY_TONE = { Emergency: 'red', Urgent: 'orange', Routine: 'green' };
+  const columns = [
+    { header: 'ID', accessor: 'id', sortable: true, renderCell: (t) => <span className="font-bold text-brand-accent whitespace-nowrap">MR-{String(t.id).padStart(4, '0')}</span> },
+    { header: 'Property / Unit', accessor: 'address', sortable: true },
+    { header: 'Issue', accessor: 'title', sortable: true, renderCell: (t) => <Two top={t.title} bottom={t.description} /> },
+    { header: 'Priority', accessor: 'urgency', sortable: true, renderCell: (t) => <Pill tone={URGENCY_TONE[t.urgency] || 'grey'}>{t.urgency}</Pill> },
+    { header: 'Status', accessor: 'status', sortable: true, renderCell: (t) => <Pill tone={STATUS_TONE[t.status] || 'grey'}>{t.status}</Pill> },
+    { header: 'Assigned To', accessor: 'contractor', sortable: true, renderCell: (t) => (t.contractor && t.contractor !== '—' ? t.contractor : 'Unassigned') },
+    { header: 'Quote', accessor: 'raw', align: 'right', sortValue: (t) => parseFloat(t.raw.quote_amount || 0), sortable: true, renderCell: (t) => (t.raw.quote_amount != null ? gbp(t.raw.quote_amount) : '—') },
+    { header: 'Updated', accessor: 'raw', sortValue: (t) => t.raw.updated_at || '', sortable: true, renderCell: (t) => shortDate(t.raw.updated_at || t.raw.created_at) },
+  ];
+  const recent = [...tickets].sort((a, b) => String(b.raw.updated_at || b.raw.created_at || '').localeCompare(String(a.raw.updated_at || a.raw.created_at || ''))).slice(0, 4);
+
   return (
-    <div className="py-6 max-w-[1440px] mx-auto px-8 font-sans text-brand-primary">
-      {/* Page actions (title lives in the layout header) */}
-      <div className="mb-6 flex justify-end">
-        <Button variant="primary" icon={Plus} onClick={() => setIsModalOpen(true)}>
+    <div className="py-6 max-w-[1440px] mx-auto px-8 font-sans text-brand-primary flex flex-col gap-6">
+      <PageActions>
+        <div className="flex border border-card-border rounded-lg overflow-hidden">
+          <button type="button" onClick={() => chooseView('list')} aria-label="List view" title="List view"
+            className={`p-2 cursor-pointer ${view === 'list' ? 'bg-brand-accent text-white' : 'text-status-muted hover:bg-surface-hover'}`}>
+            <List size={16} />
+          </button>
+          <button type="button" onClick={() => chooseView('board')} aria-label="Board view" title="Board view (drag tickets between stages)"
+            className={`p-2 cursor-pointer ${view === 'board' ? 'bg-brand-accent text-white' : 'text-status-muted hover:bg-surface-hover'}`}>
+            <LayoutGrid size={16} />
+          </button>
+        </div>
+        <Button variant="accent" icon={Plus} onClick={() => setIsModalOpen(true)}>
           New Ticket
         </Button>
-      </div>
+      </PageActions>
 
-      {/* Board */}
-      <DndContext onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-6 scrollbar-thin">
-          {COLUMNS.map(col => (
-            <DroppableColumn
-              key={col}
-              id={col}
-              title={col}
-              tickets={tickets.filter(t => t.status === col)}
-              loading={loading}
-              onOpenDetail={openDetail}
-            />
-          ))}
-        </div>
-      </DndContext>
+      <KpiRow>
+        <KpiCard icon={Mail} tone="indigo" label="New Requests" value={counts.New} sub="Awaiting triage" link="View new" onClick={() => { chooseView('list'); setStage('New'); }} loading={loading} />
+        <KpiCard icon={ClipboardList} tone="blue" label="Triaged" value={counts.Triaged} sub="Assessed, not started" link="View triaged" onClick={() => { chooseView('list'); setStage('Triaged'); }} loading={loading} />
+        <KpiCard icon={UserCheck} tone="orange" label="Awaiting Approval" value={counts['Awaiting Approval']} sub="Landlord / tenant" link="View approvals" onClick={() => { chooseView('list'); setStage('Awaiting Approval'); }} loading={loading} />
+        <KpiCard icon={Hammer} tone="blue" label="In Progress" value={counts['In Progress']} sub="Work underway" link="View in progress" onClick={() => { chooseView('list'); setStage('In Progress'); }} loading={loading} />
+        <KpiCard icon={CheckCircle2} tone="green" label="Completed (This Month)" value={completedThisMonth} sub={`${counts.Complete} completed in total`} link="View completed" onClick={() => { chooseView('list'); setStage('Complete'); }} loading={loading} />
+      </KpiRow>
+
+      {view === 'board' ? (
+        <DndContext onDragEnd={handleDragEnd}>
+          <div className="flex gap-4 overflow-x-auto pb-6 scrollbar-thin">
+            {COLUMNS.map(col => (
+              <DroppableColumn
+                key={col}
+                id={col}
+                title={col}
+                tickets={tickets.filter(t => t.status === col)}
+                loading={loading}
+                onOpenDetail={openDetail}
+              />
+            ))}
+          </div>
+        </DndContext>
+      ) : (
+        <WithRail
+          rail={(
+            <>
+              <SectionCard title="Requests by Status">
+                <Donut
+                  data={COLUMNS.map((c, i) => ({ label: c, value: counts[c], color: [C.blue, C.indigo, C.amber, C.teal, C.green, C.grey][i], display: `${counts[c]} (${pct(counts[c], tickets.length)})` }))}
+                  centre={tickets.length}
+                  sub="Total"
+                />
+              </SectionCard>
+              <SectionCard title="Recent Activity">
+                <UpcomingList
+                  empty="No maintenance requests yet."
+                  items={recent.map((t) => ({
+                    key: t.id,
+                    title: `${t.status}: ${t.title}`,
+                    sub: t.address,
+                    date: shortDate(t.raw.updated_at || t.raw.created_at),
+                    onClick: () => openDetail(t),
+                  }))}
+                />
+              </SectionCard>
+              <QuickActions items={[
+                { icon: Plus, label: 'Create Maintenance Request', sub: 'Log a new issue', onClick: () => setIsModalOpen(true) },
+                { icon: LayoutGrid, label: 'Workflow Board', sub: 'Drag requests between stages', onClick: () => chooseView('board') },
+                { icon: HardHat, label: 'Contractor Directory', sub: 'Find and manage contractors', to: '/contractors' },
+                { icon: Calendar, label: 'Maintenance Calendar', sub: 'View scheduled jobs', to: '/calendar' },
+              ]} />
+            </>
+          )}
+        >
+          <SectionCard>
+            <div className="flex items-end justify-between gap-3 flex-wrap border-b border-card-border">
+              <ListTabs
+                tabs={[{ id: 'All', label: 'All Requests', count: tickets.length }, ...COLUMNS.map((c) => ({ id: c, label: c === 'Complete' ? 'Completed' : c, count: counts[c] }))]}
+                value={stage}
+                onChange={setStage}
+              />
+            </div>
+            <SearchInput value={search} onChange={setSearch} placeholder="Search requests, properties, contractors…" className="w-full md:w-96" />
+            {loading ? (
+              <Skeleton radius="card" className="h-48 w-full" />
+            ) : tickets.length === 0 ? (
+              <p className="text-xs text-gray-400 font-semibold py-10 text-center">No maintenance requests yet — use New Ticket to log one.</p>
+            ) : (
+              <DataTable columns={columns} data={visible} onRowClick={openDetail} />
+            )}
+          </SectionCard>
+        </WithRail>
+      )}
+
+      <InfoFooter text="Maintenance requests can also be raised by tenants and landlords from their portals." onRefresh={fetchTickets} />
 
       {/* New Ticket Modal */}
       {isModalOpen && (
