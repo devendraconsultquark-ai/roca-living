@@ -2,7 +2,7 @@ import db, { emDb } from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
 import logger from '../utils/logger.js';
-import { estateUnitCodes, unitKey, ensureLivingProperty, fetchEstateUnit } from '../utils/estatesLink.js';
+import { estateUnitCodes, unitKey, ensureLivingProperty, fetchEstateUnit, estateStatementColumns } from '../utils/estatesLink.js';
 import { ensurePropertyCompliance } from '../utils/propertySetup.js';
 import { niceName } from '../utils/names.js';
 
@@ -19,14 +19,17 @@ const UNIT_LIST_COLUMNS = [
   'p.id', 'p.unit_code', 'p.unit_id', 'p.unit_number', 'p.name', 'p.building_id', 'p.landlord_id',
   'p.unit_type', 'p.floor_number', 'p.status', 'p.tenure_type', 'p.service_charge_pcm', 'p.property_reference'
 ];
+// Date-only columns come back as plain YYYY-MM-DD (no time zone shift), for
+// display and for the apartment edit form.
+const ymd = (col) => emDb.raw(`DATE_FORMAT(p.${col}, '%Y-%m-%d') as ${col}`);
 const UNIT_DETAIL_COLUMNS = [
   ...UNIT_LIST_COLUMNS,
   'p.address', 'p.city', 'p.postcode', 'p.internal_area', 'p.has_parking', 'p.parking_space', 'p.heating_type',
-  'p.ownership_structure', 'p.purchase_price', 'p.purchase_date', 'p.land_registry_title_no',
-  'p.lease_start_date', 'p.lease_end_date', 'p.lease_term_years', 'p.ground_rent_amount', 'p.ground_rent_review_terms',
+  'p.ownership_structure', 'p.purchase_price', ymd('purchase_date'), 'p.land_registry_title_no',
+  ymd('lease_start_date'), ymd('lease_end_date'), 'p.lease_term_years', 'p.ground_rent_amount', 'p.ground_rent_review_terms',
   'p.service_charge_pa', 'p.service_charge_percentage', 'p.apportionment_method', 'p.subletting_allowed', 'p.pets_allowed',
-  'p.epc_rating', 'p.epc_start_date', 'p.epc_expiry_date', 'p.eicr_start_date', 'p.eicr_expiry_date', 'p.eicr_status',
-  'p.smoke_detector_date', 'p.sprinkler_date'
+  'p.epc_rating', ymd('epc_start_date'), ymd('epc_expiry_date'), ymd('eicr_start_date'), ymd('eicr_expiry_date'), 'p.eicr_status',
+  ymd('smoke_detector_date'), ymd('sprinkler_date')
 ];
 const LANDLORD_LIST_COLUMNS = [
   'u.id', 'u.name', 'u.email', 'u.phone', 'u.status', 'u.ownership_type', 'u.company_name',
@@ -39,7 +42,15 @@ const LANDLORD_DETAIL_COLUMNS = [
   'u.secondary_owner_phone', 'u.secondary_owner_email', 'u.secondary_owner_address', 'u.secondary_owner_city',
   'u.secondary_owner_postcode', 'u.secondary_owner_country',
   'u.nationality', 'u.tax_residency', 'u.payment_ref', 'u.hmrc_verified',
-  'u.aml_risk_rating', 'u.aml_last_assessed', 'u.aml_next_review', 'u.notes'
+  'u.aml_risk_rating', 'u.aml_last_assessed', 'u.aml_next_review', 'u.notes',
+  // For the edit form: the name parts ROCA Estates' own form edits
+  'u.first_name', 'u.middle_name', 'u.last_name',
+  'u.secondary_first_name', 'u.secondary_middle_name', 'u.secondary_last_name'
+];
+// Dates of birth as plain YYYY-MM-DD (no time zone shift), for the edit form.
+const LANDLORD_DOB_COLUMNS = () => [
+  emDb.raw("DATE_FORMAT(u.owner_dob, '%Y-%m-%d') as owner_dob"),
+  emDb.raw("DATE_FORMAT(u.secondary_owner_dob, '%Y-%m-%d') as secondary_owner_dob")
 ];
 
 // rocaem unavailable → a clear 503 instead of a generic 500.
@@ -208,7 +219,9 @@ export const getEstateLandlords = catchAsync(async (req, res) => {
 // GET /estates/landlords/:id
 export const getEstateLandlord = catchAsync(async (req, res) => {
   const [landlord, units] = await fromEstates(async () => {
-    const l = await emDb('users as u').where({ 'u.id': req.params.id, 'u.role': 'LANDLORD' }).select(...LANDLORD_DETAIL_COLUMNS).first();
+    const statementCols = (await estateStatementColumns()).map((c) => `u.${c}`);
+    const l = await emDb('users as u').where({ 'u.id': req.params.id, 'u.role': 'LANDLORD' })
+      .select(...LANDLORD_DETAIL_COLUMNS, ...statementCols, ...LANDLORD_DOB_COLUMNS()).first();
     if (!l) return [null, []];
     const owned = await unitsQuery().where('p.landlord_id', l.id)
       .select(...UNIT_LIST_COLUMNS, 'b.name as building_name', 'b.short_code as building_short_code');

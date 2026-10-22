@@ -139,6 +139,7 @@ export const getPropertyById = catchAsync(async (req, res, next) => {
       start_date: toYmd(tenancy.start_date),
       end_date: toYmd(tenancy.end_date),
       rent_pcm: tenancy.rent_pcm !== null ? parseFloat(tenancy.rent_pcm).toFixed(2) : null,
+      rent_due_day: tenancy.rent_due_day ?? null,
       tenants,
       deposit: deposit ? {
         ...deposit,

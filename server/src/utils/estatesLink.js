@@ -77,7 +77,7 @@ export const fetchEstateUnit = (rocaemPropertyId) => emDb('properties as p')
 // has them, so an older ROCA Estates keeps working. Checked once per process.
 const STATEMENT_COLUMNS = ['nrl_number', 'statement_initials', 'preferred_statement_email'];
 let statementColumns = null;
-const estateStatementColumns = async () => {
+export const estateStatementColumns = async () => {
   if (statementColumns) return statementColumns;
   try {
     const present = [];

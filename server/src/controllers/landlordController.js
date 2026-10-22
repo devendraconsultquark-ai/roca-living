@@ -8,7 +8,7 @@ import { deletePropertyInternal } from './propertyController.js';
 import { ensureLandlordSetup } from '../utils/landlordSetup.js';
 import { deriveInitials } from '../utils/initials.js';
 import { createActivationLink } from '../utils/activationLink.js';
-import { todayYmd } from '../utils/dateHelpers.js';
+import { todayYmd, toYmd } from '../utils/dateHelpers.js';
 import fs from 'fs';
 
 const BCRYPT_COST = parseInt(process.env.BCRYPT_COST || '12', 10);
@@ -218,10 +218,16 @@ export const getLandlordById = catchAsync(async (req, res, next) => {
     .where('landlord_id', id)
     .select(
       'properties.*',
-      db.raw(`(SELECT id FROM property_images WHERE property_id = properties.id AND image_type = 'photo' ORDER BY is_primary DESC, created_at ASC LIMIT 1) as primary_image_id`)
+      db.raw(`(SELECT id FROM property_images WHERE property_id = properties.id AND image_type = 'photo' ORDER BY is_primary DESC, created_at ASC LIMIT 1) as primary_image_id`),
+      // For the design's property cards and list: tenant, current rent, next inspection
+      db.raw(`(SELECT tn.name FROM tenancies t JOIN tenants tn ON tn.tenancy_id = t.id AND tn.is_lead_tenant = 1 WHERE t.property_id = properties.id AND t.status IN ('active','notice') ORDER BY t.start_date DESC LIMIT 1) as current_tenant_name`),
+      db.raw(`(SELECT t.rent_pcm FROM tenancies t WHERE t.property_id = properties.id AND t.status IN ('active','notice') ORDER BY t.start_date DESC LIMIT 1) as current_rent_pcm`),
+      db.raw(`(SELECT i.next_inspection_due FROM inspections i WHERE i.property_id = properties.id ORDER BY i.inspected_at DESC LIMIT 1) as next_inspection_due`)
     );
   const formattedProperties = properties.map((p) => ({
     ...p,
+    current_rent_pcm: p.current_rent_pcm !== null && p.current_rent_pcm !== undefined ? parseFloat(p.current_rent_pcm).toFixed(2) : null,
+    next_inspection_due: p.next_inspection_due ? toYmd(p.next_inspection_due) : null,
     rent_pcm: p.rent_pcm !== null && p.rent_pcm !== undefined ? parseFloat(p.rent_pcm).toFixed(2) : null,
     mgmt_fee_pct: p.mgmt_fee_pct !== null && p.mgmt_fee_pct !== undefined ? parseFloat(p.mgmt_fee_pct).toFixed(2) : null,
     created_at: p.created_at ? new Date(p.created_at).toISOString() : null,

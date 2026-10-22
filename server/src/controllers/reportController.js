@@ -30,7 +30,7 @@ export const getArrearsReport = catchAsync(async (req, res, next) => {
 
   // 2. Flat list of individual overdue schedules (with lead tenant for the arrears view)
   const leadTenants = db('tenants')
-    .select('tenancy_id', db.raw('MAX(name) as tenant_name'))
+    .select('tenancy_id', db.raw('MAX(name) as tenant_name'), db.raw('MAX(email) as tenant_email'), db.raw('MAX(id) as tenant_id'))
     .where('is_lead_tenant', 1)
     .groupBy('tenancy_id')
     .as('lt');
@@ -47,6 +47,10 @@ export const getArrearsReport = catchAsync(async (req, res, next) => {
       db.raw('(rent_schedules.amount - rent_schedules.paid_amount) as amount'),
       'users.name as landlord_name',
       'lt.tenant_name',
+      'lt.tenant_email',
+      'lt.tenant_id',
+      'properties.name as property_name',
+      'properties.postcode',
       'properties.address_line1',
       'properties.city',
       db.raw('DATEDIFF(CURDATE(), rent_schedules.due_date) as days_overdue')
@@ -62,14 +66,33 @@ export const getArrearsReport = catchAsync(async (req, res, next) => {
     landlord_name: s.landlord_name,
     tenant_name: s.tenant_name || null,
     days_overdue: parseInt(s.days_overdue || 0, 10),
-    property_address: `${s.address_line1}, ${s.city}`
+    property_address: `${s.address_line1}, ${s.city}`,
+    tenant_email: s.tenant_email || null,
+    tenant_id: s.tenant_id || null,
+    property_name: s.property_name || null,
+    postcode: s.postcode || null
   }));
+
+  // 3. Last rent payment per tenancy in arrears (design: "Last Payment")
+  const arrearsTenancies = [...new Set(formattedFlat.map((s) => s.tenancy_id))];
+  const lastPayments = {};
+  if (arrearsTenancies.length) {
+    const rows = await db('rent_payments')
+      .whereIn('tenancy_id', arrearsTenancies)
+      .orderBy('received_at', 'desc')
+      .orderBy('id', 'desc')
+      .select('tenancy_id', 'received_at', 'amount');
+    for (const r of rows) {
+      if (!lastPayments[r.tenancy_id]) lastPayments[r.tenancy_id] = { date: toYmd(r.received_at), amount: parseFloat(r.amount).toFixed(2) };
+    }
+  }
 
   res.json({
     success: true,
     data: {
       landlord_summary: formattedLandlordGroup,
-      overdue_schedules: formattedFlat
+      overdue_schedules: formattedFlat,
+      last_payments: lastPayments
     }
   });
 });
@@ -541,6 +564,7 @@ export const getComplianceItems = catchAsync(async (req, res, next) => {
       'property_certificates.status',
       db.raw('DATEDIFF(property_certificates.expires_at, CURDATE()) as days_left'),
       db.raw("CONCAT(properties.address_line1, ', ', properties.city) as property_address"),
+      'properties.name as property_name',
       'users.name as landlord_name',
       'users.id as landlord_id'
     )

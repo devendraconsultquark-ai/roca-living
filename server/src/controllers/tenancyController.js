@@ -271,7 +271,10 @@ export const getAllTenancies = catchAsync(async (req, res, next) => {
       'properties.postcode',
       'users.name as landlord_name',
       'users.email as landlord_email',
-      'tenants.name as lead_tenant_name'
+      'tenants.name as lead_tenant_name',
+      'tenants.email as lead_tenant_email',
+      'tenants.id as lead_tenant_id',
+      'properties.name as property_name'
     );
 
   if (status) {
@@ -1142,7 +1145,11 @@ export const getAllTenants = catchAsync(async (req, res, next) => {
       'properties.postcode',
       'tenancies.id as tenancyId',
       'tenancies.status as tenancy_status',
-      'tenancies.end_date as tenancy_end_date'
+      'tenancies.end_date as tenancy_end_date',
+      'tenancies.start_date as tenancy_start_date',
+      'tenancies.rent_pcm as tenancy_rent_pcm',
+      'properties.id as propertyId',
+      'properties.name as property_name'
     );
 
   // Balance as on the tenant page: payments received minus rent fallen due to
@@ -1183,7 +1190,15 @@ export const getAllTenants = catchAsync(async (req, res, next) => {
       right_to_rent_status: t.right_to_rent_status || 'pending',
       right_to_rent_expiry: toYmd(t.right_to_rent_expiry),
       tenancy_status: t.tenancy_status,
-      end_date: toYmd(t.tenancy_end_date)
+      end_date: toYmd(t.tenancy_end_date),
+      // For the design's tenant list (avatar, property, tenancy dates, rent)
+      tenancy_id: t.tenancyId,
+      start_date: toYmd(t.tenancy_start_date),
+      rent_pcm: t.tenancy_rent_pcm != null ? parseFloat(t.tenancy_rent_pcm) : null,
+      property_id: t.propertyId,
+      property_name: t.property_name || null,
+      postcode: t.postcode || null,
+      created_at: t.created_at
     });
   }
 
@@ -1303,6 +1318,7 @@ export const getTenantById = catchAsync(async (req, res, next) => {
       'properties.city',
       'properties.postcode',
       'properties.id as property_id',
+      'properties.name as property_name',
       'landlords.name as landlord_name'
     )
     .where('tenancies.id', tenant.tenancy_id)
