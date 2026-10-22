@@ -7,6 +7,9 @@
 //       → DRY RUN (default): prints every change, writes nothing
 //   node scripts/import-landlords-sheet.mjs "<sheet.csv>" --apply --em-db=<rocaem db> --rl-db=<roca living db>
 //       → does it. Both names must match the databases this .env connects to.
+//   --skip-tenancy=PH-31,PH-8
+//       → leave those flats' tenancies (tenant name, rent) alone, e.g. a test
+//         tenancy that should be deleted and re-added with the real start date.
 //
 // Updates records IN PLACE (ids kept, so Roca Living's links stay valid); it
 // never deletes anything. A blank cell never clears a stored value. Running it
@@ -28,6 +31,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SHEET = process.argv.slice(2).find((a) => !a.startsWith('--'));
 const APPLY = process.argv.includes('--apply');
 const argValue = (name) => process.argv.find((a) => a.startsWith(`--${name}=`))?.split('=').slice(1).join('=') || null;
+const SKIP_TENANCY = new Set((argValue('skip-tenancy') || '').split(',').map((x) => Number(x.trim().replace(/^PH-/i, ''))).filter(Boolean));
 if (!SHEET || !fs.existsSync(SHEET)) {
   console.log('Usage: node scripts/import-landlords-sheet.mjs "<sheet.csv>" [--apply --em-db=<name> --rl-db=<name>]');
   process.exit(1);
@@ -392,6 +396,7 @@ for (const ll of landlords.values()) {
 
 // Tenancies of onboarded flats: lead tenant name and rent.
 for (const f of [...flats.values()].filter((x) => x.onboarded).sort((a, b) => a.n - b.n)) {
+  if (SKIP_TENANCY.has(f.n)) { warnings.push(`PH-${f.n}: tenancy left as it is (--skip-tenancy); sheet says tenant ${f.tenant || '—'}, rent ${f.rent ? `£${f.rent.toFixed(2)}` : '—'}`); continue; }
   const emFlat = emFlats.get(f.n);
   const p = emFlat ? rlPropByEm.get(emFlat.id) : null;
   if (!p) { warnings.push(`PH-${f.n} (onboarded): no Roca Living property linked — switch it to Managed in Roca Living, then run this again`); continue; }
