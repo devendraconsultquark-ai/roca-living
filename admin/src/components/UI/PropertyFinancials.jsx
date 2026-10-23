@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { Skeleton } from './Skeleton';
 import { Card } from './DetailComponents';
+import { PropertyStatementCard } from './PropertyStatementCard';
 import api from '../../utilities/api';
 
 const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -24,7 +25,7 @@ const COST_TYPES = ['mgmt_fee', 'vat', 'agent_letting_fee', 'roca_letting_fee', 
 
 // Per-property financials tab: YTD summary + monthly chart + transaction list,
 // all from the existing transactions ledger filtered by property.
-export const PropertyFinancials = ({ propertyId }) => {
+export const PropertyFinancials = ({ propertyId, unit }) => {
   const [transactions, setTransactions] = useState(null);
 
   useEffect(() => {
@@ -71,6 +72,8 @@ export const PropertyFinancials = ({ propertyId }) => {
 
   return (
     <div className="flex flex-col gap-6">
+      <PropertyStatementCard propertyId={propertyId} unit={unit} />
+
       {/* YTD summary */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         {summary.map((s) => (

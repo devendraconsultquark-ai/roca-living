@@ -2,6 +2,9 @@ import db from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
 import { toYmd, todayYmd } from '../utils/dateHelpers.js';
+import { buildPropertyStatement } from '../utils/propertyStatement.js';
+import { propertyStatementPdfHtml } from '../templates/propertyStatementTemplate.js';
+import { generatePortraitPDFWithPuppeteer } from '../utils/puppeteerGenerator.js';
 
 export const getArrearsReport = catchAsync(async (req, res, next) => {
   // 1. Group by landlord
@@ -901,4 +904,21 @@ export const getRecentActivity = catchAsync(async (req, res, next) => {
     success: true,
     data: formattedActivities
   });
+});
+
+// GET /reports/property-statement?property_id=&from=YYYY-MM-DD&to=YYYY-MM-DD[&detail=1][&format=pdf]
+// A property's statement for any range up to 12 months (like PayProp's
+// property statement). Read-only: built from rent payments, rent months and
+// issued statements; nothing is saved.
+export const getPropertyStatement = catchAsync(async (req, res) => {
+  const propertyId = Number(req.query.property_id);
+  if (!Number.isInteger(propertyId) || propertyId <= 0) throw new ApiError(400, 'Choose the property');
+  const data = await buildPropertyStatement(propertyId, String(req.query.from || ''), String(req.query.to || ''));
+  if (req.query.format !== 'pdf') return res.json({ success: true, data });
+
+  const pdf = await generatePortraitPDFWithPuppeteer(propertyStatementPdfHtml(data, { detail: req.query.detail === '1' }));
+  const unit = (data.property.unit || `property-${propertyId}`).replace(/[^A-Za-z0-9-]+/g, '_');
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="Property_statement_${unit}_${data.period.from}_to_${data.period.to}.pdf"`);
+  res.send(Buffer.from(pdf));
 });

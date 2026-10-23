@@ -317,7 +317,7 @@ const ApartmentCard = ({ unit, busy, onToggle, onOpen, extra }) => {
   return (
     <div className="border border-card-border rounded-card overflow-hidden bg-white flex flex-col">
       <div className="relative">
-        <PropertyThumb imageId={link?.primary_image_id} alt={unit.unit_ref} className="w-full h-36" iconSize={28} />
+        <PropertyThumb imageId={link?.primary_image_id} fallbackKey={unit.unit_number || unit.id} alt={unit.unit_ref} className="w-full h-36" iconSize={28} />
         <span className="absolute top-2 left-2"><EstateStatus status={unit.status} /></span>
       </div>
       <div className="p-4 flex flex-col gap-2 flex-1">

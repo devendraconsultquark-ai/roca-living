@@ -70,11 +70,19 @@ export const PropertyPhotos = ({ propertyId, onChanged }) => {
       formData.append('image_type', imageType);
       try {
         await api.post(`/properties/${propertyId}/images`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
+          headers: { 'Content-Type': 'multipart/form-data' },
+          skipInterceptorError: true
         });
         uploaded += 1;
       } catch (err) {
-        addToast(err.response?.data?.message || `Failed to upload ${file.name}`, 'error');
+        // 413 comes from the web server in front of the app (its upload size limit), not from the app itself.
+        const tooBig = err.response?.status === 413;
+        addToast(
+          tooBig
+            ? `${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB) is too big for the server's upload limit. Try a smaller image, or ask for the limit to be raised.`
+            : err.response?.data?.message || `Failed to upload ${file.name}`,
+          'error'
+        );
       }
     }
     setUploading(false);

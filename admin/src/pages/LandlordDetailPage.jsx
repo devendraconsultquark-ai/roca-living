@@ -798,7 +798,7 @@ export const LandlordDetailPage = () => {
                     {properties.slice(0, 4).map((p) => (
                       <div key={p.id} className="border border-card-border rounded-card overflow-hidden flex flex-col">
                         <div className="relative">
-                          <PropertyThumb imageId={p.primary_image_id} className="w-full h-28" iconSize={24} />
+                          <PropertyThumb imageId={p.primary_image_id} fallbackKey={p.apartment_number || p.id} className="w-full h-28" iconSize={24} />
                           <span className="absolute top-2 right-2"><StatusPill status={p.status} size="sm" /></span>
                         </div>
                         <div className="p-3 flex flex-col gap-1.5 flex-1">
@@ -934,7 +934,7 @@ export const LandlordDetailPage = () => {
                     return (
                       <div key={p.id} className="card-bg border border-card-border rounded-card shadow-premium overflow-hidden flex flex-col">
                         <div className="relative">
-                          <PropertyThumb imageId={p.primary_image_id} className="w-full h-32" iconSize={24} />
+                          <PropertyThumb imageId={p.primary_image_id} fallbackKey={p.apartment_number || p.id} className="w-full h-32" iconSize={24} />
                           <span className="absolute top-2 left-2"><StatusPill status={p.status} size="sm" /></span>
                         </div>
                         <div className="p-4 flex flex-col gap-1.5 flex-1">

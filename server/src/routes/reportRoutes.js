@@ -10,7 +10,8 @@ import {
   getMgmtFeeAccount,
   getComplianceItems,
   getCashflow,
-  getCalendarEvents
+  getCalendarEvents,
+  getPropertyStatement
 } from '../controllers/reportController.js';
 import { protect } from '../middlewares/protect.js';
 import { restrictTo } from '../middlewares/restrictTo.js';
@@ -26,6 +27,7 @@ reportRouter.get('/compliance-items', getComplianceItems);
 reportRouter.get('/cashflow', getCashflow);
 reportRouter.get('/calendar', getCalendarEvents);
 reportRouter.get('/arrears', getArrearsReport);
+reportRouter.get('/property-statement', getPropertyStatement);
 reportRouter.get('/compliance-expiries', getComplianceExpiriesReport);
 reportRouter.get('/pipeline', getPipelineReport);
 reportRouter.get('/deposits', getDepositsNeedingAttention);

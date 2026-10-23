@@ -349,6 +349,7 @@ export const PropertyDetailPage = () => {
           <div className="card-bg border border-card-border rounded-card shadow-premium p-3 mb-6 flex flex-col md:flex-row md:items-center gap-4">
             <PropertyThumb
               imageId={primaryImage?.id}
+              fallbackKey={data.apartment_number || data.id}
               alt={data.name || data.address_line1}
               className="w-full md:w-48 h-28 rounded-card border border-card-border shrink-0"
               iconSize={26}
@@ -373,7 +374,7 @@ export const PropertyDetailPage = () => {
       {/* Tab Content */}
       <div className="w-full">
         {activeTab === 'photos' && <PropertyPhotos propertyId={id} onChanged={() => setReloadKey((k) => k + 1)} />}
-        {activeTab === 'financials' && <PropertyFinancials propertyId={id} />}
+        {activeTab === 'financials' && <PropertyFinancials propertyId={id} unit={data.block_name && data.apartment_number ? `${data.block_name}-${data.apartment_number}` : null} />}
         {activeTab === 'expenses' && <PropertyExpenses propertyId={id} />}
         {activeTab === 'inspections' && <PropertyInspections propertyId={id} />}
         {activeTab === 'utilities' && <PropertyUtilities propertyId={id} />}
