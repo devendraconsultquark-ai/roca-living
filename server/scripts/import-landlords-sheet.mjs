@@ -123,6 +123,25 @@ const parseAddress = (raw) => {
   return { address: parts.join(', ') || null, city, postcode, country };
 };
 
+// "Apartment 13, Parsons House, Parsons Road, Washington, Sunderland, NE37 1EZ" →
+// ROCA Estates: address "Apartment 13, Parsons House, Parsons Road" / city "Washington, Sunderland" / postcode "NE37 1EZ"
+// Roca Living:  line1 "Apartment 13, Parsons House" / line2 "Parsons Road, Washington" / city "Sunderland" / postcode
+const STREET = /\b(road|street|lane|avenue|drive|way|close|place|court|terrace|crescent|square|gardens|row)\b/i;
+const parseAptAddress = (raw) => {
+  const parts = clean(raw).split(',').map(clean).filter(Boolean);
+  if (parts.length < 3) return null;
+  const postcode = parts[parts.length - 1].toUpperCase();
+  const body = parts.slice(0, -1);
+  let s = body.findIndex((x) => STREET.test(x));
+  if (s < 1) s = Math.min(1, body.length - 1);
+  return {
+    em: { address: body.slice(0, s + 1).join(', '), city: body.slice(s + 1).join(', ') || null, postcode },
+    rl: { address_line1: body.slice(0, 2).join(', '), address_line2: body.slice(2, -1).join(', ') || null, city: body[body.length - 1] || null, postcode },
+    block: { address: body.slice(1, s + 1).join(', '), city: body.slice(s + 1).join(', ') || null, postcode },
+    aptPrefix: /^apartment\s+\d+$/i.test(body[0]) ? 'Apartment' : null,
+  };
+};
+
 // ── Sheet ────────────────────────────────────────────────────────────────────
 const rows = parseCsv(fs.readFileSync(SHEET, 'utf8'));
 const headerAt = rows.findIndex((r) => clean(r[0]) === 'Development_ID');
@@ -139,6 +158,7 @@ for (const r of rows.slice(headerAt + 1)) {
   const f = flats.get(n) || {
     n,
     tenant: col(r, 'TENANT NAME'),
+    aptAddress: parseAptAddress(col(r, 'Apartment_Address')),
     rent: money(col(r, 'RENT AMOUNT')),
     occupied: yes(col(r, 'OCCUPIED')),
     onboarded: yes(col(r, 'Onboarded')),
@@ -306,6 +326,42 @@ for (const f of [...flats.values()].sort((a, b) => a.n - b.n)) {
   if (String(flat.status || '').toUpperCase() !== status) changes.push({ k: 'status', from: flat.status, to: status });
   if (changes.length) plan.flatChanges.push({ f, flat, changes });
 }
+// Block address: from the sheet (every row carries the same one); set only where blank.
+const blockAddr = [...flats.values()].map((f) => f.aptAddress).find(Boolean);
+plan.blockChanges = [];
+if (blockAddr) {
+  for (const [k, v] of Object.entries(blockAddr.block)) {
+    if (v && blank(ph[k])) plan.blockChanges.push({ k, from: ph[k], to: v });
+  }
+  const sheetAddresses = new Set([...flats.values()].map((f) => f.aptAddress?.block.address).filter(Boolean));
+  if (sheetAddresses.size > 1) warnings.push(`Apartment addresses differ between sheet rows (${[...sheetAddresses].join(' | ')}) — block address taken from PH-${[...flats.values()].find((f) => f.aptAddress).n}`);
+}
+// Flat addresses: from the sheet row, or (flats not in the sheet) "Apartment N" + the block address.
+// A value already typed in ROCA Estates is kept and reported.
+const addrFor = (n) => flats.get(n)?.aptAddress
+  || (blockAddr?.aptPrefix ? {
+    em: { address: `Apartment ${n}, ${blockAddr.block.address}`, city: blockAddr.block.city, postcode: blockAddr.block.postcode },
+    rl: { address_line1: `Apartment ${n}, ${blockAddr.rl.address_line1.split(', ').slice(1).join(', ')}`, address_line2: blockAddr.rl.address_line2, city: blockAddr.rl.city, postcode: blockAddr.rl.postcode },
+    derived: true,
+  } : null);
+for (const flat of [...emFlats.values()].sort((a, b) => Number(a.unit_number) - Number(b.unit_number))) {
+  const n = Number(flat.unit_number);
+  const a = addrFor(n);
+  if (!a) continue;
+  const changes = [];
+  const kept = [];
+  for (const [k, v] of Object.entries(a.em)) {
+    if (!v) continue;
+    if (blank(flat[k])) changes.push({ k, from: flat[k], to: v });
+    else if (String(flat[k]).trim() !== v) kept.push(`${k} "${flat[k]}"`);
+  }
+  if (kept.length) warnings.push(`PH-${n}: address already typed in ROCA Estates, kept (${kept.join(', ')}); sheet says "${a.em.address}, ${a.em.city}, ${a.em.postcode}"`);
+  if (!changes.length) continue;
+  const existing = plan.flatChanges.find((x) => x.flat.id === flat.id);
+  if (existing) existing.changes.push(...changes);
+  else plan.flatChanges.push({ f: flats.get(n) || { n, derived: true }, flat, changes });
+}
+
 const stillOwning = new Set([...emFlats.values()].filter((p) => !flats.has(Number(p.unit_number))).map((p) => p.landlord_id));
 const orphans = [...emFlats.values()]
   .filter((p) => flats.has(Number(p.unit_number)) && p.landlord_id && !claimed.has(p.landlord_id) && !stillOwning.has(p.landlord_id))
@@ -394,6 +450,22 @@ for (const ll of landlords.values()) {
   }
 }
 
+// Linked Roca Living properties: fill blank address parts (never overwrite).
+for (const flat of emFlats.values()) {
+  const p = rlPropByEm.get(flat.id);
+  const a = addrFor(Number(flat.unit_number));
+  if (!p || !a) continue;
+  const upd = {};
+  for (const [k, v] of Object.entries(a.rl)) if (v && blank(p[k])) upd[k] = v;
+  if (!Object.keys(upd).length) continue;
+  plan.rl.push({
+    kind: 'property address', label: `RL property #${p.id} PH-${flat.unit_number}`,
+    changes: Object.entries(upd).map(([k, v]) => ({ k, from: p[k], to: v })),
+    audit: ['SHEET_IMPORT_ADDRESS', 'property', p.id],
+    apply: (trx) => trx('properties').where('id', p.id).update({ ...upd, updated_at: trx.fn.now() }),
+  });
+}
+
 // Tenancies of onboarded flats: lead tenant name and rent.
 for (const f of [...flats.values()].filter((x) => x.onboarded).sort((a, b) => a.n - b.n)) {
   if (SKIP_TENANCY.has(f.n)) { warnings.push(`PH-${f.n}: tenancy left as it is (--skip-tenancy); sheet says tenant ${f.tenant || '—'}, rent ${f.rent ? `£${f.rent.toFixed(2)}` : '—'}`); continue; }
@@ -449,8 +521,9 @@ for (const { ll, cur, changes } of plan.emUpdates) {
 }
 console.log(`\nROCA ESTATES — landlords to CREATE (${plan.emCreates.length}):`);
 for (const { ll } of plan.emCreates) console.log(`  ${ll.name} [flats ${ll.flats.join(',')}] ${ll.email || 'no email (placeholder)'}`);
+if (plan.blockChanges.length) console.log(`\nROCA ESTATES — block ${ph.name} address:\n  ${plan.blockChanges.map((c) => `${c.k} ${show(c.from)} → ${show(c.to)}`).join('; ')}`);
 console.log(`\nROCA ESTATES — flats to change (${plan.flatChanges.length}), to create (${plan.flatCreates.length}):`);
-for (const { f, flat, changes } of plan.flatChanges) console.log(`  PH-${f.n} #${flat.id}: ${changes.map((c) => `${c.k} ${show(c.from)} → ${show(c.to)}`).join('; ')}`);
+for (const { f, flat, changes } of plan.flatChanges) console.log(`  PH-${f.n} #${flat.id}${f.derived ? ' (not in sheet, address derived from block)' : ''}: ${changes.map((c) => `${c.k} ${show(c.from)} → ${show(c.to)}`).join('; ')}`);
 for (const { f, status } of plan.flatCreates) console.log(`  PH-${f.n}: NEW flat, ${status}`);
 console.log(`\nROCA LIVING (${plan.rl.length}):`);
 for (const r of plan.rl) {
@@ -465,7 +538,7 @@ console.log('\nWARNINGS:');
 for (const w of [...new Set(warnings)]) console.log('  ' + w);
 for (const ll of landlords.values()) if (!ll.email) console.log(`  ${ll.name}: no email in the sheet`);
 
-const total = plan.emUpdates.length + plan.emCreates.length + plan.flatChanges.length + plan.flatCreates.length + plan.rl.length;
+const total = plan.emUpdates.length + plan.emCreates.length + plan.flatChanges.length + plan.flatCreates.length + plan.rl.length + plan.blockChanges.length;
 if (!total) { console.log('\nNO CHANGES — everything already matches the sheet.'); await done(0); }
 if (!APPLY) {
   console.log(`\nDRY RUN — ${total} change group(s), nothing written. To do it: add --apply --em-db=${emName} --rl-db=${rlName}`);
@@ -495,6 +568,10 @@ await emDb.transaction(async (trx) => {
     ll.emId = id;
     await logChange(trx, 'landlord', id, ll.name, 'create', Object.keys(row));
   }
+  if (plan.blockChanges.length) {
+    await trx('buildings').where('id', ph.id).update(Object.fromEntries(plan.blockChanges.map((c) => [c.k, c.to])));
+    await logChange(trx, 'block', ph.id, ph.name, 'update', plan.blockChanges.map((c) => c.k));
+  }
   for (const { f, flat, changes } of plan.flatChanges) {
     const ll = landlords.get(f.landlordKey);
     const update = {};
@@ -507,6 +584,7 @@ await emDb.transaction(async (trx) => {
     const [id] = await trx('properties').insert({
       building_id: ph.id, name: `${ph.name} - Unit ${f.n}`, unit_id: `PH_${nn}`, unit_number: String(f.n),
       unit_code: `${ph.short_code}${nn}`, status, landlord_id: landlords.get(f.landlordKey).emId,
+      ...(f.aptAddress ? f.aptAddress.em : {}),
     });
     await trx('properties').where('id', id).update({ property_reference: `REM-APR-${id}` });
     await logChange(trx, 'apartment', id, `${ph.name} - Unit ${f.n}`, 'create', ['building_id', 'unit_number', 'status', 'landlord_id']);
