@@ -2,9 +2,10 @@ import { Router } from 'express';
 import { managedInEstates, rejectEstateFields } from '../middlewares/managedInEstates.js';
 
 // The link to the ROCA Estates apartment (unit codes, owner, reference) is
-// fixed; the address printed on statements can be corrected here.
+// fixed; a linked apartment's name and address are saved in ROCA Estates.
 const ESTATE_PROPERTY_FIELDS = ['block_name', 'apartment_number', 'property_reference', 'landlord_id'];
 import multer from 'multer';
+import { ApiError } from '../utils/ApiError.js';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -101,8 +102,8 @@ const propertyImageStorage = multer.diskStorage({
   }
 });
 
-const allowedImageMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-const allowedImageExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+const allowedImageMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+const allowedImageExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf'];
 
 const propertyImageUpload = multer({
   storage: propertyImageStorage,
@@ -110,7 +111,7 @@ const propertyImageUpload = multer({
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (!allowedImageExts.includes(ext) || !allowedImageMimes.includes(file.mimetype)) {
-      return cb(new Error('Only image files (JPEG, PNG, GIF, WEBP) are allowed'), false);
+      return cb(new ApiError(400, 'Only image files (JPEG, PNG, GIF, WEBP) or a PDF floor plan are allowed'), false);
     }
     cb(null, true);
   }

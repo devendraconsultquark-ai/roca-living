@@ -1,4 +1,5 @@
 import { ApiError } from './ApiError.js';
+import { deriveInitials } from './initials.js';
 
 // Statement / invoice numbering per "Statement Logic.xlsx":
 //   statement  {block}_{apartment}_{seq}       e.g. PH_19_0001
@@ -66,4 +67,18 @@ export const formatNrl = (rawNrl, initials) => {
   if (!nrl) return '';
   if (/[\s:,·/-]/.test(nrl) || !initials) return nrl;
   return initials.split('/').map(ini => `${ini}:${nrl}`).join(' / ');
+};
+
+// NRL line for a landlord whose owners each have their own NRL number (joint
+// owners), as on the client's statements: "MVL - PX870568A, ML - 922/NL942174".
+// Initials come from ROCA Estates (main owner / joint owner), else from the
+// names. With only one number it falls back to formatNrl ("RB:NL945005").
+export const formatOwnersNrl = ({ nrl, initials, name, jointNrl, jointInitials, jointName }) => {
+  const main = String(nrl || '').trim();
+  const joint = String(jointNrl || '').trim();
+  if (!joint) return formatNrl(main, initials);
+  const [mainIni, jointIniFromMain] = String(initials || '').split('/').map((x) => x.trim());
+  const a = mainIni || deriveInitials(name);
+  const b = String(jointInitials || '').trim() || jointIniFromMain || deriveInitials(jointName);
+  return [main && `${a} - ${main}`, `${b} - ${joint}`].filter(Boolean).join(', ');
 };

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Image as ImageIcon, Map, Star, Trash2, Upload } from 'lucide-react';
+import { Image as ImageIcon, Map, Star, Trash2, Upload, FileText } from 'lucide-react';
 import { useToast } from './ToastContext';
 import { useConfirm } from './ConfirmContext';
 import { Card } from './DetailComponents';
@@ -10,7 +10,9 @@ import api from '../../utilities/api';
 // Photos & floor plans tab for a property (spec pages 5–13). Files are served
 // through the authenticated /properties/images endpoint, so each tile resolves
 // a blob object-URL via the shared module cache.
-export const PropertyPhotos = ({ propertyId, onChanged }) => {
+// sharedFloorPlan: the apartment's floor plan is kept in ROCA Estates (one per
+// apartment, image or PDF), so both apps show the same one.
+export const PropertyPhotos = ({ propertyId, onChanged, sharedFloorPlan = false }) => {
   const { addToast } = useToast();
   const confirm = useConfirm();
 
@@ -51,9 +53,12 @@ export const PropertyPhotos = ({ propertyId, onChanged }) => {
 
   const openPicker = (type) => {
     pendingTypeRef.current = type;
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-      fileInputRef.current.click();
+    const input = fileInputRef.current;
+    if (input) {
+      input.value = '';
+      input.accept = type === 'floor_plan' ? 'image/jpeg,image/png,image/gif,image/webp,application/pdf' : 'image/jpeg,image/png,image/gif,image/webp';
+      input.multiple = !(type === 'floor_plan' && sharedFloorPlan);
+      input.click();
     }
   };
 
@@ -66,8 +71,8 @@ export const PropertyPhotos = ({ propertyId, onChanged }) => {
     let uploaded = 0;
     for (const file of files) {
       const formData = new FormData();
-      formData.append('image', file);
       formData.append('image_type', imageType);
+      formData.append('image', file);
       try {
         await api.post(`/properties/${propertyId}/images`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
@@ -128,7 +133,12 @@ export const PropertyPhotos = ({ propertyId, onChanged }) => {
 
   const tile = (img, isPhoto) => (
     <div key={img.id} className="relative group rounded-xl overflow-hidden border border-card-border bg-surface-light">
-      {img.url ? (
+      {img.url && img.is_pdf ? (
+        <a href={img.url} target="_blank" rel="noreferrer" title="Open the PDF" className="w-full h-40 flex flex-col items-center justify-center gap-2 text-brand-primary hover:bg-surface-hover">
+          <FileText size={30} className="text-status-danger" />
+          <span className="text-xs font-bold">Floor plan (PDF)</span>
+        </a>
+      ) : img.url ? (
         <a href={img.url} target="_blank" rel="noreferrer" title="Open full size">
           <img src={img.url} alt={img.caption || (isPhoto ? 'Property photo' : 'Floor plan')} className="w-full h-40 object-cover" />
         </a>
@@ -200,9 +210,14 @@ export const PropertyPhotos = ({ propertyId, onChanged }) => {
       </Card>
 
       <Card title={`Floor Plans${floorPlans.length > 0 ? ` (${floorPlans.length})` : ''}`}>
-        <div className="flex justify-end mb-4">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <p className="text-[11px] text-status-muted">
+            {sharedFloorPlan
+              ? 'Kept in ROCA Estates too: one floor plan per apartment (image or PDF). A new one replaces it in both apps.'
+              : 'Images or a PDF.'}
+          </p>
           <Button variant="secondary" icon={Map} onClick={() => openPicker('floor_plan')} disabled={uploading}>
-            {uploading ? 'Uploading…' : 'Add Floor Plan'}
+            {uploading ? 'Uploading…' : sharedFloorPlan && floorPlans.length ? 'Replace Floor Plan' : 'Add Floor Plan'}
           </Button>
         </div>
         {!loading && floorPlans.length > 0 ? (

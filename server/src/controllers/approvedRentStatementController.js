@@ -53,7 +53,7 @@ const landlordDetails = async (t) => {
   return {
     landlord_name: live?.landlord_name || t.landlord_name || '',
     landlord_address: live?.landlord_address || '',
-    nrl_number: formatNrl(live?.nrl_number || '', initials),
+    nrl_number: live?.nrl_formatted || formatNrl(live?.nrl_number || '', initials),
     property_address: live?.property_address || [t.address_line1, t.address_line2, t.city, t.postcode].filter(Boolean).join(', ')
   };
 };

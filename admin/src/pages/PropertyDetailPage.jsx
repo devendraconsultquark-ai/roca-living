@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Home, ShieldCheck, Users, Wrench, FileText, Clock, Receipt, Download, Upload, Image as ImageIcon, X, PoundSterling, ClipboardCheck, Zap, History, StickyNote
+  Home, ShieldCheck, Users, Wrench, FileText, Clock, Receipt, Download, Upload, Image as ImageIcon, X, PoundSterling, ClipboardCheck, Zap, History, StickyNote, AlertTriangle
 } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
 import { StatusPill } from '../components/UI/StatusPill';
@@ -143,6 +143,30 @@ export const PropertyDetailPage = () => {
       addToast(err.response?.data?.message || 'Failed to refresh from ROCA Estates', 'error');
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  // ROCA Estates has another owner for this flat: moving it is the admin's call,
+  // because its future statements and Xero landlord bills follow the owner.
+  const [acceptingOwner, setAcceptingOwner] = useState(false);
+  const handleAcceptOwner = async () => {
+    const owner = data.estates_owner;
+    const ok = await confirm({
+      title: `Change the owner to ${owner.name}?`,
+      message: `ROCA Estates lists ${owner.name} as the owner. Future statements and Xero landlord bills for this flat will go to ${owner.name}. Statements already made keep ${data.landlord_name}.`,
+      confirmText: 'Change owner',
+      variant: 'danger',
+    });
+    if (!ok) return;
+    setAcceptingOwner(true);
+    try {
+      const res = await api.post(`/estates/properties/${data.rocaem_property_id}/accept-owner`, { confirm_owner_change: true });
+      addToast(res.data.message, 'success');
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Could not change the owner', 'error');
+    } finally {
+      setAcceptingOwner(false);
     }
   };
 
@@ -325,6 +349,18 @@ export const PropertyDetailPage = () => {
         onDelete={estatesEditable && data.rocaem_property_id ? () => setDeleting(true) : undefined}
       />
 
+      {data.estates_owner && estatesEditable && (
+        <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-3 rounded-card border border-amber-200 bg-amber-50 px-4 py-3">
+          <AlertTriangle size={18} className="text-status-warning shrink-0" />
+          <p className="text-sm text-brand-primary flex-1">
+            ROCA Estates has a different owner for this flat: <b>{data.estates_owner.name}</b>. Roca Living still has <b>{data.landlord_name}</b>, so statements and Xero bills still go to them.
+          </p>
+          <Button type="button" variant="secondary" size="sm" onClick={handleAcceptOwner} disabled={acceptingOwner}>
+            {acceptingOwner ? 'Changing…' : `Change owner to ${data.estates_owner.name}`}
+          </Button>
+        </div>
+      )}
+
       {/* Top strip (design): tenancy at a glance */}
       {(() => {
         const t = data.active_tenancy;
@@ -373,7 +409,7 @@ export const PropertyDetailPage = () => {
 
       {/* Tab Content */}
       <div className="w-full">
-        {activeTab === 'photos' && <PropertyPhotos propertyId={id} onChanged={() => setReloadKey((k) => k + 1)} />}
+        {activeTab === 'photos' && <PropertyPhotos propertyId={id} sharedFloorPlan={!!data.rocaem_property_id && estatesEditable} onChanged={() => setReloadKey((k) => k + 1)} />}
         {activeTab === 'financials' && <PropertyFinancials propertyId={id} unit={data.block_name && data.apartment_number ? `${data.block_name}-${data.apartment_number}` : null} />}
         {activeTab === 'expenses' && <PropertyExpenses propertyId={id} />}
         {activeTab === 'inspections' && <PropertyInspections propertyId={id} />}
@@ -632,10 +668,19 @@ export const PropertyDetailPage = () => {
                 <X size={20} />
               </button>
             </div>
-            <p className="text-xs text-status-muted mb-4">The address below is what prints on statements. The block code, apartment number and owner come from ROCA Estates.</p>
+            <p className="text-xs text-status-muted mb-4">
+              {data.rocaem_property_id && estatesEditable
+                ? 'The address is saved in ROCA Estates too, so both apps show the same one. Rent, fee, key and notes are Roca Living’s own.'
+                : 'The address below is what prints on statements. The block code, apartment number and owner come from ROCA Estates.'}
+            </p>
 
             <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
-              {data.rocaem_property_id && (
+              {data.rocaem_property_id && estatesEditable && (
+                <Button type="button" variant="secondary" size="sm" onClick={() => { setIsEditModalOpen(false); setEditingEstates(true); }}>
+                  Edit all apartment details (certificates, lease, floor plan)
+                </Button>
+              )}
+              {data.rocaem_property_id && !estatesEditable && (
                 <Button type="button" variant="secondary" size="sm" onClick={handleRefreshFromEstates} disabled={refreshing}>
                   {refreshing ? 'Refreshing…' : 'Refresh address & owner from ROCA Estates'}
                 </Button>
@@ -797,7 +842,7 @@ export const PropertyDetailPage = () => {
       {editingEstates && (
         <EstatesApartmentForm
           rocaemId={data.rocaem_property_id}
-          onClose={() => setEditingEstates(false)}
+          onClose={() => { setEditingEstates(false); setReloadKey((k) => k + 1); }}
           onSaved={() => { setEditingEstates(false); setReloadKey((k) => k + 1); }}
         />
       )}

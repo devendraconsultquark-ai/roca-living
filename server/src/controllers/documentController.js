@@ -6,6 +6,8 @@ import path from 'path';
 import logger from '../utils/logger.js';
 import { formatBytes } from '../utils/format.js';
 import { toYmd } from '../utils/dateHelpers.js';
+import { estatesApi, estatesApiReady, estatesUpload, estatesStream } from '../utils/estatesApi.js';
+import { isEstatesFile } from '../utils/estatesSync.js';
 
 // Ensure uploads folder exists
 const uploadsDir = path.join(process.cwd(), 'uploads');
@@ -17,6 +19,35 @@ const parseEntityId = (idStr) => {
   if (!idStr) return null;
   const match = idStr.match(/\d+/);
   return match ? parseInt(match[0], 10) : parseInt(idStr, 10);
+};
+
+// Landlord and apartment documents are kept in ROCA Estates too (so both apps
+// list the same ones); generated statements and invoices stay here only.
+const SHARED_DOC_TYPES = ['kyc_document', 'property_certificate'];
+
+// The ROCA Estates landlord or apartment a document belongs to, when Roca
+// Living can write there; null otherwise.
+const estatesOwnerOf = async (scope, ownerId) => {
+  if (!estatesApiReady()) return null;
+  if (scope === 'landlord') {
+    const u = await db('users').where({ id: ownerId, role: 'LANDLORD' }).first('rocaem_user_id');
+    return u?.rocaem_user_id ? { landlord_id: u.rocaem_user_id } : null;
+  }
+  if (scope === 'property') {
+    const p = await db('properties').where('id', ownerId).first('rocaem_property_id');
+    return p?.rocaem_property_id ? { property_id: p.rocaem_property_id } : null;
+  }
+  return null;
+};
+
+// ROCA Estates category for a document sent from here ("Compliance" when it has one).
+const estatesCategoryId = async () => {
+  try {
+    const data = await estatesApi('GET', '/documents/categories');
+    return (data?.categories || []).find((c) => /compliance/i.test(c.name))?.id || null;
+  } catch {
+    return null;
+  }
 };
 
 // The folder an admin files a document under drives the landlord-visible
@@ -144,6 +175,25 @@ export const uploadDocument = catchAsync(async (req, res, next) => {
 
   const file_path = `uploads/${req.file.filename}`;
 
+  const DOC_TYPES = { landlord: 'kyc_document', property: 'property_certificate', tenancy: 'tenancy_agreement' };
+  const plannedType = (chosenFolder && FOLDER_TO_DOC_TYPE[chosenFolder.name]) || DOC_TYPES[scope];
+  let rocaemDocumentId = null;
+  const estatesOwner = SHARED_DOC_TYPES.includes(plannedType) ? await estatesOwnerOf(scope, parsedOwnerId) : null;
+  if (estatesOwner) {
+    try {
+      const categoryId = await estatesCategoryId();
+      const data = await estatesUpload('POST', '/documents/upload', {
+        fields: { ...estatesOwner, ...(categoryId ? { category_id: categoryId } : {}), visibility: 'LANDLORD' },
+        files: [{ field: 'file', buffer: await fs.promises.readFile(req.file.path), name: req.file.originalname, type: req.file.mimetype }],
+        actingFor: req.user.email
+      });
+      rocaemDocumentId = data?.document?.id || null;
+    } catch (err) {
+      await fs.promises.unlink(req.file.path).catch(() => {});
+      throw err;
+    }
+  }
+
   // All writes in one transaction; unlink the already-written upload if it rolls back.
   let documentId;
   try {
@@ -157,7 +207,6 @@ export const uploadDocument = catchAsync(async (req, res, next) => {
         folder = { id: fid, name: folderName };
       }
 
-      const DOC_TYPES = { landlord: 'kyc_document', property: 'property_certificate', tenancy: 'tenancy_agreement' };
       // The resolved folder (explicit choice or scope default) drives doc_type,
       // so the admin's folder choice sets the landlord-visible category.
       const docType = FOLDER_TO_DOC_TYPE[folder.name] || DOC_TYPES[scope];
@@ -173,7 +222,8 @@ export const uploadDocument = catchAsync(async (req, res, next) => {
         file_path: file_path,
         file_size_bytes: req.file.size,
         uploaded_by: req.user.id,
-        doc_reference: tempRef
+        doc_reference: tempRef,
+        rocaem_document_id: rocaemDocumentId
       });
 
       await trx('documents')
@@ -213,9 +263,18 @@ export const deleteDocument = catchAsync(async (req, res, next) => {
     throw new ApiError(404, 'Document not found');
   }
 
+  if (doc.rocaem_document_id) {
+    if (!estatesApiReady()) throw new ApiError(503, 'This document is kept in ROCA Estates, which Roca Living cannot change right now.');
+    try {
+      await estatesApi('DELETE', `/documents/${doc.rocaem_document_id}`, { actingFor: req.user.email });
+    } catch (err) {
+      if (err.statusCode !== 404) throw err; // already gone there
+    }
+  }
+
   // Remove file from disk
   const absolutePath = path.join(process.cwd(), doc.file_path);
-  if (fs.existsSync(absolutePath)) {
+  if (!isEstatesFile(doc.file_path) && fs.existsSync(absolutePath)) {
     try {
       fs.unlinkSync(absolutePath);
     } catch (err) {
@@ -271,9 +330,13 @@ export const downloadDocument = catchAsync(async (req, res, next) => {
       permitted = !!tenancy;
     }
 
-    if (!permitted) {
+    if (!permitted || doc.landlord_visible === 0 || doc.landlord_visible === false) {
       throw new ApiError(403, 'You do not have permission to access this document');
     }
+  }
+
+  if (isEstatesFile(doc.file_path)) {
+    return estatesStream(`/files/download/document/${doc.rocaem_document_id}`, res, { download: true, name: doc.original_name });
   }
 
   // file_path is server-generated and stored relative to the app root; resolve
@@ -300,7 +363,7 @@ export const downloadDocument = catchAsync(async (req, res, next) => {
 export const getMyDocuments = catchAsync(async (req, res, next) => {
   const landlordId = req.user.id;
 
-  const landlordDocs = await db('documents').where({ owner_type: 'landlord', owner_id: landlordId });
+  const landlordDocs = await db('documents').where({ owner_type: 'landlord', owner_id: landlordId, landlord_visible: true });
 
   const propertyIds = await db('properties').where({ landlord_id: landlordId }).pluck('id');
   let propertyDocs = [];
@@ -308,7 +371,7 @@ export const getMyDocuments = catchAsync(async (req, res, next) => {
 
   if (propertyIds.length > 0) {
     propertyDocs = await db('documents')
-      .where('owner_type', 'property')
+      .where({ owner_type: 'property', landlord_visible: true })
       .whereIn('owner_id', propertyIds);
 
     const tenancyIds = await db('tenancies').whereIn('property_id', propertyIds).pluck('id');

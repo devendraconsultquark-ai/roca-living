@@ -62,8 +62,12 @@ const toForm = (l) => {
     nationality: blank(l?.nationality),
     residence_country: blank(l?.residence_country),
     tax_residency: blank(l?.tax_residency),
+    legal_fee: blank(l?.legal_fee),
+    sdlt: blank(l?.sdlt),
     nrl_number: blank(l?.nrl_number),
     statement_initials: blank(l?.statement_initials),
+    secondary_nrl_number: blank(l?.secondary_nrl_number),
+    secondary_statement_initials: blank(l?.secondary_statement_initials),
     preferred_statement_email: blank(l?.preferred_statement_email),
     notes: blank(l?.notes),
   };
@@ -104,6 +108,8 @@ const validate = (f) => {
   if (f.ownership_type === 'COMPANY' && !f.company_name.trim()) e.company_name = 'Company name is required';
   if (f.secondary_owner_email.trim() && !EMAIL.test(f.secondary_owner_email.trim())) e.secondary_owner_email = 'Enter a valid email';
   if (f.preferred_statement_email.trim() && !EMAIL.test(f.preferred_statement_email.trim())) e.preferred_statement_email = 'Enter a valid email';
+  if (f.legal_fee && Number.isNaN(Number(f.legal_fee))) e.legal_fee = 'Enter an amount';
+  if (f.sdlt && Number.isNaN(Number(f.sdlt))) e.sdlt = 'Enter an amount';
   return e;
 };
 
@@ -116,7 +122,7 @@ const TABS = [
   ['company', 'Company Info', Briefcase],
 ];
 // The tab a field with a mistake is on, so the form can open it.
-const FIELD_TAB = { secondary_owner_email: 'joint', preferred_statement_email: 'legal', company_name: 'company' };
+const FIELD_TAB = { secondary_owner_email: 'joint', preferred_statement_email: 'legal', legal_fee: 'legal', sdlt: 'legal', company_name: 'company' };
 
 const GroupTitle = ({ children }) => (
   <h4 className="text-[11px] font-bold text-status-muted uppercase tracking-wider">{children}</h4>
@@ -276,6 +282,10 @@ export const EstatesLandlordForm = ({ landlord, onClose, onSaved }) => {
                         {field('secondary_owner_email', 'Email', { type: 'email' })}
                         {field('secondary_owner_phone', 'Phone')}
                       </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {field('secondary_nrl_number', 'NRL Number (HMRC)', { placeholder: 'e.g. 922/NL942174' })}
+                        {field('secondary_statement_initials', 'Statement Initials', { placeholder: 'e.g. ML' })}
+                      </div>
                       <DatePicker id="ll_secondary_owner_dob" label="Date Of Birth" value={form.secondary_owner_dob} onChange={set('secondary_owner_dob')} />
                     </div>
                     <div className="flex flex-col gap-4 border border-card-border rounded-card p-5">
@@ -302,13 +312,15 @@ export const EstatesLandlordForm = ({ landlord, onClose, onSaved }) => {
                     {field('nationality', 'Nationality')}
                     {field('residence_country', 'Primary Residence')}
                     {field('tax_residency', 'Tax Jurisdiction')}
+                    {field('legal_fee', 'Legal Fee (£)')}
+                    {field('sdlt', 'SDLT (£)')}
                   </div>
                 </div>
                 <div className="flex flex-col gap-4">
                   <GroupTitle>ROCA Living Statements</GroupTitle>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {field('nrl_number', 'NRL Number (HMRC)', { placeholder: 'e.g. NL943229' })}
-                    {field('statement_initials', 'Statement Initials', { placeholder: 'e.g. PB/MEWH' })}
+                    {field('nrl_number', 'NRL Number (HMRC) — main owner', { placeholder: 'e.g. PX870568A' })}
+                    {field('statement_initials', 'Statement Initials — main owner', { placeholder: 'e.g. MVL' })}
                     {field('preferred_statement_email', 'Statement Email (if different)', { type: 'email' })}
                   </div>
                 </div>

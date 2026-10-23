@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { X, Home, ShieldCheck, FileText } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Home, ShieldCheck, FileText, Upload, Eye, Trash2, Paperclip } from 'lucide-react';
 import { Input } from './Input';
 import { Dropdown } from './Dropdown';
 import { DatePicker } from './DatePicker';
@@ -10,10 +10,11 @@ import api from '../../utilities/api';
 
 // Add or edit a ROCA Estates apartment from Roca Living (client decision 21 Oct).
 // Saved through ROCA Estates' own API, which makes its unit code (PH_08) and
-// reference (REM-APR-…). Same tabs as ROCA Estates' apartment form. Service
-// charge, purchase price and block accounting stay in ROCA Estates (RL-033).
-// Block and unit number are set once, when adding: statement numbers are built
-// from them. An edit sends only the fields that changed.
+// reference (REM-APR-…). Same tabs and fields as ROCA Estates' apartment form,
+// certificates and files included — except service charge, which Roca Living
+// does not deal in (RL-033). Block and unit number are set once, when adding:
+// statement numbers are built from them. An edit sends only the fields that
+// changed; a file is saved in ROCA Estates as soon as it is chosen.
 
 const TABS = [
   ['unit', 'Apartment Profile', Home],
@@ -21,7 +22,7 @@ const TABS = [
   ['lease', 'Lease & Financials', FileText],
 ];
 // The tab a field with a mistake is on, so the form can open it.
-const FIELD_TAB = { lease_term_years: 'lease', ground_rent_amount: 'lease' };
+const FIELD_TAB = { lease_term_years: 'lease', ground_rent_amount: 'lease', purchase_price: 'lease' };
 
 const blank = (v) => (v === null || v === undefined ? '' : String(v));
 const opts = (pairs) => pairs.map(([value, label]) => ({ value, label }));
@@ -59,12 +60,24 @@ const toForm = (u) => ({
   eicr_start_date: blank(u?.eicr_start_date),
   eicr_expiry_date: blank(u?.eicr_expiry_date),
   smoke_detector_date: blank(u?.smoke_detector_date),
+  smoke_detector_expiry_date: blank(u?.smoke_detector_expiry_date),
   sprinkler_date: blank(u?.sprinkler_date),
+  sprinkler_expiry_date: blank(u?.sprinkler_expiry_date),
+  gas_safety_date: blank(u?.gas_safety_date),
+  gas_safety_expiry_date: blank(u?.gas_safety_expiry_date),
+  hmo_licence_date: blank(u?.hmo_licence_date),
+  hmo_licence_expiry_date: blank(u?.hmo_licence_expiry_date),
+  pat_date: blank(u?.pat_date),
+  pat_expiry_date: blank(u?.pat_expiry_date),
   lease_start_date: blank(u?.lease_start_date),
   lease_end_date: blank(u?.lease_end_date),
   lease_term_years: blank(u?.lease_term_years),
   land_registry_title_no: blank(u?.land_registry_title_no),
   ground_rent_amount: blank(u?.ground_rent_amount),
+  ground_rent_review_terms: blank(u?.ground_rent_review_terms),
+  purchase_price: blank(u?.purchase_price),
+  purchase_date: blank(u?.purchase_date),
+  repair_obligations: blank(u?.repair_obligations),
   subletting_allowed: blank(u?.subletting_allowed) || 'YES',
   pets_allowed: blank(u?.pets_allowed) || 'YES',
 });
@@ -79,12 +92,80 @@ const validate = (f, isEdit) => {
   if (f.internal_area && Number.isNaN(Number(f.internal_area))) e.internal_area = 'Enter a number';
   if (f.lease_term_years && !/^\d+$/.test(f.lease_term_years)) e.lease_term_years = 'Whole years';
   if (f.ground_rent_amount && Number.isNaN(Number(f.ground_rent_amount))) e.ground_rent_amount = 'Enter an amount';
+  if (f.purchase_price && Number.isNaN(Number(f.purchase_price))) e.purchase_price = 'Enter an amount';
   return e;
 };
 
 const GroupTitle = ({ children }) => (
   <h4 className="text-[11px] font-bold text-status-muted uppercase tracking-wider">{children}</h4>
 );
+
+// One file on the ROCA Estates apartment (floor plan, a certificate, the lease…):
+// view, upload/replace or remove it. Saved in ROCA Estates straight away.
+const ApartmentFile = ({ rocaemId, field, label, value, onChange }) => {
+  const { addToast } = useToast();
+  const confirm = useConfirm();
+  const input = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const url = `/estates/properties/${rocaemId}/files/${field}`;
+
+  const view = async () => {
+    try {
+      const res = await api.get(url, { responseType: 'blob' });
+      window.open(URL.createObjectURL(res.data), '_blank', 'noopener');
+    } catch {
+      addToast(`Could not open the ${label.toLowerCase()}`, 'error');
+    }
+  };
+  const upload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const form = new FormData();
+    form.append('file', file);
+    setBusy(true);
+    try {
+      const res = await api.put(url, form, { headers: { 'Content-Type': 'multipart/form-data' }, skipInterceptorError: true });
+      onChange(res.data.data?.[field] || file.name);
+      addToast(`${label} saved in ROCA Estates`, 'success');
+    } catch (err) {
+      addToast(err.response?.status === 413 ? `${file.name} is too big for the server's upload limit` : err.response?.data?.message || `Could not upload the ${label.toLowerCase()}`, 'error');
+    } finally {
+      setBusy(false);
+      e.target.value = '';
+    }
+  };
+  const remove = async () => {
+    const ok = await confirm({ title: `Remove ${label}?`, message: 'It is removed in ROCA Estates too.', confirmText: 'Remove', variant: 'danger' });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await api.delete(url);
+      onChange(null);
+      addToast(`${label} removed`, 'success');
+    } catch (err) {
+      addToast(err.response?.data?.message || `Could not remove the ${label.toLowerCase()}`, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const btn = 'inline-flex items-center gap-1 text-xs font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs font-semibold text-status-muted">{label}</span>
+      <div className="flex flex-wrap items-center gap-3 min-h-[38px] px-3 py-2 rounded-lg border border-card-border bg-surface-light">
+        <Paperclip size={14} className="text-gray-400 shrink-0" />
+        <span className="text-sm text-brand-primary truncate flex-1 min-w-0">{value ? String(value).split('/').pop().replace(/^\d+-[a-z0-9]+-/i, '') : <span className="text-gray-400">No file</span>}</span>
+        {value && <button type="button" onClick={view} disabled={busy} className={`${btn} text-brand-accent hover:underline`}><Eye size={13} /> View</button>}
+        <button type="button" onClick={() => input.current?.click()} disabled={busy} className={`${btn} text-brand-primary hover:underline`}>
+          <Upload size={13} /> {busy ? 'Saving…' : value ? 'Replace' : 'Upload'}
+        </button>
+        {value && <button type="button" onClick={remove} disabled={busy} className={`${btn} text-status-danger hover:underline`}><Trash2 size={13} /> Remove</button>}
+        <input ref={input} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="hidden" onChange={upload} />
+      </div>
+    </div>
+  );
+};
 
 // The next free unit number in a block (as ROCA Estates' own form suggests).
 const nextUnitNumber = (units, buildingId) => {
@@ -105,6 +186,23 @@ const ApartmentFormBody = ({ apartment, buildings, landlords, units, onClose, on
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState('unit');
+  const [files, setFiles] = useState(() => apartment || {});
+
+  // A file control when editing; when adding, files come after the first save.
+  const file = (name, label) => (isEdit
+    ? <ApartmentFile rocaemId={apartment.id} field={name} label={label} value={files[name]} onChange={(v) => setFiles((f) => ({ ...f, [name]: v }))} />
+    : null);
+  const certificate = (title, prefix, fromLabel, fileName, extra = null) => (
+    <div className="flex flex-col gap-4 border border-card-border rounded-card p-5">
+      <GroupTitle>{title}</GroupTitle>
+      {extra}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {date(prefix.date, fromLabel)}
+        {date(prefix.expiry, 'Expiry Date')}
+      </div>
+      {file(fileName, 'Certificate')}
+    </div>
+  );
 
   const set = (name) => (e) => setForm((f) => ({ ...f, [name]: e?.target ? e.target.value : e }));
   const field = (name, label, props = {}) => (
@@ -302,6 +400,7 @@ const ApartmentFormBody = ({ apartment, buildings, landlords, units, onClose, on
                       {select('has_parking', 'Parking', YES_NO)}
                       {form.has_parking === 'yes' && field('parking_space', 'Parking Space')}
                     </div>
+                    {file('floor_plan', 'Floor Plan')}
                   </div>
                 </div>
               </div>
@@ -309,32 +408,16 @@ const ApartmentFormBody = ({ apartment, buildings, landlords, units, onClose, on
 
             {tab === 'compliance' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="flex flex-col gap-4 border border-card-border rounded-card p-5">
-                  <GroupTitle>Energy Performance (EPC)</GroupTitle>
-                  {select('epc_rating', 'Rating', EPC)}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {date('epc_start_date', 'Valid From')}
-                    {date('epc_expiry_date', 'Expiry Date')}
-                  </div>
-                </div>
-                <div className="flex flex-col gap-4 border border-card-border rounded-card p-5">
-                  <GroupTitle>Electrical (EICR)</GroupTitle>
-                  {select('eicr_status', 'Outcome', EICR)}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {date('eicr_start_date', 'Test Date')}
-                    {date('eicr_expiry_date', 'Expiry Date')}
-                  </div>
-                </div>
-                <div className="flex flex-col gap-4 border border-card-border rounded-card p-5">
-                  <GroupTitle>Smoke Detectors</GroupTitle>
-                  {date('smoke_detector_date', 'Last Tested')}
-                </div>
-                <div className="flex flex-col gap-4 border border-card-border rounded-card p-5">
-                  <GroupTitle>Sprinklers</GroupTitle>
-                  {date('sprinkler_date', 'Last Serviced')}
-                </div>
+                {certificate('Energy Performance (EPC)', { date: 'epc_start_date', expiry: 'epc_expiry_date' }, 'Valid From', 'epc_file', select('epc_rating', 'Rating', EPC))}
+                {certificate('Electrical (EICR)', { date: 'eicr_start_date', expiry: 'eicr_expiry_date' }, 'Test Date', 'eicr_file', select('eicr_status', 'Outcome', EICR))}
+                {certificate('Gas Safety', { date: 'gas_safety_date', expiry: 'gas_safety_expiry_date' }, 'Issued', 'gas_safety_file')}
+                {certificate('Smoke & CO Detectors', { date: 'smoke_detector_date', expiry: 'smoke_detector_expiry_date' }, 'Last Tested', 'smoke_detector_file')}
+                {certificate('Sprinklers', { date: 'sprinkler_date', expiry: 'sprinkler_expiry_date' }, 'Last Serviced', 'sprinkler_file')}
+                {certificate('HMO Licence', { date: 'hmo_licence_date', expiry: 'hmo_licence_expiry_date' }, 'Issued', 'hmo_licence_file')}
+                {certificate('PAT Testing', { date: 'pat_date', expiry: 'pat_expiry_date' }, 'Tested', 'pat_file')}
                 <p className="lg:col-span-2 text-[11px] text-status-muted">
-                  Certificate files for let apartments are kept in Roca Living, on the property&apos;s Safety &amp; Compliance tab.
+                  The same certificates show on the property&apos;s Safety &amp; Compliance tab and in ROCA Estates.
+                  {!isEdit && ' Add the certificate files after the apartment is saved.'}
                 </p>
               </div>
             )}
@@ -349,6 +432,14 @@ const ApartmentFormBody = ({ apartment, buildings, landlords, units, onClose, on
                     {field('lease_term_years', 'Lease Term (Years)')}
                     {field('land_registry_title_no', 'Land Registry Title No', { placeholder: 'e.g. TGL12345' })}
                     {field('ground_rent_amount', 'Ground Rent Amount (£)')}
+                    {field('purchase_price', 'Purchase Price (£)')}
+                    {date('purchase_date', 'Purchase Date')}
+                  </div>
+                  {field('ground_rent_review_terms', 'Ground Rent Review Terms')}
+                  {field('repair_obligations', 'Repair Obligations')}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {file('lease_file', 'Lease')}
+                    {file('title_register_file', 'Title Register')}
                   </div>
                 </div>
                 <div className="flex flex-col gap-4">
@@ -359,7 +450,7 @@ const ApartmentFormBody = ({ apartment, buildings, landlords, units, onClose, on
                   </div>
                 </div>
                 <p className="text-[11px] text-status-muted">
-                  Service charge, purchase price and block accounting are kept in ROCA Estates.
+                  Service charge and block accounting are kept in ROCA Estates only.
                 </p>
               </div>
             )}

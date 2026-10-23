@@ -460,6 +460,14 @@ export const LandlordDetailPage = () => {
 
   if (!data) return null;
 
+  // NRL numbers come from ROCA Estates (one per owner, as printed on statements);
+  // Roca Living's own copy shows only when ROCA Estates has none.
+  const estatesNrl = data.estates_nrl?.formatted || null;
+  const nrlShown = estatesNrl || data.nrl_hmrc_ref || '—';
+  const nrlNote = !estatesNrl && data.rocaem_user_id && data.nrl_hmrc_ref
+    ? 'Saved in Roca Living only. Add it in Edit Details (ROCA Estates) so both apps match.'
+    : null;
+
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Clock },
     { id: 'properties', label: 'Properties', icon: Building2 },
@@ -1194,7 +1202,7 @@ export const LandlordDetailPage = () => {
                   }
                 />
                 <DataRow icon={CheckCircle2} label="Ownership Confirmed" value={data.ownership_confirmed ? 'Yes' : 'No'} />
-                <DataRow icon={Flag} label="NRL Number (HMRC)" value={data.nrl_hmrc_ref || '—'} />
+                <DataRow icon={Flag} label="NRL Number (HMRC)" value={nrlShown} />
                 <DataRow icon={Hash} label="NRL Withholding" value={data.nrl_withhold_pct != null ? `${data.nrl_withhold_pct}%` : '—'} />
                 <button
                   onClick={() => setActiveTab('settings')}
@@ -1510,7 +1518,8 @@ export const LandlordDetailPage = () => {
                 />
                 <DataRow icon={Hash} label="Statement Initials" value={data.initials || '—'} />
                 <DataRow icon={Hash} label="Ownership Share" value={data.ownership_share != null ? `${data.ownership_share}%` : '—'} />
-                <DataRow icon={Flag} label="NRL Number (HMRC)" value={data.nrl_hmrc_ref || '—'} />
+                <DataRow icon={Flag} label="NRL Number (HMRC)" value={nrlShown} />
+                {nrlNote && <p className="text-[11px] text-status-warning font-semibold -mt-1 mb-1">{nrlNote}</p>}
                 <DataRow icon={CheckCircle2} label="NRL HMRC Approved" value={data.nrl_hmrc_approved ? 'Yes' : 'No'} />
                 <DataRow icon={Hash} label="NRL Withholding" value={data.nrl_withhold_pct != null ? `${data.nrl_withhold_pct}%` : '—'} />
                 <Button type="button" variant="secondary" size="sm" className="mt-3" onClick={openEditModal}>
@@ -1603,14 +1612,23 @@ export const LandlordDetailPage = () => {
                   onChange={(e) => setEditForm({ ...editForm, nrl_withhold_pct: e.target.value })}
                   error={editErrors.nrl_withhold_pct}
                 />
-                <Input
-                  label="NRL Number (HMRC)"
-                  id="edit_nrl_hmrc_ref"
-                  placeholder="e.g. NL945005"
-                  value={editForm.nrl_hmrc_ref}
-                  onChange={(e) => setEditForm({ ...editForm, nrl_hmrc_ref: e.target.value })}
-                  error={editErrors.nrl_hmrc_ref}
-                />
+                {data.rocaem_user_id ? (
+                  // Kept in ROCA Estates (one per owner): changed with Edit Details.
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs font-semibold text-status-muted">NRL Number (HMRC)</span>
+                    <span className="text-sm font-bold text-brand-primary">{nrlShown}</span>
+                    <span className="text-[11px] text-gray-400 font-semibold">Change it in Edit Details (ROCA Estates), for each owner.</span>
+                  </div>
+                ) : (
+                  <Input
+                    label="NRL Number (HMRC)"
+                    id="edit_nrl_hmrc_ref"
+                    placeholder="e.g. NL945005"
+                    value={editForm.nrl_hmrc_ref}
+                    onChange={(e) => setEditForm({ ...editForm, nrl_hmrc_ref: e.target.value })}
+                    error={editErrors.nrl_hmrc_ref}
+                  />
+                )}
                 <Dropdown
                   label="NRL HMRC Approved"
                   id="edit_nrl_hmrc_approved"

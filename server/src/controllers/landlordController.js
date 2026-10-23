@@ -9,6 +9,7 @@ import { ensureLandlordSetup } from '../utils/landlordSetup.js';
 import { deriveInitials } from '../utils/initials.js';
 import { createActivationLink } from '../utils/activationLink.js';
 import { todayYmd, toYmd } from '../utils/dateHelpers.js';
+import { fetchEstateLandlord, estateNrlOf } from '../utils/estatesLink.js';
 import fs from 'fs';
 
 const BCRYPT_COST = parseInt(process.env.BCRYPT_COST || '12', 10);
@@ -244,10 +245,18 @@ export const getLandlordById = catchAsync(async (req, res, next) => {
 
   const formattedLandlord = formatLandlord(landlord);
 
+  // NRL numbers live in ROCA Estates (one per owner); Roca Living's own copy is
+  // only the fallback when ROCA Estates has none or can't be reached.
+  let estatesNrl = null;
+  if (landlord.rocaem_user_id) {
+    try { estatesNrl = estateNrlOf(await fetchEstateLandlord(landlord.rocaem_user_id)); } catch { estatesNrl = null; }
+  }
+
   res.json({
     success: true,
     data: {
       ...formattedLandlord,
+      estates_nrl: estatesNrl,
       properties: formattedProperties,
       compliance_checklist: formattedCompliance
     }

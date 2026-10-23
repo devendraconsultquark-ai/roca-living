@@ -33,6 +33,7 @@ import { runPhase29Migrations } from './src/db/migrations/phase29_xero_rent_invo
 import { runPhase30Migrations } from './src/db/migrations/phase30_rent_payment_approval.js';
 import { runPhase31Migrations } from './src/db/migrations/phase31_approved_rent_flow.js';
 import { runPhase32Migrations } from './src/db/migrations/phase32_rent_payment_deductions.js';
+import { runPhase33Migrations } from './src/db/migrations/phase33_estates_sync.js';
 import { startScheduler } from './src/jobs/scheduler.js';
 import { ensurePuppeteerDependencies } from './src/utils/puppeteerGenerator.js';
 const PORT = Number(process.env.PORT) || 9000;
@@ -135,6 +136,7 @@ const startServer = async () => {
   await runPhase30Migrations();
   await runPhase31Migrations();
   await runPhase32Migrations();
+  await runPhase33Migrations();
   logger.info('Phase 27 migrations complete');
 
   await ensurePuppeteerDependencies();

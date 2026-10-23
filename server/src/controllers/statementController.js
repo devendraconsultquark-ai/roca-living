@@ -705,6 +705,7 @@ const withLiveEstates = async (t) => {
     landlord_email: d.landlord_email || t.landlord_email,
     // NRL and statement initials: ROCA Estates when it holds them.
     nrl_hmrc_ref: d.nrl_number || t.nrl_hmrc_ref,
+    nrl_formatted: d.nrl_formatted || null,
     landlord_initials: d.statement_initials || t.landlord_initials,
     estates_property_address: d.property_address,
     estates_source: 'estates'
@@ -939,7 +940,7 @@ export const getTenancyAutofill = catchAsync(async (req, res) => {
       landlord_id: t.landlord_id,
       landlord_name: niceName(t.landlord_name) || '',
       landlord_address: t.landlord_address || '',
-      nrl_number: formatNrl(t.nrl_hmrc_ref, initials),
+      nrl_number: t.nrl_formatted || formatNrl(t.nrl_hmrc_ref, initials),
       landlord_reference: `RL_LR_${block}_${apt}`,
       property_reference: `${block}-${apt}`,
       property_address: t.estates_property_address || [t.address_line1, t.address_line2, t.city, t.postcode].filter(Boolean).join(', '),

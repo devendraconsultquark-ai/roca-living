@@ -107,7 +107,12 @@ export const PropertyOverview = ({ data, documents, onTab, onDownloadDoc, onUplo
               ['Property Reference', data.property_reference || '—'],
             ]} />
             <div className="flex flex-col gap-2 items-stretch sm:w-36">
-              {floorPlan ? (
+              {floorPlan?.is_pdf ? (
+                <button type="button" onClick={() => onTab('photos')} className="w-full h-36 rounded-card border border-card-border flex flex-col items-center justify-center gap-1 text-brand-primary hover:bg-surface-hover cursor-pointer">
+                  <FileText size={26} className="text-status-danger" />
+                  <span className="text-[11px] font-bold">Floor plan (PDF)</span>
+                </button>
+              ) : floorPlan ? (
                 <PropertyThumb imageId={floorPlan.id} alt="Floor plan" className="w-full h-36 rounded-card border border-card-border" iconSize={22} />
               ) : (
                 <div className="w-full h-36 rounded-card border border-dashed border-card-border flex items-center justify-center text-center text-[11px] text-gray-400 font-semibold p-2">

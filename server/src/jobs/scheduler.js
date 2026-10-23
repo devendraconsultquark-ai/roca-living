@@ -3,6 +3,7 @@ import db from '../config/db.js';
 import logger from '../utils/logger.js';
 import { toYmd } from '../utils/dateHelpers.js';
 import { topUpAllRentSchedules } from '../utils/rentSchedules.js';
+import { syncFromEstates } from '../utils/estatesSync.js';
 
 // Job 1: Deposit Registration Reminder (daily at 8am)
 export const checkDeposits = async () => {
@@ -37,6 +38,7 @@ export const checkDeposits = async () => {
 export const checkComplianceCertificates = async () => {
   try {
     logger.info('Running compliance certificates expiry check...');
+    await syncFromEstates({ force: true }); // certificate dates kept in ROCA Estates
     const certs = await db('property_certificates')
       .join('properties', 'property_certificates.property_id', 'properties.id')
       .select('property_certificates.*', 'properties.address_line1', 'properties.city')

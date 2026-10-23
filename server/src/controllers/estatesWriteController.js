@@ -1,10 +1,11 @@
 import db from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
-import { estatesApi, estatesApiReady } from '../utils/estatesApi.js';
+import { estatesApi, estatesApiReady, estatesUpload, estatesStream } from '../utils/estatesApi.js';
 import { ensureLivingLandlord, fetchEstateLandlord, estateLandlordName, estateLandlordAddress } from '../utils/estatesLink.js';
 import { eraseLandlordData } from './landlordController.js';
 import { deletePropertyInternal } from './propertyController.js';
+import { syncFromEstates, estatesOwnerDiffers } from '../utils/estatesSync.js';
 
 // Add, change and delete ROCA Estates landlords and apartments from Roca
 // Living (client decision 21 Oct). ROCA Estates stays the only copy: every
@@ -12,8 +13,8 @@ import { deletePropertyInternal } from './propertyController.js';
 // and codes and keeps a change log. Roca Living adds what ROCA Estates cannot
 // know: its lettings history blocks a delete, and its own records follow.
 
-// What Roca Living may send. Service charge and purchase details are ROCA
-// Estates' business (RL-033); AML checks and files are kept there.
+// What Roca Living may send: everything the ROCA Estates admin forms edit,
+// except service charge, which Roca Living does not deal in (RL-033).
 const LANDLORD_FIELDS = [
   'name', 'first_name', 'middle_name', 'last_name', 'email', 'phone',
   'address', 'city', 'country', 'postcode',
@@ -23,7 +24,9 @@ const LANDLORD_FIELDS = [
   'secondary_owner_phone', 'secondary_owner_email', 'secondary_owner_address', 'secondary_owner_city',
   'secondary_owner_postcode', 'secondary_owner_country',
   'nationality', 'residence_country', 'tax_residency', 'owner_dob', 'secondary_owner_dob', 'notes',
-  'nrl_number', 'statement_initials', 'preferred_statement_email'
+  'nrl_number', 'statement_initials', 'preferred_statement_email',
+  'secondary_nrl_number', 'secondary_statement_initials',
+  'legal_fee', 'sdlt'
 ];
 const APARTMENT_FIELDS = [
   'landlord_id', 'name', 'address', 'city', 'postcode', 'unit_type', 'floor_number', 'internal_area',
@@ -31,7 +34,14 @@ const APARTMENT_FIELDS = [
   'lease_start_date', 'lease_end_date', 'lease_term_years', 'ground_rent_amount', 'land_registry_title_no',
   'subletting_allowed', 'pets_allowed',
   'epc_rating', 'epc_start_date', 'epc_expiry_date', 'eicr_status', 'eicr_start_date', 'eicr_expiry_date',
-  'smoke_detector_date', 'sprinkler_date'
+  'smoke_detector_date', 'smoke_detector_expiry_date', 'sprinkler_date', 'sprinkler_expiry_date',
+  'gas_safety_date', 'gas_safety_expiry_date', 'hmo_licence_date', 'hmo_licence_expiry_date', 'pat_date', 'pat_expiry_date',
+  'repair_obligations', 'purchase_price', 'purchase_date', 'ground_rent_review_terms'
+];
+// Files kept on the ROCA Estates apartment (one each).
+export const APARTMENT_FILES = [
+  'floor_plan', 'epc_file', 'eicr_file', 'smoke_detector_file', 'sprinkler_file',
+  'gas_safety_file', 'hmo_licence_file', 'pat_file', 'lease_file', 'title_register_file'
 ];
 // Block and unit number are set once, when the apartment is added: they make
 // the unit code (PH_08) that statement numbers are built from.
@@ -102,6 +112,7 @@ export const updateEstateLandlord = catchAsync(async (req, res) => {
     }
     await audit(trx, req, 'ESTATE_LANDLORD_UPDATED', 'estates_landlord', id, { fields: Object.keys(body) });
   });
+  await syncFromEstates({ force: true });
   res.json({ success: true, message: 'Landlord updated in ROCA Estates' });
 });
 
@@ -114,7 +125,7 @@ export const deleteEstateLandlord = catchAsync(async (req, res) => {
       [await count(db('properties').where('landlord_id', linked.id)), 'Roca Living apartment record(s)'],
       [await count(db('landlord_statements').where('landlord_id', linked.id)), 'statement(s)'],
       [await count(db('transactions').where('landlord_id', linked.id)), 'payment record(s)'],
-      [await count(db('documents').where({ owner_type: 'landlord', owner_id: linked.id })), 'document(s)']
+      [await count(db('documents').where({ owner_type: 'landlord', owner_id: linked.id }).whereNull('rocaem_document_id')), 'document(s)']
     ]);
     if (reason) throw new ApiError(409, `This landlord has ${reason} in Roca Living and cannot be deleted.`);
   }
@@ -136,6 +147,7 @@ export const createEstateApartment = catchAsync(async (req, res) => {
   const data = await estatesApi('POST', '/properties', { body, actingFor: req.user.email });
   const unit = data?.property;
   await audit(db, req, 'ESTATE_APARTMENT_CREATED', 'estates_apartment', unit?.id || null, { fields: Object.keys(body) });
+  await syncFromEstates({ force: true });
   res.status(201).json({ success: true, message: 'Apartment added in ROCA Estates', data: { id: unit?.id } });
 });
 
@@ -172,7 +184,67 @@ export const updateEstateApartment = catchAsync(async (req, res) => {
       ...(ownerChange && livingLandlordId !== linked.landlord_id ? { property_id: linked.id, landlord_from: linked.landlord_id, landlord_to: livingLandlordId } : {})
     });
   });
+  await syncFromEstates({ force: true });
   res.json({ success: true, message: 'Apartment updated in ROCA Estates' });
+});
+
+// POST /estates/properties/:id/accept-owner  { confirm_owner_change }
+// ROCA Estates has another owner for a managed flat (changed there): move the
+// Roca Living flat to that owner, so its future statements and Xero landlord
+// bills go to them. Statements already made keep their landlord.
+export const acceptEstateOwner = catchAsync(async (req, res) => {
+  const id = rocaemId(req);
+  const linked = await db('properties').where({ rocaem_property_id: id }).first();
+  if (!linked) throw new ApiError(404, 'This apartment is not managed in Roca Living');
+  const owner = await estatesOwnerDiffers(linked);
+  if (!owner) return res.json({ success: true, message: 'The owner is already the same in both apps' });
+  await db.transaction(async (trx) => {
+    const livingLandlordId = await ensureLivingLandlord(trx, owner.rocaem_id);
+    if (!req.body?.confirm_owner_change) {
+      const current = await trx('tenancies').where('property_id', linked.id).whereIn('status', ['active', 'notice', 'pending']).first('id');
+      if (current) throw new ApiError(409, 'This apartment has a current tenancy. Confirm the change of owner: future statements and Xero bills will go to the new owner.');
+    }
+    await trx('properties').where('id', linked.id).update({ landlord_id: livingLandlordId, updated_at: trx.fn.now() });
+    await audit(trx, req, 'ESTATE_OWNER_ACCEPTED', 'property', linked.id, { landlord_from: linked.landlord_id, landlord_to: livingLandlordId, rocaem_landlord_id: owner.rocaem_id });
+  });
+  res.json({ success: true, message: `Owner changed to ${owner.name}` });
+});
+
+const apartmentFile = (req) => {
+  const field = String(req.params.field || '');
+  if (!APARTMENT_FILES.includes(field)) throw new ApiError(400, 'Unknown apartment file');
+  return field;
+};
+
+// PUT /estates/properties/:id/files/:field  (multipart "file") — replaces that file in ROCA Estates.
+export const uploadEstateApartmentFile = catchAsync(async (req, res) => {
+  const id = rocaemId(req);
+  const field = apartmentFile(req);
+  if (!req.file) throw new ApiError(400, 'No file uploaded');
+  const data = await estatesUpload('PATCH', `/properties/${id}`, {
+    files: [{ field, buffer: req.file.buffer, name: req.file.originalname, type: req.file.mimetype }],
+    actingFor: req.user.email
+  });
+  await audit(db, req, 'ESTATE_APARTMENT_FILE_UPLOADED', 'estates_apartment', id, { field, original_name: req.file.originalname });
+  await syncFromEstates({ force: true });
+  res.json({ success: true, message: 'File saved in ROCA Estates', data: { [field]: data?.property?.[field] || null } });
+});
+
+// DELETE /estates/properties/:id/files/:field
+export const removeEstateApartmentFile = catchAsync(async (req, res) => {
+  const id = rocaemId(req);
+  const field = apartmentFile(req);
+  await estatesApi('PATCH', `/properties/${id}`, { body: { [field]: '' }, actingFor: req.user.email });
+  await audit(db, req, 'ESTATE_APARTMENT_FILE_REMOVED', 'estates_apartment', id, { field });
+  await syncFromEstates({ force: true });
+  res.json({ success: true, message: 'File removed in ROCA Estates' });
+});
+
+// GET /estates/properties/:id/files/:field[?download=1] — the file, from ROCA Estates.
+export const getEstateApartmentFile = catchAsync(async (req, res) => {
+  const id = rocaemId(req);
+  const field = apartmentFile(req);
+  await estatesStream(`/files/preview/apartment/${id}?field=${field}`, res, { download: req.query.download === '1' });
 });
 
 // DELETE /estates/properties/:id
@@ -185,8 +257,8 @@ export const deleteEstateApartment = catchAsync(async (req, res) => {
       [await count(db('property_expenses').where('property_id', linked.id)), 'expense(s)'],
       [await count(db('maintenance_tickets').where('property_id', linked.id)), 'maintenance ticket(s)'],
       [await count(db('inspections').where('property_id', linked.id)), 'inspection(s)'],
-      [await count(db('documents').where({ owner_type: 'property', owner_id: linked.id })), 'document(s)'],
-      [await count(db('property_images').where('property_id', linked.id)), 'photo(s)'],
+      [await count(db('documents').where({ owner_type: 'property', owner_id: linked.id }).whereNull('rocaem_document_id')), 'document(s)'],
+      [await count(db('property_images').where('property_id', linked.id).whereNull('estates_file')), 'photo(s)'],
       [await count(db('transactions').where('property_id', linked.id)), 'payment record(s)']
     ]);
     if (reason) throw new ApiError(409, `This apartment has ${reason} in Roca Living and cannot be deleted.`);

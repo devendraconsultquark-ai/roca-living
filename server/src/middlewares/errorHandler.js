@@ -3,6 +3,13 @@ import logger from '../utils/logger.js';
 const errorHandler = (err, req, res, next) => {
   logger.error(err);
 
+  // Upload refused by multer (too big, too many files): tell the user why.
+  if (err.name === 'MulterError') {
+    err.statusCode = 400;
+    err.isOperational = true;
+    if (err.code === 'LIMIT_FILE_SIZE') err.message = 'The file is too big.';
+  }
+
   const statusCode = err.statusCode || 500;
   const isDev = process.env.NODE_ENV === 'development';
 

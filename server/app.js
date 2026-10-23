@@ -27,6 +27,7 @@ import newsRouter from './src/routes/newsRoutes.js';
 import xeroRouter from './src/routes/xeroRoutes.js';
 import approvedRentStatementRouter from './src/routes/approvedRentStatementRoutes.js';
 import estatesRouter from './src/routes/estatesRoutes.js';
+import { pullFromEstatesOnRead } from './src/utils/estatesSync.js';
 import previewRouter from './src/routes/previewRoutes.js';
 import transactionRouter from './src/routes/transactionRoutes.js';
 import contactRouter from './src/routes/contactRoutes.js';
@@ -115,6 +116,8 @@ app.get('/', (req, res) => res.json({ success: true, message: 'Roca Living API' 
 
 // Routes
 app.use("/api/v1/auth", authRouter);
+// Changes made in ROCA Estates show here: pulled in before these pages read.
+app.use(['/api/v1/landlords', '/api/v1/properties', '/api/v1/reports', '/api/v1/documents', '/api/v1/estates'], pullFromEstatesOnRead);
 app.use('/api/v1/landlords', landlordRouter);
 app.use('/api/v1/properties', propertyRouter);
 app.use('/api/v1/tenancies', tenancyRouter);

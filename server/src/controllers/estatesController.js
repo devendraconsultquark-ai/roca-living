@@ -29,8 +29,24 @@ const UNIT_DETAIL_COLUMNS = [
   ymd('lease_start_date'), ymd('lease_end_date'), 'p.lease_term_years', 'p.ground_rent_amount', 'p.ground_rent_review_terms',
   'p.service_charge_pa', 'p.service_charge_percentage', 'p.apportionment_method', 'p.subletting_allowed', 'p.pets_allowed',
   'p.epc_rating', ymd('epc_start_date'), ymd('epc_expiry_date'), ymd('eicr_start_date'), ymd('eicr_expiry_date'), 'p.eicr_status',
-  ymd('smoke_detector_date'), ymd('sprinkler_date')
+  ymd('smoke_detector_date'), ymd('sprinkler_date'), 'p.repair_obligations'
 ];
+// Shared with Roca Living's Safety tab, and the apartment's files. Read only
+// where ROCA Estates already has them (it adds them when it starts).
+const UNIT_EXTRA_DATES = ['smoke_detector_expiry_date', 'sprinkler_expiry_date', 'gas_safety_date', 'gas_safety_expiry_date',
+  'hmo_licence_date', 'hmo_licence_expiry_date', 'pat_date', 'pat_expiry_date'];
+const UNIT_FILES = ['floor_plan', 'epc_file', 'eicr_file', 'smoke_detector_file', 'sprinkler_file',
+  'gas_safety_file', 'hmo_licence_file', 'pat_file', 'lease_file', 'title_register_file'];
+let unitExtraColumns = null;
+const unitExtras = async () => {
+  if (unitExtraColumns) return unitExtraColumns;
+  const info = await emDb('properties').columnInfo();
+  const dates = UNIT_EXTRA_DATES.filter((c) => info[c]);
+  const files = UNIT_FILES.filter((c) => info[c]);
+  const cols = [...dates.map(ymd), ...files.map((c) => `p.${c}`)];
+  if (dates.length + files.length === UNIT_EXTRA_DATES.length + UNIT_FILES.length) unitExtraColumns = cols;
+  return cols;
+};
 const LANDLORD_LIST_COLUMNS = [
   'u.id', 'u.name', 'u.email', 'u.phone', 'u.status', 'u.ownership_type', 'u.company_name',
   'u.is_joint_ownership', 'u.secondary_owner_name', 'u.country', 'u.residence_country'
@@ -41,7 +57,7 @@ const LANDLORD_DETAIL_COLUMNS = [
   'u.company_address', 'u.company_city', 'u.company_postcode',
   'u.secondary_owner_phone', 'u.secondary_owner_email', 'u.secondary_owner_address', 'u.secondary_owner_city',
   'u.secondary_owner_postcode', 'u.secondary_owner_country',
-  'u.nationality', 'u.tax_residency', 'u.payment_ref', 'u.hmrc_verified',
+  'u.nationality', 'u.tax_residency', 'u.payment_ref', 'u.hmrc_verified', 'u.legal_fee', 'u.sdlt',
   'u.aml_risk_rating', 'u.aml_last_assessed', 'u.aml_next_review', 'u.notes',
   // For the edit form: the name parts ROCA Estates' own form edits
   'u.first_name', 'u.middle_name', 'u.last_name',
@@ -159,10 +175,11 @@ export const getEstateProperties = catchAsync(async (req, res) => {
 
 // GET /estates/properties/:id
 export const getEstateProperty = catchAsync(async (req, res) => {
-  const row = await fromEstates(() => unitsQuery()
+  const row = await fromEstates(async () => unitsQuery()
     .where('p.id', req.params.id)
     .select(
       ...UNIT_DETAIL_COLUMNS,
+      ...(await unitExtras()),
       'b.name as building_name', 'b.short_code as building_short_code', 'b.address as building_address',
       'b.city as building_city', 'b.postcode as building_postcode',
       'u.name as landlord_name', 'u.email as landlord_email', 'u.phone as landlord_phone'

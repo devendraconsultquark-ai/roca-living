@@ -5,6 +5,7 @@ import { ApiError } from './ApiError.js';
 import { ensureLandlordSetup } from './landlordSetup.js';
 import { getNumericSetting } from './settings.js';
 import { niceName } from './names.js';
+import { formatOwnersNrl } from './statementNumbering.js';
 import { checkPhone } from '../validations/common.js';
 
 // Link between ROCA Estates (rocaem) and Roca Living.
@@ -75,18 +76,41 @@ export const fetchEstateUnit = (rocaemPropertyId) => emDb('properties as p')
 // Landlord statement fields ROCA Estates holds (NRL number, initials, the
 // email statements go to). Only read where the ROCA Estates database already
 // has them, so an older ROCA Estates keeps working. Checked once per process.
-const STATEMENT_COLUMNS = ['nrl_number', 'statement_initials', 'preferred_statement_email'];
+const STATEMENT_COLUMNS = ['nrl_number', 'statement_initials', 'preferred_statement_email', 'secondary_nrl_number', 'secondary_statement_initials'];
 let statementColumns = null;
 export const estateStatementColumns = async () => {
   if (statementColumns) return statementColumns;
   try {
     const present = [];
     for (const c of STATEMENT_COLUMNS) if (await emDb.schema.hasColumn('users', c)) present.push(c);
-    statementColumns = present;
+    // Remembered only once ROCA Estates has them all (it adds them when it starts).
+    if (present.length === STATEMENT_COLUMNS.length) statementColumns = present;
+    return present;
   } catch {
     return [];
   }
-  return statementColumns;
+};
+
+// The landlord's NRL details from ROCA Estates (each joint owner has their own),
+// plus the line printed on statements.
+export const estateNrlOf = (l) => {
+  if (!l) return null;
+  const v = (k) => (l[k] ? String(l[k]).trim() : null);
+  const joint = !!l.is_joint_ownership;
+  const out = {
+    nrl_number: v('nrl_number'),
+    statement_initials: v('statement_initials'),
+    secondary_nrl_number: joint ? v('secondary_nrl_number') : null,
+    secondary_statement_initials: joint ? v('secondary_statement_initials') : null,
+    joint,
+    main_name: l.ownership_type === 'COMPANY' && l.company_name ? l.company_name : l.name,
+    joint_name: joint ? l.secondary_owner_name || null : null,
+  };
+  out.formatted = formatOwnersNrl({
+    nrl: out.nrl_number, initials: out.statement_initials, name: out.main_name,
+    jointNrl: out.secondary_nrl_number, jointInitials: out.secondary_statement_initials, jointName: out.joint_name,
+  }) || null;
+  return out;
 };
 
 export const fetchEstateLandlord = async (rocaemUserId) => emDb('users')
@@ -309,7 +333,9 @@ export const estateDisplayFor = async (rocaemPropertyId) => {
       // Statements go to the preferred statement email when ROCA Estates has one.
       landlord_email: (l?.preferred_statement_email || l?.email) ? String(l.preferred_statement_email || l.email).trim().toLowerCase() : null,
       nrl_number: l?.nrl_number ? String(l.nrl_number).trim() : null,
-      statement_initials: l?.statement_initials ? String(l.statement_initials).trim() : null
+      statement_initials: l?.statement_initials ? String(l.statement_initials).trim() : null,
+      // Both owners' NRL numbers as printed ("MVL - PX870568A, ML - 922/NL942174").
+      nrl_formatted: l ? estateNrlOf(l).formatted : null
     };
   } catch {
     return null; // Rocaem unreachable: statements fall back to the local record.

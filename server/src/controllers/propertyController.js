@@ -8,6 +8,12 @@ import logger from '../utils/logger.js';
 import { cleanUnitCode } from '../utils/statementNumbering.js';
 import { toYmd } from '../utils/dateHelpers.js';
 import { ensurePropertyCompliance, PROPERTY_CERT_TYPES } from '../utils/propertySetup.js';
+import { estatesApi, estatesApiReady, estatesUpload, estatesStream } from '../utils/estatesApi.js';
+import { ESTATE_CERT_FIELDS, isEstatesFile, syncFromEstates, estatesOwnerDiffers } from '../utils/estatesSync.js';
+
+// The ROCA Estates apartment that holds this property's address, certificates
+// and floor plan — once Roca Living can write there (see utils/estatesSync.js).
+const estatesApartmentOf = (property) => (property?.rocaem_property_id && estatesApiReady() ? property.rocaem_property_id : null);
 
 const ALLOWED_PROPERTY_FIELDS = [
   'address_line1',
@@ -171,6 +177,8 @@ export const getPropertyById = catchAsync(async (req, res, next) => {
       compliance_checklist: formattedCompliance,
       images: propertyImages.map(formatPropertyImage),
       active_tenancy: tenancyData,
+      // ROCA Estates has another owner for this flat: shown for the admin to confirm.
+      estates_owner: estatesApiReady() ? await estatesOwnerDiffers(property) : null,
       maintenance_tickets: maintenanceTickets.map(t => ({
         ...t,
         created_at: t.created_at ? new Date(t.created_at).toISOString() : null,
@@ -284,6 +292,23 @@ export const updateProperty = catchAsync(async (req, res, next) => {
     }
   }
 
+  const rid = estatesApartmentOf(propertyExists);
+  const toEstates = {};
+  if (rid) {
+    const changed = (f) => updateData[f] !== undefined && String(updateData[f] ?? '') !== String(propertyExists[f] ?? '');
+    if (['address_line1', 'address_line2'].some(changed)) {
+      const line1 = updateData.address_line1 ?? propertyExists.address_line1;
+      const line2 = updateData.address_line2 ?? propertyExists.address_line2;
+      toEstates.address = [line1, line2].map((x) => String(x || '').trim()).filter(Boolean).join(', ');
+    }
+    if (changed('city')) toEstates.city = updateData.city || '';
+    if (changed('postcode')) toEstates.postcode = updateData.postcode || '';
+    if (changed('name') && String(updateData.name || '').trim()) toEstates.name = updateData.name;
+    if (Object.keys(toEstates).length) {
+      await estatesApi('PATCH', `/properties/${rid}`, { body: toEstates, actingFor: req.user.email });
+    }
+  }
+
   await db.transaction(async (trx) => {
     if (Object.keys(updateData).length > 0) {
       await trx('properties').where('id', id).update({
@@ -303,6 +328,7 @@ export const updateProperty = catchAsync(async (req, res, next) => {
     });
   });
 
+  if (Object.keys(toEstates).length) await syncFromEstates({ force: true });
   const updatedProperty = await db('properties').where('id', id).first();
   const formatted = formatProperty(updatedProperty);
 
@@ -376,6 +402,15 @@ export const updateCertificate = catchAsync(async (req, res, next) => {
   const propertyExists = await db('properties').where('id', id).first();
   if (!propertyExists) {
     throw new ApiError(404, 'Property not found');
+  }
+
+  const rid = estatesApartmentOf(propertyExists);
+  if (rid && ESTATE_CERT_FIELDS[certType]) {
+    const f = ESTATE_CERT_FIELDS[certType];
+    await estatesApi('PATCH', `/properties/${rid}`, {
+      body: { [f.date]: issued_at || '', [f.expiry]: expires_at || '' },
+      actingFor: req.user.email
+    });
   }
 
   // Calculate status
@@ -499,8 +534,26 @@ export const uploadCertificateDocument = catchAsync(async (req, res, next) => {
     throw new ApiError(404, 'Certificate record not found for this property');
   }
 
+  // Kept in ROCA Estates too; Roca Living keeps its own copy for its downloads.
+  let estatesFile;
+  const owner = await db('properties').where('id', id).first('rocaem_property_id');
+  const rid = estatesApartmentOf(owner);
+  if (rid && ESTATE_CERT_FIELDS[certType]) {
+    const field = ESTATE_CERT_FIELDS[certType].file;
+    try {
+      const data = await estatesUpload('PATCH', `/properties/${rid}`, {
+        files: [{ field, buffer: await fs.promises.readFile(req.file.path), name: req.file.originalname, type: req.file.mimetype }],
+        actingFor: req.user.email
+      });
+      estatesFile = data?.property?.[field] || null;
+    } catch (err) {
+      await fs.promises.unlink(req.file.path).catch(() => {});
+      throw err;
+    }
+  }
+
   // Replace any previous file for this certificate
-  if (cert.document_path) {
+  if (cert.document_path && !isEstatesFile(cert.document_path)) {
     const oldPath = path.join(process.cwd(), cert.document_path);
     if (fs.existsSync(oldPath)) {
       try { fs.unlinkSync(oldPath); } catch (err) { logger.error(`Failed to remove old certificate file: ${err.message}`); }
@@ -512,7 +565,11 @@ export const uploadCertificateDocument = catchAsync(async (req, res, next) => {
   await db.transaction(async (trx) => {
     await trx('property_certificates')
       .where({ property_id: id, cert_type: certType })
-      .update({ document_path: relativePath, updated_at: trx.fn.now() });
+      .update({
+        document_path: relativePath,
+        ...(estatesFile !== undefined ? { estates_file: estatesFile } : {}),
+        updated_at: trx.fn.now()
+      });
 
     await trx('audit_log').insert({
       actor_id: req.user.id,
@@ -538,7 +595,7 @@ export const downloadCertificateDocument = catchAsync(async (req, res, next) => 
 
   const cert = await db('property_certificates')
     .join('properties', 'property_certificates.property_id', 'properties.id')
-    .select('property_certificates.*', 'properties.landlord_id')
+    .select('property_certificates.*', 'properties.landlord_id', 'properties.rocaem_property_id')
     .where({ 'property_certificates.property_id': id, 'property_certificates.cert_type': certType })
     .first();
 
@@ -550,6 +607,11 @@ export const downloadCertificateDocument = catchAsync(async (req, res, next) => 
   }
   if (!cert.document_path) {
     throw new ApiError(404, 'No document has been uploaded for this certificate');
+  }
+  if (isEstatesFile(cert.document_path)) {
+    const field = ESTATE_CERT_FIELDS[certType]?.file;
+    const ext = path.extname(cert.estates_file || '') || '';
+    return estatesStream(`/files/download/apartment/${cert.rocaem_property_id}?field=${field}`, res, { download: true, name: `${certType}_certificate${ext}` });
   }
 
   const absPath = path.join(process.cwd(), cert.document_path);
@@ -754,6 +816,8 @@ export const deleteProperty = catchAsync(async (req, res, next) => {
 const formatPropertyImage = (img) => ({
   id: img.id,
   property_id: img.property_id,
+  is_pdf: /\.pdf$/i.test(img.estates_file || img.document_path || ''),
+  in_estates: !!img.estates_file,
   image_type: img.image_type,
   caption: img.caption || null,
   is_primary: !!img.is_primary,
@@ -776,6 +840,31 @@ export const uploadPropertyImage = catchAsync(async (req, res, next) => {
   const image_type = req.body.image_type === 'floor_plan' ? 'floor_plan' : 'photo';
   const caption = req.body.caption ? String(req.body.caption).slice(0, 255) : null;
   const document_path = `uploads/properties/${req.file.filename}`;
+  if (image_type === 'photo' && /\.pdf$/i.test(req.file.originalname)) {
+    await fs.promises.unlink(req.file.path).catch(() => {});
+    throw new ApiError(400, 'Photos must be images (JPEG, PNG, GIF, WEBP). A PDF can be added as a floor plan.');
+  }
+
+  // The floor plan is kept in ROCA Estates (one per apartment): it replaces the one there.
+  let estates_file = null;
+  const rid = image_type === 'floor_plan' ? estatesApartmentOf(property) : null;
+  if (rid) {
+    try {
+      const data = await estatesUpload('PATCH', `/properties/${rid}`, {
+        files: [{ field: 'floor_plan', buffer: await fs.promises.readFile(req.file.path), name: req.file.originalname, type: req.file.mimetype }],
+        actingFor: req.user.email
+      });
+      estates_file = data?.property?.floor_plan || null;
+    } catch (err) {
+      await fs.promises.unlink(req.file.path).catch(() => {});
+      throw err;
+    }
+    const old = await db('property_images').where({ property_id: id, image_type: 'floor_plan' });
+    await db('property_images').whereIn('id', old.map((o) => o.id)).delete();
+    for (const o of old) {
+      if (!isEstatesFile(o.document_path)) await fs.promises.unlink(path.join(process.cwd(), o.document_path)).catch(() => {});
+    }
+  }
 
   // The first photo becomes the card thumbnail automatically.
   let is_primary = false;
@@ -792,6 +881,7 @@ export const uploadPropertyImage = catchAsync(async (req, res, next) => {
     caption,
     is_primary,
     document_path,
+    estates_file,
     uploaded_by: req.user.id
   });
 
@@ -830,6 +920,10 @@ export const downloadPropertyImage = catchAsync(async (req, res, next) => {
   const image = await db('property_images').where('id', imageId).first();
   if (!image) {
     throw new ApiError(404, 'Image not found');
+  }
+  if (isEstatesFile(image.document_path)) {
+    const owner = await db('properties').where('id', image.property_id).first('rocaem_property_id');
+    return estatesStream(`/files/preview/apartment/${owner.rocaem_property_id}?field=floor_plan`, res);
   }
 
   const absolutePath = path.isAbsolute(image.document_path)
@@ -887,10 +981,18 @@ export const deletePropertyImage = catchAsync(async (req, res, next) => {
     throw new ApiError(404, 'Image not found');
   }
 
+  // The floor plan kept in ROCA Estates is removed there too.
+  if (image.estates_file) {
+    const owner = await db('properties').where('id', id).first('rocaem_property_id');
+    const rid = estatesApartmentOf(owner);
+    if (!rid) throw new ApiError(503, 'This floor plan is kept in ROCA Estates, which Roca Living cannot change right now.');
+    await estatesApi('PATCH', `/properties/${rid}`, { body: { floor_plan: '' }, actingFor: req.user.email });
+  }
+
   await db('property_images').where('id', imageId).delete();
 
   const absPath = path.join(process.cwd(), image.document_path);
-  if (fs.existsSync(absPath)) {
+  if (!isEstatesFile(image.document_path) && fs.existsSync(absPath)) {
     try {
       fs.unlinkSync(absPath);
     } catch (err) {
