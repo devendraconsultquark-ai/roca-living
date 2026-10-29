@@ -13,8 +13,10 @@
 //
 // An approved-rent (AR-) statement made only from that test money is deleted if
 // it is a draft; an issued one is refused unless named: --delete-ar=AR-PH_36_0001.
-// Refused (nothing changed) if any of that money is on a landlord statement, or
-// on an AR- statement that also holds other money. Back the database up first.
+// A landlord statement holding that money is refused unless named:
+// --delete-statements=PH_13_0001,PH_13_0002 (only statements made from test money).
+// Refused (nothing changed) if any of that money is on an unnamed landlord
+// statement, or on an AR- statement that also holds other money. Back up first.
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
@@ -23,6 +25,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APPLY = process.argv.includes('--apply');
 const argValue = (name) => process.argv.find((a) => a.startsWith(`--${name}=`))?.split('=').slice(1).join('=') || null;
 const DELETE_AR = (argValue('delete-ar') || '').split(',').map((x) => x.trim()).filter(Boolean);
+const DELETE_STATEMENTS = (argValue('delete-statements') || '').split(',').map((x) => x.trim()).filter(Boolean);
 const mod = (rel) => import(pathToFileURL(path.join(HERE, '..', rel)).href);
 const { emDb, default: db } = await mod('src/config/db.js');
 const { allocateTenancyPayments } = await mod('src/utils/rentAllocation.js');
@@ -62,15 +65,21 @@ const bankPaymentIds = bankLines.filter((b) => b.rent_payment_id && b.reconciled
 const bankPayments = bankPaymentIds.length ? await db('rent_payments').whereIn('id', bankPaymentIds) : [];
 const accounts = await db('xero_import_accounts').where('created_at', '<', cutoff);
 
-// Money already on a landlord statement can't be taken back here. An AR-
-// statement made only from this money goes with it (drafts; issued ones by name).
+// Money on a landlord statement is only taken back when that statement is named
+// (--delete-statements); the statement is then deleted with it. An AR- statement
+// made only from this money goes with it (drafts; issued ones by name).
 const refused = [];
 const removing = [...invoicePayments.filter((x) => !x.xero_linked_existing), ...bankPayments];
 const removingIds = new Set(removing.map((p) => p.id));
 const arStatements = [];
+const landlordStatements = new Map();
 for (const p of removing) {
-  const st = await db('rent_payment_allocations as a').join('landlord_statements as s', 'a.statement_id', 's.id').where('a.payment_id', p.id).first('s.statement_number');
-  if (st) refused.push(`payment #${p.id} ${money(p.amount)} is on statement ${st.statement_number}`);
+  const sts = await db('rent_payment_allocations as a').join('landlord_statements as s', 'a.statement_id', 's.id').where('a.payment_id', p.id)
+    .distinct('s.id', 's.statement_number', 's.status', 's.sent_at', 's.invoice_id', 's.document_id', 's.period_start', 's.period_end');
+  for (const st of sts) {
+    if (DELETE_STATEMENTS.includes(st.statement_number)) landlordStatements.set(st.id, st);
+    else refused.push(`payment #${p.id} ${money(p.amount)} is on statement ${st.statement_number} (${st.sent_at ? 'emailed, ' : ''}${st.status}, ${uk(st.period_start)} – ${uk(st.period_end)}) — if it was made only from test money, run with --delete-statements=${st.statement_number}`);
+  }
 }
 for (const arId of new Set([...invoicePayments, ...bankPayments].map((p) => p.approved_statement_id).filter(Boolean))) {
   const ar = await db('approved_rent_statements').where('id', arId).first('id', 'statement_number', 'status', 'document_id', 'created_at');
@@ -97,6 +106,11 @@ out.push(`Bank lines imported: ${bankLines.length}${bankLines.length ? ` (${bank
 for (const b of bankLines.filter((x) => x.status === 'reconciled')) out.push(`  #${b.id} ${money(b.amount)} ${uk(b.date)} reconciled as ${b.reconciled_as}`);
 for (const p of bankPayments) out.push(`  payment #${p.id} ${await flatOf(p.tenancy_id)} ${money(p.amount)} received ${uk(p.received_at)} (made from a bank line) — removed`);
 if (statementsPaidByLines.length) out.push(`  ${statementsPaidByLines.length} line(s) marked statements as paid — those statements go back to their status before`);
+for (const st of landlordStatements.values()) {
+  const others = (await db('rent_payment_allocations').where('statement_id', st.id).distinct('payment_id').pluck('payment_id')).filter((id) => !removingIds.has(id));
+  out.push(`Landlord statement ${st.statement_number} (${st.sent_at ? 'emailed, ' : ''}${st.status}, ${uk(st.period_start)} – ${uk(st.period_end)}) — deleted`
+    + `${others.length ? `; its other payment(s) #${others.join(', #')} stay and become available again` : ''}`);
+}
 for (const ar of arStatements) out.push(`Approved-rent statement ${ar.statement_number} (${ar.status}, made only from that test money) — deleted`);
 out.push(`Bank accounts ticked for import: ${accounts.length}`);
 console.log(out.join('\n'));
@@ -117,6 +131,22 @@ const admin = await db('users').where('role', 'ADMIN').orderBy('id').first('id')
 const tenancies = new Set();
 const files = [];
 await db.transaction(async (trx) => {
+  // As fix-parsons-data.mjs deletes a statement: its rent and expenses become
+  // available again; its fee lines, invoice and PDFs go.
+  for (const st of landlordStatements.values()) {
+    const invoice = st.invoice_id ? await trx('invoices').where('id', st.invoice_id).first('id', 'document_id') : null;
+    const docs = await trx('documents').whereIn('id', [st.document_id, invoice?.document_id].filter(Boolean)).select('id', 'file_path');
+    await trx('rent_payment_allocations').where('statement_id', st.id).update({ statement_id: null });
+    await trx('property_expenses').where('statement_id', st.id).update({ statement_id: null });
+    await trx('transactions').where('statement_id', st.id).delete();
+    await trx('landlord_statements').where('id', st.id).delete();
+    if (invoice) {
+      await trx('invoice_items').where('invoice_id', invoice.id).delete();
+      await trx('invoices').where('id', invoice.id).delete();
+    }
+    if (docs.length) await trx('documents').whereIn('id', docs.map((d) => d.id)).delete();
+    files.push(...docs.map((d) => d.file_path));
+  }
   for (const ar of arStatements) {
     const doc = ar.document_id ? await trx('documents').where('id', ar.document_id).first('id', 'file_path') : null;
     await trx('rent_payments').where('approved_statement_id', ar.id).update({ approved_statement_id: null });
@@ -160,7 +190,7 @@ await db.transaction(async (trx) => {
     actor_id: admin?.id || null, actor_role: 'ADMIN', action: 'XERO_OLD_ORG_CLEARED', entity_type: 'xero_connection', entity_id: connection.id,
     meta: JSON.stringify({
       before: cutoff, links: links.length, invoices: invoiceNumbers, payments: [...invoicePayments, ...bankPayments].map((p) => p.id),
-      bank_lines: bankLines.length, accounts: accounts.length, approved_statements: arStatements.map((a) => a.statement_number), source: 'xero-clear-old-org script',
+      bank_lines: bankLines.length, accounts: accounts.length, approved_statements: arStatements.map((a) => a.statement_number), landlord_statements: [...landlordStatements.values()].map((x) => x.statement_number), source: 'xero-clear-old-org script',
     }),
   });
 });
