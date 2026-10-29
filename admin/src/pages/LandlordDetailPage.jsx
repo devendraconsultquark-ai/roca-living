@@ -25,6 +25,7 @@ import { EstatesLandlordForm } from '../components/UI/EstatesLandlordForm';
 import { useEstatesEditable } from '../utilities/useEstatesEditable';
 import { EstatesDeleteModal } from '../components/UI/EstatesDeleteModal';
 import api from '../utilities/api';
+import { InfoTip } from '../components/UI/InfoTip';
 
 const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
@@ -1555,16 +1556,17 @@ export const LandlordDetailPage = () => {
         <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-xl mx-4 border border-card-border max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start gap-3 mb-1">
-              <h3 className="text-lg font-bold text-brand-primary">{fromEstates ? 'Edit Lettings Details' : 'Edit Landlord Details'}</h3>
+              <h3 className="text-lg font-bold text-brand-primary flex items-center gap-1.5">
+                {fromEstates ? 'Edit Lettings Details' : 'Edit Landlord Details'}
+                <InfoTip text={fromEstates
+                  ? "Roca Living's statement settings. Name, email, phone and address are edited in ROCA Estates (Edit Details)."
+                  : 'Name and address as printed on statements. Statements go to this email.'} />
+              </h3>
               <button type="button" onClick={() => { setIsEditModalOpen(false); setEditErrors({}); }} className="text-gray-400 hover:text-brand-primary cursor-pointer" aria-label="Close">
                 <X size={20} />
               </button>
             </div>
-            <p className="text-xs text-status-muted mb-4">
-              {fromEstates
-                ? "Roca Living's own statement settings. Name, email, phone and address are kept in ROCA Estates: change them with Edit Details at the top of the page. Each statement can still be adjusted on the statement form, for that statement only."
-                : 'Name and address exactly as they should print on statements. Statements are emailed to this email address.'}
-            </p>
+            <div className="mb-4" />
 
             <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1666,12 +1668,12 @@ export const LandlordDetailPage = () => {
         <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
             <div className="flex justify-between items-start gap-3 mb-1">
-              <h3 className="text-lg font-bold text-brand-primary">Update Bank Details</h3>
+              <h3 className="text-lg font-bold text-brand-primary flex items-center gap-1.5">Update Bank Details <InfoTip text="New details stay pending until an admin verifies them. Don't pay out to unverified details." /></h3>
               <button type="button" onClick={() => setIsBankModalOpen(false)} className="text-gray-400 hover:text-brand-primary cursor-pointer" aria-label="Close">
                 <X size={20} />
               </button>
             </div>
-            <p className="text-xs text-status-muted mb-4">Changes are held as pending until verified by an administrator. Payouts should not be made against unverified details.</p>
+            <div className="mb-4" />
 
             <form onSubmit={handleBankSubmit} className="flex flex-col gap-4">
               <Input

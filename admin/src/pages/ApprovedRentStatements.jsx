@@ -6,6 +6,7 @@ import { useToast } from '../components/UI/ToastContext';
 import { ApprovedRentStatementModal } from '../components/UI/ApprovedRentStatementModal';
 import { ApprovedStatementsTable } from '../components/UI/ApprovedStatementsTable';
 import api from '../utilities/api';
+import { InfoTip } from '../components/UI/InfoTip';
 
 // Statements from approved rent — listed apart from the existing statements
 // (which are unchanged), so the client can compare both. Day to day they are
@@ -39,10 +40,7 @@ export const ApprovedRentStatements = () => {
 
       <div className="card-bg border border-card-border rounded-card p-6 shadow-premium flex flex-col gap-4">
         <div>
-          <h2 className="text-base font-bold text-brand-primary">Statements from Approved Rent</h2>
-          <p className="text-xs text-status-muted mt-1">
-            Built from rent approved on Accounting → Rent Cycle (where they are also made and listed day to day). The usual statements are not affected.
-          </p>
+          <h2 className="text-base font-bold text-brand-primary flex items-center gap-1.5">Statements from Approved Rent <InfoTip text="Made from rent approved in Rent Cycle. The usual statements are not affected." /></h2>
         </div>
         <ApprovedStatementsTable rows={rows} onChanged={load} emptyText="No statements from approved rent yet." />
       </div>

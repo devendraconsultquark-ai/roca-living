@@ -57,10 +57,36 @@ export const firstRentMonth = (startYmd, rentDueDay, rentPcm) => {
   };
 };
 
+// ── Changing the due day after statements exist ─────────────────────────────
+// The new day starts at the next open rent period (fromYmd, the day after the
+// last statement). That period is short: from fromYmd to the day before the
+// first new due day, at the pro-rata rate above. Full rent then falls on the
+// new day. Example: due on the 12th, last statement to 11 Oct, new day the 1st
+// → £985 ÷ 31 × 20 = £635.48 due 12 Oct (12–31 Oct), then £985 on 1 Nov, 1 Dec…
+
+// The first date on or after fromYmd that falls on the due day.
+export const nextDueOnOrAfter = (fromYmd, dueDay) => {
+  const f = ymdDate(fromYmd);
+  let d = new Date(f.getFullYear(), f.getMonth(), dueDay);
+  if (d < f) d = new Date(f.getFullYear(), f.getMonth() + 1, dueDay);
+  return toYmd(d);
+};
+
+export const dueDayChange = (fromYmd, dueDay, rentPcm) => {
+  const firstDue = nextDueOnOrAfter(fromYmd, dueDay);
+  const proRata = firstDue === fromYmd ? null : proRataRent(fromYmd, dayBefore(firstDue), round2(rentPcm));
+  return { from: fromYmd, first_due: firstDue, pro_rata: proRata, period_end: proRata ? dayBefore(firstDue) : null, due_day: dueDay };
+};
+
 // Statement period starting on startYmd: to the day before the next due day,
 // except the first period of a pro-rata tenancy, which runs to the end of the
-// first payment's cover (22 Aug – 1 Oct in the example above).
-export const rentPeriodFor = (periodStartYmd, tenancyStartYmd, rentDueDay) => {
+// first payment's cover (22 Aug – 1 Oct in the example above), and the short
+// period where the due day changed (dueDayFromYmd, see dueDayChange).
+export const rentPeriodFor = (periodStartYmd, tenancyStartYmd, rentDueDay, dueDayFromYmd = null) => {
+  if (dueDayFromYmd && periodStartYmd === dueDayFromYmd) {
+    const firstDue = nextDueOnOrAfter(periodStartYmd, dueDayOf(tenancyStartYmd, rentDueDay));
+    if (firstDue !== periodStartYmd) return { start: periodStartYmd, end: dayBefore(firstDue) };
+  }
   const plan = firstRentMonth(tenancyStartYmd, rentDueDay, 0);
   if (plan && periodStartYmd === tenancyStartYmd) return { start: periodStartYmd, end: plan.covered_to };
   const dueDay = dueDayOf(tenancyStartYmd, rentDueDay);

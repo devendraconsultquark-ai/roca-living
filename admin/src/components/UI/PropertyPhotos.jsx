@@ -209,13 +209,11 @@ export const PropertyPhotos = ({ propertyId, onChanged, sharedFloorPlan = false 
         )}
       </Card>
 
-      <Card title={`Floor Plans${floorPlans.length > 0 ? ` (${floorPlans.length})` : ''}`}>
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <p className="text-[11px] text-status-muted">
-            {sharedFloorPlan
-              ? 'Kept in ROCA Estates too: one floor plan per apartment (image or PDF). A new one replaces it in both apps.'
-              : 'Images or a PDF.'}
-          </p>
+      <Card
+        title={`Floor Plans${floorPlans.length > 0 ? ` (${floorPlans.length})` : ''}`}
+        info={sharedFloorPlan ? 'Kept in ROCA Estates too: one per apartment (image or PDF). A new one replaces it in both apps.' : 'Images or a PDF.'}
+      >
+        <div className="flex items-center justify-end gap-3 mb-4">
           <Button variant="secondary" icon={Map} onClick={() => openPicker('floor_plan')} disabled={uploading}>
             {uploading ? 'Uploading…' : sharedFloorPlan && floorPlans.length ? 'Replace Floor Plan' : 'Add Floor Plan'}
           </Button>

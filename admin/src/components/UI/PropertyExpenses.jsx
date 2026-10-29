@@ -7,6 +7,7 @@ import { Skeleton } from './Skeleton';
 import { useToast } from './ToastContext';
 import { useConfirm } from './ConfirmContext';
 import api from '../../utilities/api';
+import { InfoTip } from './InfoTip';
 
 const money = (v) => `£${(parseFloat(v) || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const ukDate = (ymd) => (ymd ? ymd.split('-').reverse().join('/') : '—');
@@ -124,10 +125,10 @@ export const PropertyExpenses = ({ propertyId }) => {
   return (
     <div className="flex flex-col gap-6">
       <div className="card-bg border border-card-border rounded-card shadow-premium p-5">
-        <h3 className="text-sm-portal font-bold text-brand-primary capitalize mb-1">Add expense</h3>
-        <p className="text-xs-portal text-status-muted mb-4">
-          Money spent on this apartment (e.g. cleaning). It is deducted from the rent on the landlord's statement for that month.
-        </p>
+        <h3 className="text-sm-portal font-bold text-brand-primary mb-4 flex items-center gap-1.5">
+          Add Expense
+          <InfoTip text="Money spent on this apartment (e.g. cleaning). Deducted on the landlord's statement for that month." />
+        </h3>
         <form onSubmit={add} className="grid grid-cols-1 md:grid-cols-[160px_1fr_1fr_130px_auto] gap-3 items-end">
           <DatePicker label="Date" id="expenseDate" value={form.expense_date} onChange={(v) => setForm((f) => ({ ...f, expense_date: v }))} error={errors.date} />
           <Input id="expenseDescription" label="Description" placeholder="e.g. End of tenancy cleaning" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} error={errors.description} />

@@ -7,11 +7,13 @@ import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
+import { DatePicker } from '../components/UI/DatePicker';
 import { Skeleton } from '../components/UI/Skeleton';
 import { CashflowOverview } from '../components/UI/CashflowOverview';
 import { AccountingKpis } from '../components/UI/AccountingKpis';
 import { BankTransactionsTab } from '../components/UI/BankTransactionsTab';
 import api from '../utilities/api';
+import { InfoTip } from '../components/UI/InfoTip';
 
 // Timestamp for sorting a date column (the cell shows dd/mm/yyyy text).
 const ts = (d) => (d ? new Date(d).getTime() : null);
@@ -221,11 +223,19 @@ export const AccountingHub = () => {
     setShowPaymentModal(true);
     setLoadingTenancies(true);
     try {
-      const res = await api.get('/tenancies?status=active');
-      setTenanciesList((res.data.data || []).map(t => ({
-        value: String(t.id),
-        label: `${t.address_line1 || 'Property'}, ${t.city || ''} — £${parseFloat(t.rent_pcm || 0).toFixed(2)} pcm (${t.landlord_name || '-'})`
-      })));
+      // Tenants on notice still pay rent, so they are listed too.
+      const res = await api.get('/tenancies');
+      setTenanciesList((res.data.data || [])
+        .filter((t) => ['active', 'notice'].includes(t.status))
+        .map((t) => {
+          const unit = t.block_name && t.apartment_number ? `${String(t.block_name).toUpperCase()}-${t.apartment_number}` : (t.address_line1 || 'Property');
+          const tenant = t.lead_tenant_name && t.lead_tenant_name !== '-' ? ` · ${t.lead_tenant_name}` : '';
+          return {
+            value: String(t.id),
+            label: `${unit}${tenant} — £${parseFloat(t.rent_pcm || 0).toFixed(2)} pcm (${t.landlord_name || '-'})`
+          };
+        })
+        .sort((a, b) => a.label.localeCompare(b.label, 'en', { numeric: true })));
     } catch (err) {
       console.error(err);
       addToast('Failed to load tenancies', 'error');
@@ -238,6 +248,10 @@ export const AccountingHub = () => {
     e.preventDefault();
     if (!paymentForm.tenancy_id || !paymentForm.received_at || !paymentForm.amount) {
       addToast('Tenancy, date received, and amount are required', 'warning');
+      return;
+    }
+    if (paymentForm.received_at > new Date().toLocaleDateString('en-CA')) {
+      addToast('The date received cannot be in the future', 'warning');
       return;
     }
     const send = (confirmDuplicate) => api.post(`/tenancies/${paymentForm.tenancy_id}/rent-payments`, {
@@ -595,6 +609,7 @@ export const AccountingHub = () => {
             <div className="bg-brand-primary text-white p-5 font-bold flex items-center gap-2 select-none">
               <Banknote size={18} />
               <span>Record Rent Payment</span>
+              <InfoTip text="If the amount matches an unpaid rent month, it is applied automatically (oldest first)." />
               <button
                 type="button"
                 onClick={() => { setShowPaymentModal(false); setPaymentForm(emptyPayment); }}
@@ -607,9 +622,6 @@ export const AccountingHub = () => {
             </div>
 
             <form onSubmit={handleRecordPayment} className="p-6 flex flex-col gap-5">
-              <p className="text-xs text-status-muted leading-snug">
-                Log a rent payment received from a tenant. If the amount matches an outstanding schedule it is reconciled automatically.
-              </p>
 
               <Dropdown
                 label="Tenancy"
@@ -619,15 +631,15 @@ export const AccountingHub = () => {
                 onChange={(val) => setPaymentForm({ ...paymentForm, tenancy_id: val })}
                 placeholder={loadingTenancies ? 'Loading tenancies…' : 'Select a tenancy…'}
                 searchable
+                matchWidth
               />
 
-              <Input
+              <DatePicker
                 label="Date Received"
                 id="paymentReceivedAt"
-                type="date"
                 required
                 value={paymentForm.received_at}
-                onChange={(e) => setPaymentForm({ ...paymentForm, received_at: e.target.value })}
+                onChange={(val) => setPaymentForm({ ...paymentForm, received_at: val })}
               />
 
               <Input

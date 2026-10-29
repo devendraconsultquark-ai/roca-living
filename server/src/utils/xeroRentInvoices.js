@@ -78,7 +78,7 @@ const monthsToInvoice = (fromYmd, untilYmd) => db('rent_schedules as s')
   .orderBy(['s.tenancy_id', 's.due_date'])
   .select(
     's.id as schedule_id', 's.tenancy_id', 's.due_date', 's.amount',
-    't.start_date', 't.rent_due_day',
+    't.start_date', 't.rent_due_day', 't.rent_due_day_from',
     'p.block_name', 'p.apartment_number', 'p.address_line1', 'p.city',
     'lead.name as tenant_name'
   );
@@ -133,7 +133,7 @@ const createInvoice = async (row, accountCode, actorId) => {
   const startYmd = toYmd(row.start_date);
   const code = unitCode(row.block_name, row.apartment_number);
   const base = `RENT-${String(row.block_name || '').toUpperCase()}${pad2(row.apartment_number)}-${dueYmd.replace(/-/g, '')}`;
-  const period = rentPeriodFor(dueYmd, startYmd, row.rent_due_day);
+  const period = rentPeriodFor(dueYmd, startYmd, row.rent_due_day, row.rent_due_day_from ? toYmd(row.rent_due_day_from) : null);
   const where = [`Apartment ${row.apartment_number}`, row.city].filter(Boolean).join(', ');
   const amount = parseFloat(row.amount).toFixed(2);
   const contact = await contactFor(row);

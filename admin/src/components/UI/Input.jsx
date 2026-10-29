@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { InfoTip } from "./InfoTip";
+import { titleCase } from "../../utilities/titleCase";
 
 export const Input = React.forwardRef(
   (
@@ -13,6 +15,7 @@ export const Input = React.forwardRef(
       placeholder,
       className = "",
       leftIcon: LeftIcon = null,
+      hint = null, // short explanation, shown from an ⓘ next to the label
       ...props
     },
     ref,
@@ -43,12 +46,13 @@ export const Input = React.forwardRef(
             htmlFor={id}
             className="text-xs font-semibold text-status-muted mb-1 flex items-center gap-0.5"
           >
-            {label}
+            {titleCase(label)}
             {required && (
               <span className="text-status-danger" aria-hidden="true">
                 *
               </span>
             )}
+            {hint && <InfoTip text={hint} className="ml-1" />}
           </label>
         )}
 

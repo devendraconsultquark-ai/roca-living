@@ -5,6 +5,7 @@ import { Button } from './Button';
 import { Dropdown } from './Dropdown';
 import { DatePicker } from './DatePicker';
 import api from '../../utilities/api';
+import { InfoTip } from './InfoTip';
 
 const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const ukDate = (ymd) => (ymd ? ymd.split('-').reverse().join('/') : '—');
@@ -73,15 +74,12 @@ export const ApprovedRentStatementModal = ({ onClose, onCreated }) => {
         <div className="bg-brand-primary text-white p-5 font-bold flex items-center gap-2 select-none">
           <FileSpreadsheet size={18} />
           <span>Statement from Approved Rent</span>
+          <InfoTip text="Built from rent approved in Rent Cycle: rent, ROCA's fee and the landlord's net. Numbered AR-… Separate from Generate Statement." className="text-white/80" />
           <button type="button" onClick={onClose} disabled={busy} className="ml-auto p-1 rounded-md text-white/80 hover:text-white hover:bg-white/10 cursor-pointer" aria-label="Close">
             <X size={20} />
           </button>
         </div>
         <div className="p-6 flex flex-col gap-4">
-          <p className="text-xs text-status-muted">
-            Built only from rent approved in Accounting → Rent Cycle: rent received, ROCA's management fee and the landlord's net.
-            Separate from Generate Statement, which is unchanged. Numbered AR-…
-          </p>
           {candidates === null ? (
             <p className="text-sm text-status-muted py-4 text-center">Loading…</p>
           ) : !candidates.length ? (
@@ -120,7 +118,7 @@ export const ApprovedRentStatementModal = ({ onClose, onCreated }) => {
                     </div>
                   </div>
                   <p className="text-xs text-status-muted">
-                    Approved rent received {ukDate(chosen.first_received)} – {ukDate(chosen.last_received)}. Totals above are for all of it; the statement includes the payments inside the period you choose.
+                    Approved rent received {ukDate(chosen.first_received)} – {ukDate(chosen.last_received)}. The statement includes payments inside the chosen period.
                   </p>
                 </>
               )}

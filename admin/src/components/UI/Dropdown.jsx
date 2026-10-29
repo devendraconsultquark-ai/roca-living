@@ -6,6 +6,10 @@ import React, {
   useMemo,
 } from "react";
 import { ChevronDown, Check, X, Search } from "lucide-react";
+import { createPortal } from "react-dom";
+import { InfoTip } from "./InfoTip";
+import { useFloating } from "./useFloating";
+import { titleCase } from "../../utilities/titleCase";
 
 /**
  * Dropdown — Universal custom select component.
@@ -46,6 +50,8 @@ export const Dropdown = ({
   menuClassName = "",
   id,
   placement = "bottom",
+  matchWidth = false, // menu as wide as the box; long labels truncate inside it
+  hint = null, // short explanation, shown from an ⓘ next to the label
 }) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -55,6 +61,13 @@ export const Dropdown = ({
   const searchRef = useRef(null);
   const triggerRef = useRef(null);
   const listRef = useRef(null);
+  // The menu floats on top of the page (never cut off by a popup), under the
+  // box or above it when there is no room below.
+  const { floatRef, style: menuStyle } = useFloating(triggerRef, open, {
+    width: matchWidth ? "anchor" : null,
+    minWidth: matchWidth ? 0 : "anchor",
+    prefer: placement === "top" ? "above" : "below",
+  });
 
   // ─── Normalise value ────────────────────────────────────────────────────────
   // '' means "nothing selected" (shows the placeholder, no clear ×) unless a
@@ -79,12 +92,12 @@ export const Dropdown = ({
     if (multiple) {
       if (selectedValues.length === 1) {
         const match = options.find((o) => o.value === selectedValues[0]);
-        return match ? match.label : selectedValues[0];
+        return match ? titleCase(match.label) : selectedValues[0];
       }
-      return `${selectedValues.length} selected`;
+      return `${selectedValues.length} Selected`;
     }
     const match = options.find((o) => o.value === selectedValues[0]);
-    return match ? match.label : selectedValues[0];
+    return match ? titleCase(match.label) : selectedValues[0];
   }, [selectedValues, options, multiple]);
 
   // ─── Open / close ────────────────────────────────────────────────────────────
@@ -108,13 +121,13 @@ export const Dropdown = ({
   // ─── Outside click ───────────────────────────────────────────────────────────
   useEffect(() => {
     const handler = (e) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target) && !floatRef.current?.contains(e.target)) {
         closeMenu();
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [closeMenu]);
+  }, [closeMenu, floatRef]);
 
   // Focus search when menu opens
   useEffect(() => {
@@ -237,9 +250,10 @@ export const Dropdown = ({
       {label && (
         <label
           htmlFor={id}
-          className="text-xs font-semibold text-status-muted capitalize tracking-wide"
+          className="text-xs font-semibold text-status-muted tracking-wide flex items-center"
         >
-          {label}
+          {titleCase(label)}
+          {hint && <InfoTip text={hint} className="ml-1" />}
         </label>
       )}
 
@@ -304,18 +318,17 @@ export const Dropdown = ({
       )}
 
       {/* ── Dropdown menu ─────────────────────────────────────────────────────── */}
-      {open && (
+      {open && createPortal(
         <div
+          ref={floatRef}
           role="listbox"
           aria-multiselectable={multiple}
           className={`
-            absolute z-50 right-0
-            ${placement === "top" ? "bottom-full mb-1" : "top-full mt-1.5"}
-            bg-white border border-card-border shadow-xl
+            bg-white border border-card-border shadow-xl rounded-card
             p-1 flex flex-col
             ${menuClassName}
           `}
-          style={{ minWidth: "140px" }}
+          style={{ minWidth: "140px", ...menuStyle }}
         >
           {/* Search input */}
           {searchable && (
@@ -404,7 +417,7 @@ export const Dropdown = ({
 
                         {/* Label */}
                         <span className={`flex-1 text-sm font-medium truncate`}>
-                          {opt.label}
+                          {titleCase(opt.label)}
                         </span>
 
                         {/* Check mark for selected */}
@@ -433,7 +446,8 @@ export const Dropdown = ({
               </button>
             </div>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

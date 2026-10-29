@@ -4,6 +4,8 @@ import {
   ArrowLeft, Edit, Trash2, CheckCircle2, AlertTriangle, HelpCircle, Clock
 } from 'lucide-react';
 import { Skeleton } from './Skeleton';
+import { InfoTip } from './InfoTip';
+import { titleCase } from '../../utilities/titleCase';
 
 export const DataRow = ({ icon: Icon, label, value }) => (
   <div className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
@@ -11,7 +13,7 @@ export const DataRow = ({ icon: Icon, label, value }) => (
       <div className="flex items-center justify-center w-8 h-8 rounded-full bg-surface-light border border-card-border text-status-muted">
         {Icon && <Icon size={14} />}
       </div>
-      <span className="text-xs-portal font-semibold">{label}</span>
+      <span className="text-xs-portal font-semibold">{titleCase(label)}</span>
     </div>
     <span className="text-xs-portal font-bold text-brand-primary text-right max-w-[50%] truncate" title={typeof value === 'string' ? value : ''}>
       {value || '—'}
@@ -20,9 +22,10 @@ export const DataRow = ({ icon: Icon, label, value }) => (
 );
 
 // Same title size and padding as the design kit's SectionCard.
-export const Card = ({ title, children }) => (
+// info: a short explanation shown from an ⓘ next to the title.
+export const Card = ({ title, info, children }) => (
   <div className="card-bg rounded-card p-5 shadow-premium border border-card-border">
-    <h3 className="text-[15px] font-bold text-brand-primary tracking-tight mb-4">{title}</h3>
+    <h3 className="text-[15px] font-bold text-brand-primary tracking-tight mb-4 flex items-center gap-1.5">{titleCase(title)}{info && <InfoTip text={info} />}</h3>
     {children}
   </div>
 );

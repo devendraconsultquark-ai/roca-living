@@ -16,6 +16,7 @@ import {
 import { C, gbp, shortDate, daysUntil, pct } from '../utilities/designTokens';
 import api from '../utilities/api';
 import { downloadCsv } from '../utilities/csv';
+import { InfoTip } from '../components/UI/InfoTip';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -411,16 +412,14 @@ export const Tenancies = () => {
         <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl border border-card-border">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-brand-primary">End Tenancy</h3>
+              <h3 className="text-lg font-bold text-brand-primary flex items-center gap-1.5">End Tenancy <InfoTip text="Unpaid rent months after the end date are removed. The flat becomes vacant if no other tenancy is live." /></h3>
               <button onClick={() => setEndTarget(null)} className="text-gray-400 hover:text-brand-primary cursor-pointer">
                 <X size={20} />
               </button>
             </div>
 
             <p className="text-xs text-status-muted mb-4 leading-snug">
-              End {endTarget.id} ({endTarget.tenant} at {endTarget.property})? Unpaid rent schedules
-              after the end date will be removed and the property will be marked vacant if no other
-              live tenancy remains. This cannot be undone.
+              End {endTarget.id} ({endTarget.tenant} at {endTarget.property})? This can't be undone.
             </p>
 
             <form onSubmit={handleEndSubmit} className="flex flex-col gap-4">
@@ -451,17 +450,14 @@ export const Tenancies = () => {
         <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl border border-card-border">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-brand-primary">Rent Review</h3>
+              <h3 className="text-lg font-bold text-brand-primary flex items-center gap-1.5">Rent Review <InfoTip text="When completed, the new rent applies from the review date to unpaid rent months. Months on a statement don't change." /></h3>
               <button onClick={() => setReviewTarget(null)} className="text-gray-400 hover:text-brand-primary cursor-pointer">
                 <X size={20} />
               </button>
             </div>
 
             <p className="text-xs text-status-muted mb-4 leading-snug">
-              Schedule or update the rent review for {reviewTarget.id} ({reviewTarget.tenant} at {reviewTarget.property}).
-              Current rent: £{reviewTarget.rent.toFixed(2)} pcm. When the new rent is agreed, enter it and mark the review
-              Completed: it becomes the tenancy rent from the review date, and unpaid rent months from that date change
-              to it. Months already on a landlord statement stay as they are.
+              {reviewTarget.tenant} at {reviewTarget.property}. Current rent: £{reviewTarget.rent.toFixed(2)} pcm.
             </p>
 
             <form onSubmit={handleReviewSubmit} className="flex flex-col gap-4">

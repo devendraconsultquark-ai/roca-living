@@ -660,12 +660,9 @@ const ukDate = (ymd) => {
 // dd/mm/yy, as on ROCA's own statements: "Rent received — Mr X (25/08/26 - 24/09/26)".
 const shortDate = (ymd) => ukDate(ymd).replace(/\/\d{2}(\d{2})$/, '/$1');
 
-// Prefix of a flat's statement numbers: PH_33_ — single-digit flats in two
-// digits (PH_08_), the client's format and ROCA Estates' unit id.
-const statementPrefix = (block, apt) => {
-  const a = String(apt ?? '').trim();
-  return `${String(block).trim()}_${/^\d$/.test(a) ? `0${a}` : a}_`;
-};
+// Prefix of a flat's statement numbers: PH_33_ — single-digit flats as the
+// client writes them (PH_8_0001, Dropbox APARTMENTS/Apartment 8), not PH_08_.
+const statementPrefix = (block, apt) => `${String(block).trim()}_${String(apt ?? '').trim()}_`;
 
 // Statement numbers (PH_33_0001) need a short block code and apartment number
 // on the property; free text such as "Parsons House" would break them.
@@ -725,6 +722,7 @@ const tenancyContextQuery = (tenancyId) => db('tenancies')
     'tenancies.statements_from',
     'tenancies.last_statement_seq',
     'tenancies.rent_due_day',
+    'tenancies.rent_due_day_from',
     'properties.id as property_id',
     'properties.address_line1',
     'properties.address_line2',
@@ -794,7 +792,7 @@ export const getTenancyPeriods = catchAsync(async (req, res) => {
   const t = await db('tenancies').where('id', req.params.tenancyId).first();
   if (!t) throw new ApiError(404, 'Tenancy not found');
   const startYmd = toYmd(t.start_date);
-  const issued = await db('landlord_statements').where('tenancy_id', t.id).select('period_start', 'statement_number', 'status');
+  const issued = await db('landlord_statements').where('tenancy_id', t.id).select('period_start', 'period_end', 'statement_number', 'status');
   const byStart = new Map(issued.map((s) => [toYmd(s.period_start), s]));
 
   const today = new Date();
@@ -803,8 +801,9 @@ export const getTenancyPeriods = catchAsync(async (req, res) => {
   const periods = [];
   let start = t.statements_from ? toYmd(t.statements_from) : startYmd;
   for (let i = 0; i < 120 && start <= horizon && (!endYmd || start <= endYmd); i++) {
-    const p = rentPeriodFor(start, startYmd, t.rent_due_day);
-    const s = byStart.get(p.start);
+    // An issued period keeps its own dates (the due day may have changed since).
+    const s = byStart.get(start);
+    const p = s ? { start, end: toYmd(s.period_end) } : rentPeriodFor(start, startYmd, t.rent_due_day, t.rent_due_day_from ? toYmd(t.rent_due_day_from) : null);
     periods.push({ start: p.start, end: p.end, statement_number: s?.statement_number || null, status: s?.status || null });
     const next = parseYmd(p.end);
     next.setDate(next.getDate() + 1);
@@ -839,7 +838,7 @@ export const getTenancyAutofill = catchAsync(async (req, res) => {
     // Tenancies already statemented by hand start at their first period in this system.
     periodStart = t.statements_from ? toYmd(t.statements_from) : tenancyStart;
   }
-  const period = rentPeriodFor(periodStart, tenancyStart, t.rent_due_day);
+  const period = rentPeriodFor(periodStart, tenancyStart, t.rent_due_day, t.rent_due_day_from ? toYmd(t.rent_due_day_from) : null);
 
   const tenantName = await tenantNamesFor(t.tenancy_id);
   const block = parseBlockName(t.address_line1, t.block_name);

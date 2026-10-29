@@ -7,6 +7,7 @@ import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
 import { ApprovedStatementsTable } from '../components/UI/ApprovedStatementsTable';
 import api from '../utilities/api';
+import { InfoTip } from '../components/UI/InfoTip';
 
 const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const ukDate = (ymd) => (ymd ? ymd.split('-').reverse().join('/') : '—');
@@ -347,7 +348,7 @@ export const RentCycle = () => {
             </div>
             <div className="p-6 flex flex-col gap-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-xs text-status-muted">Made with "Make statement" on this page, from the approved rent. The usual Generate Statement on the Statements page is unchanged.</p>
+                <p className="text-xs text-status-muted flex items-center gap-1.5">Statements made from approved rent <InfoTip text='Made with "Make statement" on this page. Generate Statement on the Statements page is separate.' /></p>
                 <Button variant="ghost" size="sm" onClick={() => setAllMonths((v) => !v)}>{allMonths ? 'Show this month' : 'Show all months'}</Button>
               </div>
               <ApprovedStatementsTable
@@ -387,10 +388,9 @@ export const RentCycle = () => {
 
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-bold text-brand-primary">Deductions</p>
-                      <span className="text-xs text-status-muted">Cleaning, repairs etc. ROCA paid for this flat</span>
+                      <p className="text-sm font-bold text-brand-primary flex items-center gap-1.5">Deductions <InfoTip text="Costs ROCA paid for this flat (cleaning, repairs). They come out of the landlord's share." /></p>
                     </div>
-                    {items.length === 0 && <p className="text-xs text-status-muted">No deductions. Add one if something should come out of the landlord's share.</p>}
+                    {items.length === 0 && <p className="text-xs text-status-muted">No deductions.</p>}
                     {items.map((it, idx) => (
                       <div key={idx} className="grid grid-cols-[1fr_1fr_110px_auto] gap-2 items-center">
                         <input aria-label="Description" placeholder="Description, e.g. End of tenancy clean" value={it.description} onChange={(e) => setDeduction(idx, 'description', e.target.value)}
@@ -415,7 +415,7 @@ export const RentCycle = () => {
                   </div>
                   {tooMuch && <p className="text-xs text-status-danger">Deductions ({money(total)}) can't be more than the landlord's share ({money(max)}).</p>}
                   {incomplete && !tooMuch && <p className="text-xs text-status-warning">Each deduction needs a description and an amount.</p>}
-                  <p className="text-xs text-status-muted">Approving sends the landlord's bill to Xero for {money(toLandlord)}{total > 0 ? ', with each deduction as its own line' : ''}. Deductions also show on the statement.</p>
+                  <p className="text-xs text-status-muted">Approving sends a {money(toLandlord)} bill to Xero{total > 0 ? ' (deductions as separate lines)' : ''}.</p>
 
                   <div className="flex gap-3 justify-end pt-2 border-t border-card-border">
                     <Button variant="ghost" onClick={() => setApproveFor(null)} disabled={busy === 'approve'}>Cancel</Button>
@@ -437,9 +437,9 @@ export const RentCycle = () => {
               <h3 className="text-lg font-bold text-brand-primary">Change the fee — {feeFor.row.flat}</h3>
               <button onClick={() => setFeeFor(null)} className="text-gray-400 hover:text-brand-primary cursor-pointer" aria-label="Close"><X size={20} /></button>
             </div>
-            <Input label="Management fee (%)" id="cycleFeePct" type="number" min="0" max="30" step="0.01" value={feeFor.fee_pct} onChange={(e) => setFeeFor((s) => ({ ...s, fee_pct: e.target.value }))} />
+            <Input label="Management fee (%)" id="cycleFeePct" type="number" min="0" max="30" step="0.01" value={feeFor.fee_pct} onChange={(e) => setFeeFor((s) => ({ ...s, fee_pct: e.target.value }))}
+              hint="Only this payment changes. The flat's own fee stays." />
             <Input label="Reason" id="cycleFeeReason" placeholder="e.g. fee waived this month" value={feeFor.reason} onChange={(e) => setFeeFor((s) => ({ ...s, reason: e.target.value }))} />
-            <p className="text-xs text-status-muted">Only this payment changes. The flat's own fee stays as it is.</p>
             <div className="flex gap-3 justify-end">
               <Button variant="ghost" onClick={() => setFeeFor(null)}>Cancel</Button>
               <Button variant="primary" onClick={saveFee} disabled={busy === 'fee'}>Save</Button>

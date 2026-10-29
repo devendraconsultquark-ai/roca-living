@@ -4,6 +4,10 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import { createPortal } from "react-dom";
+import { InfoTip } from "./InfoTip";
+import { useFloating } from "./useFloating";
+import { titleCase } from "../../utilities/titleCase";
 
 export const DatePicker = ({
   label,
@@ -16,10 +20,15 @@ export const DatePicker = ({
   error = null,
   className = "",
   size = "md", // sm | md
+  hint = null, // short explanation, shown from an ⓘ next to the label
   ...props
 }) => {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef(null);
+  const fieldRef = useRef(null);
+  // The calendar floats on top of the page (never cut off by a popup), under
+  // the field or above it when there is no room below.
+  const { floatRef, style: calendarStyle } = useFloating(fieldRef, open);
 
   // Parse current date value
   const parsedDate = value ? new Date(value) : null;
@@ -45,13 +54,13 @@ export const DatePicker = ({
   // Outside click handler to close menu
   useEffect(() => {
     const handler = (e) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target) && !floatRef.current?.contains(e.target)) {
         setOpen(false);
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, []);
+  }, [floatRef]);
 
   const handlePrevMonth = (e) => {
     e.stopPropagation();
@@ -169,13 +178,14 @@ export const DatePicker = ({
           htmlFor={id}
           className="text-xs font-semibold text-status-muted mb-1 flex items-center gap-0.5"
         >
-          {label}
+          {titleCase(label)}
           {required && <span className="text-status-danger">*</span>}
+          {hint && <InfoTip text={hint} className="ml-1" />}
         </label>
       )}
 
       {/* Input Field trigger */}
-      <div className="relative w-full">
+      <div ref={fieldRef} className="relative w-full">
         <input
           id={id}
           type="text"
@@ -214,8 +224,8 @@ export const DatePicker = ({
       )}
 
       {/* Calendar Overlay Pop-up */}
-      {open && (
-        <div className="absolute z-50 mt-1.5 top-full left-0 card-bg border border-card-border rounded-xl shadow-xl p-4 w-72 flex flex-col gap-3 select-none">
+      {open && createPortal(
+        <div ref={floatRef} style={calendarStyle} className="card-bg border border-card-border rounded-xl shadow-xl p-4 w-72 flex flex-col gap-3 select-none">
           {/* Header Month / Year control */}
           <div className="flex items-center justify-between border-b pb-2 border-card-border">
             <button
@@ -272,7 +282,8 @@ export const DatePicker = ({
               Today
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

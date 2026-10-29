@@ -594,7 +594,7 @@ export const AdminLayout = () => {
                     {alerts?.total > 0 && (
                       <div className="border-b border-card-border">
                         <div className="px-4 py-3 flex items-center justify-between">
-                          <h4 className="text-xs-portal font-bold text-brand-primary capitalize select-none">Needs attention ({alerts.total})</h4>
+                          <h4 className="text-xs-portal font-bold text-brand-primary select-none">Needs Attention ({alerts.total})</h4>
                           <button
                             onClick={() => { setNotifOpen(false); navigate('/tasks-alerts'); }}
                             className="text-2xs font-bold text-brand-accent hover:underline cursor-pointer"
@@ -664,7 +664,7 @@ export const AdminLayout = () => {
                 {helpOpen && (
                   <div className="absolute right-0 top-full mt-2 w-80 card-bg border border-card-border rounded-card shadow-premium z-50">
                     <div className="px-4 py-3 border-b border-card-border">
-                      <h4 className="text-xs-portal font-bold text-brand-primary capitalize select-none">Quick guide</h4>
+                      <h4 className="text-xs-portal font-bold text-brand-primary select-none">Quick Guide</h4>
                     </div>
                     <div className="divide-y divide-gray-50">
                       {QUICK_GUIDE.map((g) => (

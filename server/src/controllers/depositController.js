@@ -1,14 +1,20 @@
 import db from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
-import { toYmd } from '../utils/dateHelpers.js';
+import { toYmd, todayYmd, addDays } from '../utils/dateHelpers.js';
 
 const ALLOWED_DEPOSIT_FIELDS = [
   'registered_at',
   'prescribed_info_served_at',
   'status',
-  'notes'
+  'notes',
+  // Corrections from Edit Tenant (a wrong amount, scheme or date received).
+  'tenancy_deposit',
+  'scheme',
+  'received_at'
 ];
+const DEPOSIT_SCHEMES = ['TDS', 'DPS', 'mydeposits'];
+const isYmd = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) && !Number.isNaN(new Date(v).getTime());
 
 const formatDeposit = (d) => {
   if (!d) return null;
@@ -41,13 +47,35 @@ export const updateDeposit = catchAsync(async (req, res, next) => {
     }
   });
 
-  let warning = null;
-  if (updateData.registered_at) {
-    const regDate = new Date(updateData.registered_at);
-    const dueDate = new Date(deposit.register_due);
-    if (regDate > dueDate) {
-      warning = `Deposit was registered late (due date was ${formatDeposit(deposit).register_due})`;
+  if ('tenancy_deposit' in updateData) {
+    const value = parseFloat(updateData.tenancy_deposit);
+    if (Number.isNaN(value) || value <= 0) throw new ApiError(400, 'Enter the deposit amount');
+    updateData.tenancy_deposit = value.toFixed(2);
+  }
+  if ('scheme' in updateData && !DEPOSIT_SCHEMES.includes(updateData.scheme)) {
+    throw new ApiError(400, `Deposit scheme must be one of ${DEPOSIT_SCHEMES.join(', ')}`);
+  }
+  if ('received_at' in updateData) {
+    if (!isYmd(updateData.received_at)) throw new ApiError(400, 'Enter the date the deposit was received');
+    if (updateData.received_at > todayYmd()) throw new ApiError(400, 'The date received cannot be in the future');
+    // It must be registered within 30 days of being received.
+    updateData.register_due = addDays(updateData.received_at, 30);
+  }
+  if ('registered_at' in updateData) {
+    if (updateData.registered_at === '' || updateData.registered_at === null) {
+      updateData.registered_at = null;
+      if (!('status' in updateData) && deposit.status === 'registered') updateData.status = 'pending_registration';
+    } else {
+      if (!isYmd(updateData.registered_at)) throw new ApiError(400, 'Enter the date it was registered with the scheme');
+      if (updateData.registered_at > todayYmd()) throw new ApiError(400, 'The registered date cannot be in the future');
+      if (!('status' in updateData) && deposit.status === 'pending_registration') updateData.status = 'registered';
     }
+  }
+
+  let warning = null;
+  const dueYmd = updateData.register_due || toYmd(deposit.register_due);
+  if (updateData.registered_at && updateData.registered_at > dueYmd) {
+    warning = `Deposit was registered late (due date was ${dueYmd})`;
   }
 
   await db.transaction(async (trx) => {
@@ -66,7 +94,10 @@ export const updateDeposit = catchAsync(async (req, res, next) => {
       action: 'DEPOSIT_UPDATED',
       entity_type: 'deposit',
       entity_id: id,
-      meta: JSON.stringify({ ...updateData, warning }),
+      meta: JSON.stringify({ ...updateData, warning, before: {
+        tenancy_deposit: deposit.tenancy_deposit, scheme: deposit.scheme, received_at: toYmd(deposit.received_at),
+        registered_at: toYmd(deposit.registered_at), status: deposit.status
+      } }),
       ip_address: req.ip || null
     });
   });

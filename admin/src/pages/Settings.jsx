@@ -146,10 +146,8 @@ export const Settings = () => {
                 value={agencyFee}
                 onChange={(e) => setAgencyFee(e.target.value)}
                 disabled={loading}
+                hint="Default for newly managed flats (0–30%). Statements use each flat's own fee."
               />
-              <p className="text-xs text-status-muted">
-                Default for flats newly managed by ROCA Living (0–30%). Each flat’s own fee is on its lettings record (Properties → flat → Lettings record) and is what statements charge.
-              </p>
             </div>
             <Input
               label="Value Added Tax (VAT) rate (%)"

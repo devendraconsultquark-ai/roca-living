@@ -113,7 +113,7 @@ export const StatementEmailModal = ({ statementId, onClose, onSent }) => {
           ) : (
             <>
               <p className="text-xs-portal text-status-muted">
-                Prepared automatically — check it, edit anything, then send. Nothing is sent until you click Send email.
+                Check and edit, then send. Nothing is sent until you click Send Email.
                 {draft.sent_at && ` Last emailed ${new Date(draft.sent_at).toLocaleDateString('en-GB')} to ${draft.sent_to}.`}
               </p>
               <Input id="emailTo" label="To" required placeholder="landlord@example.com" value={draft.to} onChange={(e) => set('to', e.target.value)} />

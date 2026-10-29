@@ -8,6 +8,7 @@ import { useToast } from './ToastContext';
 import api from '../../utilities/api';
 import { DEPOSIT_SCHEME_OPTIONS } from '../../utilities/depositSchemes';
 import { RentDuePreview } from './RentDuePreview';
+import { InfoTip } from './InfoTip';
 
 const emptyTenant = () => ({ name: '', email: '', phone: '' });
 
@@ -143,7 +144,7 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
 
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm-portal font-bold text-brand-primary capitalize">Tenant(s)</h3>
+              <h3 className="text-sm-portal font-bold text-brand-primary">Tenants</h3>
               <Button type="button" variant="ghost" size="sm" icon={Plus} onClick={() => setTenants((l) => [...l, emptyTenant()])}>
                 Add joint tenant
               </Button>
@@ -207,9 +208,6 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
               <RentDuePreview startDate={startDate} rent={rent} rentDueDay={rentDueDay} />
             </div>
           </div>
-          <p className="text-xs-portal text-status-muted -mt-2">
-            Rent falls due on the start day each month unless you set a due day — this also sets the statement period (e.g. 25th → 24th).
-          </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-card-border pt-4">
             <Input
@@ -226,10 +224,10 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
           </div>
 
           <div className="flex flex-col gap-2 border-t border-card-border pt-4">
-            <h3 className="text-sm-portal font-bold text-brand-primary capitalize">Already managed before? (optional)</h3>
-            <p className="text-xs-portal text-status-muted">
-              For a tenancy you have been statementing by hand: rent before the first period here is not counted as owed, and statement numbers continue after the last one you issued.
-            </p>
+            <h3 className="text-sm-portal font-bold text-brand-primary flex items-center gap-1.5">
+              Already Managed Before? (Optional)
+              <InfoTip text="For tenancies statemented by hand: earlier rent isn't counted as owed, and numbering continues after your last statement." />
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <DatePicker label="First period in this system" id="statementsFrom" value={statementsFrom} onChange={setStatementsFrom} error={errors.statementsFrom} />
               <Input

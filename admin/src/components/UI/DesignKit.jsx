@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { PieChart, Pie, Cell } from 'recharts';
 import { ChevronRight, Info, RefreshCw, Search, MoreHorizontal } from 'lucide-react';
 import { TONES } from '../../utilities/designTokens';
+import { InfoTip } from './InfoTip';
+import { titleCase } from '../../utilities/titleCase';
 
 // Building blocks of the approved admin design (RL_Admin_Portal Design.pdf):
 // every list page is an action row, a row of KPI cards with "View …" links, a
@@ -37,7 +39,7 @@ export const KpiCard = ({ icon: Icon, tone = 'indigo', label, value, sub, subTon
           <Icon size={17} />
         </span>
       )}
-      <span className="text-xs text-gray-500 font-semibold leading-snug min-w-0">{label}</span>
+      <span className="text-xs text-gray-500 font-semibold leading-snug min-w-0">{titleCase(label)}</span>
     </div>
     <span className="text-[22px] font-bold text-brand-primary mt-3 leading-tight truncate tabular-nums" title={typeof value === 'string' ? value : undefined}>{loading ? '…' : value}</span>
     {sub && <span className={`text-[11px] font-semibold mt-1 leading-snug ${subTone ? TONES[subTone].text : 'text-gray-400'}`}>{sub}</span>}
@@ -58,12 +60,13 @@ export const WithRail = ({ children, rail }) => (
 );
 
 // A card with a title, an optional grey line and an optional "View all" link.
-export const SectionCard = ({ title, sub, action, to, onAction, className = '', children }) => (
+// info: a short explanation shown from an ⓘ next to the title.
+export const SectionCard = ({ title, info, sub, action, to, onAction, className = '', children }) => (
   <div className={`card-bg border border-card-border rounded-card shadow-premium p-5 flex flex-col gap-3 min-w-0 ${className}`}>
     {(title || action) && (
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          {title && <h3 className="text-[15px] font-bold text-brand-primary tracking-tight">{title}</h3>}
+          {title && <h3 className="text-[15px] font-bold text-brand-primary tracking-tight flex items-center gap-1.5">{titleCase(title)}{info && <InfoTip text={info} />}</h3>}
           {sub && <p className="text-[11px] leading-snug text-gray-400 font-semibold mt-0.5">{sub}</p>}
         </div>
         {action && (to || onAction) && (
@@ -223,7 +226,7 @@ export const KeyValues = ({ rows }) => (
   <div className="flex flex-col">
     {rows.map(([label, value, tone, bold], i) => (
       <div key={`${label}-${i}`} className="flex items-center justify-between gap-3 py-1.5 border-b border-card-border/40 last:border-0">
-        <span className={`text-xs ${bold ? 'font-bold text-brand-primary' : 'font-semibold text-gray-500'}`}>{label}</span>
+        <span className={`text-xs ${bold ? 'font-bold text-brand-primary' : 'font-semibold text-gray-500'}`}>{titleCase(label)}</span>
         <span className={`text-xs font-bold tabular-nums text-right ${tone ? TONES[tone].text : 'text-brand-primary'}`}>{value}</span>
       </div>
     ))}

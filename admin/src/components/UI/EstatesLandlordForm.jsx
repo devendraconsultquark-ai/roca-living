@@ -6,6 +6,7 @@ import { DatePicker } from './DatePicker';
 import { Button } from './Button';
 import { useToast } from './ToastContext';
 import api from '../../utilities/api';
+import { InfoTip } from './InfoTip';
 
 // Add or edit a ROCA Estates landlord from Roca Living (client decision 21 Oct).
 // Saved through ROCA Estates' own API, so it stays the only copy. Names are
@@ -195,10 +196,10 @@ export const EstatesLandlordForm = ({ landlord, onClose, onSaved }) => {
       <div className="bg-white rounded-2xl w-full max-w-4xl shadow-xl border border-card-border max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-start gap-3 px-6 pt-6 pb-4 border-b border-card-border">
           <div>
-            <h3 className="text-lg font-bold text-brand-primary">{isEdit ? 'Edit Landlord Details' : 'Add New Landlord'}</h3>
-            <p className="text-[11px] text-status-muted mt-1">
-              Saved in ROCA Estates, so both apps show the same details. Statements use the name and address entered here.
-            </p>
+            <h3 className="text-lg font-bold text-brand-primary flex items-center gap-1.5">
+              {isEdit ? 'Edit Landlord Details' : 'Add New Landlord'}
+              <InfoTip text="Saved in ROCA Estates, so both apps show the same details. Statements use this name and address." />
+            </h3>
           </div>
           <button type="button" onClick={onClose} disabled={saving} className="text-gray-400 hover:text-brand-primary cursor-pointer disabled:opacity-50" aria-label="Close">
             <X size={20} />
@@ -255,8 +256,7 @@ export const EstatesLandlordForm = ({ landlord, onClose, onSaved }) => {
               <div className="flex flex-col gap-5">
                 <div className="flex items-center justify-between gap-4 border border-card-border rounded-card p-4">
                   <div>
-                    <p className="text-sm font-bold text-brand-primary">Joint Ownership</p>
-                    <p className="text-[11px] text-status-muted">The apartments are owned with a second person, who is shown on statements with the landlord.</p>
+                    <p className="text-sm font-bold text-brand-primary flex items-center gap-1.5">Joint Ownership <InfoTip text="Owned with a second person, who is shown on statements with the landlord." /></p>
                   </div>
                   <button
                     type="button"
@@ -299,7 +299,7 @@ export const EstatesLandlordForm = ({ landlord, onClose, onSaved }) => {
                     </div>
                   </div>
                 ) : (
-                  <p className="text-[11px] text-status-muted text-center py-8">Turn on joint ownership above to add the second owner&apos;s details.</p>
+                  <p className="text-[11px] text-status-muted text-center py-8">Turn on Joint Ownership to add the second owner.</p>
                 )}
               </div>
             )}

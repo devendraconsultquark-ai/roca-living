@@ -8,6 +8,7 @@ import { Skeleton } from './Skeleton';
 import { useToast } from './ToastContext';
 import { useConfirm } from './ConfirmContext';
 import api from '../../utilities/api';
+import { InfoTip } from './InfoTip';
 
 const num = (v) => {
   const n = parseFloat(v);
@@ -305,10 +306,10 @@ export const TenantStatementModal = ({ onClose, onGenerated }) => {
               )}
 
               <div className="border-b pb-4 border-card-border">
-                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-1">Rent Month</h3>
-                <p className="text-xs-portal text-status-muted mb-3">
-                  Which rent period this statement is for. Months that already have a statement are shown but can't be chosen again.
-                </p>
+                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  Rent Month
+                  <InfoTip text="The rent period for this statement. Months already statemented can't be chosen again." />
+                </h3>
                 <Dropdown
                   id="rentMonth"
                   options={periods.map((p) => ({
@@ -358,9 +359,7 @@ export const TenantStatementModal = ({ onClose, onGenerated }) => {
                   <Button type="button" variant="secondary" size="sm" onClick={saveLastSeq} disabled={savingSeq}>
                     {savingSeq ? 'Saving…' : 'Save numbering'}
                   </Button>
-                  <p className="text-xs-portal text-status-muted flex-1 min-w-48">
-                    Statement numbers are created automatically. Only if ROCA already issued statements for this apartment by hand (e.g. up to PH_19_0002), enter that last number (2) once so this one continues after it.
-                  </p>
+                  <InfoTip text="Only if statements were issued by hand before (e.g. up to PH_19_0002): enter that last number (2) once." />
                 </div>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -389,12 +388,14 @@ export const TenantStatementModal = ({ onClose, onGenerated }) => {
               </div>
 
               <div className="border-b pb-4 border-card-border">
-                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-1">Tenancy Dates</h3>
+                <h3 className="text-sm-portal font-bold text-brand-primary uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  Tenancy Dates
+                  <InfoTip text={form.tenancy_dates_locked
+                    ? 'Fixed: a statement exists for this tenancy. Change rent with Rent Review.'
+                    : 'No statement yet. Changing these updates the tenancy and recalculates rent months, period, rent and fee.'} />
+                </h3>
                 {form.tenancy_dates_locked ? (
                   <>
-                    <p className="text-xs-portal text-status-muted mb-3">
-                      Fixed: this tenancy already has a statement, and issued statements never change. A new rent goes through Rent review on the Tenancies page.
-                    </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Input id="tenancyStart" label="Tenancy Start Date" value={ukDate(form.tenancy_start_date)} disabled />
                       <Input id="rentDueDay" label="Rent due day" value={`${ordinal(form.rent_due_day)} of each month`} disabled />
@@ -402,9 +403,6 @@ export const TenantStatementModal = ({ onClose, onGenerated }) => {
                   </>
                 ) : (
                   <>
-                    <p className="text-xs-portal text-status-muted mb-3">
-                      No statement for this tenancy yet, so the dates can still be changed. Changing them updates the tenancy: rent months, this period, the rent and the fee are all recalculated.
-                    </p>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                       <DatePicker
                         label="Tenancy Start Date"

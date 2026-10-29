@@ -18,6 +18,8 @@ import api from '../utilities/api';
 import { DEPOSIT_SCHEME_OPTIONS } from '../utilities/depositSchemes';
 import { RentDuePreview } from '../components/UI/RentDuePreview';
 import { EditTenantModal } from '../components/UI/EditTenantModal';
+import { RentAccountCard } from '../components/UI/RentAccountCard';
+import { InfoTip } from '../components/UI/InfoTip';
 
 const methodLabel = { bank_transfer: 'Bank Transfer', direct_debit: 'Direct Debit', card: 'Card', cash: 'Cash', other: 'Other' };
 const ordinal = (d) => `${d}${[11, 12, 13].includes(d % 100) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[d % 10] || 'th')}`;
@@ -52,7 +54,7 @@ export const TenantDetailPage = () => {
     if (!(Number.isInteger(day) && day >= 1 && day <= 28)) { addToast('Enter a day from 1 to 28', 'warning'); return; }
     setDueDaySaving(true);
     try {
-      const res = await api.patch(`/tenancies/${data.tenancy.id}/rent-due-day`, { rent_due_day: day });
+      const res = await api.patch(`/tenancies/${data.tenancy.id}/rent-due-day`, { rent_due_day: day }, { skipInterceptorError: true });
       addToast(res.data.message, 'success');
       setDueDayForm(null);
       setReloadKey((k) => k + 1);
@@ -415,7 +417,14 @@ export const TenantDetailPage = () => {
                     </div>
 
                     <div className="border-t border-card-border pt-4">
-                      <h4 className="text-sm-portal font-bold text-brand-primary capitalize mb-2">Deposit</h4>
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        <h4 className="text-sm-portal font-bold text-brand-primary capitalize">Deposit</h4>
+                        {data.deposit && (
+                          <button type="button" onClick={() => setIsEditModalOpen(true)} className="text-xs font-bold text-brand-accent hover:underline cursor-pointer">
+                            Edit Deposit
+                          </button>
+                        )}
+                      </div>
                       {data.deposit ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-1">
                           <div>
@@ -486,9 +495,9 @@ export const TenantDetailPage = () => {
 
         {activeTab === 'payments' && (
           <div className="grid grid-cols-1 gap-6">
+            <RentAccountCard account={data.rent_account} fileName={`rent-account-${(data.name || 'tenant').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`} />
             {data.xero_invoices?.length > 0 && (
-              <Card title={`Rent Invoices in Xero (${data.xero_invoices.length})`}>
-                <p className="text-xs text-status-muted mb-3">Internal invoices Roca Living raised in Xero so the tenant's payments can be matched there. Never sent to the tenant.</p>
+              <Card title={`Rent Invoices in Xero (${data.xero_invoices.length})`} info="Internal invoices in Xero, so the tenant's payments can be matched. Never sent to the tenant.">
                 <div className="flex flex-col">
                   {data.xero_invoices.map((x) => (
                     <div key={x.invoice_number} className="flex flex-wrap items-center justify-between gap-3 py-2 border-b border-card-border/60 last:border-0 text-sm">
@@ -626,15 +635,14 @@ export const TenantDetailPage = () => {
         <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-brand-primary">Change Rent Due Day</h3>
+              <h3 className="text-lg font-bold text-brand-primary flex items-center gap-1.5">Change Rent Due Day <InfoTip text={data.tenancy.has_statement
+                ? "Statements already made don't change. The new day starts after the last statement, with a short pro-rata period."
+                : 'Rent months are rebuilt: a pro-rata first payment, then full rent on this day.'} /></h3>
               <button onClick={() => setDueDayForm(null)} disabled={dueDaySaving} className="text-gray-400 hover:text-brand-primary cursor-pointer" aria-label="Close">
                 <X size={20} />
               </button>
             </div>
-            <p className="text-xs text-status-muted mb-4 leading-snug">
-              The rent months are rebuilt from the start date: a pro-rata first payment, then the full rent on this day each month.
-              Payments already received are applied again. Not possible once a statement exists for this tenancy.
-            </p>
+            <div className="mb-4" />
             <form onSubmit={handleDueDaySubmit} className="flex flex-col gap-4">
               <Input
                 label="Rent due day (1–28)"
@@ -647,7 +655,7 @@ export const TenantDetailPage = () => {
                 value={dueDayForm.day}
                 onChange={(e) => setDueDayForm({ day: e.target.value })}
               />
-              <RentDuePreview startDate={data.tenancy.start_date} rent={data.tenancy.rent_pcm} rentDueDay={dueDayForm.day} />
+              <RentDuePreview startDate={data.tenancy.start_date} rent={data.tenancy.rent_pcm} rentDueDay={dueDayForm.day} tenancyId={data.tenancy.id} />
               <div className="flex gap-3 justify-end mt-1">
                 <Button type="button" variant="ghost" onClick={() => setDueDayForm(null)} disabled={dueDaySaving}>Cancel</Button>
                 <Button type="submit" variant="primary" disabled={dueDaySaving}>{dueDaySaving ? 'Saving…' : 'Change Due Day'}</Button>
@@ -666,9 +674,7 @@ export const TenantDetailPage = () => {
                 <X size={20} />
               </button>
             </div>
-            <p className="text-xs text-status-muted mb-4 leading-snug">
-              It must be registered with the scheme within 30 days of the date received.
-            </p>
+            <div className="mb-4" />
             <form onSubmit={handleDepositSubmit} className="flex flex-col gap-4">
               <Input
                 label="Deposit (£)"
@@ -710,6 +716,7 @@ export const TenantDetailPage = () => {
           tenantId={id}
           onClose={() => setIsEditModalOpen(false)}
           onSaved={() => setReloadKey((k) => k + 1)}
+          onChangeDueDay={() => setDueDayForm({ day: String(data.tenancy.rent_due_day) })}
         />
       )}
 

@@ -7,6 +7,7 @@ import { Button } from './Button';
 import { useToast } from './ToastContext';
 import { useConfirm } from './ConfirmContext';
 import api from '../../utilities/api';
+import { InfoTip } from './InfoTip';
 
 // Add or edit a ROCA Estates apartment from Roca Living (client decision 21 Oct).
 // Saved through ROCA Estates' own API, which makes its unit code (PH_08) and
@@ -314,10 +315,10 @@ const ApartmentFormBody = ({ apartment, buildings, landlords, units, onClose, on
       <div className="bg-white rounded-2xl w-full max-w-4xl shadow-xl border border-card-border max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-start gap-3 px-6 pt-6 pb-4 border-b border-card-border">
           <div>
-            <h3 className="text-lg font-bold text-brand-primary">{isEdit ? 'Edit Apartment Details' : 'Add New Property'}</h3>
-            <p className="text-[11px] text-status-muted mt-1">
-              Saved in ROCA Estates, so both apps show the same apartment. ROCA Estates gives it its unit code and reference.
-            </p>
+            <h3 className="text-lg font-bold text-brand-primary flex items-center gap-1.5">
+              {isEdit ? 'Edit Apartment Details' : 'Add New Property'}
+              <InfoTip text="Saved in ROCA Estates, so both apps show the same apartment. ROCA Estates gives the unit code and reference." />
+            </h3>
           </div>
           <button type="button" onClick={onClose} disabled={saving} className="text-gray-400 hover:text-brand-primary cursor-pointer disabled:opacity-50" aria-label="Close">
             <X size={20} />
@@ -377,7 +378,7 @@ const ApartmentFormBody = ({ apartment, buildings, landlords, units, onClose, on
                   </div>
                   {!isEdit && block && (
                     <p className="text-[11px] text-status-muted">
-                      Unit code will be {block.short_code || 'BLD'}_{String(form.unit_number || '').padStart(2, '0')}; the reference (REM-APR-…) is added by ROCA Estates.
+                      Unit code: {block.short_code || 'BLD'}_{String(form.unit_number || '').padStart(2, '0')}
                     </p>
                   )}
                 </div>
@@ -415,10 +416,7 @@ const ApartmentFormBody = ({ apartment, buildings, landlords, units, onClose, on
                 {certificate('Sprinklers', { date: 'sprinkler_date', expiry: 'sprinkler_expiry_date' }, 'Last Serviced', 'sprinkler_file')}
                 {certificate('HMO Licence', { date: 'hmo_licence_date', expiry: 'hmo_licence_expiry_date' }, 'Issued', 'hmo_licence_file')}
                 {certificate('PAT Testing', { date: 'pat_date', expiry: 'pat_expiry_date' }, 'Tested', 'pat_file')}
-                <p className="lg:col-span-2 text-[11px] text-status-muted">
-                  The same certificates show on the property&apos;s Safety &amp; Compliance tab and in ROCA Estates.
-                  {!isEdit && ' Add the certificate files after the apartment is saved.'}
-                </p>
+                {!isEdit && <p className="lg:col-span-2 text-[11px] text-status-muted">Add certificate files after saving.</p>}
               </div>
             )}
 
@@ -449,9 +447,6 @@ const ApartmentFormBody = ({ apartment, buildings, landlords, units, onClose, on
                     {select('pets_allowed', 'Pets Allowed', ALLOWED)}
                   </div>
                 </div>
-                <p className="text-[11px] text-status-muted">
-                  Service charge and block accounting are kept in ROCA Estates only.
-                </p>
               </div>
             )}
           </div>

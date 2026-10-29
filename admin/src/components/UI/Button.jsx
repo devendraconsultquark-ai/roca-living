@@ -1,4 +1,5 @@
 import React from 'react';
+import { titleCase } from '../../utilities/titleCase';
 
 export const Button = ({
   children,
@@ -59,7 +60,8 @@ export const Button = ({
       {/* Icon placed left */}
       {Icon && iconPosition === 'left' && <Icon size={size === 'sm' ? 13 : 15} className="shrink-0 animate-in fade-in" />}
       
-      {children}
+      {/* Button text in Title Case ("Add Joint Tenant"), like labels and headings */}
+      {titleCase(children)}
       
       {/* Icon placed right */}
       {Icon && iconPosition === 'right' && <Icon size={size === 'sm' ? 13 : 15} className="shrink-0 animate-in fade-in" />}

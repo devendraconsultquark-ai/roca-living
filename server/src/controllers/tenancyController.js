@@ -1,11 +1,11 @@
 import db from '../config/db.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
-import { addDays, toYmd, todayYmd } from '../utils/dateHelpers.js';
+import { addDays, addMonths, toYmd, todayYmd } from '../utils/dateHelpers.js';
 import { allocateTenancyPayments } from '../utils/rentAllocation.js';
 import { ensureLivingProperty } from '../utils/estatesLink.js';
 import { checkPhone } from '../validations/common.js';
-import { generateSchedules, firstRentMonth, dueDayOf } from '../utils/rentSchedules.js';
+import { generateSchedules, firstRentMonth, dueDayOf, dueDayChange } from '../utils/rentSchedules.js';
 import { findSimilarPayment, paymentDeleteBlocks } from '../utils/rentPayments.js';
 import { ensurePropertyCompliance } from '../utils/propertySetup.js';
 
@@ -274,7 +274,9 @@ export const getAllTenancies = catchAsync(async (req, res, next) => {
       'tenants.name as lead_tenant_name',
       'tenants.email as lead_tenant_email',
       'tenants.id as lead_tenant_id',
-      'properties.name as property_name'
+      'properties.name as property_name',
+      'properties.block_name',
+      'properties.apartment_number'
     );
 
   if (status) {
@@ -419,6 +421,19 @@ export const updateRentReview = catchAsync(async (req, res, next) => {
 // GET /tenancies/rent-preview?start_date=&rent_pcm=&rent_due_day= — what the
 // first rent payment will be (pro-rata when the due day isn't the start day).
 export const getRentPreview = catchAsync(async (req, res) => {
+  // An existing tenancy that already has a statement: the change starts at the
+  // next open period (see changeDueDayFromNextPeriod).
+  if (req.query.tenancy_id) {
+    const tenancy = await db('tenancies').where('id', req.query.tenancy_id).first();
+    if (!tenancy) throw new ApiError(404, 'Tenancy not found');
+    const fromYmd = await nextOpenPeriodStart(tenancy.id);
+    if (fromYmd) {
+      const startYmd = toYmd(tenancy.start_date);
+      const day = dueDayOf(startYmd, cleanRentDueDay(req.query.rent_due_day, startYmd));
+      const change = dueDayChange(fromYmd, day, parseFloat(tenancy.rent_pcm));
+      return res.json({ success: true, data: { rent_due_day: day, change, rent_pcm: parseFloat(tenancy.rent_pcm).toFixed(2), message: dueDayChangeMessage(change, tenancy.rent_pcm) } });
+    }
+  }
   const { start_date: start, rent_pcm: rent, rent_due_day: dueDay } = req.query;
   if (!start || !/^\d{4}-\d{2}-\d{2}$/.test(start)) throw new ApiError(400, 'start_date must be YYYY-MM-DD');
   const amount = parseFloat(rent);
@@ -451,15 +466,85 @@ const rebuildRentMonths = async (trx, tenancy, { startYmd, rentPcm, dueDay }) =>
   const rows = generateSchedules(startYmd, tenancy.end_date ? toYmd(tenancy.end_date) : null, rentPcm,
     tenancy.statements_from ? toYmd(tenancy.statements_from) : null, dueDay);
   if (rows.length) await trx('rent_schedules').insert(rows.map((r) => ({ ...r, tenancy_id: tenancy.id })));
-  await trx('tenancies').where('id', tenancy.id).update({ start_date: startYmd, rent_pcm: rentPcm, rent_due_day: dueDay, updated_at: trx.fn.now() });
+  await trx('tenancies').where('id', tenancy.id).update({ start_date: startYmd, rent_pcm: rentPcm, rent_due_day: dueDay, rent_due_day_from: null, updated_at: trx.fn.now() });
   await allocateTenancyPayments(trx, tenancy.id);
   return rows.length;
+};
+
+// ── Due day change after statements exist ───────────────────────────────────
+// Issued statements and the rent months they cover never change. The new due
+// day starts at the next open period (the day after the last statement): that
+// period is short and pro-rata, then full rent falls on the new day.
+const nextOpenPeriodStart = async (tenancyId) => {
+  const last = await db('landlord_statements').where('tenancy_id', tenancyId).orderBy('period_end', 'desc').first('period_end');
+  return last ? addDays(toYmd(last.period_end), 1) : null;
+};
+const nthDayOf = (d) => `${d}${[11, 12, 13].includes(d) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[d % 10] || 'th')}`;
+const dueDayChangeMessage = (change, rentPcm) => (change.pro_rata
+  ? `From ${ukDate(change.from)}: £${change.pro_rata.total.toFixed(2)} for ${ukDate(change.from)} – ${ukDate(change.period_end)}, then £${parseFloat(rentPcm).toFixed(2)} on the ${nthDayOf(change.due_day)} of each month from ${ukDate(change.first_due)}.`
+  : `From ${ukDate(change.from)}: £${parseFloat(rentPcm).toFixed(2)} on the ${nthDayOf(change.due_day)} of each month.`);
+
+const changeDueDayFromNextPeriod = async (req, res, tenancy, fromYmd) => {
+  const startYmd = toYmd(tenancy.start_date);
+  const stored = cleanRentDueDay(req.body.rent_due_day, startYmd);
+  const day = dueDayOf(startYmd, stored);
+  if (day === dueDayOf(startYmd, tenancy.rent_due_day)) {
+    throw new ApiError(409, `Rent is already due on the ${nthDayOf(day)} of each month.`);
+  }
+  const rent = parseFloat(tenancy.rent_pcm);
+  const change = dueDayChange(fromYmd, day, rent);
+
+  const result = await db.transaction(async (trx) => {
+    const later = await trx('rent_schedules').where('tenancy_id', tenancy.id).where('due_date', '>=', fromYmd).pluck('id');
+    if (later.length) {
+      const frozen = await trx('rent_payment_allocations').whereIn('schedule_id', later).whereNotNull('statement_id').first('id');
+      if (frozen) throw new ApiError(409, 'A rent month after the last statement is already on a statement, so the due day can\'t change from there.');
+      await trx('rent_payment_allocations').whereIn('schedule_id', later).delete();
+      await trx('rent_payments').whereIn('schedule_id', later).update({ schedule_id: null });
+      await trx('rent_schedules').whereIn('id', later).delete();
+    }
+    // The short pro-rata period, then full months on the new day (12 months ahead,
+    // or to the end date).
+    const rows = [];
+    if (change.pro_rata) rows.push({ due_date: fromYmd, amount: change.pro_rata.total.toFixed(2), status: 'due' });
+    const endYmd = tenancy.end_date ? toYmd(tenancy.end_date) : null;
+    const horizon = addMonths(todayYmd(), 12);
+    for (let i = 0; i < 240; i++) {
+      const due = addMonths(change.first_due, i);
+      if (endYmd ? due > endYmd : (due >= horizon && i > 0)) break;
+      rows.push({ due_date: due, amount: rent.toFixed(2), status: 'due' });
+    }
+    if (rows.length) await trx('rent_schedules').insert(rows.map((r2) => ({ ...r2, tenancy_id: tenancy.id })));
+    await trx('tenancies').where('id', tenancy.id).update({ rent_due_day: stored, rent_due_day_from: fromYmd, updated_at: trx.fn.now() });
+    await allocateTenancyPayments(trx, tenancy.id);
+    await trx('audit_log').insert({
+      actor_id: req.user.id,
+      actor_role: req.user.role,
+      action: 'RENT_DUE_DAY_CHANGED',
+      entity_type: 'tenancy',
+      entity_id: tenancy.id,
+      meta: JSON.stringify({
+        from: dueDayOf(startYmd, tenancy.rent_due_day), to: day, effective: fromYmd,
+        pro_rata: change.pro_rata ? change.pro_rata.total : null, months_removed: later.length, months_added: rows.length
+      }),
+      ip_address: req.ip || null
+    });
+    return { months: rows.length };
+  });
+
+  res.json({
+    success: true,
+    message: dueDayChangeMessage(change, rent),
+    data: { rent_due_day: day, change, months: result.months }
+  });
 };
 
 export const updateRentDueDay = catchAsync(async (req, res) => {
   const tenancy = await db('tenancies').where('id', req.params.id).first();
   if (!tenancy) throw new ApiError(404, 'Tenancy not found');
-  await assertNoStatement(tenancy.id, 'due day');
+  // After a statement: the change starts at the next open period.
+  const fromYmd = await nextOpenPeriodStart(tenancy.id);
+  if (fromYmd) return changeDueDayFromNextPeriod(req, res, tenancy, fromYmd);
   const startYmd = toYmd(tenancy.start_date);
   const day = cleanRentDueDay(req.body.rent_due_day, startYmd);
 
@@ -1298,6 +1383,57 @@ export const deleteTenant = catchAsync(async (req, res, next) => {
   });
 });
 
+// The tenancy's rent account, month by month: what fell due, what each payment
+// paid, and what is still owed. Its balance is the one on the Tenants list
+// (payments received minus rent fallen due to date).
+const rentAccountOf = async (tenancyId) => {
+  const today = todayYmd();
+  const months = await db('rent_schedules').where('tenancy_id', tenancyId).orderBy('due_date').select('id', 'due_date', 'amount', 'paid_amount', 'status');
+  const allocations = months.length
+    ? await db('rent_payment_allocations as a')
+      .join('rent_payments as p', 'a.payment_id', 'p.id')
+      .leftJoin('landlord_statements as s', 'a.statement_id', 's.id')
+      .whereIn('a.schedule_id', months.map((m) => m.id))
+      .select('a.schedule_id', 'a.payment_id', 'a.amount', 'p.received_at', 's.statement_number')
+    : [];
+  const payments = await db('rent_payments').where('tenancy_id', tenancyId).orderBy('received_at').select('id', 'received_at', 'amount', 'method', 'reference', 'xero_payment_id');
+  const round2 = (n) => Math.round(n * 100) / 100;
+
+  let dueToDate = 0;
+  const rows = months.map((m, i) => {
+    const due = toYmd(m.due_date);
+    const next = months[i + 1] ? toYmd(months[i + 1].due_date) : addMonths(due, 1);
+    const mine = allocations.filter((a) => a.schedule_id === m.id);
+    const paid = round2(mine.reduce((t, a) => t + parseFloat(a.amount), 0));
+    const amount = parseFloat(m.amount);
+    const fallenDue = due <= today;
+    if (fallenDue) dueToDate += amount;
+    return {
+      due_date: due,
+      period_end: addDays(next, -1),
+      amount: amount.toFixed(2),
+      paid: paid.toFixed(2),
+      owed: Math.max(0, round2(amount - paid)).toFixed(2),
+      fallen_due: fallenDue,
+      status: m.status,
+      paid_by: mine.map((a) => ({ payment_id: a.payment_id, received_at: toYmd(a.received_at), amount: parseFloat(a.amount).toFixed(2) })),
+      statement_numbers: [...new Set(mine.map((a) => a.statement_number).filter(Boolean))]
+    };
+  });
+  const received = round2(payments.reduce((t, p) => t + parseFloat(p.amount), 0));
+  return {
+    months: rows,
+    payments: payments.map((p) => ({ ...p, received_at: toYmd(p.received_at), amount: parseFloat(p.amount).toFixed(2), from_xero: !!p.xero_payment_id, xero_payment_id: undefined })),
+    totals: {
+      months_due: rows.filter((r) => r.fallen_due).length,
+      first_due: rows[0]?.due_date || null,
+      rent_due_to_date: round2(dueToDate).toFixed(2),
+      received: received.toFixed(2),
+      balance: round2(received - dueToDate).toFixed(2)
+    }
+  };
+};
+
 export const getTenantById = catchAsync(async (req, res, next) => {
   // Lists show the id as "TNT-12"; accept that form as well as the number.
   const id = String(req.params.id).replace(/^TNT-/i, '');
@@ -1366,6 +1502,7 @@ export const getTenantById = catchAsync(async (req, res, next) => {
         ...tenancy,
         start_date: toYmd(tenancy.start_date),
         end_date: toYmd(tenancy.end_date),
+        statements_from: toYmd(tenancy.statements_from),
         rent_pcm: tenancy.rent_pcm !== null ? parseFloat(tenancy.rent_pcm).toFixed(2) : null,
         property_address: `${tenancy.address_line1}${tenancy.address_line2 ? ', ' + tenancy.address_line2 : ''}, ${tenancy.city} ${tenancy.postcode}`,
         // Day of the month rent falls due, and the pro-rata first payment if any.
@@ -1378,6 +1515,7 @@ export const getTenantById = catchAsync(async (req, res, next) => {
       deposit: formatDeposit(deposit),
       xero_invoices: xeroInvoices.map((x) => ({ ...x, due_date: toYmd(x.due_date), amount: parseFloat(x.amount).toFixed(2) })),
       balance: parseFloat(balance.toFixed(2)),
+      rent_account: tenancy ? await rentAccountOf(tenancy.id) : null,
       payment_history: payments.map(p => ({
         ...p,
         amount: parseFloat(p.amount).toFixed(2),
@@ -1390,28 +1528,101 @@ export const getTenantById = catchAsync(async (req, res, next) => {
   });
 });
 
-// PATCH /tenancies/:id/opening { last_statement_seq } — the last statement
-// number ROCA issued by hand before this system (e.g. 5 for PH_19_0005), so
-// numbering continues from there. Can be changed after the tenancy was added.
+// PATCH /tenancies/:id/opening { last_statement_seq?, statements_from? } — the
+// opening position of a tenancy that was already running before ROCA used this
+// system:
+//   last_statement_seq  the last statement number issued by hand (5 for
+//                       PH_19_0005), so numbering continues from there;
+//   statements_from     the first rent month handled here ("Rent handled in Roca
+//                       Living from"). Earlier rent months were paid outside the
+//                       system, so they are removed and never shown as owed;
+//                       null or an earlier date brings them back.
+// A rent month with a payment against it (or on a statement) is never removed.
 export const updateTenancyOpening = catchAsync(async (req, res) => {
   const tenancy = await db('tenancies').where('id', req.params.id).first();
   if (!tenancy) throw new ApiError(404, 'Tenancy not found');
-  const raw = req.body?.last_statement_seq;
-  const seq = raw === null || raw === '' || raw === undefined ? null : Number(raw);
-  if (seq !== null && (!Number.isInteger(seq) || seq < 0 || seq > 9999)) {
-    throw new ApiError(400, 'Last statement number must be a whole number between 0 and 9999');
+  const b = req.body || {};
+  const update = {};
+  const meta = {};
+
+  if (b.last_statement_seq !== undefined) {
+    const raw = b.last_statement_seq;
+    const seq = raw === null || raw === '' ? null : Number(raw);
+    if (seq !== null && (!Number.isInteger(seq) || seq < 0 || seq > 9999)) {
+      throw new ApiError(400, 'Last statement number must be a whole number between 0 and 9999');
+    }
+    update.last_statement_seq = seq;
+    meta.last_statement_seq = { from: tenancy.last_statement_seq, to: seq };
   }
+
+  let removed = 0;
+  let added = 0;
+  const fromNew = b.statements_from === undefined ? undefined : (b.statements_from ? String(b.statements_from) : null);
+  const fromOld = tenancy.statements_from ? toYmd(tenancy.statements_from) : null;
+  if (fromNew !== undefined && fromNew !== fromOld) {
+    if (fromNew !== null && (!/^\d{4}-\d{2}-\d{2}$/.test(fromNew) || Number.isNaN(new Date(fromNew).getTime()))) {
+      throw new ApiError(400, 'Enter a valid date for "Rent handled in Roca Living from"');
+    }
+    const start = toYmd(tenancy.start_date);
+    if (fromNew !== null && fromNew < start) throw new ApiError(400, `The date can't be before the tenancy started (${ukDate(start)})`);
+    update.statements_from = fromNew;
+    meta.statements_from = { from: fromOld, to: fromNew };
+  }
+
   await db.transaction(async (trx) => {
-    await trx('tenancies').where('id', tenancy.id).update({ last_statement_seq: seq });
+    if ('statements_from' in update) {
+      const months = await trx('rent_schedules').where('tenancy_id', tenancy.id).orderBy('due_date').select('id', 'due_date', 'paid_amount');
+      // Rent months before the new date go (only if nothing was paid on them).
+      const before = fromNew ? months.filter((m) => toYmd(m.due_date) < fromNew) : [];
+      if (before.length) {
+        const paid = await trx('rent_payment_allocations').whereIn('schedule_id', before.map((m) => m.id)).first('schedule_id');
+        const paidMonth = paid ? before.find((m) => m.id === paid.schedule_id) : before.find((m) => parseFloat(m.paid_amount || 0) > 0);
+        if (paidMonth) {
+          throw new ApiError(409, `The rent month due ${ukDate(toYmd(paidMonth.due_date))} has a payment recorded against it, so it can't be removed. Choose a date on or before it.`);
+        }
+        await trx('rent_schedules').whereIn('id', before.map((m) => m.id)).delete();
+        removed = before.length;
+      }
+      // Months from the new date (or the start) up to the first remaining one come back.
+      const firstLeft = months.find((m) => !fromNew || toYmd(m.due_date) >= fromNew);
+      const firstLeftYmd = firstLeft ? toYmd(firstLeft.due_date) : null;
+      {
+        // No month left at all (date after the last one): months from the date on.
+        const end = firstLeftYmd || (tenancy.end_date ? toYmd(tenancy.end_date) : null);
+        const regenerated = generateSchedules(toYmd(tenancy.start_date), end, tenancy.rent_pcm, fromNew, tenancy.rent_due_day)
+          .filter((r) => (!firstLeftYmd || r.due_date < firstLeftYmd) && !months.some((m) => toYmd(m.due_date) === r.due_date));
+        if (regenerated.length) {
+          await trx('rent_schedules').insert(regenerated.map((r) => ({ ...r, tenancy_id: tenancy.id })));
+          added = regenerated.length;
+        }
+      }
+      meta.months_removed = removed;
+      meta.months_added = added;
+    }
+    if (Object.keys(update).length) await trx('tenancies').where('id', tenancy.id).update(update);
+    if (added || removed) await allocateTenancyPayments(trx, tenancy.id);
     await trx('audit_log').insert({
       actor_id: req.user.id,
       actor_role: req.user.role,
-      action: 'TENANCY_OPENING_UPDATED',
+      action: 'statements_from' in update ? 'TENANCY_STATEMENTS_FROM_SET' : 'TENANCY_OPENING_UPDATED',
       entity_type: 'tenancy',
       entity_id: tenancy.id,
-      meta: JSON.stringify({ from: tenancy.last_statement_seq, to: seq }),
+      meta: JSON.stringify(meta),
       ip_address: req.ip || null
     });
   });
-  res.json({ success: true, data: { last_statement_seq: seq } });
+
+  const parts = [];
+  if (removed) parts.push(`${removed} earlier rent month${removed === 1 ? '' : 's'} removed`);
+  if (added) parts.push(`${added} rent month${added === 1 ? '' : 's'} added back`);
+  res.json({
+    success: true,
+    message: parts.length ? `Opening position saved: ${parts.join(', ')}.` : 'Opening position saved.',
+    data: {
+      last_statement_seq: 'last_statement_seq' in update ? update.last_statement_seq : tenancy.last_statement_seq,
+      statements_from: 'statements_from' in update ? update.statements_from : fromOld,
+      months_removed: removed,
+      months_added: added
+    }
+  });
 });

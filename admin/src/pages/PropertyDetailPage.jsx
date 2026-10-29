@@ -22,6 +22,7 @@ import { EstatesApartmentForm } from '../components/UI/EstatesApartmentForm';
 import { useEstatesEditable } from '../utilities/useEstatesEditable';
 import { EstatesDeleteModal } from '../components/UI/EstatesDeleteModal';
 import api from '../utilities/api';
+import { InfoTip } from '../components/UI/InfoTip';
 
 export const PropertyDetailPage = () => {
   const { id } = useParams();
@@ -663,16 +664,17 @@ export const PropertyDetailPage = () => {
         <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start gap-3 mb-1">
-              <h3 className="text-lg font-bold text-brand-primary">Edit Details</h3>
+              <h3 className="text-lg font-bold text-brand-primary flex items-center gap-1.5">
+                Edit Details
+                <InfoTip text={data.rocaem_property_id && estatesEditable
+                  ? 'The address is saved in ROCA Estates too. Rent, fee, key and notes are Roca Living’s own.'
+                  : 'This address prints on statements. Block, apartment number and owner come from ROCA Estates.'} />
+              </h3>
               <button type="button" onClick={() => { setIsEditModalOpen(false); setFormErrors({}); }} className="text-gray-400 hover:text-brand-primary cursor-pointer" aria-label="Close">
                 <X size={20} />
               </button>
             </div>
-            <p className="text-xs text-status-muted mb-4">
-              {data.rocaem_property_id && estatesEditable
-                ? 'The address is saved in ROCA Estates too, so both apps show the same one. Rent, fee, key and notes are Roca Living’s own.'
-                : 'The address below is what prints on statements. The block code, apartment number and owner come from ROCA Estates.'}
-            </p>
+            <div className="mb-4" />
 
             <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
               {data.rocaem_property_id && estatesEditable && (
@@ -773,12 +775,12 @@ export const PropertyDetailPage = () => {
         <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
             <div className="flex justify-between items-start gap-3 mb-1">
-              <h3 className="text-lg font-bold text-brand-primary">Update {certModalCert.cert_type} Certificate</h3>
+              <h3 className="text-lg font-bold text-brand-primary flex items-center gap-1.5">Update {certModalCert.cert_type} Certificate <InfoTip text="Status (compliant, expiring soon, expired) comes from the expiry date." /></h3>
               <button type="button" onClick={() => setCertModalCert(null)} className="text-gray-400 hover:text-brand-primary cursor-pointer" aria-label="Close">
                 <X size={20} />
               </button>
             </div>
-            <p className="text-xs text-status-muted mb-4">The compliance status (compliant / expiring soon / expired) is calculated from the expiry date, and the matching checklist item is marked complete.</p>
+            <div className="mb-4" />
 
             <form onSubmit={handleCertSubmit} className="flex flex-col gap-4">
               <Input

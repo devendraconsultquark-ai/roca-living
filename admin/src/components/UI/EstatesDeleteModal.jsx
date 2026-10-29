@@ -50,9 +50,7 @@ export const EstatesDeleteModal = ({ kind, rocaemId, confirmWord, onClose, onDel
               <span className="font-bold">{confirmWord}</span> is deleted in ROCA Estates and in Roca Living. This can&apos;t be undone.
             </p>
             <p className="text-[11px] text-status-muted">
-              {kind === 'landlord'
-                ? 'A landlord with payments, invoices, documents, statements or a Roca Living apartment record is never deleted: you will see why instead.'
-                : 'An apartment with payments, invoices, documents, tenancies, expenses, tickets or photos is never deleted: you will see why instead.'}
+              {kind === 'landlord' ? 'Landlords with any history are never deleted.' : 'Apartments with any history are never deleted.'}
             </p>
           </div>
         </div>

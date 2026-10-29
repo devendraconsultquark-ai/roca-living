@@ -19,8 +19,8 @@ import { checkPhone } from '../validations/common.js';
 
 export const unitKey = (block, apt) => (block && apt ? `${String(block).trim().toUpperCase()}|${String(apt).trim().toUpperCase()}` : null);
 
-// Single-digit apartments: "PH_8" (false) or "PH_08" (true) — waiting for the
-// client's own format; one switch changes it everywhere.
+// Single-digit apartments: "PH_8" (false) or "PH_08" (true). The client writes
+// PH_8 (Dropbox APARTMENTS/Apartment 8, 27 Oct); statement numbers follow it.
 const PAD_APARTMENT_NUMBER = false;
 
 // "BLD" is Rocaem's placeholder when a building has no short code yet — not a

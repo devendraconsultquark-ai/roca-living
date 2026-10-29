@@ -84,7 +84,7 @@ export const getRentCycle = catchAsync(async (req, res) => {
     .orderBy('s.due_date')
     .select(
       's.id as schedule_id', 's.tenancy_id', 's.due_date', 's.amount as rent_due', 's.status as schedule_status', 's.paid_amount',
-      't.start_date', 't.rent_due_day', 'p.block_name', 'p.apartment_number', 'p.address_line1', 'p.mgmt_fee_pct', 'p.rocaem_property_id',
+      't.start_date', 't.rent_due_day', 't.rent_due_day_from', 'p.block_name', 'p.apartment_number', 'p.address_line1', 'p.mgmt_fee_pct', 'p.rocaem_property_id',
       'l.name as landlord_name', 'p.landlord_id', 'lead.name as tenant_name', 'lead.id as tenant_id'
     );
 
@@ -140,7 +140,7 @@ export const getRentCycle = catchAsync(async (req, res) => {
 
     const statementIds = [...new Set(payments.map((p) => p.approved_statement_id).filter(Boolean))];
     const statements = statementIds.length ? await db('approved_rent_statements').whereIn('id', statementIds).select('id', 'statement_number') : [];
-    const period = rentPeriodFor(due, toYmd(m.start_date), m.rent_due_day);
+    const period = rentPeriodFor(due, toYmd(m.start_date), m.rent_due_day, m.rent_due_day_from ? toYmd(m.rent_due_day_from) : null);
     rows.push({
       key: `${m.tenancy_id}-${due}`,
       tenancy_id: m.tenancy_id,

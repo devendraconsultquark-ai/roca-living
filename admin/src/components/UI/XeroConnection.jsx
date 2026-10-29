@@ -7,6 +7,7 @@ import { Button } from './Button';
 import { DatePicker } from './DatePicker';
 import { Dropdown } from './Dropdown';
 import api, { API_BASE_URL } from '../../utilities/api';
+import { InfoTip } from './InfoTip';
 
 const money = (v) =>
   v === null || v === undefined
@@ -284,8 +285,7 @@ export const XeroConnection = () => {
                 {status.status === 'needs_reauth' ? 'The Xero connection has expired' : 'Not connected'}
               </p>
               <p className="text-2xs text-status-muted font-semibold mt-1 max-w-2xl">
-                Connecting Xero lets Roca Living read the bank transactions behind rent receipts and landlord
-                payouts, so payments can be reconciled against tenancies automatically, and record rent and fees in Xero.
+                Connect Xero to match rent and payouts automatically.
               </p>
             </div>
             {/* Full-page navigation, not XHR: the OAuth handshake must leave the SPA. */}
@@ -297,10 +297,9 @@ export const XeroConnection = () => {
                 <Link2 size={16} />
                 {status.status === 'needs_reauth' ? 'Reconnect Xero' : 'Connect Xero'}
               </a>
-              <p className="text-2xs text-status-muted font-semibold mt-2 max-w-2xl">
-                Best done once by the Xero account owner on their own computer. If Xero says it has sent a
-                verification email, the owner approves it, then press "Continue granting access". After that the
-                connection stays on by itself.
+              <p className="text-2xs text-status-muted font-semibold mt-2 max-w-2xl flex items-center gap-1.5">
+                Best done by the Xero account owner.
+                <InfoTip text='If Xero sends a verification email, the owner approves it, then presses "Continue granting access". It then stays connected.' />
               </p>
             </div>
           </div>
@@ -408,9 +407,9 @@ export const XeroConnection = () => {
               )}
               {banks?.accounts?.length > 0 && (
                 <div className="flex flex-wrap items-end justify-between gap-4 mt-4 pt-4 border-t border-card-border">
-                  <p className="text-xs-portal text-status-muted max-w-md">
-                    Tick the accounts whose money in / out should be imported (e.g. the Parsons House rent account and
-                    ROCA operating account). Transactions dated before the start date are not imported.
+                  <p className="text-xs-portal text-status-muted max-w-md flex items-center gap-1.5">
+                    Tick the accounts to import.
+                    <InfoTip text="E.g. the Parsons House rent account and ROCA operating account. Nothing before the start date is imported." />
                   </p>
                   <div className="flex items-end gap-3">
                     <DatePicker label="Import from" id="xeroImportFrom" value={importFrom} onChange={setImportFrom} />
@@ -424,11 +423,9 @@ export const XeroConnection = () => {
 
             <div className="border-t border-card-border pt-4 flex flex-col gap-3">
               <div>
-                <p className="text-2xs font-bold text-status-muted capitalize">Xero Accounts Roca Living Uses</p>
-                <p className="text-xs-portal text-status-muted mt-1 max-w-2xl">
-                  Where rent, ROCA's management fee and the money owed to landlords are recorded in Xero. Your accountant
-                  should confirm these once. Tip: using the same "rent held for landlords" account for rent invoices and
-                  landlord bills makes them cancel out, leaving only ROCA's fee as income.
+                <p className="text-2xs font-bold text-status-muted flex items-center gap-1.5">
+                  Xero Accounts Roca Living Uses
+                  <InfoTip text="Where rent, ROCA's fee and money owed to landlords are recorded. Your accountant should confirm these once." />
                 </p>
               </div>
               {chartAccounts === null ? (
@@ -462,11 +459,9 @@ export const XeroConnection = () => {
 
             <div className="border-t border-card-border pt-4 flex flex-col gap-3">
               <div>
-                <p className="text-2xs font-bold text-status-muted capitalize">Rent Invoices in Xero</p>
-                <p className="text-xs-portal text-status-muted mt-1 max-w-2xl">
-                  Roca Living raises an internal invoice in Xero for each rent month of a managed flat (never sent to the
-                  tenant), so Xero can match the tenant's payment to it. This runs by itself — when Rent Cycle opens,
-                  every 30 minutes and on each Xero sync. Months due up to 14 days ahead get their invoice.
+                <p className="text-2xs font-bold text-status-muted flex items-center gap-1.5">
+                  Rent Invoices in Xero
+                  <InfoTip text="An internal invoice per rent month (never sent to the tenant), so Xero can match payments. Runs by itself, 14 days ahead." />
                 </p>
               </div>
               <div className="flex flex-wrap items-end gap-3">
@@ -501,7 +496,7 @@ export const XeroConnection = () => {
               </button>
               {showTroubleshooting && (
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-xs-portal text-status-muted">Test Xero access: checks what Roca Living can read in this organisation. Nothing is changed in Xero.</p>
+                  <p className="text-xs-portal text-status-muted flex items-center gap-1.5">Test Xero Access <InfoTip text="Checks what Roca Living can read in Xero. Nothing is changed." /></p>
                   <Button variant="secondary" size="sm" onClick={testAccess} disabled={testing}>
                     {testing ? 'Testing…' : 'Test Xero access'}
                   </Button>
