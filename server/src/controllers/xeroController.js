@@ -39,6 +39,16 @@ const clearOrganisationSettings = async (trx) => {
   await trx('xero_contact_links').delete();
 };
 
+// The organisation last connected, kept after a disconnect too: connecting a
+// different one later still clears the old ids (a disconnect deletes the
+// connection row, so "previous" alone misses that case).
+const LAST_ORGANISATION = 'xeroLastTenantId';
+const lastOrganisation = async (trx) => (await trx('settings').where('key', LAST_ORGANISATION).first('value'))?.value || null;
+const rememberOrganisation = async (trx, tenantId) => {
+  await trx('settings').where('key', LAST_ORGANISATION).delete();
+  await trx('settings').insert({ key: LAST_ORGANISATION, value: tenantId });
+};
+
 const STATE_COOKIE = 'xero_oauth_state';
 
 const adminPortalUrl = () => (process.env.ADMIN_PORTAL_URL || 'http://localhost:5173').replace(/\/$/, '');
@@ -128,7 +138,9 @@ export const xeroCallback = catchAsync(async (req, res, next) => {
   const connectionId = await db.transaction(async (trx) => {
     // One live connection: replace whatever was there before.
     await trx('xero_connections').whereIn('status', ['active', 'needs_reauth']).delete();
-    if (previous && previous.tenant_id !== org.tenantId) await clearOrganisationSettings(trx);
+    const last = previous?.tenant_id || await lastOrganisation(trx);
+    if (last && last !== org.tenantId) await clearOrganisationSettings(trx);
+    await rememberOrganisation(trx, org.tenantId);
     const [id] = await trx('xero_connections').insert({
       tenant_id: org.tenantId,
       tenant_name: org.tenantName || null,
@@ -186,6 +198,7 @@ export const chooseXeroOrganisation = catchAsync(async (req, res) => {
       updated_at: trx.fn.now()
     });
     if (changed) await clearOrganisationSettings(trx);
+    await rememberOrganisation(trx, org.tenantId);
     await trx('audit_log').insert({
       actor_id: req.user.id,
       actor_role: req.user.role,
@@ -331,7 +344,10 @@ export const disconnectXero = catchAsync(async (req, res, next) => {
     logger.warn(`Could not decrypt refresh token for revocation: ${err.message}`);
   }
 
-  await db('xero_connections').where('id', connection.id).delete();
+  await db.transaction(async (trx) => {
+    await trx('xero_connections').where('id', connection.id).delete();
+    await rememberOrganisation(trx, connection.tenant_id);
+  });
 
   await db('audit_log').insert({
     actor_id: req.user.id,

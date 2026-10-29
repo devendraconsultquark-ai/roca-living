@@ -4,7 +4,7 @@ import { ApiError } from './ApiError.js';
 import { getSetting } from './settings.js';
 import { toYmd } from './dateHelpers.js';
 import { getStoredConnection } from './xero.js';
-import { xeroThrottled as xero, xeroMessage, xeroDateYmd, round2 } from './xeroRentInvoices.js';
+import { xeroThrottled as xero, xeroMessage, xeroDateYmd, round2, contactNotFound } from './xeroRentInvoices.js';
 
 // "Send to Xero" for approved rent (rent cycle phase 4, separate approved-rent
 // flow — the existing statements are not involved). One bill to the landlord
@@ -19,10 +19,12 @@ import { xeroThrottled as xero, xeroMessage, xeroDateYmd, round2 } from './xeroR
 const pad2 = (n) => String(n).padStart(2, '0');
 const uk = (ymd) => ymd.split('-').reverse().join('/');
 
+const contactByName = (name) => ({ Name: (String(name || '').trim() || 'Landlord').slice(0, 255) });
 const landlordContactFor = async (landlordId, name) => {
   const link = landlordId ? await db('xero_contact_links').where({ kind: 'landlord', landlord_id: landlordId }).orderBy('id', 'desc').first('xero_contact_id') : null;
-  return link ? { ContactID: link.xero_contact_id } : { Name: (String(name || '').trim() || 'Landlord').slice(0, 255) };
+  return link ? { ContactID: link.xero_contact_id } : contactByName(name);
 };
+
 
 // First free bill number (Xero keeps voided numbers): PAY-PH08-20261002, -2, …
 // A live bill already in Xero with that number and total but missing here is
@@ -104,13 +106,13 @@ export const postLandlordBill = async (paymentId, actorId = null) => {
   const deducted = round2(deductions.reduce((s, d) => s + Number(d.amount), 0));
   const net = round2(amount - fee - deducted);
   const base = `PAY-${String(p.block_name || '').toUpperCase()}${pad2(p.apartment_number)}-${received.replace(/-/g, '')}`;
-  const contact = await landlordContactFor(p.landlord_id, p.landlord_name);
+  let contact = await landlordContactFor(p.landlord_id, p.landlord_name);
 
   let bill;
   try {
-    const { number, existing } = await chooseBillNumber(base, net.toFixed(2), contact);
-    bill = existing ? { ...existing, InvoiceNumber: number } : null;
-    if (!bill) {
+    for (let attempt = 1; !bill; attempt++) {
+      const { number, existing } = await chooseBillNumber(base, net.toFixed(2), contact);
+      if (existing) { bill = { ...existing, InvoiceNumber: number }; break; }
       const lines = landlordBillLines(
         { flat, tenantName: p.tenant_name, receivedUk: uk(received), amount, feePct: p.fee_pct, fee },
         deductions,
@@ -135,7 +137,16 @@ export const postLandlordBill = async (paymentId, actorId = null) => {
       const created = r.body?.Invoices?.[0];
       const errors = created?.ValidationErrors?.map((e) => e.Message).filter(Boolean) || [];
       if (!r.ok || !created?.InvoiceID || errors.length) {
-        throw new Error(errors.length ? errors.join('; ') : xeroMessage(r.error));
+        const message = errors.length ? errors.join('; ') : xeroMessage(r.error);
+        // The saved contact isn't in this Xero organisation: forget it and send
+        // the landlord by name once (Xero uses that contact or creates it).
+        if (attempt === 1 && contact.ContactID && contactNotFound(message)) {
+          await db('xero_contact_links').where({ kind: 'landlord', xero_contact_id: contact.ContactID }).delete();
+          logger.warn(`[XeroLandlordBills] payment ${p.id}: contact ${contact.ContactID} not in Xero, retrying by name`);
+          contact = contactByName(p.landlord_name);
+          continue;
+        }
+        throw new Error(message);
       }
       bill = created;
     }

@@ -85,14 +85,20 @@ const monthsToInvoice = (fromYmd, untilYmd) => db('rent_schedules as s')
 
 // The contact a tenancy's invoices go to: the one used before, else a new one
 // by name ("Kian Wagstaff (PH-8)") that Xero creates on the first invoice.
+const contactByName = (row) => {
+  const name = String(row.tenant_name || 'Tenant').trim();
+  return { Name: `${name} (${String(row.block_name || '').toUpperCase()}-${row.apartment_number})`.slice(0, 255) };
+};
 const contactFor = async (row) => {
   const prev = await db('xero_rent_invoices')
     .where('tenancy_id', row.tenancy_id).whereNotNull('xero_contact_id')
     .orderBy('id', 'desc').first('xero_contact_id');
-  if (prev) return { ContactID: prev.xero_contact_id };
-  const name = String(row.tenant_name || 'Tenant').trim();
-  return { Name: `${name} (${String(row.block_name || '').toUpperCase()}-${row.apartment_number})`.slice(0, 255) };
+  return prev ? { ContactID: prev.xero_contact_id } : contactByName(row);
 };
+
+// Xero's answer for a ContactID it doesn't have (another or reconnected
+// organisation, or a contact deleted/merged in Xero).
+export const contactNotFound = (message) => /contact could not be found/i.test(String(message || ''));
 
 // Remember the contact for matching the tenant's payments too (Bank Transactions).
 const linkContact = async (contactId, tenancyId, actorId) => {
@@ -136,11 +142,14 @@ const createInvoice = async (row, accountCode, actorId) => {
   const period = rentPeriodFor(dueYmd, startYmd, row.rent_due_day, row.rent_due_day_from ? toYmd(row.rent_due_day_from) : null);
   const where = [`Apartment ${row.apartment_number}`, row.city].filter(Boolean).join(', ');
   const amount = parseFloat(row.amount).toFixed(2);
-  const contact = await contactFor(row);
+  let contact = await contactFor(row);
 
-  const { number: invoiceNumber, existing } = await chooseInvoiceNumber(base, amount, contact);
-  let invoice = existing;
-  if (!invoice) {
+  let invoiceNumber;
+  let invoice = null;
+  for (let attempt = 1; !invoice; attempt++) {
+    const chosen = await chooseInvoiceNumber(base, amount, contact);
+    invoiceNumber = chosen.number;
+    if (chosen.existing) { invoice = chosen.existing; break; }
     const r = await xero('PUT', '/Invoices', {
       searchParams: { summarizeErrors: 'false' },
       body: {
@@ -166,6 +175,12 @@ const createInvoice = async (row, accountCode, actorId) => {
     const errors = created?.ValidationErrors?.map((e) => e.Message).filter(Boolean) || [];
     if (!r.ok || !created?.InvoiceID || errors.length) {
       const error = errors.length ? errors.join('; ').slice(0, 480) : xeroMessage(r.error);
+      // The tenant's earlier contact isn't in this Xero organisation: send by name once.
+      if (attempt === 1 && contact.ContactID && contactNotFound(error)) {
+        logger.warn(`[XeroRentInvoices] ${invoiceNumber}: contact ${contact.ContactID} not in Xero, retrying by name`);
+        contact = contactByName(row);
+        continue;
+      }
       await db('xero_rent_invoices').insert({
         tenancy_id: row.tenancy_id, due_date: dueYmd, amount, invoice_number: invoiceNumber,
         status: 'failed', error
