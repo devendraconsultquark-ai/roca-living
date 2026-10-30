@@ -144,9 +144,11 @@ for (const f of files.sort((a, b) => Number(a.flat) - Number(b.flat) || a.shown.
     continue;
   }
   if (c.skip || c.check) { plans.push({ ...plan, ...c }); continue; }
-  // The original of a file that also has a _Redacted copy stays out.
-  const redacted = name.replace(/(\.[^.]+)$/, '_Redacted$1');
-  if (redacted !== name && fs.existsSync(path.join(path.dirname(f.abs), redacted))) { plans.push({ ...plan, skip: 'Redacted copy uploaded instead' }); continue; }
+  // The original of a file that also has a _Redacted copy stays out ("JG_AML.pdf"
+  // next to "JG_AML_redacted.pdf"; any case — Linux file names are case-sensitive).
+  const redacted = name.replace(/(\.[^.]+)$/, '_redacted$1').toLowerCase();
+  if (!/_redacted\.[^.]+$/i.test(name)
+    && fs.readdirSync(path.dirname(f.abs)).some((n) => n.toLowerCase() === redacted)) { plans.push({ ...plan, skip: 'Redacted copy uploaded instead' }); continue; }
   const ownerId = c.scope === 'landlord' ? flat.landlordId : c.scope === 'tenancy' ? flat.tenancyId : flat.propertyId;
   if (!ownerId) { plans.push({ ...plan, check: c.scope === 'tenancy' ? 'No current tenancy for this flat' : 'No landlord on this flat' }); continue; }
   const hash = crypto.createHash('sha1').update(fs.readFileSync(f.abs)).digest('hex');
