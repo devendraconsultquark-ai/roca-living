@@ -3,8 +3,9 @@ import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
 import { toYmd } from '../utils/dateHelpers.js';
 import { pullInvoicePayments, splitFor, round2 } from '../utils/xeroRentInvoices.js';
-import { postLandlordBill, voidLandlordBill, pullLandlordBillStatus } from '../utils/xeroLandlordBills.js';
+import { voidLandlordBill, voidContractorBills, pullLandlordBillStatus, sendRentSplit } from '../utils/xeroLandlordBills.js';
 import { applyRepairDeductions } from '../utils/repairDeductions.js';
+import { getSetting } from '../utils/settings.js';
 
 // Rent to approve (rent cycle phase 3): rent paid against Roca Living's rent
 // invoices in Xero, with its split — the flat's management fee for ROCA and the
@@ -123,13 +124,20 @@ export const getRentDeductions = catchAsync(async (req, res) => {
   // Completed repairs are added automatically (lines with a ticket_id).
   const tenancy = await db('tenancies').where('id', p.tenancy_id).first('property_id');
   const waiting = deductionsEditable(p) ? await db.transaction((trx) => applyRepairDeductions(trx, tenancy?.property_id)) : [];
-  const items = await db('rent_payment_deductions').where('rent_payment_id', p.id).orderBy('id')
-    .select('id', 'description', 'supplier', 'amount', 'ticket_id');
+  const items = await db('rent_payment_deductions as d')
+    .leftJoin('maintenance_tickets as m', 'd.ticket_id', 'm.id')
+    .leftJoin('contractors as c', 'm.contractor_id', 'c.id')
+    .where('d.rent_payment_id', p.id).orderBy('d.id')
+    .select('d.id', 'd.description', 'd.supplier', 'd.amount', 'd.ticket_id', 'd.xero_bill_status', 'c.company_name as contractor');
+  // Where ROCA's fee goes on approval (Settings → Xero).
+  const feeReady = !!(await getSetting('xeroRentBankAccountId', null)) && !!(await getSetting('xeroFeeBankAccountId', null));
   res.json({
     success: true,
     data: {
-      payment: { id: p.id, amount: Number(p.amount), fee_pct: Number(p.fee_pct || 0), fee_amount: Number(p.fee_amount || 0) },
+      payment: { id: p.id, amount: Number(p.amount), fee_pct: Number(p.fee_pct || 0), fee_amount: Number(p.fee_amount || 0), fee_transfer_status: p.fee_transfer_status || null },
+      // Repairs are billed to their contractor on approval (contractor: null = no bill).
       items: items.map((i) => ({ ...i, amount: Number(i.amount), from_maintenance: !!i.ticket_id })),
+      fee_transfer_ready: feeReady,
       // Repairs too big for what is left of this flat's open payments.
       repairs_waiting: waiting,
       max: landlordShare(p),
@@ -204,14 +212,17 @@ export const pullRentPayments = catchAsync(async (req, res) => {
 
 // POST /xero/rent-approvals/:id/send-to-xero — bill to the landlord (rent − fee).
 export const sendRentToXero = catchAsync(async (req, res) => {
-  const result = await postLandlordBill(Number(req.params.id), req.user.id);
+  // The whole split: landlord bill, contractor bills, fee transfer.
+  const out = await sendRentSplit(Number(req.params.id), req.user.id);
+  const result = out.landlord || {};
   if (result.status === 'failed') throw new ApiError(502, `Xero refused the bill: ${result.error}`);
   res.json({
     success: true,
-    message: result.already
+    message: (result.already
       ? `Already in Xero as ${result.number}`
-      : `Sent to Xero: bill ${result.number} for £${result.net.toFixed(2)} to the landlord`,
-    data: result
+      : `Sent to Xero: bill ${result.number} for £${Number(result.net).toFixed(2)} to the landlord`)
+      + (out.errors.length ? ` — ${out.errors.join('; ')}` : ''),
+    data: out
   });
 });
 
@@ -221,7 +232,7 @@ export const sendAllRentToXero = catchAsync(async (req, res) => {
     .where((w) => w.whereNull('xero_bill_status').orWhereIn('xero_bill_status', ['failed', 'voided'])).pluck('id');
   let sent = 0, failed = 0;
   for (const id of ids) {
-    const r = await postLandlordBill(id, req.user.id);
+    const r = (await sendRentSplit(id, req.user.id)).landlord || {};
     if (r.status === 'posted') sent++; else if (r.status === 'failed') failed++;
   }
   res.json({ success: true, message: `Sent to Xero: ${sent} bill(s)${failed ? `, ${failed} failed` : ''}`, data: { sent, failed } });
@@ -229,6 +240,18 @@ export const sendAllRentToXero = catchAsync(async (req, res) => {
 
 // POST /xero/rent-approvals/:id/undo-send — void the bill while the landlord is unpaid.
 export const undoSendRentToXero = catchAsync(async (req, res) => {
-  const result = await voidLandlordBill(Number(req.params.id), req.user.id);
-  res.json({ success: true, message: `Bill ${result.number} voided in Xero`, data: result });
+  const id = Number(req.params.id);
+  const result = await voidLandlordBill(id, req.user.id);
+  // Unpaid contractor bills go too. A fee transfer can't be removed through
+  // Xero's API: the admin deletes it in Xero (it isn't sent again).
+  const contractors = await voidContractorBills(id, req.user.id);
+  const p = await db('rent_payments').where('id', id).first('fee_transfer_status');
+  res.json({
+    success: true,
+    message: `Bill ${result.number} voided in Xero`
+      + (contractors.voided ? `, ${contractors.voided} contractor bill(s) voided` : '')
+      + (contractors.kept.length ? `; kept: ${contractors.kept.join(', ')}` : '')
+      + (p?.fee_transfer_status === 'done' ? '. The fee transfer is still in Xero: delete it there if it should go.' : ''),
+    data: { ...result, contractors }
+  });
 });

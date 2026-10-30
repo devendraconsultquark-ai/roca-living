@@ -7,7 +7,7 @@ import { rentPeriodFor } from '../utils/rentSchedules.js';
 import { getStoredConnection } from '../utils/xero.js';
 import { estateDisplayFor } from '../utils/estatesLink.js';
 import { pushRentInvoices, pullInvoicePayments } from '../utils/xeroRentInvoices.js';
-import { postLandlordBill, pullLandlordBillStatus } from '../utils/xeroLandlordBills.js';
+import { sendRentSplit, pullLandlordBillStatus } from '../utils/xeroLandlordBills.js';
 import { applyRepairDeductions } from '../utils/repairDeductions.js';
 
 // Rent Cycle — the whole monthly rent flow on one page (Accounting → Rent Cycle).
@@ -125,8 +125,26 @@ export const getRentCycle = catchAsync(async (req, res) => {
     const payments = invoice
       ? await db('rent_payments').whereIn('xero_invoice_number', invoices.map((i) => i.invoice_number)).whereNotNull('xero_payment_id')
         .select('id', 'amount', 'received_at', 'fee_pct', 'fee_amount', 'net_amount', 'approval_status', 'approved_at', 'split_note',
-          'xero_bill_number', 'xero_bill_status', 'xero_bill_error', 'landlord_paid_at', 'approved_statement_id', 'deductions_amount')
+          'xero_bill_number', 'xero_bill_status', 'xero_bill_error', 'landlord_paid_at', 'approved_statement_id', 'deductions_amount',
+          'fee_transfer_status', 'fee_transfer_error')
       : [];
+    // The rest of the split: bills to contractors for the repairs, ROCA's fee moved.
+    const repairLines = payments.length
+      ? await db('rent_payment_deductions as d').join('maintenance_tickets as mt', 'd.ticket_id', 'mt.id')
+        .leftJoin('contractors as c', 'mt.contractor_id', 'c.id')
+        .whereIn('d.rent_payment_id', payments.map((p) => p.id))
+        .orderBy('d.id')
+        .select('d.ticket_id', 'd.amount', 'd.xero_bill_number', 'd.xero_bill_status', 'd.xero_bill_error', 'd.paid_at', 'c.company_name as contractor')
+      : [];
+    const contractorBills = repairLines.map((l) => ({
+      ticket_id: l.ticket_id, contractor: l.contractor || null, amount: round2(l.amount),
+      number: l.xero_bill_number || null, status: l.contractor ? (l.xero_bill_status || null) : 'no_contractor',
+      error: l.xero_bill_error || null, paid_at: l.paid_at ? toYmd(l.paid_at) : null,
+    }));
+    const feeStatuses = payments.map((p) => p.fee_transfer_status).filter(Boolean);
+    const feeTransfer = feeStatuses.includes('failed') ? { status: 'failed', error: payments.find((p) => p.fee_transfer_status === 'failed').fee_transfer_error }
+      : feeStatuses.includes('skipped') ? { status: 'skipped', error: payments.find((p) => p.fee_transfer_status === 'skipped').fee_transfer_error }
+        : feeStatuses.length && feeStatuses.every((x) => x === 'done') ? { status: 'done' } : null;
 
     let st;
     if (!hasUnitCodes(m.block_name, m.apartment_number)) {
@@ -148,6 +166,11 @@ export const getRentCycle = catchAsync(async (req, res) => {
       };
     } else {
       st = stageOf(payments);
+      // Landlord bill in Xero but a contractor bill or the fee transfer failed: Try again redoes only those.
+      const partFailed = contractorBills.find((b) => b.status === 'failed') || (feeTransfer?.status === 'failed' ? feeTransfer : null);
+      if (partFailed && ['pay_landlord', 'landlord_paid', 'statement'].includes(st.stage)) {
+        st = { stage: 'attention', reason: `${partFailed.ticket_id ? `Contractor bill (ticket #${partFailed.ticket_id})` : 'Fee transfer'} not in Xero: ${partFailed.error || 'unknown error'}`, retry_send: true };
+      }
     }
 
     const statementIds = [...new Set(payments.map((p) => p.approved_statement_id).filter(Boolean))];
@@ -178,17 +201,24 @@ export const getRentCycle = catchAsync(async (req, res) => {
       statements,
       // Completed repairs too big for this flat's open payments (they wait).
       repairs_waiting: repairsWaiting.get(m.property_id) || [],
+      contractor_bills: contractorBills,
+      fee_transfer: feeTransfer,
       ...st
     });
   }
 
   const counts = Object.fromEntries(STAGES.map((s) => [s, rows.filter((r) => r.stage === s).length]));
-  // What to transfer to each landlord (bills waiting in Xero).
+  // What to transfer to each landlord (bills waiting in Xero) and to each
+  // contractor (repair bills not paid yet).
   const toPay = {};
   rows.filter((r) => r.stage === 'pay_landlord').forEach((r) => {
     const k = r.landlord_name || 'Landlord';
     toPay[k] = round2((toPay[k] || 0) + r.net);
   });
+  const toPayContractors = {};
+  rows.forEach((r) => r.contractor_bills.filter((b) => b.status === 'posted').forEach((b) => {
+    toPayContractors[b.contractor] = round2((toPayContractors[b.contractor] || 0) + b.amount);
+  }));
   const lastRefresh = (await db('settings').where({ key: 'xeroRentCycleRefreshedAt' }).first())?.value || null;
   const connection = await getStoredConnection();
   res.json({
@@ -196,6 +226,7 @@ export const getRentCycle = catchAsync(async (req, res) => {
     data: {
       month, first, last, rows, counts,
       landlord_totals: Object.entries(toPay).map(([landlord, amount]) => ({ landlord, amount })),
+      contractor_totals: Object.entries(toPayContractors).map(([contractor, amount]) => ({ contractor, amount })),
       last_refresh: lastRefresh,
       xero_connected: Boolean(connection && connection.status === 'active')
     }
@@ -254,19 +285,20 @@ export const approveAndSend = catchAsync(async (req, res) => {
       approved++;
     }
     if (p.approval_status === 'pending' || p.approval_status === 'approved') {
+      // The split: landlord bill, contractor bills, fee transfer (each on its own).
       try {
-        const r = await postLandlordBill(p.id, req.user.id);
-        if (r.status === 'posted' || r.already) sent++;
-        else { failed++; errors.push(r.error); }
+        const out = await sendRentSplit(p.id, req.user.id);
+        if (out.landlord?.status === 'posted' || out.landlord?.already) sent++;
+        if (out.errors.length) { failed++; errors.push(...out.errors); }
       } catch (err) {
         failed++; errors.push(err.message);
-        logger.warn(`[RentCycle] bill for payment ${p.id}: ${err.message}`);
+        logger.warn(`[RentCycle] split for payment ${p.id}: ${err.message}`);
       }
     }
   }
   res.json({
     success: true,
-    message: `Approved ${approved}, sent ${sent} bill(s) to Xero${failed ? ` — ${failed} could not be sent: ${errors[0]}` : ''}`,
+    message: `Approved ${approved}, sent ${sent} landlord bill(s) to Xero${failed ? ` — not everything went through: ${errors[0]}` : ''}`,
     data: { approved, sent, failed }
   });
 });

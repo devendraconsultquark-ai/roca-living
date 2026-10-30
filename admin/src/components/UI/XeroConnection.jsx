@@ -25,12 +25,40 @@ const CALLBACK_ERRORS = {
   no_organisation: 'No Xero organisation was granted access.'
 };
 
-const ACCOUNT_FIELDS = [
-  { key: 'xeroRentIncomeAccountCode', label: 'Rent invoices account', hint: 'What internal rent invoices are coded to' },
-  { key: 'xeroFeeIncomeAccountCode', label: 'Management fee income', hint: "ROCA's 8% fee" },
-  { key: 'xeroLandlordBillAccountCode', label: 'Landlord bills account', hint: 'What ROCA owes landlords (net rent)' },
-  { key: 'xeroLandlordExpenseAccountCode', label: 'Landlord expenses account', hint: 'Cleaning, repairs etc. deducted from landlords' },
+// Step 1: where the money is (bank accounts, chosen by Xero id).
+const BANK_FIELDS = [
+  { key: 'xeroRentBankAccountId', label: 'Tenants Pay Rent Into', hint: 'The client (rent) account' },
+  { key: 'xeroFeeBankAccountId', label: "ROCA's Fee Goes To", hint: "ROCA's own account: the fee moves here when you approve rent" },
 ];
+// Step 2: how Xero records it (accounting codes; your accountant confirms once).
+const CODE_FIELDS = [
+  { key: 'xeroRentIncomeAccountCode', label: 'Rent', hint: 'Internal rent invoices (never sent to tenants)' },
+  { key: 'xeroFeeIncomeAccountCode', label: "ROCA's Fee", hint: 'Management fee income' },
+  { key: 'xeroLandlordBillAccountCode', label: 'Owed to Landlords', hint: 'Landlord bills (their share of the rent)' },
+  { key: 'xeroLandlordExpenseAccountCode', label: 'Repairs & Costs', hint: 'Taken off landlords; contractor bills use it too' },
+];
+const ACCOUNT_FIELDS = [...BANK_FIELDS, ...CODE_FIELDS];
+
+// A numbered setup step with a Done / Needs Setup marker.
+const Step = ({ n, title, sub, done, children }) => (
+  <div className="border border-card-border rounded-xl p-4 flex flex-col gap-4">
+    <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start gap-3">
+        <span className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center shrink-0 ${done ? 'bg-status-success text-white' : 'bg-brand-accent/10 text-brand-accent'}`}>
+          {done ? '✓' : n}
+        </span>
+        <div>
+          <p className="text-sm font-bold text-brand-primary">{title}</p>
+          <p className="text-xs text-status-muted mt-0.5">{sub}</p>
+        </div>
+      </div>
+      <span className={`text-2xs font-bold px-2 py-1 rounded-md whitespace-nowrap ${done ? 'bg-status-success-bg text-status-success' : 'bg-status-warning/10 text-status-warning'}`}>
+        {done ? 'Done' : 'Needs Setup'}
+      </span>
+    </div>
+    {children}
+  </div>
+);
 
 // Xero connection panel (integration phase X1). Our platform stays the property
 // -management source of truth; Xero is the money source of truth.
@@ -222,6 +250,10 @@ export const XeroConnection = () => {
   const accountOptions = () => (chartAccounts || [])
     .filter((a) => !!a.code)
     .map((a) => ({ value: a.code, label: `${a.code} — ${a.name}`, group: a.class }));
+  // Bank accounts are chosen by their Xero id (some have no code).
+  const bankOptions = () => (chartAccounts || [])
+    .filter((a) => a.type === 'BANK')
+    .map((a) => ({ value: a.account_id, label: a.code ? `${a.code} — ${a.name}` : a.name }));
 
   const toggleImport = (id) => setImportIds((l) => (l.includes(id) ? l.filter((x) => x !== id) : [...l, id]));
 
@@ -367,139 +399,126 @@ export const XeroConnection = () => {
               </div>
             )}
 
-            <div className="border-t border-card-border pt-4">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-2xs font-bold text-status-muted capitalize">Bank Accounts</p>
-                {banks?.total_balance !== null && banks?.total_balance !== undefined && (
-                  <p className="text-xs font-bold text-brand-primary">Total {money(banks.total_balance)}</p>
-                )}
-              </div>
-
-              {banksLoading ? (
-                <p className="text-xs text-gray-400 font-semibold py-3 text-center">Loading bank accounts…</p>
-              ) : !banks?.accounts?.length ? (
-                <p className="text-xs text-gray-400 font-semibold py-3 text-center">
-                  No bank accounts were returned by Xero for this organisation.
-                </p>
-              ) : (
-                <div className="flex flex-col">
-                  {banks.accounts.map((a) => (
-                    <div key={a.account_id} className="flex items-center justify-between gap-4 py-2.5 border-b border-card-border/60 last:border-0">
-                      <label className="flex items-center gap-3 min-w-0 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="accent-brand-accent cursor-pointer"
-                          checked={importIds.includes(a.account_id)}
-                          onChange={() => toggleImport(a.account_id)}
-                          aria-label={`Import transactions from ${a.name}`}
-                        />
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-brand-primary truncate">{a.name}</p>
-                        <p className="text-2xs text-gray-400 font-semibold mt-0.5">
-                          {[a.code, a.bank_account_number, a.currency].filter(Boolean).join(' • ') || '—'}
-                        </p>
-                      </div>
-                      </label>
-                      <p className="text-xs font-bold text-brand-primary shrink-0">{money(a.balance)}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {banks?.accounts?.length > 0 && (
-                <div className="flex flex-wrap items-end justify-between gap-4 mt-4 pt-4 border-t border-card-border">
-                  <p className="text-xs-portal text-status-muted max-w-md flex items-center gap-1.5">
-                    Tick the accounts to import.
-                    <InfoTip text="E.g. the Parsons House rent account and ROCA operating account. Nothing before the start date is imported." />
+            {(() => {
+              const step1 = BANK_FIELDS.every((f) => accountSettings[f.key]);
+              const step2 = CODE_FIELDS.every((f) => accountSettings[f.key]);
+              const step3 = !!invoiceInfo?.invoices_from;
+              const balanceOf = (id) => banks?.accounts?.find((a) => a.account_id === id)?.balance;
+              const field = (f, options) => (
+                <div key={f.key} className="flex flex-col gap-1">
+                  <Dropdown
+                    id={f.key}
+                    label={f.label}
+                    searchable
+                    options={options}
+                    value={accountSettings[f.key] || ''}
+                    onChange={(v) => setAccountSettings((st) => ({ ...st, [f.key]: v }))}
+                    placeholder="Choose…"
+                  />
+                  <p className="text-xs text-status-muted">
+                    {f.hint}
+                    {f.key.endsWith('BankAccountId') && balanceOf(accountSettings[f.key]) !== undefined ? ` · balance ${money(balanceOf(accountSettings[f.key]))}` : ''}
                   </p>
-                  <div className="flex items-end gap-3">
-                    <DatePicker label="Import from" id="xeroImportFrom" value={importFrom} onChange={setImportFrom} />
-                    <Button variant="primary" size="sm" onClick={saveImport} disabled={savingImport}>
-                      {savingImport ? 'Saving…' : 'Save import settings'}
-                    </Button>
-                  </div>
                 </div>
-              )}
-            </div>
-
-            <div className="border-t border-card-border pt-4 flex flex-col gap-3">
-              <div>
-                <p className="text-2xs font-bold text-status-muted flex items-center gap-1.5">
-                  Xero Accounts Roca Living Uses
-                  <InfoTip text="Where rent, ROCA's fee and money owed to landlords are recorded. Your accountant should confirm these once." />
-                </p>
-              </div>
-              {chartAccounts === null ? (
-                <p className="text-xs text-gray-400 font-semibold py-2">Loading Xero accounts…</p>
-              ) : (
+              );
+              return (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                    {ACCOUNT_FIELDS.map((field) => (
-                      <div key={field.key} className="flex flex-col gap-1">
-                        <Dropdown
-                          id={field.key}
-                          label={field.label}
-                          searchable
-                          options={accountOptions()}
-                          value={accountSettings[field.key] || ''}
-                          onChange={(v) => setAccountSettings((s) => ({ ...s, [field.key]: v }))}
-                          placeholder="Not chosen"
-                        />
-                        <p className="text-xs-portal text-status-muted">{field.hint}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <div>
-                    <Button variant="primary" size="sm" onClick={saveAccounts} disabled={savingAccounts}>
-                      {savingAccounts ? 'Saving…' : 'Save Xero accounts'}
-                    </Button>
-                  </div>
-                </>
-              )}
-            </div>
+                  {chartAccounts === null ? (
+                    <p className="text-xs text-gray-400 font-semibold py-2">Loading Xero accounts…</p>
+                  ) : (
+                    <>
+                      <Step n={1} title="Where the Money Is" sub="The two bank accounts in Xero: rent comes into one, ROCA's fee moves to the other." done={step1}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{BANK_FIELDS.map((f) => field(f, bankOptions()))}</div>
+                        <div><Button variant="primary" size="sm" onClick={saveAccounts} disabled={savingAccounts}>{savingAccounts ? 'Saving…' : 'Save'}</Button></div>
+                      </Step>
 
-            <div className="border-t border-card-border pt-4 flex flex-col gap-3">
-              <div>
-                <p className="text-2xs font-bold text-status-muted flex items-center gap-1.5">
-                  Rent Invoices in Xero
-                  <InfoTip text="An internal invoice per rent month (never sent to the tenant), so Xero can match payments. Runs by itself, 14 days ahead." />
-                </p>
-              </div>
-              <div className="flex flex-wrap items-end gap-3">
-                <DatePicker label="Create invoices from" id="xeroInvoicesFrom" value={invoicesFrom} onChange={setInvoicesFrom} />
-                <Button variant="primary" size="sm" onClick={saveInvoicesFrom} disabled={savingFrom || !invoicesFrom || invoicesFrom === invoiceInfo?.invoices_from}>
-                  {savingFrom ? 'Saving…' : 'Save date'}
-                </Button>
-              </div>
-              {!accountSettings.xeroRentIncomeAccountCode && (
-                <p className="text-xs-portal text-status-warning">Choose and save the "Rent invoices account" above first.</p>
-              )}
-              {invoiceInfo && (
-                <p className="text-xs-portal text-status-muted">
-                  In Xero now: {invoiceInfo.counts.created || 0} live
-                  {invoiceInfo.counts.failed ? ` · ${invoiceInfo.counts.failed} failed` : ''}
-                  {invoiceInfo.counts.attention ? ` · ${invoiceInfo.counts.attention} need attention` : ''}
-                  {invoiceInfo.counts.voided ? ` · ${invoiceInfo.counts.voided} voided` : ''}
-                  {invoiceInfo.last ? ` · last run ${fmtDateTime(invoiceInfo.last.at)}: ${invoiceInfo.last.created} created, ${invoiceInfo.last.voided} voided, ${invoiceInfo.last.failed} failed` : ''}
-                </p>
-              )}
-            </div>
+                      <Step n={2} title="How Xero Records It" sub="The accounting codes for rent, ROCA's fee, landlords and repairs. Your accountant confirms these once." done={step2}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">{CODE_FIELDS.map((f) => field(f, accountOptions()))}</div>
+                        <div><Button variant="primary" size="sm" onClick={saveAccounts} disabled={savingAccounts}>{savingAccounts ? 'Saving…' : 'Save'}</Button></div>
+                      </Step>
+                    </>
+                  )}
+
+                  <Step n={3} title="Rent Invoices" sub="Roca Living puts each month's rent into Xero 14 days ahead, so Xero can match the tenant's payment. Never sent to tenants." done={step3}>
+                    <div className="flex flex-wrap items-end gap-3">
+                      <DatePicker label="Start From" id="xeroInvoicesFrom" value={invoicesFrom} onChange={setInvoicesFrom}
+                        hint="Rent months before this date never get a Xero invoice." />
+                      <Button variant="primary" size="sm" onClick={saveInvoicesFrom} disabled={savingFrom || !invoicesFrom || invoicesFrom === invoiceInfo?.invoices_from}>
+                        {savingFrom ? 'Saving…' : 'Save'}
+                      </Button>
+                    </div>
+                    {!accountSettings.xeroRentIncomeAccountCode && (
+                      <p className="text-xs text-status-warning">Choose the "Rent" code in step 2 first.</p>
+                    )}
+                    {invoiceInfo && (
+                      <p className="text-xs text-status-muted">
+                        {invoiceInfo.counts.created || 0} rent invoice{invoiceInfo.counts.created === 1 ? '' : 's'} waiting in Xero
+                        {invoiceInfo.counts.failed ? <span className="text-status-danger"> · {invoiceInfo.counts.failed} failed (see Rent Cycle)</span> : ''}
+                        {invoiceInfo.counts.attention ? <span className="text-status-warning"> · {invoiceInfo.counts.attention} need a look</span> : ''}
+                        {invoiceInfo.last ? ` · last checked ${fmtDateTime(invoiceInfo.last.at)}` : ''}
+                      </p>
+                    )}
+                  </Step>
+                </>
+              );
+            })()}
 
             <div className="border-t border-card-border pt-4 flex flex-col gap-3">
               <button
                 type="button"
                 onClick={() => setShowTroubleshooting((v) => !v)}
-                className="flex items-center gap-1.5 text-2xs font-bold text-status-muted capitalize cursor-pointer hover:text-brand-primary self-start"
+                className="flex items-center gap-1.5 text-xs font-bold text-status-muted cursor-pointer hover:text-brand-primary self-start"
                 aria-expanded={showTroubleshooting}
               >
                 <ChevronDown size={14} className={`transition-transform ${showTroubleshooting ? 'rotate-180' : ''}`} />
-                Troubleshooting
+                Advanced: Bank Transaction Import and Troubleshooting
               </button>
               {showTroubleshooting && (
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-xs-portal text-status-muted flex items-center gap-1.5">Test Xero Access <InfoTip text="Checks what Roca Living can read in Xero. Nothing is changed." /></p>
-                  <Button variant="secondary" size="sm" onClick={testAccess} disabled={testing}>
-                    {testing ? 'Testing…' : 'Test Xero access'}
-                  </Button>
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-2">
+                    <p className="text-xs font-bold text-brand-primary flex items-center gap-1.5">
+                      Import Bank Transactions
+                      <InfoTip text="Tick accounts whose Xero transactions show in Accounting → Bank Transactions. Not needed for Rent Cycle." />
+                    </p>
+                    {banksLoading ? (
+                      <p className="text-xs text-gray-400 font-semibold py-2">Loading bank accounts…</p>
+                    ) : !banks?.accounts?.length ? (
+                      <p className="text-xs text-gray-400 font-semibold py-2">No bank accounts were returned by Xero for this organisation.</p>
+                    ) : (
+                      <>
+                        {banks.accounts.map((a) => (
+                          <label key={a.account_id} className="flex items-center justify-between gap-4 py-2 border-b border-card-border/60 last:border-0 cursor-pointer">
+                            <span className="flex items-center gap-3 min-w-0">
+                              <input
+                                type="checkbox"
+                                className="accent-brand-accent cursor-pointer"
+                                checked={importIds.includes(a.account_id)}
+                                onChange={() => toggleImport(a.account_id)}
+                                aria-label={`Import transactions from ${a.name}`}
+                              />
+                              <span className="min-w-0">
+                                <span className="block text-xs font-bold text-brand-primary truncate">{a.name}</span>
+                                <span className="block text-2xs text-gray-400 font-semibold">{[a.code, a.bank_account_number, a.currency].filter(Boolean).join(' • ') || '—'}</span>
+                              </span>
+                            </span>
+                            <span className="text-xs font-bold text-brand-primary shrink-0">{money(a.balance)}</span>
+                          </label>
+                        ))}
+                        <div className="flex flex-wrap items-end gap-3">
+                          <DatePicker label="Import From" id="xeroImportFrom" value={importFrom} onChange={setImportFrom} />
+                          <Button variant="secondary" size="sm" onClick={saveImport} disabled={savingImport}>
+                            {savingImport ? 'Saving…' : 'Save Import Settings'}
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-card-border pt-3">
+                    <p className="text-xs text-status-muted flex items-center gap-1.5">Test Xero Access <InfoTip text="Checks what Roca Living can read in Xero. Nothing is changed." /></p>
+                    <Button variant="secondary" size="sm" onClick={testAccess} disabled={testing}>
+                      {testing ? 'Testing…' : 'Test Xero Access'}
+                    </Button>
+                  </div>
                 </div>
               )}
               {showTroubleshooting && diag && (

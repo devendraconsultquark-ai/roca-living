@@ -75,7 +75,10 @@ const styles = () => {
   .sheet { width: 210mm; height: 297mm; background: #fff; display: flex; flex-direction: column; overflow: hidden; break-after: page; break-inside: avoid; }
   .sheet:last-child { break-after: auto; }
   table { width: 100%; border-collapse: collapse; }
-  th { text-align: right; font-weight: 500; vertical-align: bottom; border-bottom: 1px solid #e1e8ef; color: ${NAVY}; background: #e4edf6; padding-top: 7px; }
+  /* Header text in the middle of the blue band: equal space above and below
+     (the cells' own padding only sets the sides). */
+  th { text-align: right; font-weight: 500; vertical-align: middle; border-bottom: 1px solid #e1e8ef; color: ${NAVY}; background: #e4edf6; padding-top: 8px !important; padding-bottom: 8px !important; }
+  td { vertical-align: middle; }
   th:first-child { text-align: left; }
   table th:first-child, table td:first-child { padding-left: 18px !important; }
   table th:last-child, table td:last-child { padding-right: 18px !important; }

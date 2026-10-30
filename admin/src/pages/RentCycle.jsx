@@ -137,8 +137,14 @@ export const RentCycle = () => {
       const res = await api.get(`/xero/rent-approvals/${paymentId}/deductions`, { skipInterceptorError: true });
       const d = res.data.data;
       // Repairs from Maintenance come with the payment and can't be edited here.
-      const items = d.items.map((i) => ({ description: i.description, supplier: i.supplier || '', amount: String(i.amount), repair: i.from_maintenance }));
-      setApproveFor({ row, paymentId, items, saved: round2(d.items.reduce((t, i) => t + i.amount, 0)), max: d.max, waiting: d.repairs_waiting || [], loading: false });
+      const items = d.items.map((i) => ({
+        description: i.description, supplier: i.supplier || '', amount: String(i.amount),
+        repair: i.from_maintenance, ticketId: i.ticket_id, contractor: i.contractor || null,
+      }));
+      setApproveFor({
+        row, paymentId, items, saved: round2(d.items.reduce((t, i) => t + i.amount, 0)), max: d.max, waiting: d.repairs_waiting || [],
+        feeReady: d.fee_transfer_ready, editable: d.editable, loading: false,
+      });
     } catch (err) {
       addToast(err.response?.data?.message || 'Could not load the deductions', 'error');
       setApproveFor(null);
@@ -150,13 +156,15 @@ export const RentCycle = () => {
   }));
 
   const approveWithDeductions = async () => {
-    const { row, paymentId, items } = approveFor;
+    const { row, paymentId, items, editable } = approveFor;
     const clean = items.filter((i) => !i.repair && (i.description.trim() || i.supplier.trim() || i.amount !== ''));
     setBusy('approve');
     try {
-      await api.put(`/xero/rent-approvals/${paymentId}/deductions`, {
-        items: clean.map((i) => ({ description: i.description, supplier: i.supplier, amount: Number(i.amount) })),
-      }, { skipInterceptorError: true });
+      if (editable) {
+        await api.put(`/xero/rent-approvals/${paymentId}/deductions`, {
+          items: clean.map((i) => ({ description: i.description, supplier: i.supplier, amount: Number(i.amount) })),
+        }, { skipInterceptorError: true });
+      }
       const res = await api.post('/xero/rent-cycle/approve', { payment_ids: row.payment_ids });
       addToast(res.data.message, res.data.data.failed ? 'warning' : 'success');
       setApproveFor(null);
@@ -293,6 +301,7 @@ export const RentCycle = () => {
                 <th className="p-3 text-right">Rent</th>
                 <th className="p-3 text-right">Received</th>
                 <th className="p-3 text-right">ROCA fee</th>
+                <th className="p-3 text-right">Maintenance</th>
                 <th className="p-3 text-right">To landlord</th>
                 <th className="p-3">Stage</th>
                 <th className="p-3 text-right">Next</th>
@@ -307,16 +316,39 @@ export const RentCycle = () => {
                   <td className="p-3 text-right whitespace-nowrap">{money(r.rent_due)}<div className="text-xs text-status-muted">{ukDate(r.due_date)}</div></td>
                   <td className="p-3 text-right">{r.received ? money(r.received) : '—'}</td>
                   <td className="p-3 text-right">{r.received ? <>{money(r.fee)}<div className="text-xs text-status-muted">{r.fee_pct}%</div></> : '—'}</td>
+                  <td className="p-3 text-right">
+                    {r.deductions > 0 ? (
+                      <>
+                        <span className="font-semibold text-status-danger">−{money(r.deductions)}</span>
+                        {(r.contractor_bills || []).map((b) => (
+                          <div key={b.ticket_id} className="text-xs text-status-muted whitespace-nowrap">
+                            {b.contractor || 'No contractor'} · ticket #{b.ticket_id}
+                          </div>
+                        ))}
+                      </>
+                    ) : '—'}
+                  </td>
                   <td className="p-3 text-right font-semibold">
                     {r.received ? money(r.net) : '—'}
-                    {r.deductions > 0 && <div className="text-xs font-normal text-status-muted whitespace-nowrap">after {money(r.deductions)} deductions</div>}
                     {r.repairs_waiting?.length > 0 && (
                       <div className="text-xs font-normal text-status-warning whitespace-nowrap inline-flex items-center gap-1">
                         Repair waiting <InfoTip text={r.repairs_waiting.map((w) => `${w.title} (ticket #${w.id}, ${money(w.cost)})`).join('; ') + " — more than what is left of the landlord's share, so it waits for a later payment."} />
                       </div>
                     )}
                   </td>
-                  <td className="p-3"><span className={`px-2 py-1 rounded-md text-xs font-semibold whitespace-nowrap ${stageInfo(r.stage).tone}`}>{stageInfo(r.stage).label}</span>{r.split_note && <div className="text-xs text-status-warning mt-1">Note: {r.split_note}</div>}</td>
+                  <td className="p-3">
+                    <span className={`px-2 py-1 rounded-md text-xs font-semibold whitespace-nowrap ${stageInfo(r.stage).tone}`}>{stageInfo(r.stage).label}</span>
+                    {r.split_note && <div className="text-xs text-status-warning mt-1">Note: {r.split_note}</div>}
+                    {r.fee_transfer?.status === 'done' && <div className="text-xs text-status-success mt-1">Fee moved ✓</div>}
+                    {r.fee_transfer?.status === 'skipped' && <div className="text-xs text-status-muted mt-1 inline-flex items-center gap-1">Fee not moved <InfoTip text={r.fee_transfer.error || 'Choose the bank accounts in Settings → Xero'} /></div>}
+                    {(r.contractor_bills || []).filter((b) => ['posted', 'paid', 'no_contractor'].includes(b.status)).map((b) => (
+                      <div key={b.ticket_id} className={`text-xs mt-1 whitespace-nowrap ${b.status === 'paid' ? 'text-status-success' : b.status === 'no_contractor' ? 'text-status-warning' : 'text-status-muted'}`}>
+                        {b.status === 'no_contractor'
+                          ? `Ticket #${b.ticket_id}: no contractor`
+                          : `${b.contractor} ${money(b.amount)} ${b.status === 'paid' ? 'paid ✓' : 'to pay'}`}
+                      </div>
+                    ))}
+                  </td>
                   <td className="p-3 text-right">{nextAction(r)}</td>
                 </tr>
               ))}
@@ -325,14 +357,26 @@ export const RentCycle = () => {
         )}
       </div>
 
-      {(toApprove.length > 1 || readyForStatement.length > 1 || data?.landlord_totals?.length > 0) && (
+      {(toApprove.length > 1 || readyForStatement.length > 1 || data?.landlord_totals?.length > 0 || data?.contractor_totals?.length > 0) && (
         <div className="flex flex-wrap items-start justify-between gap-4">
-          {data?.landlord_totals?.length > 0 ? (
-            <div className="card-bg border border-card-border rounded-card p-4 text-sm">
-              <p className="font-bold text-brand-primary mb-2">To pay landlords from the bank</p>
-              {data.landlord_totals.map((t) => (
-                <div key={t.landlord} className="flex justify-between gap-8"><span>{t.landlord}</span><span className="font-semibold">{money(t.amount)}</span></div>
-              ))}
+          {data?.landlord_totals?.length > 0 || data?.contractor_totals?.length > 0 ? (
+            <div className="card-bg border border-card-border rounded-card p-4 text-sm flex flex-col gap-3">
+              {data.landlord_totals?.length > 0 && (
+                <div>
+                  <p className="font-bold text-brand-primary mb-2">To Pay Landlords From the Bank</p>
+                  {data.landlord_totals.map((t) => (
+                    <div key={t.landlord} className="flex justify-between gap-8"><span>{t.landlord}</span><span className="font-semibold">{money(t.amount)}</span></div>
+                  ))}
+                </div>
+              )}
+              {data.contractor_totals?.length > 0 && (
+                <div>
+                  <p className="font-bold text-brand-primary mb-2">To Pay Contractors From the Bank</p>
+                  {data.contractor_totals.map((t) => (
+                    <div key={t.contractor} className="flex justify-between gap-8"><span>{t.contractor}</span><span className="font-semibold">{money(t.amount)}</span></div>
+                  ))}
+                </div>
+              )}
             </div>
           ) : <span />}
           <div className="flex gap-2">
@@ -368,7 +412,7 @@ export const RentCycle = () => {
       )}
 
       {approveFor && (() => {
-        const { row, items, saved, max, loading, waiting = [] } = approveFor;
+        const { row, items, saved, max, loading, waiting = [], feeReady, editable = true } = approveFor;
         const total = round2(items.reduce((t, i) => t + (Number(i.amount) || 0), 0));
         const toLandlord = round2(row.net + saved - total);
         const tooMuch = max !== null && total > max;
@@ -390,6 +434,11 @@ export const RentCycle = () => {
                   <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
                     <span className="text-status-muted">Rent received</span><span className="text-right font-semibold">{money(row.received)}</span>
                     <span className="text-status-muted">ROCA fee ({row.fee_pct}%)</span><span className="text-right font-semibold">−{money(row.fee)}</span>
+                    <span className={`col-span-2 text-xs ${feeReady ? 'text-status-muted' : 'text-status-warning'}`}>
+                      {feeReady
+                        ? '→ Moved to the ROCA fee bank account in Xero on approval'
+                        : <>→ Not moved: choose the bank accounts in <Link to="/settings" className="font-semibold underline">Settings → Xero</Link></>}
+                    </span>
                   </div>
 
                   <div className="flex flex-col gap-2">
@@ -404,6 +453,11 @@ export const RentCycle = () => {
                         <span className="text-right font-semibold">{money(Number(it.amount))}</span>
                         <span className="inline-flex items-center gap-1 text-2xs font-bold text-brand-accent whitespace-nowrap">
                           From Maintenance <InfoTip text="Added automatically when the repair was completed. Change its cost on the maintenance ticket." />
+                        </span>
+                        <span className={`col-span-4 text-xs ${it.contractor ? 'text-status-muted' : 'text-status-warning'}`}>
+                          {it.contractor
+                            ? `→ Bill to ${it.contractor} in Xero on approval`
+                            : `→ No contractor on ticket #${it.ticketId}: no bill (pay the supplier yourself)`}
                         </span>
                       </div>
                     ) : (
@@ -423,9 +477,11 @@ export const RentCycle = () => {
                         Repair “{w.title}” (ticket #{w.id}, {money(w.cost)}) is more than what is left of the landlord&apos;s share, so it waits for a later payment.
                       </p>
                     ))}
-                    <div>
-                      <Button variant="ghost" size="sm" icon={Plus} onClick={() => setApproveFor((a) => ({ ...a, items: [...a.items, emptyDeduction()] }))}>Add deduction</Button>
-                    </div>
+                    {editable && (
+                      <div>
+                        <Button variant="ghost" size="sm" icon={Plus} onClick={() => setApproveFor((a) => ({ ...a, items: [...a.items, emptyDeduction()] }))}>Add deduction</Button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="border-t border-card-border pt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
@@ -435,7 +491,11 @@ export const RentCycle = () => {
                   </div>
                   {tooMuch && <p className="text-xs text-status-danger">Deductions ({money(total)}) can't be more than the landlord's share ({money(max)}).</p>}
                   {incomplete && !tooMuch && <p className="text-xs text-status-warning">Each deduction needs a description and an amount.</p>}
-                  <p className="text-xs text-status-muted">Approving sends a {money(toLandlord)} bill to Xero{total > 0 ? ' (deductions as separate lines)' : ''}.</p>
+                  <p className="text-xs text-status-muted">
+                    Approving sends to Xero: a {money(toLandlord)} bill to {row.landlord_name || 'the landlord'}{total > 0 ? ' (deductions as separate lines)' : ''}
+                    {items.some((i) => i.repair && i.contractor) ? ', a bill to each contractor' : ''}
+                    {feeReady && row.fee > 0 ? `, and ${money(row.fee)} moved to ROCA's account` : ''}. You pay the bills from the bank as usual.
+                  </p>
 
                   <div className="flex gap-3 justify-end pt-2 border-t border-card-border">
                     <Button variant="ghost" onClick={() => setApproveFor(null)} disabled={busy === 'approve'}>Cancel</Button>
