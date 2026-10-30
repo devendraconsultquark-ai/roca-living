@@ -141,10 +141,13 @@ export const getRentCycle = catchAsync(async (req, res) => {
       number: l.xero_bill_number || null, status: l.contractor ? (l.xero_bill_status || null) : 'no_contractor',
       error: l.xero_bill_error || null, paid_at: l.paid_at ? toYmd(l.paid_at) : null,
     }));
-    const feeStatuses = payments.map((p) => p.fee_transfer_status).filter(Boolean);
+    // ROCA's fee: recorded in Xero (still to move in the bank) or moved (matched in the bank).
+    const feeStatuses = payments.map((p) => (p.fee_transfer_status === 'done' ? 'recorded' : p.fee_transfer_status)).filter(Boolean);
+    const feeToMove = round2(payments.filter((p) => ['recorded', 'done'].includes(p.fee_transfer_status)).reduce((s, p) => s + Number(p.fee_amount || 0), 0));
     const feeTransfer = feeStatuses.includes('failed') ? { status: 'failed', error: payments.find((p) => p.fee_transfer_status === 'failed').fee_transfer_error }
       : feeStatuses.includes('skipped') ? { status: 'skipped', error: payments.find((p) => p.fee_transfer_status === 'skipped').fee_transfer_error }
-        : feeStatuses.length && feeStatuses.every((x) => x === 'done') ? { status: 'done' } : null;
+        : feeStatuses.includes('recorded') ? { status: 'recorded', amount: feeToMove }
+          : feeStatuses.length && feeStatuses.every((x) => x === 'moved') ? { status: 'moved' } : null;
 
     let st;
     if (!hasUnitCodes(m.block_name, m.apartment_number)) {
@@ -215,6 +218,8 @@ export const getRentCycle = catchAsync(async (req, res) => {
     const k = r.landlord_name || 'Landlord';
     toPay[k] = round2((toPay[k] || 0) + r.net);
   });
+  // ROCA's fees recorded in Xero, still to move in the bank (per flat).
+  const feesToMove = rows.filter((r) => r.fee_transfer?.status === 'recorded').map((r) => ({ flat: r.flat, amount: r.fee_transfer.amount }));
   const toPayContractors = {};
   rows.forEach((r) => r.contractor_bills.filter((b) => b.status === 'posted').forEach((b) => {
     toPayContractors[b.contractor] = round2((toPayContractors[b.contractor] || 0) + b.amount);
@@ -227,6 +232,7 @@ export const getRentCycle = catchAsync(async (req, res) => {
       month, first, last, rows, counts,
       landlord_totals: Object.entries(toPay).map(([landlord, amount]) => ({ landlord, amount })),
       contractor_totals: Object.entries(toPayContractors).map(([contractor, amount]) => ({ contractor, amount })),
+      fees_to_move: feesToMove,
       last_refresh: lastRefresh,
       xero_connected: Boolean(connection && connection.status === 'active')
     }

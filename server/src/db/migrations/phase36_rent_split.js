@@ -23,10 +23,13 @@ export const runPhase36Migrations = async () => {
   }
 
   // ROCA's fee moved to ROCA's account (a Xero bank transfer), once per payment.
+  // recorded = in Xero, money still to move in the bank; moved = both sides
+  // matched to real bank lines in Xero.
   const payCols = {
     fee_transfer_id: (t) => t.string('fee_transfer_id', 64).nullable(),
-    fee_transfer_status: (t) => t.string('fee_transfer_status', 16).nullable(), // done | failed | skipped
+    fee_transfer_status: (t) => t.string('fee_transfer_status', 16).nullable(), // recorded | moved | failed | skipped
     fee_transfer_error: (t) => t.string('fee_transfer_error', 500).nullable(),
+    fee_moved_at: (t) => t.date('fee_moved_at').nullable(),
   };
   for (const [col, add] of Object.entries(payCols)) {
     if (!(await db.schema.hasColumn('rent_payments', col))) {
@@ -34,6 +37,9 @@ export const runPhase36Migrations = async () => {
       logger.info(`Added '${col}' to 'rent_payments'.`);
     }
   }
+
+  // Early test rows said 'done' for a recorded transfer.
+  await db('rent_payments').where('fee_transfer_status', 'done').update({ fee_transfer_status: 'recorded' });
 
   // Contractors become Xero contacts too.
   const [kind] = await db.raw("SHOW COLUMNS FROM xero_contact_links WHERE Field = 'kind'");

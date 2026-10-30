@@ -208,8 +208,10 @@ export const voidLandlordBill = async (paymentId, actorId = null) => {
 //     landlord bill: ROCA pays the contractor with the landlord's money);
 //   • records ROCA's fee moving from the rent (client) bank account to ROCA's own
 //     (a Xero bank transfer, reference "MF PH-31 …").
-// Xero records them; the money is still moved in the bank. Each part is done
-// once and retried on its own. `call` is the Xero client (tests pass a fake).
+// Xero records them; the money is still moved in the bank. A recorded transfer
+// shows as "move it in your bank" until Xero has matched both sides to real bank
+// lines ("moved"). Each part is done once and retried on its own. `call` is the
+// Xero client (tests pass a fake).
 
 const contractorContactFor = async (contractor) => {
   const link = await db('xero_contact_links').where({ kind: 'contractor', contractor_id: contractor.id }).orderBy('id', 'desc').first('xero_contact_id');
@@ -323,7 +325,7 @@ export const postContractorBills = async (paymentId, actorId = null, call = xero
 export const postFeeTransfer = async (paymentId, actorId = null, call = xero) => {
   const p = await paymentContext(paymentId);
   if (!p || p.approval_status !== 'approved') throw new ApiError(409, 'Only approved rent can be sent to Xero');
-  if (p.fee_transfer_status === 'done') return { status: 'done', already: true };
+  if (['recorded', 'moved', 'done'].includes(p.fee_transfer_status)) return { status: p.fee_transfer_status, already: true };
   const fee = round2(p.fee_amount || 0);
   if (fee <= 0) return { status: 'none' };
   const from = await getSetting('xeroRentBankAccountId', null);
@@ -346,13 +348,33 @@ export const postFeeTransfer = async (paymentId, actorId = null, call = xero) =>
     return { status: 'failed', error };
   }
   await db.transaction(async (trx) => {
-    await trx('rent_payments').where('id', p.id).update({ fee_transfer_id: made.BankTransferID, fee_transfer_status: 'done', fee_transfer_error: null });
+    await trx('rent_payments').where('id', p.id).update({ fee_transfer_id: made.BankTransferID, fee_transfer_status: 'recorded', fee_transfer_error: null });
     await trx('audit_log').insert({
       actor_id: actorId, actor_role: actorId ? 'ADMIN' : 'SYSTEM', action: 'XERO_FEE_TRANSFER_RECORDED',
       entity_type: 'rent_payment', entity_id: p.id, meta: JSON.stringify({ amount: fee, reference: payload.Reference }), ip_address: null
     });
   });
-  return { status: 'done', amount: fee };
+  return { status: 'recorded', amount: fee };
+};
+
+// Has the fee really moved? Xero says so once both sides of the transfer are
+// matched to bank statement lines (reconciled).
+// onlyPaymentIds limits the check (tests).
+export const pullFeeTransferStatus = async (call = xero, onlyPaymentIds = null) => {
+  const q = db('rent_payments').whereIn('fee_transfer_status', ['recorded', 'done']).whereNotNull('fee_transfer_id');
+  if (onlyPaymentIds) q.whereIn('id', onlyPaymentIds);
+  const rows = await q.select('id', 'fee_transfer_id');
+  let moved = 0;
+  for (const row of rows) {
+    const r = await call('GET', `/BankTransfers/${row.fee_transfer_id}`);
+    const bt = r.body?.BankTransfers?.[0];
+    if (!r.ok || !bt) { logger.warn(`[XeroFeeTransfer] Could not read transfer ${row.fee_transfer_id}: ${xeroMessage(r.error)}`); continue; }
+    if (bt.FromIsReconciled && bt.ToIsReconciled) {
+      await db('rent_payments').where('id', row.id).update({ fee_transfer_status: 'moved', fee_moved_at: toYmd(new Date()) });
+      moved++;
+    }
+  }
+  return { moved };
 };
 
 // Approve → Xero: the landlord bill, the contractor bills and the fee transfer.
@@ -407,8 +429,11 @@ export const voidContractorBills = async (paymentId, actorId = null, call = xero
 };
 
 // Has the contractor been paid? Read back with the landlord bills.
-export const pullContractorBillStatus = async (call = xero) => {
-  const rows = await db('rent_payment_deductions').where('xero_bill_status', 'posted').whereNotNull('xero_bill_id').select('id', 'xero_bill_id');
+// onlyPaymentIds limits the check (tests).
+export const pullContractorBillStatus = async (call = xero, onlyPaymentIds = null) => {
+  const q = db('rent_payment_deductions').where('xero_bill_status', 'posted').whereNotNull('xero_bill_id');
+  if (onlyPaymentIds) q.whereIn('rent_payment_id', onlyPaymentIds);
+  const rows = await q.select('id', 'xero_bill_id');
   let paid = 0;
   for (let i = 0; i < rows.length; i += 40) {
     const chunk = rows.slice(i, i + 40);
@@ -457,5 +482,6 @@ export const pullLandlordBillStatus = async () => {
     }
   }
   const contractors = await pullContractorBillStatus();
-  return { paid, voided, contractors_paid: contractors.paid };
+  const fees = await pullFeeTransferStatus();
+  return { paid, voided, contractors_paid: contractors.paid, fees_moved: fees.moved };
 };

@@ -251,7 +251,7 @@ export const undoSendRentToXero = catchAsync(async (req, res) => {
     message: `Bill ${result.number} voided in Xero`
       + (contractors.voided ? `, ${contractors.voided} contractor bill(s) voided` : '')
       + (contractors.kept.length ? `; kept: ${contractors.kept.join(', ')}` : '')
-      + (p?.fee_transfer_status === 'done' ? '. The fee transfer is still in Xero: delete it there if it should go.' : ''),
+      + (['recorded', 'moved'].includes(p?.fee_transfer_status) ? '. The fee transfer is still in Xero: delete it there if it should go.' : ''),
     data: { ...result, contractors }
   });
 });

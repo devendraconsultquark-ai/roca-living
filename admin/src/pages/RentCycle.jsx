@@ -262,7 +262,7 @@ export const RentCycle = () => {
           <ol className="list-decimal pl-5 flex flex-col gap-1 text-sm">
             <li><b>Waiting for rent</b> — Roca puts each month's rent into Xero, so Xero knows what to expect.</li>
             <li><b>To approve</b> — the tenant's payment arrived and was matched in Xero. Check the split (ROCA's fee and the landlord's share) and approve.</li>
-            <li><b>Pay landlord</b> — the landlord's share is waiting in Xero. Pay it from the bank as usual; Xero matches it.</li>
+            <li><b>Pay landlord</b> — the landlord's share (and any contractor) is waiting in Xero, and ROCA's fee is recorded as a transfer. Do these in your bank (see To Do in the Bank); Xero matches them.</li>
             <li><b>Landlord paid</b> — make the landlord's statement. <b>Done</b>.</li>
           </ol>
           <p className="text-xs text-status-muted mt-2">Xero is checked when you open this page and every 30 minutes. Matching a payment in Xero (or Xero's auto-reconcile) is the only step outside Roca.</p>
@@ -315,14 +315,30 @@ export const RentCycle = () => {
                   <td className="p-3">{r.landlord_name || '—'}</td>
                   <td className="p-3 text-right whitespace-nowrap">{money(r.rent_due)}<div className="text-xs text-status-muted">{ukDate(r.due_date)}</div></td>
                   <td className="p-3 text-right">{r.received ? money(r.received) : '—'}</td>
-                  <td className="p-3 text-right">{r.received ? <>{money(r.fee)}<div className="text-xs text-status-muted">{r.fee_pct}%</div></> : '—'}</td>
+                  <td className="p-3 text-right">
+                    {r.received ? <>{money(r.fee)}<div className="text-xs text-status-muted">{r.fee_pct}%</div></> : '—'}
+                    {r.fee_transfer?.status === 'recorded' && (
+                      <div className="text-xs text-status-warning inline-flex items-center gap-1 whitespace-nowrap">
+                        to move <InfoTip text="Recorded in Xero. Move it in your bank (rent account → fee account); it shows moved once Xero matches both bank lines." />
+                      </div>
+                    )}
+                    {r.fee_transfer?.status === 'moved' && <div className="text-xs text-status-success whitespace-nowrap">moved ✓</div>}
+                    {r.fee_transfer?.status === 'skipped' && (
+                      <div className="text-xs text-status-muted inline-flex items-center gap-1 whitespace-nowrap">
+                        not recorded <InfoTip text={r.fee_transfer.error || 'Choose the bank accounts in Settings → Xero'} />
+                      </div>
+                    )}
+                  </td>
                   <td className="p-3 text-right">
                     {r.deductions > 0 ? (
                       <>
                         <span className="font-semibold text-status-danger">−{money(r.deductions)}</span>
                         {(r.contractor_bills || []).map((b) => (
                           <div key={b.ticket_id} className="text-xs text-status-muted whitespace-nowrap">
-                            {b.contractor || 'No contractor'} · ticket #{b.ticket_id}
+                            {b.contractor || 'No contractor'} · #{b.ticket_id}
+                            {b.status === 'paid' && <span className="text-status-success"> · paid ✓</span>}
+                            {b.status === 'posted' && <span className="text-status-warning"> · to pay</span>}
+                            {b.status === 'no_contractor' && <span className="text-status-warning"> · no bill</span>}
                           </div>
                         ))}
                       </>
@@ -330,6 +346,8 @@ export const RentCycle = () => {
                   </td>
                   <td className="p-3 text-right font-semibold">
                     {r.received ? money(r.net) : '—'}
+                    {r.landlord_paid_at && <div className="text-xs font-normal text-status-success whitespace-nowrap">paid ✓</div>}
+                    {r.stage === 'pay_landlord' && <div className="text-xs font-normal text-status-warning whitespace-nowrap">to pay</div>}
                     {r.repairs_waiting?.length > 0 && (
                       <div className="text-xs font-normal text-status-warning whitespace-nowrap inline-flex items-center gap-1">
                         Repair waiting <InfoTip text={r.repairs_waiting.map((w) => `${w.title} (ticket #${w.id}, ${money(w.cost)})`).join('; ') + " — more than what is left of the landlord's share, so it waits for a later payment."} />
@@ -339,15 +357,6 @@ export const RentCycle = () => {
                   <td className="p-3">
                     <span className={`px-2 py-1 rounded-md text-xs font-semibold whitespace-nowrap ${stageInfo(r.stage).tone}`}>{stageInfo(r.stage).label}</span>
                     {r.split_note && <div className="text-xs text-status-warning mt-1">Note: {r.split_note}</div>}
-                    {r.fee_transfer?.status === 'done' && <div className="text-xs text-status-success mt-1">Fee moved ✓</div>}
-                    {r.fee_transfer?.status === 'skipped' && <div className="text-xs text-status-muted mt-1 inline-flex items-center gap-1">Fee not moved <InfoTip text={r.fee_transfer.error || 'Choose the bank accounts in Settings → Xero'} /></div>}
-                    {(r.contractor_bills || []).filter((b) => ['posted', 'paid', 'no_contractor'].includes(b.status)).map((b) => (
-                      <div key={b.ticket_id} className={`text-xs mt-1 whitespace-nowrap ${b.status === 'paid' ? 'text-status-success' : b.status === 'no_contractor' ? 'text-status-warning' : 'text-status-muted'}`}>
-                        {b.status === 'no_contractor'
-                          ? `Ticket #${b.ticket_id}: no contractor`
-                          : `${b.contractor} ${money(b.amount)} ${b.status === 'paid' ? 'paid ✓' : 'to pay'}`}
-                      </div>
-                    ))}
                   </td>
                   <td className="p-3 text-right">{nextAction(r)}</td>
                 </tr>
@@ -357,13 +366,17 @@ export const RentCycle = () => {
         )}
       </div>
 
-      {(toApprove.length > 1 || readyForStatement.length > 1 || data?.landlord_totals?.length > 0 || data?.contractor_totals?.length > 0) && (
+      {(toApprove.length > 1 || readyForStatement.length > 1 || data?.landlord_totals?.length > 0 || data?.contractor_totals?.length > 0 || data?.fees_to_move?.length > 0) && (
         <div className="flex flex-wrap items-start justify-between gap-4">
-          {data?.landlord_totals?.length > 0 || data?.contractor_totals?.length > 0 ? (
-            <div className="card-bg border border-card-border rounded-card p-4 text-sm flex flex-col gap-3">
+          {data?.landlord_totals?.length > 0 || data?.contractor_totals?.length > 0 || data?.fees_to_move?.length > 0 ? (
+            <div className="card-bg border border-card-border rounded-card p-4 text-sm flex flex-col gap-3 min-w-80">
+              <p className="font-bold text-brand-primary flex items-center gap-1.5">
+                To Do in the Bank
+                <InfoTip text="Xero has these recorded. Make them in your online banking; each one clears here once Xero matches it to the bank." />
+              </p>
               {data.landlord_totals?.length > 0 && (
                 <div>
-                  <p className="font-bold text-brand-primary mb-2">To Pay Landlords From the Bank</p>
+                  <p className="text-xs font-bold text-status-muted mb-1">Pay Landlords</p>
                   {data.landlord_totals.map((t) => (
                     <div key={t.landlord} className="flex justify-between gap-8"><span>{t.landlord}</span><span className="font-semibold">{money(t.amount)}</span></div>
                   ))}
@@ -371,10 +384,21 @@ export const RentCycle = () => {
               )}
               {data.contractor_totals?.length > 0 && (
                 <div>
-                  <p className="font-bold text-brand-primary mb-2">To Pay Contractors From the Bank</p>
+                  <p className="text-xs font-bold text-status-muted mb-1">Pay Contractors</p>
                   {data.contractor_totals.map((t) => (
                     <div key={t.contractor} className="flex justify-between gap-8"><span>{t.contractor}</span><span className="font-semibold">{money(t.amount)}</span></div>
                   ))}
+                </div>
+              )}
+              {data.fees_to_move?.length > 0 && (
+                <div>
+                  <p className="text-xs font-bold text-status-muted mb-1">Move ROCA&apos;s Fee (Rent Account → Fee Account)</p>
+                  {data.fees_to_move.map((f) => (
+                    <div key={f.flat} className="flex justify-between gap-8"><span>{f.flat}</span><span className="font-semibold">{money(f.amount)}</span></div>
+                  ))}
+                  {data.fees_to_move.length > 1 && (
+                    <div className="flex justify-between gap-8 border-t border-card-border mt-1 pt-1"><span>Total</span><span className="font-bold">{money(data.fees_to_move.reduce((t, f) => t + f.amount, 0))}</span></div>
+                  )}
                 </div>
               )}
             </div>
@@ -436,7 +460,7 @@ export const RentCycle = () => {
                     <span className="text-status-muted">ROCA fee ({row.fee_pct}%)</span><span className="text-right font-semibold">−{money(row.fee)}</span>
                     <span className={`col-span-2 text-xs ${feeReady ? 'text-status-muted' : 'text-status-warning'}`}>
                       {feeReady
-                        ? '→ Moved to the ROCA fee bank account in Xero on approval'
+                        ? '→ Recorded in Xero as a transfer to the ROCA fee account. Then move the money in your bank.'
                         : <>→ Not moved: choose the bank accounts in <Link to="/settings" className="font-semibold underline">Settings → Xero</Link></>}
                     </span>
                   </div>
@@ -494,7 +518,7 @@ export const RentCycle = () => {
                   <p className="text-xs text-status-muted">
                     Approving sends to Xero: a {money(toLandlord)} bill to {row.landlord_name || 'the landlord'}{total > 0 ? ' (deductions as separate lines)' : ''}
                     {items.some((i) => i.repair && i.contractor) ? ', a bill to each contractor' : ''}
-                    {feeReady && row.fee > 0 ? `, and ${money(row.fee)} moved to ROCA's account` : ''}. You pay the bills from the bank as usual.
+                    {feeReady && row.fee > 0 ? `, and ${money(row.fee)} recorded as moving to ROCA's account` : ''}. Xero only records these: you pay and move the money in your bank (see To Do in the Bank).
                   </p>
 
                   <div className="flex gap-3 justify-end pt-2 border-t border-card-border">
