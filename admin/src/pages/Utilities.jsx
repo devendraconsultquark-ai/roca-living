@@ -4,6 +4,7 @@ import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { StatCard } from '../components/UI/StatCard';
 import { Input } from '../components/UI/Input';
+import { DatePicker } from '../components/UI/DatePicker';
 import { Dropdown } from '../components/UI/Dropdown';
 import { Skeleton } from '../components/UI/Skeleton';
 import { useToast } from '../components/UI/ToastContext';
@@ -313,12 +314,11 @@ export const Utilities = () => {
                 />
               </div>
 
-              <Input
+              <DatePicker
                 label="Handover Date"
                 id="u-date"
-                type="date"
                 value={form.handover_date}
-                onChange={(e) => setForm(f => ({ ...f, handover_date: e.target.value }))}
+                onChange={(v) => setForm(f => ({ ...f, handover_date: v }))}
               />
 
               <div className="grid grid-cols-2 gap-4">

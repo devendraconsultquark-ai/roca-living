@@ -16,7 +16,7 @@ export const getSettings = catchAsync(async (req, res, next) => {
 });
 
 // Only these keys may be written; anything else is rejected to keep the table clean.
-const ALLOWED_SETTING_KEYS = ['agencyFee', 'vatRate', 'depositSchemeNum'];
+const ALLOWED_SETTING_KEYS = ['agencyFee', 'vatRate', 'depositSchemeNum', 'repairApprovalLimit'];
 
 export const updateSettings = catchAsync(async (req, res, next) => {
   const settings = req.body; // e.g. { agencyFee: '12.0', vatRate: '20.0', depositSchemeNum: 'TDS-ROCA-5001' }
@@ -40,6 +40,9 @@ export const updateSettings = catchAsync(async (req, res, next) => {
   }
   if ('vatRate' in settings && !inRange(settings.vatRate, 100)) {
     throw new ApiError(400, 'VAT rate must be between 0 and 100%');
+  }
+  if ('repairApprovalLimit' in settings && !inRange(settings.repairApprovalLimit, 100000)) {
+    throw new ApiError(400, 'The repair approval limit must be between £0 and £100,000');
   }
 
   await db.transaction(async (trx) => {

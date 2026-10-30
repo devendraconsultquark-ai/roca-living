@@ -4,6 +4,7 @@ import { catchAsync } from '../utils/catchAsync.js';
 import { toYmd } from '../utils/dateHelpers.js';
 import { pullInvoicePayments, splitFor, round2 } from '../utils/xeroRentInvoices.js';
 import { postLandlordBill, voidLandlordBill, pullLandlordBillStatus } from '../utils/xeroLandlordBills.js';
+import { applyRepairDeductions } from '../utils/repairDeductions.js';
 
 // Rent to approve (rent cycle phase 3): rent paid against Roca Living's rent
 // invoices in Xero, with its split — the flat's management fee for ROCA and the
@@ -119,13 +120,18 @@ const landlordShare = (p) => round2(Number(p.amount) - Number(p.fee_amount || 0)
 // GET /xero/rent-approvals/:id/deductions
 export const getRentDeductions = catchAsync(async (req, res) => {
   const p = await loadForDeductions(req.params.id);
+  // Completed repairs are added automatically (lines with a ticket_id).
+  const tenancy = await db('tenancies').where('id', p.tenancy_id).first('property_id');
+  const waiting = deductionsEditable(p) ? await db.transaction((trx) => applyRepairDeductions(trx, tenancy?.property_id)) : [];
   const items = await db('rent_payment_deductions').where('rent_payment_id', p.id).orderBy('id')
-    .select('id', 'description', 'supplier', 'amount');
+    .select('id', 'description', 'supplier', 'amount', 'ticket_id');
   res.json({
     success: true,
     data: {
       payment: { id: p.id, amount: Number(p.amount), fee_pct: Number(p.fee_pct || 0), fee_amount: Number(p.fee_amount || 0) },
-      items: items.map((i) => ({ ...i, amount: Number(i.amount) })),
+      items: items.map((i) => ({ ...i, amount: Number(i.amount), from_maintenance: !!i.ticket_id })),
+      // Repairs too big for what is left of this flat's open payments.
+      repairs_waiting: waiting,
       max: landlordShare(p),
       editable: deductionsEditable(p)
     }
@@ -151,14 +157,16 @@ export const saveRentDeductions = catchAsync(async (req, res) => {
     if (!Number.isFinite(amount) || amount <= 0) throw new ApiError(400, `Deduction ${i + 1}: the amount must be more than £0`);
     return { description, supplier: supplier || null, amount };
   });
-  const total = round2(items.reduce((s, i) => s + i.amount, 0));
+  // Repairs from Maintenance stay (they change on the ticket, not here).
+  const repairs = round2((await db('rent_payment_deductions').where('rent_payment_id', p.id).whereNotNull('ticket_id').sum('amount as s').first())?.s || 0);
+  const total = round2(items.reduce((s, i) => s + i.amount, 0) + repairs);
   const share = landlordShare(p);
   if (total > share) {
     throw new ApiError(400, `Deductions (£${total.toFixed(2)}) can't be more than the landlord's share (£${share.toFixed(2)})`);
   }
   const net = round2(share - total);
   await db.transaction(async (trx) => {
-    await trx('rent_payment_deductions').where('rent_payment_id', p.id).delete();
+    await trx('rent_payment_deductions').where('rent_payment_id', p.id).whereNull('ticket_id').delete();
     if (items.length) {
       await trx('rent_payment_deductions').insert(items.map((i) => ({
         rent_payment_id: p.id, description: i.description, supplier: i.supplier, amount: i.amount.toFixed(2), created_by: req.user.id
@@ -174,7 +182,7 @@ export const saveRentDeductions = catchAsync(async (req, res) => {
   });
   res.json({
     success: true,
-    message: items.length ? `Deductions saved: £${total.toFixed(2)}, £${net.toFixed(2)} to the landlord` : 'No deductions on this payment',
+    message: total > 0 ? `Deductions saved: £${total.toFixed(2)}, £${net.toFixed(2)} to the landlord` : 'No deductions on this payment',
     data: { total, net }
   });
 });

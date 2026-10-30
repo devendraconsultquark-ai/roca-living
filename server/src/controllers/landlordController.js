@@ -191,6 +191,7 @@ export const getLandlordById = catchAsync(async (req, res, next) => {
       'landlord_profiles.ownership_confirmed',
       'landlord_profiles.ownership_share',
       'landlord_profiles.notes',
+      'landlord_profiles.repair_limit',
       'landlord_profiles.account_manager_id',
       'managers.name as account_manager_name',
       'managers.email as account_manager_email',
@@ -554,7 +555,7 @@ export const updateLandlord = catchAsync(async (req, res, next) => {
   const {
     name, email, phone, address,
     company_name, is_overseas, nrl_hmrc_approved, nrl_hmrc_ref, nrl_withhold_pct, kyc_status, tob_status, ownership_share,
-    ownership_confirmed, initials, notes, account_manager_id, tob_signed_at
+    ownership_confirmed, initials, notes, account_manager_id, tob_signed_at, repair_limit
   } = req.body;
 
   const landlord = await db('users').where({ id, role: 'LANDLORD' }).first();
@@ -611,6 +612,15 @@ export const updateLandlord = catchAsync(async (req, res, next) => {
   // KYC passing (they verify different things).
   if (ownership_confirmed !== undefined) profileUpdates.ownership_confirmed = ownership_confirmed ? 1 : 0;
   if (notes !== undefined) profileUpdates.notes = notes || null;
+  // Repair approval limit (£): blank = the default in Settings.
+  if (repair_limit !== undefined) {
+    if (repair_limit === null || repair_limit === '') profileUpdates.repair_limit = null;
+    else {
+      const limit = Number(repair_limit);
+      if (!Number.isFinite(limit) || limit < 0 || limit > 100000) throw new ApiError(400, 'The repair approval limit must be between £0 and £100,000');
+      profileUpdates.repair_limit = limit.toFixed(2);
+    }
+  }
   if (account_manager_id !== undefined) {
     if (account_manager_id === null || account_manager_id === '') {
       profileUpdates.account_manager_id = null;

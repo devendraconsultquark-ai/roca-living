@@ -4,6 +4,8 @@ import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { StatCard } from '../components/UI/StatCard';
 import { Input } from '../components/UI/Input';
+import { DatePicker } from '../components/UI/DatePicker';
+import { todayYmd } from '../utilities/designTokens';
 import { Dropdown } from '../components/UI/Dropdown';
 import { useToast } from '../components/UI/ToastContext';
 import { Skeleton } from '../components/UI/Skeleton';
@@ -258,22 +260,22 @@ export const Inspections = () => {
                 onChange={(e) => setForm(f => ({ ...f, inspected_by: e.target.value }))}
               />
 
-              <Input
+              <DatePicker
                 label="Inspection Date"
                 id="i-date"
-                type="date"
+                max={todayYmd()}
                 required
                 value={form.inspected_at}
-                onChange={(e) => setForm(f => ({ ...f, inspected_at: e.target.value }))}
+                onChange={(v) => setForm(f => ({ ...f, inspected_at: v }))}
                 error={formErrors.inspected_at}
               />
 
-              <Input
+              <DatePicker
                 label="Next Inspection Due"
                 id="i-next-due"
-                type="date"
+                min={form.inspected_at || null}
                 value={form.next_inspection_due}
-                onChange={(e) => setForm(f => ({ ...f, next_inspection_due: e.target.value }))}
+                onChange={(v) => setForm(f => ({ ...f, next_inspection_due: v }))}
               />
 
               <div className="flex flex-col gap-1">

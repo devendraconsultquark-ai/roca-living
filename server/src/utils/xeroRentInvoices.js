@@ -7,6 +7,7 @@ import { rentPeriodFor } from './rentSchedules.js';
 import { getStoredConnection, xeroApiRaw } from './xero.js';
 import { allocateTenancyPayments } from './rentAllocation.js';
 import { findSimilarPayment } from './rentPayments.js';
+import { applyRepairDeductions } from './repairDeductions.js';
 
 // Internal rent invoices in Xero (rent cycle phase 2). One Xero invoice per rent
 // month of a managed flat, raised to a contact per tenancy and never sent to the
@@ -337,6 +338,8 @@ const recordInvoicePayment = async (invoiceRow, payment, actorId) => db.transact
       entity_type: 'rent_payment', entity_id: typed.id,
       meta: JSON.stringify({ invoice: invoiceRow.invoice_number, payment: payment.PaymentID, amount }), ip_address: null
     });
+    // Completed repairs waiting for a payment come off this one.
+    await applyRepairDeductions(trx, tenancy.property_id);
     return 'linked';
   }
 
@@ -371,6 +374,8 @@ const recordInvoicePayment = async (invoiceRow, payment, actorId) => db.transact
     entity_type: 'rent_payment', entity_id: paymentId,
     meta: JSON.stringify({ invoice: invoiceRow.invoice_number, payment: payment.PaymentID, amount, ...split }), ip_address: null
   });
+  // Completed repairs waiting for a payment come off this one.
+  await applyRepairDeductions(trx, tenancy.property_id);
   return 'recorded';
 });
 

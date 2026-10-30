@@ -4,6 +4,7 @@ import { FileText, CalendarClock, AlertTriangle, X, RefreshCw, BarChart3, UserPl
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
+import { DatePicker } from '../components/UI/DatePicker';
 import { Dropdown } from '../components/UI/Dropdown';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
@@ -423,13 +424,12 @@ export const Tenancies = () => {
             </p>
 
             <form onSubmit={handleEndSubmit} className="flex flex-col gap-4">
-              <Input
+              <DatePicker
                 label="Tenancy End Date"
                 id="tnc-end-date"
-                type="date"
                 required
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(v) => setEndDate(v)}
               />
 
               <div className="flex gap-3 justify-end mt-1">
@@ -461,13 +461,12 @@ export const Tenancies = () => {
             </p>
 
             <form onSubmit={handleReviewSubmit} className="flex flex-col gap-4">
-              <Input
+              <DatePicker
                 label="Review Date"
                 id="review-date"
-                type="date"
                 required
                 value={reviewForm.date}
-                onChange={(e) => setReviewForm((f) => ({ ...f, date: e.target.value }))}
+                onChange={(v) => setReviewForm((f) => ({ ...f, date: v }))}
               />
               <Input
                 label="Proposed Rent (£ pcm, optional)"

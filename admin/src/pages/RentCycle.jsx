@@ -136,8 +136,9 @@ export const RentCycle = () => {
     try {
       const res = await api.get(`/xero/rent-approvals/${paymentId}/deductions`, { skipInterceptorError: true });
       const d = res.data.data;
-      const items = d.items.map((i) => ({ description: i.description, supplier: i.supplier || '', amount: String(i.amount) }));
-      setApproveFor({ row, paymentId, items, saved: round2(d.items.reduce((t, i) => t + i.amount, 0)), max: d.max, loading: false });
+      // Repairs from Maintenance come with the payment and can't be edited here.
+      const items = d.items.map((i) => ({ description: i.description, supplier: i.supplier || '', amount: String(i.amount), repair: i.from_maintenance }));
+      setApproveFor({ row, paymentId, items, saved: round2(d.items.reduce((t, i) => t + i.amount, 0)), max: d.max, waiting: d.repairs_waiting || [], loading: false });
     } catch (err) {
       addToast(err.response?.data?.message || 'Could not load the deductions', 'error');
       setApproveFor(null);
@@ -150,7 +151,7 @@ export const RentCycle = () => {
 
   const approveWithDeductions = async () => {
     const { row, paymentId, items } = approveFor;
-    const clean = items.filter((i) => i.description.trim() || i.supplier.trim() || i.amount !== '');
+    const clean = items.filter((i) => !i.repair && (i.description.trim() || i.supplier.trim() || i.amount !== ''));
     setBusy('approve');
     try {
       await api.put(`/xero/rent-approvals/${paymentId}/deductions`, {
@@ -309,6 +310,11 @@ export const RentCycle = () => {
                   <td className="p-3 text-right font-semibold">
                     {r.received ? money(r.net) : '—'}
                     {r.deductions > 0 && <div className="text-xs font-normal text-status-muted whitespace-nowrap">after {money(r.deductions)} deductions</div>}
+                    {r.repairs_waiting?.length > 0 && (
+                      <div className="text-xs font-normal text-status-warning whitespace-nowrap inline-flex items-center gap-1">
+                        Repair waiting <InfoTip text={r.repairs_waiting.map((w) => `${w.title} (ticket #${w.id}, ${money(w.cost)})`).join('; ') + " — more than what is left of the landlord's share, so it waits for a later payment."} />
+                      </div>
+                    )}
                   </td>
                   <td className="p-3"><span className={`px-2 py-1 rounded-md text-xs font-semibold whitespace-nowrap ${stageInfo(r.stage).tone}`}>{stageInfo(r.stage).label}</span>{r.split_note && <div className="text-xs text-status-warning mt-1">Note: {r.split_note}</div>}</td>
                   <td className="p-3 text-right">{nextAction(r)}</td>
@@ -362,11 +368,11 @@ export const RentCycle = () => {
       )}
 
       {approveFor && (() => {
-        const { row, items, saved, max, loading } = approveFor;
+        const { row, items, saved, max, loading, waiting = [] } = approveFor;
         const total = round2(items.reduce((t, i) => t + (Number(i.amount) || 0), 0));
         const toLandlord = round2(row.net + saved - total);
         const tooMuch = max !== null && total > max;
-        const incomplete = items.some((i) => (i.description.trim() || i.supplier.trim() || i.amount !== '') && (!i.description.trim() || !(Number(i.amount) > 0)));
+            const incomplete = items.some((i) => !i.repair && (i.description.trim() || i.supplier.trim() || i.amount !== '') && (!i.description.trim() || !(Number(i.amount) > 0)));
         return (
           <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
             <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl border border-card-border overflow-hidden my-8">
@@ -391,7 +397,16 @@ export const RentCycle = () => {
                       <p className="text-sm font-bold text-brand-primary flex items-center gap-1.5">Deductions <InfoTip text="Costs ROCA paid for this flat (cleaning, repairs). They come out of the landlord's share." /></p>
                     </div>
                     {items.length === 0 && <p className="text-xs text-status-muted">No deductions.</p>}
-                    {items.map((it, idx) => (
+                    {items.map((it, idx) => (it.repair ? (
+                      <div key={idx} className="grid grid-cols-[1fr_1fr_110px_auto] gap-2 items-center text-sm bg-surface-light border border-card-border rounded-lg px-3 py-2">
+                        <span className="font-semibold text-brand-primary min-w-0 break-words">{it.description}</span>
+                        <span className="text-status-muted min-w-0 break-words">{it.supplier || '—'}</span>
+                        <span className="text-right font-semibold">{money(Number(it.amount))}</span>
+                        <span className="inline-flex items-center gap-1 text-2xs font-bold text-brand-accent whitespace-nowrap">
+                          From Maintenance <InfoTip text="Added automatically when the repair was completed. Change its cost on the maintenance ticket." />
+                        </span>
+                      </div>
+                    ) : (
                       <div key={idx} className="grid grid-cols-[1fr_1fr_110px_auto] gap-2 items-center">
                         <input aria-label="Description" placeholder="Description, e.g. End of tenancy clean" value={it.description} onChange={(e) => setDeduction(idx, 'description', e.target.value)}
                           className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-accent" maxLength={255} />
@@ -402,6 +417,11 @@ export const RentCycle = () => {
                         <button type="button" onClick={() => setApproveFor((a) => ({ ...a, items: a.items.filter((_, i) => i !== idx) }))}
                           className="p-2 text-status-muted hover:text-status-danger cursor-pointer" aria-label="Remove deduction"><Trash2 size={16} /></button>
                       </div>
+                    )))}
+                    {waiting.map((w) => (
+                      <p key={w.id} className="text-xs text-status-warning">
+                        Repair “{w.title}” (ticket #{w.id}, {money(w.cost)}) is more than what is left of the landlord&apos;s share, so it waits for a later payment.
+                      </p>
                     ))}
                     <div>
                       <Button variant="ghost" size="sm" icon={Plus} onClick={() => setApproveFor((a) => ({ ...a, items: [...a.items, emptyDeduction()] }))}>Add deduction</Button>

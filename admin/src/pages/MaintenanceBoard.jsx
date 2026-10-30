@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { DndContext, useDraggable, useDroppable } from '@dnd-kit/core';
 import { Plus, X, Ban, List, LayoutGrid, Mail, ClipboardList, UserCheck, Hammer, CheckCircle2, HardHat, Calendar } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
@@ -164,14 +165,28 @@ export const MaintenanceBoard = () => {
   const [properties, setProperties] = useState([]);
   const [contractors, setContractors] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [form, setForm] = useState({ property_id: '', urgency: '', title: '', description: '', quote_amount: '', spend_threshold_auto_approve: '' });
+  const [form, setForm] = useState({ property_id: '', urgency: '', title: '', description: '', quote_amount: '', contractor_id: '' });
+  // The chosen flat's repair approval limit: { property_id, limit, source }.
+  const [repairLimit, setRepairLimit] = useState(null);
+  const chooseProperty = async (val) => {
+    setForm((f) => ({ ...f, property_id: val }));
+    setRepairLimit(null);
+    if (!val) return;
+    try {
+      const res = await api.get('/maintenance/repair-limit', { params: { property_id: val } });
+      setRepairLimit({ property_id: val, ...res.data.data });
+    } catch { /* the note just stays hidden */ }
+  };
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const { addToast } = useToast();
 
   // Ticket detail modal
   const [detailTicket, setDetailTicket] = useState(null); // mapped ticket or null
-  const [detailForm, setDetailForm] = useState({ contractor_id: '', quote_amount: '' });
+  const [detailForm, setDetailForm] = useState({ contractor_id: '', quote_amount: '', invoice_amount: '' });
+  // Completing a ticket asks for the final cost: { ticket, cost } or null.
+  const [completeFor, setCompleteFor] = useState(null);
+  const [completing, setCompleting] = useState(false);
   const [detailSaving, setDetailSaving] = useState(false);
   const [detailImages, setDetailImages] = useState([]); // [{id, original_name, url}]
 
@@ -200,11 +215,15 @@ export const MaintenanceBoard = () => {
 
   const fetchProperties = async () => {
     try {
-      const res = await api.get('/properties');
-      setProperties((res.data.data || []).map(p => ({
-        value: p.id,
-        label: `${p.address_line1}, ${p.city}`,
-      })));
+      // Only flats ROCA Living manages, as "PH-31 · Apartment 31, …", in flat order.
+      const res = await api.get('/properties', { params: { managed: '1' } });
+      const code = (p) => (p.block_name && p.apartment_number ? `${String(p.block_name).toUpperCase()}-${p.apartment_number}` : null);
+      setProperties((res.data.data || [])
+        .sort((a, b) => String(a.block_name || '').localeCompare(String(b.block_name || '')) || (parseInt(a.apartment_number, 10) || 0) - (parseInt(b.apartment_number, 10) || 0))
+        .map(p => ({
+          value: p.id,
+          label: [code(p), `${p.address_line1}, ${p.city}`].filter(Boolean).join(' · '),
+        })));
     } catch {
       // non-blocking — property dropdown degrades gracefully
     }
@@ -225,6 +244,7 @@ export const MaintenanceBoard = () => {
     setDetailForm({
       contractor_id: ticket.raw.contractor_id || '',
       quote_amount: ticket.raw.quote_amount != null ? String(ticket.raw.quote_amount) : '',
+      invoice_amount: ticket.raw.invoice_amount != null ? String(ticket.raw.invoice_amount) : '',
     });
     setDetailImages([]);
     try {
@@ -261,13 +281,17 @@ export const MaintenanceBoard = () => {
       if (detailForm.quote_amount !== '' && parseFloat(detailForm.quote_amount) !== parseFloat(detailTicket.raw.quote_amount || 0)) {
         payload.quote_amount = parseFloat(detailForm.quote_amount);
       }
+      const savedCost = detailTicket.raw.invoice_amount != null ? String(parseFloat(detailTicket.raw.invoice_amount)) : '';
+      if (detailTicket.raw.status === 'complete' && String(detailForm.invoice_amount === '' ? '' : parseFloat(detailForm.invoice_amount)) !== savedCost) {
+        payload.invoice_amount = detailForm.invoice_amount === '' ? null : parseFloat(detailForm.invoice_amount);
+      }
       if (Object.keys(payload).length === 0) {
         addToast('Nothing to save', 'info');
         setDetailSaving(false);
         return;
       }
-      await api.patch(`/maintenance/${detailTicket.id}/status`, payload);
-      addToast(`Ticket #${detailTicket.id} updated`, 'success');
+      const res = await api.patch(`/maintenance/${detailTicket.id}/status`, payload);
+      addToast(res.data.message || `Ticket #${detailTicket.id} updated`, res.data.message ? 'warning' : 'success');
       closeDetail();
       fetchTickets();
     } catch (err) {
@@ -311,6 +335,11 @@ export const MaintenanceBoard = () => {
       return;
     }
 
+    if (apiStatus === 'complete') {
+      setCompleteFor({ ticket, cost: ticket.raw.quote_amount != null ? String(parseFloat(ticket.raw.quote_amount)) : '' });
+      return;
+    }
+
     // Optimistic update
     setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: newBoardStatus } : t));
 
@@ -321,6 +350,25 @@ export const MaintenanceBoard = () => {
       // Revert on failure
       setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status: ticket.status } : t));
       addToast(err.response?.data?.message || `Failed to update ticket status`, 'error');
+    }
+  };
+
+  // Mark a ticket Complete with its final cost (the contractor's invoice).
+  const handleComplete = async (e) => {
+    e.preventDefault();
+    const { ticket, cost } = completeFor;
+    if (cost !== '' && !(parseFloat(cost) >= 0)) { addToast('Enter the final cost, or leave it blank to use the quote', 'warning'); return; }
+    setCompleting(true);
+    try {
+      const res = await api.patch(`/maintenance/${ticket.id}/status`, { status: 'complete', invoice_amount: cost === '' ? null : parseFloat(cost) });
+      addToast(res.data.message || `Ticket #${ticket.id} completed`, res.data.message ? 'warning' : 'success');
+      setCompleteFor(null);
+      if (detailTicket?.id === ticket.id) closeDetail();
+      fetchTickets();
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to complete the ticket', 'error');
+    } finally {
+      setCompleting(false);
     }
   };
 
@@ -342,11 +390,12 @@ export const MaintenanceBoard = () => {
         title: form.title,
         description: form.description,
         quote_amount: form.quote_amount !== '' ? parseFloat(form.quote_amount) : undefined,
-        spend_threshold_auto_approve: form.spend_threshold_auto_approve !== '' ? parseFloat(form.spend_threshold_auto_approve) : undefined,
+        contractor_id: form.contractor_id || undefined,
       });
       addToast('Maintenance ticket created!', 'success');
       setIsModalOpen(false);
-      setForm({ property_id: '', urgency: '', title: '', description: '', quote_amount: '', spend_threshold_auto_approve: '' });
+      setForm({ property_id: '', urgency: '', title: '', description: '', quote_amount: '', contractor_id: '' });
+      setRepairLimit(null);
       fetchTickets();
     } catch (err) {
       addToast(err.response?.data?.message || 'Failed to create ticket', 'error');
@@ -492,7 +541,7 @@ export const MaintenanceBoard = () => {
                   placeholder="Select property..."
                   options={properties}
                   value={form.property_id}
-                  onChange={(val) => setForm(f => ({ ...f, property_id: val }))}
+                  onChange={chooseProperty}
                   searchable
                 />
                 {formErrors.property_id && <span className="text-xs text-status-danger font-semibold">{formErrors.property_id}</span>}
@@ -539,28 +588,49 @@ export const MaintenanceBoard = () => {
                 {formErrors.description && <span className="text-xs text-status-danger font-semibold">{formErrors.description}</span>}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  label="Quote Amount (£, optional)"
-                  id="modal-quote"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="e.g. 180.00"
-                  value={form.quote_amount}
-                  onChange={(e) => setForm(f => ({ ...f, quote_amount: e.target.value }))}
+              <div className="flex flex-col gap-1">
+                <Dropdown
+                  label="Contractor (Optional)"
+                  id="modal-contractor"
+                  placeholder={contractors.length ? 'Assign contractor...' : 'No contractors yet'}
+                  options={contractors}
+                  value={form.contractor_id}
+                  onChange={(val) => setForm(f => ({ ...f, contractor_id: val }))}
+                  searchable
+                  clearable
+                  disabled={!contractors.length}
                 />
-                <Input
-                  label="Auto-approve Threshold (£)"
-                  id="modal-threshold"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="Default 250.00"
-                  value={form.spend_threshold_auto_approve}
-                  onChange={(e) => setForm(f => ({ ...f, spend_threshold_auto_approve: e.target.value }))}
-                />
+                {!contractors.length && (
+                  <span className="text-xs text-status-muted">
+                    Add contractors in <Link to="/contractors" className="font-bold text-brand-accent hover:underline">Maintenance → Contractors</Link>.
+                  </span>
+                )}
               </div>
+
+              <Input
+                label="Quote (£, optional)"
+                id="modal-quote"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="e.g. 180.00"
+                value={form.quote_amount}
+                onChange={(e) => setForm(f => ({ ...f, quote_amount: e.target.value }))}
+                hint="The contractor's price. Up to the landlord's repair limit, the landlord doesn't need to approve it."
+              />
+              {repairLimit && repairLimit.property_id === form.property_id && (() => {
+                const limit = gbp(repairLimit.limit);
+                const quote = parseFloat(form.quote_amount);
+                const text = form.urgency === 'emergency'
+                  ? 'Emergency: no need to ask the landlord, whatever the cost.'
+                  : !(quote > 0)
+                    ? `Landlord's repair limit ${limit}: add the quote to see if the landlord must approve first.`
+                    : quote <= repairLimit.limit
+                      ? `Within the landlord's repair limit (${limit}): no need to ask the landlord.`
+                      : `Over the landlord's repair limit (${limit}): the landlord approves first (Awaiting Approval).`;
+                const tone = form.urgency !== 'emergency' && quote > repairLimit.limit ? 'text-status-warning' : 'text-status-muted';
+                return <p className={`text-xs -mt-2 ${tone}`}>{text}</p>;
+              })()}
 
               <div className="flex gap-3 justify-end mt-1">
                 <Button type="button" variant="ghost" onClick={() => { setIsModalOpen(false); setFormErrors({}); }}>
@@ -594,6 +664,9 @@ export const MaintenanceBoard = () => {
               <span className="text-2xs font-bold bg-surface-hover text-brand-primary border border-card-border px-2 py-0.5 rounded-sm capitalize">
                 {detailTicket.urgency}
               </span>
+              {detailTicket.raw.spend_threshold_auto_approve != null && (
+                <span className="text-2xs font-semibold text-status-muted">Repair limit {gbp(detailTicket.raw.spend_threshold_auto_approve)}</span>
+              )}
               {detailTicket.raw.landlord_approved === 1 && (
                 <span className="text-2xs font-bold bg-status-success-bg text-status-success border border-status-success/15 px-2 py-0.5 rounded-sm capitalize">
                   Landlord Approved
@@ -632,6 +705,19 @@ export const MaintenanceBoard = () => {
                   value={detailForm.quote_amount}
                   onChange={(e) => setDetailForm(f => ({ ...f, quote_amount: e.target.value }))}
                 />
+                {detailTicket.raw.status === 'complete' && (
+                  <Input
+                    label="Final Cost (£)"
+                    id="detail-final-cost"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder={detailTicket.raw.quote_amount != null ? `Quote: ${detailTicket.raw.quote_amount}` : 'e.g. 180.00'}
+                    value={detailForm.invoice_amount}
+                    onChange={(e) => setDetailForm(f => ({ ...f, invoice_amount: e.target.value }))}
+                    hint="The contractor's final invoice (blank = the quote). It comes off the landlord's next bill in Rent Cycle and shows on the statement."
+                  />
+                )}
               </div>
 
               {detailImages.length > 0 && (
@@ -660,6 +746,12 @@ export const MaintenanceBoard = () => {
                   </Button>
                 ) : <span />}
                 <div className="flex gap-3">
+                  {detailTicket.raw.status === 'in_progress' && (
+                    <Button type="button" variant="secondary" icon={CheckCircle2}
+                      onClick={() => setCompleteFor({ ticket: detailTicket, cost: detailTicket.raw.quote_amount != null ? String(parseFloat(detailTicket.raw.quote_amount)) : '' })}>
+                      Mark Complete
+                    </Button>
+                  )}
                   <Button type="button" variant="ghost" onClick={closeDetail} disabled={detailSaving}>
                     Close
                   </Button>
@@ -670,6 +762,34 @@ export const MaintenanceBoard = () => {
               </div>
             </form>
           </div>
+        </div>
+      )}
+      {completeFor && (
+        <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <form onSubmit={handleComplete} className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl border border-card-border flex flex-col gap-4" role="dialog" aria-label="Complete ticket">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-bold text-brand-primary">Complete Ticket #{completeFor.ticket.id}</h3>
+              <button type="button" onClick={() => setCompleteFor(null)} disabled={completing} className="text-gray-400 hover:text-brand-primary cursor-pointer" aria-label="Close">
+                <X size={20} />
+              </button>
+            </div>
+            <p className="text-sm text-status-muted">{completeFor.ticket.title || completeFor.ticket.address}</p>
+            <Input
+              label="Final Cost (£)"
+              id="complete-final-cost"
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="Blank = the quote"
+              value={completeFor.cost}
+              onChange={(e) => setCompleteFor((c) => ({ ...c, cost: e.target.value }))}
+              hint="The contractor's final invoice (blank = the quote). It comes off the landlord's next bill in Rent Cycle and shows on the statement."
+            />
+            <div className="flex gap-3 justify-end">
+              <Button type="button" variant="ghost" onClick={() => setCompleteFor(null)} disabled={completing}>Cancel</Button>
+              <Button type="submit" variant="primary" icon={CheckCircle2} disabled={completing}>{completing ? 'Saving…' : 'Mark Complete'}</Button>
+            </div>
+          </form>
         </div>
       )}
     </div>

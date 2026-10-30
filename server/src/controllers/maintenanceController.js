@@ -6,6 +6,7 @@ import path from 'path';
 import logger from '../utils/logger.js';
 import { toYmd } from '../utils/dateHelpers.js';
 import { checkPhone } from '../validations/common.js';
+import { applyRepairDeductions, repairLimitFor } from '../utils/repairDeductions.js';
 
 const formatTicket = (t) => {
   if (!t) return null;
@@ -30,8 +31,16 @@ const VALID_TRANSITIONS = {
   'cancelled': []
 };
 
+// GET /maintenance/repair-limit?property_id= — the most ROCA may spend on one
+// repair on this flat without asking the landlord (New Ticket form).
+export const getRepairLimit = catchAsync(async (req, res) => {
+  const propertyId = Number(req.query.property_id);
+  if (!Number.isInteger(propertyId)) throw new ApiError(400, 'property_id is required');
+  res.json({ success: true, data: await repairLimitFor(db, propertyId) });
+});
+
 export const createTicket = catchAsync(async (req, res, next) => {
-  const { property_id, tenancy_id, urgency, title, description, quote_amount, spend_threshold_auto_approve } = req.body;
+  const { property_id, tenancy_id, urgency, title, description, quote_amount, contractor_id } = req.body;
 
   if (!property_id || !urgency || !title || !description) {
     throw new ApiError(400, 'Property, urgency, title, and description are required');
@@ -57,21 +66,30 @@ export const createTicket = catchAsync(async (req, res, next) => {
     }
   }
 
-  // Quotes and auto-approval thresholds are admin-set: a landlord-supplied quote
-  // would let the caller mint pre-approved contractor_cost ledger deductions.
+  // Quotes are admin-set: a landlord-supplied quote would let the caller mint
+  // pre-approved contractor_cost ledger deductions.
   const quoteAmt = !isLandlordCaller && quote_amount !== undefined ? parseFloat(quote_amount) : 0;
-  const threshold = !isLandlordCaller && spend_threshold_auto_approve !== undefined ? parseFloat(spend_threshold_auto_approve) : 250.00;
+  // Spend authority: up to the landlord's repair limit (else the default in
+  // Settings) ROCA goes ahead; above it the landlord approves first. Saved on
+  // the ticket as the limit that applied.
+  const { limit: threshold } = await repairLimitFor(db, property.id);
 
-  let ticketStatus = 'new';
+  // Every ticket starts in New (to be triaged and given a contractor). Within
+  // the limit it is approved already, so it never waits for the landlord.
+  const ticketStatus = 'new';
   let landlordApproved = null;
   let landlordApprovedAt = null;
-
-  if (urgency === 'emergency') {
-    ticketStatus = 'in_progress';
-  } else if (urgency === 'routine' && quoteAmt > 0 && quoteAmt <= threshold) {
-    ticketStatus = 'in_progress';
+  if (['routine', 'urgent'].includes(urgency) && quoteAmt > 0 && quoteAmt <= threshold) {
     landlordApproved = 1;
     landlordApprovedAt = new Date();
+  }
+
+  // Contractor (optional, admin only): one from the Contractors list.
+  let contractorId = null;
+  if (!isLandlordCaller && contractor_id !== undefined && contractor_id !== null && contractor_id !== '') {
+    const contractor = await db('contractors').where('id', contractor_id).first('id');
+    if (!contractor) throw new ApiError(400, 'Contractor not found');
+    contractorId = contractor.id;
   }
 
   const result = await db.transaction(async (trx) => {
@@ -87,7 +105,8 @@ export const createTicket = catchAsync(async (req, res, next) => {
       landlord_approved: landlordApproved,
       landlord_approved_at: landlordApprovedAt,
       quote_amount: quoteAmt > 0 ? quoteAmt.toFixed(2) : null,
-      spend_threshold_auto_approve: threshold.toFixed(2)
+      spend_threshold_auto_approve: threshold.toFixed(2),
+      contractor_id: contractorId
     });
 
     // 2. Create deduction transaction if auto-approved
@@ -112,7 +131,7 @@ export const createTicket = catchAsync(async (req, res, next) => {
       action: 'MAINTENANCE_TICKET_CREATED',
       entity_type: 'maintenance_ticket',
       entity_id: ticketId,
-      meta: JSON.stringify({ property_id, urgency, title, status: ticketStatus, quote_amount: quoteAmt }),
+      meta: JSON.stringify({ property_id, urgency, title, status: ticketStatus, quote_amount: quoteAmt, contractor_id: contractorId }),
       ip_address: req.ip || null
     });
 
@@ -128,7 +147,7 @@ export const createTicket = catchAsync(async (req, res, next) => {
 
 export const updateTicketStatus = catchAsync(async (req, res, next) => {
   const { id } = req.params;
-  const { status, contractor_id, quote_amount, landlord_approved, notes } = req.body;
+  const { status, contractor_id, quote_amount, invoice_amount, landlord_approved, notes } = req.body;
 
   const ticket = await db('maintenance_tickets').where('id', id).first();
   if (!ticket) {
@@ -148,14 +167,38 @@ export const updateTicketStatus = catchAsync(async (req, res, next) => {
     }
   }
 
-  const isApproved = landlord_approved === true || landlord_approved === 1;
+  // In Progress above the repair limit needs the landlord's OK (emergencies go
+  // ahead). Moving it on from Awaiting Approval records that the landlord agreed.
+  let approvedByMove = false;
+  if (status === 'in_progress' && currentStatus !== 'in_progress' && ticket.urgency !== 'emergency' && Number(ticket.landlord_approved) !== 1) {
+    const quote = quote_amount !== undefined ? parseFloat(quote_amount) : parseFloat(ticket.quote_amount || 0);
+    const limit = parseFloat(ticket.spend_threshold_auto_approve ?? 250);
+    if (quote > limit) {
+      if (currentStatus !== 'awaiting_approval') {
+        throw new ApiError(400, `Needs the landlord's approval first (quote £${quote.toFixed(2)}, limit £${limit.toFixed(2)}): move it to Awaiting Approval.`);
+      }
+      approvedByMove = true;
+    }
+  }
+
+  const isApproved = landlord_approved === true || landlord_approved === 1 || approvedByMove;
   const quoteAmt = quote_amount !== undefined ? parseFloat(quote_amount) : parseFloat(ticket.quote_amount || 0);
 
   const updateData = {};
   if (status !== undefined) updateData.status = status;
   if (contractor_id !== undefined) updateData.contractor_id = contractor_id;
   if (quote_amount !== undefined) updateData.quote_amount = parseFloat(quote_amount).toFixed(2);
-  if (landlord_approved !== undefined) {
+  // Final cost (the contractor's invoice): what the statement and the landlord
+  // bill deduct; blank falls back to the quote.
+  if (invoice_amount !== undefined) {
+    if (invoice_amount === null || invoice_amount === '') updateData.invoice_amount = null;
+    else {
+      const cost = parseFloat(invoice_amount);
+      if (!Number.isFinite(cost) || cost < 0) throw new ApiError(400, 'The final cost must be £0 or more');
+      updateData.invoice_amount = cost.toFixed(2);
+    }
+  }
+  if (landlord_approved !== undefined || approvedByMove) {
     updateData.landlord_approved = isApproved ? 1 : 0;
     if (isApproved) {
       updateData.landlord_approved_at = db.fn.now();
@@ -163,7 +206,10 @@ export const updateTicketStatus = catchAsync(async (req, res, next) => {
       updateData.landlord_approved_at = null;
     }
   }
-  if (newStatus === 'complete') {
+  // Stamped once, when the work is completed (later edits keep the date, so the
+  // repair stays in the same statement period).
+  const completing = newStatus === 'complete' && currentStatus !== 'complete';
+  if (completing) {
     updateData.completed_at = db.fn.now();
   }
 
@@ -223,8 +269,10 @@ export const updateTicketStatus = catchAsync(async (req, res, next) => {
       ...(status !== undefined && { status }),
       ...(contractor_id !== undefined && { contractor_id }),
       ...(quote_amount !== undefined && { quote_amount: parseFloat(quote_amount).toFixed(2) }),
-      ...(landlord_approved !== undefined && { landlord_approved: isApproved ? 1 : 0 }),
-      ...(newStatus === 'complete' && { completed_at: 'NOW()' })
+      ...(invoice_amount !== undefined && { invoice_amount: updateData.invoice_amount }),
+      ...((landlord_approved !== undefined || approvedByMove) && { landlord_approved: isApproved ? 1 : 0 }),
+      ...(approvedByMove && { approved_by: 'admin (moved from Awaiting Approval)' }),
+      ...(completing && { completed_at: 'NOW()' })
     };
     await trx('audit_log').insert({
       actor_id: req.user.id,
@@ -239,8 +287,17 @@ export const updateTicketStatus = catchAsync(async (req, res, next) => {
 
   const updatedTicket = await db('maintenance_tickets').where('id', id).first();
 
+  // A completed repair comes off the landlord's next bill (Rent Cycle).
+  let message;
+  if (updatedTicket.status === 'complete') {
+    const waiting = await db.transaction((trx) => applyRepairDeductions(trx, ticket.property_id));
+    const mine = waiting.find((w) => String(w.id) === String(id));
+    if (mine) message = `This repair (£${mine.cost.toFixed(2)}) is more than what is left of the landlord's share on the open rent payments, so it waits for the next one.`;
+  }
+
   res.json({
     success: true,
+    message,
     data: formatTicket(updatedTicket)
   });
 });

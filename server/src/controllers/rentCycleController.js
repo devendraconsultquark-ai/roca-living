@@ -8,6 +8,7 @@ import { getStoredConnection } from '../utils/xero.js';
 import { estateDisplayFor } from '../utils/estatesLink.js';
 import { pushRentInvoices, pullInvoicePayments } from '../utils/xeroRentInvoices.js';
 import { postLandlordBill, pullLandlordBillStatus } from '../utils/xeroLandlordBills.js';
+import { applyRepairDeductions } from '../utils/repairDeductions.js';
 
 // Rent Cycle — the whole monthly rent flow on one page (Accounting → Rent Cycle).
 // One row per managed flat's rent month, moving through:
@@ -69,6 +70,17 @@ export const getRentCycle = catchAsync(async (req, res) => {
   const { month, first, last } = monthRange(req.query.month);
   const today = todayYmd();
 
+  // Completed repairs onto open landlord bills first, so the figures below include them.
+  const openFlats = await db('rent_payments as rp').join('tenancies as t', 'rp.tenancy_id', 't.id')
+    .whereIn('rp.approval_status', ['pending', 'approved'])
+    .where((q) => q.whereNull('rp.xero_bill_status').orWhereIn('rp.xero_bill_status', ['failed', 'voided']))
+    .distinct('t.property_id').pluck('t.property_id');
+  const repairsWaiting = new Map();
+  for (const pid of openFlats) {
+    const waiting = await db.transaction((trx) => applyRepairDeductions(trx, pid));
+    if (waiting.length) repairsWaiting.set(pid, waiting);
+  }
+
   const months = await db('rent_schedules as s')
     .join('tenancies as t', 's.tenancy_id', 't.id')
     .join('properties as p', 't.property_id', 'p.id')
@@ -83,7 +95,7 @@ export const getRentCycle = catchAsync(async (req, res) => {
     .orderByRaw('CAST(p.apartment_number AS UNSIGNED)')
     .orderBy('s.due_date')
     .select(
-      's.id as schedule_id', 's.tenancy_id', 's.due_date', 's.amount as rent_due', 's.status as schedule_status', 's.paid_amount',
+      's.id as schedule_id', 's.tenancy_id', 't.property_id', 's.due_date', 's.amount as rent_due', 's.status as schedule_status', 's.paid_amount',
       't.start_date', 't.rent_due_day', 't.rent_due_day_from', 'p.block_name', 'p.apartment_number', 'p.address_line1', 'p.mgmt_fee_pct', 'p.rocaem_property_id',
       'l.name as landlord_name', 'p.landlord_id', 'lead.name as tenant_name', 'lead.id as tenant_id'
     );
@@ -164,6 +176,8 @@ export const getRentCycle = catchAsync(async (req, res) => {
       bill_number: payments.find((p) => p.xero_bill_number && p.xero_bill_status !== 'voided')?.xero_bill_number || null,
       landlord_paid_at: payments.map((p) => p.landlord_paid_at && toYmd(p.landlord_paid_at)).filter(Boolean).sort().pop() || null,
       statements,
+      // Completed repairs too big for this flat's open payments (they wait).
+      repairs_waiting: repairsWaiting.get(m.property_id) || [],
       ...st
     });
   }

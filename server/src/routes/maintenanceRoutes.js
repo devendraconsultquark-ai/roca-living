@@ -5,6 +5,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 import {
   createTicket,
+  getRepairLimit,
   updateTicketStatus,
   getAllTickets,
   getMyTickets,
@@ -66,6 +67,7 @@ maintenanceRouter.patch('/:id/decline', protect('landlord'), restrictTo('LANDLOR
 
 // Admin routes
 maintenanceRouter.get('/', protect('admin'), restrictTo('ADMIN'), getAllTickets);
+maintenanceRouter.get('/repair-limit', protect('admin'), restrictTo('ADMIN'), getRepairLimit);
 maintenanceRouter.patch('/:id/status', protect('admin'), restrictTo('ADMIN'), updateTicketStatus);
 
 // Contractor routes (admin)

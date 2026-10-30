@@ -3,7 +3,8 @@ import { PiggyBank, ShieldCheck, X } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { StatCard } from '../components/UI/StatCard';
-import { Input } from '../components/UI/Input';
+import { DatePicker } from '../components/UI/DatePicker';
+import { todayYmd } from '../utilities/designTokens';
 import { Dropdown } from '../components/UI/Dropdown';
 import { useToast } from '../components/UI/ToastContext';
 import { Skeleton } from '../components/UI/Skeleton';
@@ -269,20 +270,20 @@ export const Deposits = () => {
             </p>
 
             <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-4">
-              <Input
+              <DatePicker
                 label="Registered On"
                 id="dep-registered-at"
-                type="date"
+                max={todayYmd()}
                 required
                 value={registeredAt}
-                onChange={(e) => setRegisteredAt(e.target.value)}
+                onChange={(v) => setRegisteredAt(v)}
               />
-              <Input
+              <DatePicker
                 label="Prescribed Info Served On (optional)"
                 id="dep-pi-at"
-                type="date"
+                max={todayYmd()}
                 value={prescribedInfoAt}
-                onChange={(e) => setPrescribedInfoAt(e.target.value)}
+                onChange={(v) => setPrescribedInfoAt(v)}
               />
 
               <div className="flex gap-3 justify-end mt-1">

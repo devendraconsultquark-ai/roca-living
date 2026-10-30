@@ -5,6 +5,7 @@ import { getSetting } from './settings.js';
 import { toYmd } from './dateHelpers.js';
 import { getStoredConnection } from './xero.js';
 import { xeroThrottled as xero, xeroMessage, xeroDateYmd, round2, contactNotFound } from './xeroRentInvoices.js';
+import { applyRepairDeductions } from './repairDeductions.js';
 
 // "Send to Xero" for approved rent (rent cycle phase 4, separate approved-rent
 // flow — the existing statements are not involved). One bill to the landlord
@@ -93,6 +94,9 @@ export const postLandlordBill = async (paymentId, actorId = null) => {
   const feeCode = await getSetting('xeroFeeIncomeAccountCode', null);
   if (!billCode || !feeCode) throw new ApiError(400, 'Choose the "Landlord bills account" and "Management fee income" in Settings → Xero first');
 
+  // A repair completed since the rent came in comes off this bill too.
+  const tenancy = await db('tenancies').where('id', p.tenancy_id).first('property_id');
+  await db.transaction((trx) => applyRepairDeductions(trx, tenancy?.property_id));
   const deductions = await db('rent_payment_deductions').where('rent_payment_id', p.id).orderBy('id').select('description', 'supplier', 'amount');
   const expenseCode = deductions.length ? await getSetting('xeroLandlordExpenseAccountCode', null) : null;
   if (deductions.length && !expenseCode) {

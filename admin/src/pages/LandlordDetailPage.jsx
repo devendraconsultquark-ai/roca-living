@@ -95,6 +95,9 @@ export const LandlordDetailPage = () => {
   // Terms of Business: status and the date signed
   const [tobForm, setTobForm] = useState({ tob_status: 'not_sent', tob_signed_at: '' });
   const [tobSaving, setTobSaving] = useState(false);
+  // Repair approval limit (£): blank = the default in Settings.
+  const [repairLimit, setRepairLimit] = useState('');
+  const [repairLimitSaving, setRepairLimitSaving] = useState(false);
 
   // One-time set-password link ({ name, link, expiresAt })
 
@@ -158,6 +161,7 @@ export const LandlordDetailPage = () => {
           tob_signed_at: localYmd(res.data.data.tob_signed_at),
         });
         setNotesDraft(res.data.data.notes || '');
+        setRepairLimit(res.data.data.repair_limit != null ? String(parseFloat(res.data.data.repair_limit)) : '');
         setManagerSel(res.data.data.account_manager_id ? String(res.data.data.account_manager_id) : '');
       } catch (err) {
         addToast(err.response?.data?.message || 'Failed to load landlord', 'error');
@@ -351,6 +355,21 @@ export const LandlordDetailPage = () => {
       addToast(err.response?.data?.message || 'Failed to update KYC status', 'error');
     } finally {
       setKycSaving(false);
+    }
+  };
+
+  const handleRepairLimitSubmit = async (e) => {
+    e.preventDefault();
+    if (repairLimit !== '' && !(Number(repairLimit) >= 0)) { addToast('Enter an amount in £, or leave it blank for the default', 'warning'); return; }
+    setRepairLimitSaving(true);
+    try {
+      await api.patch(`/landlords/${id}`, { repair_limit: repairLimit === '' ? null : Number(repairLimit) });
+      addToast(repairLimit === '' ? 'Repair limit: the default in Settings applies' : `Repair limit set to £${Number(repairLimit).toFixed(2)}`, 'success');
+      refetchLandlord();
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to save the repair limit', 'error');
+    } finally {
+      setRepairLimitSaving(false);
     }
   };
 
@@ -1417,6 +1436,24 @@ export const LandlordDetailPage = () => {
                   </Button>
                   <Button type="button" variant="ghost" icon={Upload} onClick={() => fileInputRef.current?.click()}>
                     Upload signed copy
+                  </Button>
+                </form>
+              </Card>
+
+              <Card title="Repair Approval Limit" info="The most ROCA may spend on one repair for this landlord without asking first. Above it the landlord approves; emergencies go ahead.">
+                <form onSubmit={handleRepairLimitSubmit} className="flex flex-col gap-3">
+                  <Input
+                    label="Limit (£)"
+                    id="repair-limit"
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="Blank = default in Settings"
+                    value={repairLimit}
+                    onChange={(e) => setRepairLimit(e.target.value)}
+                  />
+                  <Button type="submit" variant="primary" disabled={repairLimitSaving}>
+                    {repairLimitSaving ? 'Saving…' : 'Save Repair Limit'}
                   </Button>
                 </form>
               </Card>

@@ -4,6 +4,7 @@ import { UserCog, CheckCircle2, AlertTriangle, X, Edit, Trash2, Eye } from 'luci
 import { DataTable } from '../components/UI/DataTable';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
+import { DatePicker } from '../components/UI/DatePicker';
 import { Dropdown } from '../components/UI/Dropdown';
 import { Skeleton } from '../components/UI/Skeleton';
 import { useToast } from '../components/UI/ToastContext';
@@ -288,12 +289,11 @@ export const Contractors = () => {
                   value={form.phone}
                   onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))}
                 />
-                <Input
+                <DatePicker
                   label="Insurance Expiry Date"
                   id="c-insurance"
-                  type="date"
                   value={form.insurance_expiry}
-                  onChange={(e) => setForm(f => ({ ...f, insurance_expiry: e.target.value }))}
+                  onChange={(v) => setForm(f => ({ ...f, insurance_expiry: v }))}
                 />
                 <Input
                   label="Rating (0-5)"
@@ -381,12 +381,11 @@ export const Contractors = () => {
                   value={editForm.phone}
                   onChange={(e) => setEditForm(f => ({ ...f, phone: e.target.value }))}
                 />
-                <Input
+                <DatePicker
                   label="Insurance Expiry Date"
                   id="edit-c-insurance"
-                  type="date"
                   value={editForm.insurance_expiry}
-                  onChange={(e) => setEditForm(f => ({ ...f, insurance_expiry: e.target.value }))}
+                  onChange={(v) => setEditForm(f => ({ ...f, insurance_expiry: v }))}
                 />
                 <Input
                   label="Rating (0-5)"

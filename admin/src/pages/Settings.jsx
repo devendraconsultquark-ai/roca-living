@@ -3,6 +3,8 @@ import { Settings as SettingsIcon, Save, Newspaper, Plus, Archive, ArchiveRestor
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
 import { Input } from '../components/UI/Input';
+import { DatePicker } from '../components/UI/DatePicker';
+import { todayYmd } from '../utilities/designTokens';
 import { Button } from '../components/UI/Button';
 import { XeroConnection } from '../components/UI/XeroConnection';
 import api from '../utilities/api';
@@ -15,6 +17,7 @@ export const Settings = () => {
   const [agencyFee, setAgencyFee] = useState('12.0');
   const [depositSchemeNum, setDepositSchemeNum] = useState('TDS-ROCA-5001');
   const [vatRate, setVatRate] = useState('20.0');
+  const [repairApprovalLimit, setRepairApprovalLimit] = useState('250');
   const [loading, setLoading] = useState(false);
 
   // Legislation & News manager
@@ -93,10 +96,11 @@ export const Settings = () => {
       try {
         const response = await api.get('/settings');
         if (response.data?.success && response.data?.data) {
-          const { agencyFee, depositSchemeNum, vatRate } = response.data.data;
+          const { agencyFee, depositSchemeNum, vatRate, repairApprovalLimit } = response.data.data;
           if (agencyFee !== undefined) setAgencyFee(agencyFee);
           if (depositSchemeNum !== undefined) setDepositSchemeNum(depositSchemeNum);
           if (vatRate !== undefined) setVatRate(vatRate);
+          if (repairApprovalLimit !== undefined) setRepairApprovalLimit(repairApprovalLimit);
         }
       } catch (err) {
         console.error('Failed to load settings:', err);
@@ -113,7 +117,8 @@ export const Settings = () => {
       const response = await api.post('/settings', {
         agencyFee,
         vatRate,
-        depositSchemeNum
+        depositSchemeNum,
+        repairApprovalLimit
       });
       if (response.data?.success) {
         addToast('System settings saved successfully!', 'success');
@@ -156,6 +161,18 @@ export const Settings = () => {
               value={vatRate}
               onChange={(e) => setVatRate(e.target.value)}
               disabled={loading}
+            />
+            <Input
+              label="Repair Approval Limit (£)"
+              id="repairApprovalLimit"
+              type="number"
+              min="0"
+              step="1"
+              required
+              value={repairApprovalLimit}
+              onChange={(e) => setRepairApprovalLimit(e.target.value)}
+              disabled={loading}
+              hint="The most ROCA may spend on one repair without asking the landlord first. Applies to every landlord without their own limit (Landlord → Settings)."
             />
           </div>
         </div>
@@ -222,13 +239,13 @@ export const Settings = () => {
             onChange={(e) => setNewsForm((f) => ({ ...f, url: e.target.value }))}
             disabled={savingNews}
           />
-          <Input
+          <DatePicker
             label="Date"
             id="news-date"
-            type="date"
+            max={todayYmd()}
             required
             value={newsForm.published_on}
-            onChange={(e) => setNewsForm((f) => ({ ...f, published_on: e.target.value }))}
+            onChange={(v) => setNewsForm((f) => ({ ...f, published_on: v }))}
             disabled={savingNews}
           />
           <Button type="submit" variant="primary" icon={Plus} disabled={savingNews}>

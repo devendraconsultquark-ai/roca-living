@@ -8,6 +8,7 @@ import { useConfirm } from '../components/UI/ConfirmContext';
 import { DataRow, Card, DetailContainer, DetailSkeleton, DetailHeader, DetailTabs, urgencyColor, ticketStatusIcon } from '../components/UI/DetailComponents';
 import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
+import { DatePicker } from '../components/UI/DatePicker';
 import { Dropdown } from '../components/UI/Dropdown';
 import api from '../utilities/api';
 
@@ -305,12 +306,11 @@ export const ContractorDetailPage = () => {
                   value={editForm.phone}
                   onChange={(e) => setEditForm(f => ({ ...f, phone: e.target.value }))}
                 />
-                <Input
+                <DatePicker
                   label="Insurance Expiry Date"
                   id="edit-c-insurance"
-                  type="date"
                   value={editForm.insurance_expiry}
-                  onChange={(e) => setEditForm(f => ({ ...f, insurance_expiry: e.target.value }))}
+                  onChange={(v) => setEditForm(f => ({ ...f, insurance_expiry: v }))}
                 />
                 <Input
                   label="Rating (0-5)"

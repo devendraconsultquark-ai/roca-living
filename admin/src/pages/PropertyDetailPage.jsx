@@ -8,6 +8,8 @@ import { StatusPill } from '../components/UI/StatusPill';
 import { useConfirm } from '../components/UI/ConfirmContext';
 import { DataRow, Card, DetailContainer, DetailSkeleton, DetailHeader, DetailTabs, CertBadge, urgencyColor } from '../components/UI/DetailComponents';
 import { Input } from '../components/UI/Input';
+import { DatePicker } from '../components/UI/DatePicker';
+import { todayYmd } from '../utilities/designTokens';
 import { Dropdown } from '../components/UI/Dropdown';
 import { Button } from '../components/UI/Button';
 import { DocumentUploadModal } from '../components/UI/DocumentUploadModal';
@@ -776,20 +778,20 @@ export const PropertyDetailPage = () => {
             <div className="mb-4" />
 
             <form onSubmit={handleCertSubmit} className="flex flex-col gap-4">
-              <Input
+              <DatePicker
                 label="Issued Date"
                 id="cert_issued_at"
-                type="date"
+                max={todayYmd()}
                 value={certForm.issued_at}
-                onChange={(e) => setCertForm({ ...certForm, issued_at: e.target.value })}
+                onChange={(v) => setCertForm({ ...certForm, issued_at: v })}
               />
-              <Input
+              <DatePicker
                 label="Expiry Date"
                 id="cert_expires_at"
-                type="date"
+                min={certForm.issued_at || null}
                 required
                 value={certForm.expires_at}
-                onChange={(e) => setCertForm({ ...certForm, expires_at: e.target.value })}
+                onChange={(v) => setCertForm({ ...certForm, expires_at: v })}
               />
               <Input
                 label="Notes (optional)"
