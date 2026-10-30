@@ -8,6 +8,7 @@ import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
 import { DatePicker } from '../components/UI/DatePicker';
+import { todayYmd } from '../utilities/designTokens';
 import { Skeleton } from '../components/UI/Skeleton';
 import { CashflowOverview } from '../components/UI/CashflowOverview';
 import { AccountingKpis } from '../components/UI/AccountingKpis';
@@ -207,7 +208,7 @@ export const AccountingHub = () => {
       ['Date', 'Tenant', 'Property', 'Amount', 'Method', 'Reference', 'Status'].map(escape).join(','),
       ...rows.map(r => [r.date, r.tenant, r.property, r.amount.toFixed(2), r.method, r.reference, r.status].map(escape).join(','))
     ].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -637,6 +638,7 @@ export const AccountingHub = () => {
               <DatePicker
                 label="Date Received"
                 id="paymentReceivedAt"
+                max={todayYmd()}
                 required
                 value={paymentForm.received_at}
                 onChange={(val) => setPaymentForm({ ...paymentForm, received_at: val })}

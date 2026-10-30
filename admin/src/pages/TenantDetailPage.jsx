@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   User, Users, ShieldCheck,
-  Home, CreditCard, Clock, FileText, X, Download, Upload, Trash2
+  Home, CreditCard, Clock, FileText, X, Upload, Trash2
 } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
@@ -10,12 +10,11 @@ import { DataRow, Card, DetailContainer, DetailSkeleton, DetailHeader, DetailTab
 import { SectionCard, KeyValues, Pill } from '../components/UI/DesignKit';
 import { gbp, shortDate } from '../utilities/designTokens';
 import { Input } from '../components/UI/Input';
-import { Dropdown } from '../components/UI/Dropdown';
 import { Button } from '../components/UI/Button';
-import { DatePicker } from '../components/UI/DatePicker';
 import { DocumentUploadModal } from '../components/UI/DocumentUploadModal';
+import { DocumentPreviewModal } from '../components/UI/DocumentPreviewModal';
+import { DocumentList } from '../components/UI/DocumentList';
 import api from '../utilities/api';
-import { DEPOSIT_SCHEME_OPTIONS } from '../utilities/depositSchemes';
 import { RentDuePreview } from '../components/UI/RentDuePreview';
 import { EditTenantModal } from '../components/UI/EditTenantModal';
 import { RentAccountCard } from '../components/UI/RentAccountCard';
@@ -41,6 +40,7 @@ export const TenantDetailPage = () => {
   const [pendingUpload, setPendingUpload] = useState(null);
   const fileInputRef = useRef(null);
   const [docsReloadKey, setDocsReloadKey] = useState(0);
+  const [previewDoc, setPreviewDoc] = useState(null);
 
   // Bump to re-fetch after a mutation (profile edit).
   const [reloadKey, setReloadKey] = useState(0);
@@ -62,35 +62,6 @@ export const TenantDetailPage = () => {
       addToast(err.response?.data?.message || 'Failed to change the rent due day', 'error');
     } finally {
       setDueDaySaving(false);
-    }
-  };
-
-  // Add a deposit that wasn't known when the tenant was added
-  const [depositForm, setDepositForm] = useState(null); // null = closed
-  const [depositErrors, setDepositErrors] = useState({});
-  const [depositSaving, setDepositSaving] = useState(false);
-
-  const handleDepositSubmit = async (e) => {
-    e.preventDefault();
-    const errs = {};
-    if (!(parseFloat(depositForm.amount) > 0)) errs.amount = 'Enter the deposit amount';
-    if (!depositForm.received_at) errs.received_at = 'Enter the date it was received';
-    if (Object.keys(errs).length) { setDepositErrors(errs); return; }
-    setDepositErrors({});
-    setDepositSaving(true);
-    try {
-      await api.post(`/tenancies/${data.tenancy.id}/deposit`, {
-        amount: parseFloat(depositForm.amount),
-        received_at: depositForm.received_at,
-        scheme: depositForm.scheme,
-      });
-      addToast('Deposit added. Register it with the scheme within 30 days.', 'success');
-      setDepositForm(null);
-      setReloadKey((k) => k + 1);
-    } catch (err) {
-      addToast(err.response?.data?.message || 'Failed to add the deposit', 'error');
-    } finally {
-      setDepositSaving(false);
     }
   };
 
@@ -184,6 +155,23 @@ export const TenantDetailPage = () => {
     setPendingUpload(file);
   };
 
+  const handleDocDelete = async (doc) => {
+    const ok = await confirm({
+      title: 'Delete Document',
+      message: `Delete ${doc.name}? It is removed from Documents too.`,
+      variant: 'danger',
+      confirmText: 'Delete',
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`/documents/${doc.id}`, { skipInterceptorError: true });
+      addToast('Document deleted', 'success');
+      setDocsReloadKey((k) => k + 1);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to delete the document', 'error');
+    }
+  };
+
   const handleDelete = async () => {
     const ok = await confirm({
       title: 'Delete Tenant',
@@ -225,7 +213,7 @@ export const TenantDetailPage = () => {
         backLabel="Back to Tenants"
         title={data.name}
         subtitle={`TNT-${data.id.toString().padStart(4, '0')} • ${data.is_lead_tenant ? 'Lead tenant' : 'Co-tenant'} • Added ${new Date(data.created_at).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`}
-        editLabel="Edit Profile"
+        editLabel="Edit Tenant"
         onEdit={openEditModal}
         onDelete={handleDelete}
       />
@@ -286,7 +274,7 @@ export const TenantDetailPage = () => {
         {activeTab === 'overview' && (
           <div className="flex flex-col gap-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <SectionCard title="Tenant Details" action="Edit profile" onAction={openEditModal}>
+              <SectionCard title="Tenant Details">
                 <KeyValues rows={[
                   ['Tenant ID', `TNT-${data.id.toString().padStart(4, '0')}`],
                   ['Email', data.email ? <a key="e" href={`mailto:${data.email}`} className="text-brand-accent hover:underline break-all">{data.email}</a> : '—'],
@@ -370,9 +358,14 @@ export const TenantDetailPage = () => {
                             <FileText size={14} className="text-gray-400 shrink-0" />
                             <span className="text-xs font-bold text-brand-primary truncate">{d.name}</span>
                           </span>
-                          <button type="button" onClick={() => handleDocDownload(d)} className="text-xs font-bold text-brand-accent hover:underline cursor-pointer shrink-0">
-                            Download
-                          </button>
+                          <span className="flex items-center gap-3 shrink-0">
+                            <button type="button" onClick={() => setPreviewDoc(d)} className="text-xs font-bold text-brand-accent hover:underline cursor-pointer">
+                              Preview
+                            </button>
+                            <button type="button" onClick={() => handleDocDownload(d)} className="text-xs font-bold text-brand-accent hover:underline cursor-pointer">
+                              Download
+                            </button>
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -405,26 +398,14 @@ export const TenantDetailPage = () => {
                         <DataRow icon={Clock} label="Rent due" value={`${ordinal(data.tenancy.rent_due_day)} of each month`} />
                       </div>
                     </div>
-                    <div className="flex flex-wrap items-center justify-between gap-3 -mt-2">
-                      <p className="text-xs text-status-muted">
-                        {data.tenancy.first_payment
-                          ? `First payment £${data.tenancy.first_payment.amount.toFixed(2)} (pro-rata, covers ${new Date(data.tenancy.first_payment.due_date).toLocaleDateString('en-GB')} – ${new Date(data.tenancy.first_payment.covered_to).toLocaleDateString('en-GB')}).`
-                          : 'Rent is due on the tenancy start day each month.'}
-                      </p>
-                      <Button variant="secondary" size="sm" onClick={() => setDueDayForm({ day: String(data.tenancy.rent_due_day) })}>
-                        Change due day
-                      </Button>
-                    </div>
+                    <p className="text-xs text-status-muted -mt-2">
+                      {data.tenancy.first_payment
+                        ? `First payment £${data.tenancy.first_payment.amount.toFixed(2)} (pro-rata, covers ${new Date(data.tenancy.first_payment.due_date).toLocaleDateString('en-GB')} – ${new Date(data.tenancy.first_payment.covered_to).toLocaleDateString('en-GB')}).`
+                        : 'Rent is due on the tenancy start day each month.'}
+                    </p>
 
                     <div className="border-t border-card-border pt-4">
-                      <div className="flex items-center justify-between gap-3 mb-2">
-                        <h4 className="text-sm-portal font-bold text-brand-primary capitalize">Deposit</h4>
-                        {data.deposit && (
-                          <button type="button" onClick={() => setIsEditModalOpen(true)} className="text-xs font-bold text-brand-accent hover:underline cursor-pointer">
-                            Edit Deposit
-                          </button>
-                        )}
-                      </div>
+                      <h4 className="text-sm-portal font-bold text-brand-primary capitalize mb-2">Deposit</h4>
                       {data.deposit ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-1">
                           <div>
@@ -437,20 +418,14 @@ export const TenantDetailPage = () => {
                               icon={Clock}
                               label={data.deposit.registered_at ? 'Registered' : 'Register by'}
                               value={new Date(data.deposit.registered_at || data.deposit.register_due).toLocaleDateString('en-GB')}
+                              hint={data.deposit.registered_at ? null : 'Not registered yet. The law gives 30 days from the date received, so this moves with the Received date.'}
                             />
                           </div>
                         </div>
                       ) : (
-                        <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-light border border-dashed border-card-border rounded-xl px-4 py-3">
-                          <p className="text-sm text-status-muted">No deposit recorded for this tenancy.</p>
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => { setDepositErrors({}); setDepositForm({ amount: '', received_at: '', scheme: 'TDS' }); }}
-                          >
-                            Add deposit
-                          </Button>
-                        </div>
+                        <p className="text-sm text-status-muted bg-surface-light border border-dashed border-card-border rounded-xl px-4 py-3">
+                          No deposit recorded. Add it with <b>Edit Tenant</b> at the top.
+                        </p>
                       )}
                     </div>
                   </div>
@@ -533,11 +508,15 @@ export const TenantDetailPage = () => {
                           <td className="py-3 px-4 text-status-muted">{methodLabel[p.method] || p.method}</td>
                           <td className="py-3 px-4 text-gray-400 text-xs font-mono">{p.reference || '—'}</td>
                           <td className="py-2 px-4 text-right">
-                            {p.can_delete && (
+                            {p.can_delete ? (
                               <Button variant="ghost" size="sm" icon={Trash2} onClick={() => handleDeletePayment(p)}>
                                 Delete
                               </Button>
-                            )}
+                            ) : p.delete_block ? (
+                              <span className="inline-flex items-center gap-1 text-2xs text-gray-400 font-semibold">
+                                Can't Delete <InfoTip text={p.delete_block} />
+                              </span>
+                            ) : null}
                           </td>
                         </tr>
                       ))}
@@ -575,35 +554,7 @@ export const TenantDetailPage = () => {
                         Upload Document
                       </Button>
                     </div>
-                    {documents.map((doc) => (
-                      <div
-                        key={doc.id}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-surface-light/50 border border-card-border rounded-card hover:bg-surface-light transition-colors gap-3"
-                      >
-                        <div className="flex items-start gap-3 min-w-0">
-                          <div className="card-bg p-2 rounded-lg border border-card-border text-brand-accent shrink-0">
-                            <FileText size={18} />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-xs sm:text-sm font-bold text-brand-primary truncate">{doc.name}</p>
-                            <div className="flex flex-wrap items-center gap-2 text-2xs text-gray-400 font-semibold mt-1">
-                              <span>Uploaded: {doc.date}</span>
-                              <span>•</span>
-                              <span>Size: {doc.size}</span>
-                              <span>•</span>
-                              <span className="text-brand-accent">Tenancy</span>
-                            </div>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => handleDocDownload(doc)}
-                          className="p-2 text-gray-400 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors border border-transparent hover:border-brand-accent/10 cursor-pointer self-end sm:self-center"
-                          title="Download document"
-                        >
-                          <Download size={16} />
-                        </button>
-                      </div>
-                    ))}
+                    <DocumentList documents={documents} onPreview={setPreviewDoc} onDownload={handleDocDownload} onDelete={handleDocDelete} />
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center p-12 bg-surface-light rounded-xl border border-dashed border-card-border">
@@ -665,52 +616,6 @@ export const TenantDetailPage = () => {
         </div>
       )}
 
-      {depositForm && (
-        <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl mx-4 border border-card-border">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-brand-primary">Add Deposit</h3>
-              <button onClick={() => setDepositForm(null)} disabled={depositSaving} className="text-gray-400 hover:text-brand-primary cursor-pointer" aria-label="Close">
-                <X size={20} />
-              </button>
-            </div>
-            <div className="mb-4" />
-            <form onSubmit={handleDepositSubmit} className="flex flex-col gap-4">
-              <Input
-                label="Deposit (£)"
-                id="deposit-amount"
-                type="number"
-                step="0.01"
-                min="0"
-                required
-                value={depositForm.amount}
-                onChange={(e) => setDepositForm((f) => ({ ...f, amount: e.target.value }))}
-                error={depositErrors.amount}
-              />
-              <DatePicker
-                label="Date received"
-                id="deposit-received"
-                required
-                value={depositForm.received_at}
-                onChange={(val) => setDepositForm((f) => ({ ...f, received_at: val }))}
-                error={depositErrors.received_at}
-              />
-              <Dropdown
-                label="Scheme"
-                id="deposit-scheme"
-                options={DEPOSIT_SCHEME_OPTIONS}
-                value={depositForm.scheme}
-                onChange={(val) => setDepositForm((f) => ({ ...f, scheme: val }))}
-              />
-              <div className="flex gap-3 justify-end mt-1">
-                <Button type="button" variant="ghost" onClick={() => setDepositForm(null)} disabled={depositSaving}>Cancel</Button>
-                <Button type="submit" variant="primary" disabled={depositSaving}>{depositSaving ? 'Saving…' : 'Add Deposit'}</Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       {isEditModalOpen && (
         <EditTenantModal
           tenantId={id}
@@ -719,6 +624,8 @@ export const TenantDetailPage = () => {
           onChangeDueDay={() => setDueDayForm({ day: String(data.tenancy.rent_due_day) })}
         />
       )}
+
+      <DocumentPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} onDownload={handleDocDownload} />
 
       <DocumentUploadModal
         file={pendingUpload}

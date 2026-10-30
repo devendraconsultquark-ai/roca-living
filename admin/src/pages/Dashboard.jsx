@@ -181,7 +181,7 @@ export const Dashboard = () => {
       ['Maintenance Completed (Awaiting Invoice)', maintenance.complete_awaiting_invoice],
     ];
     const csv = rows.map((r) => r.join(',')).join('\n');
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    const url = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }));
     const a = document.createElement('a');
     a.href = url;
     a.download = `dashboard-summary-${month}.csv`;

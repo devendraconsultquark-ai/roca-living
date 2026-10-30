@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Download } from 'lucide-react';
 import { Card } from './DetailComponents';
 import { Button } from './Button';
@@ -8,6 +9,7 @@ import { downloadCsv } from '../../utilities/csv';
 // paid it, and what is still owed. Its balance is the one on the Tenants list.
 // account: rent_account from GET /tenancies/tenants/:id.
 export const RentAccountCard = ({ account, fileName = 'rent-account' }) => {
+  const [showFuture, setShowFuture] = useState(false);
   if (!account) return null;
   const { months, payments, totals } = account;
   const balance = parseFloat(totals.balance);
@@ -36,8 +38,15 @@ export const RentAccountCard = ({ account, fileName = 'rent-account' }) => {
     ? `${totals.months_due} rent month${totals.months_due === 1 ? '' : 's'} due since ${shortDate(totals.first_due)}: ${gbp(totals.rent_due_to_date)} due, ${gbp(totals.received)} received.`
     : 'No rent has fallen due yet.';
 
+  // Months due so far and the next one; the rest of the year ahead on request
+  // (the CSV always has all of them).
+  const nextIndex = rows.findIndex((r) => !r.fallen_due);
+  const later = nextIndex === -1 ? [] : rows.slice(nextIndex + 1);
+  const shown = showFuture || nextIndex === -1 ? rows : rows.slice(0, nextIndex + 1);
+
   return (
-    <Card title="Rent account">
+    <Card title="Rent account" info="Rent months are kept 12 months ahead, and a new one is added each month, so this never runs out. A tenancy with an End Date stops there.">
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <p className="text-sm text-brand-primary">
           {summary}{' '}
@@ -65,7 +74,7 @@ export const RentAccountCard = ({ account, fileName = 'rent-account' }) => {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => {
+              {shown.map((r) => {
                 const owed = parseFloat(r.owed);
                 const tone = !r.fallen_due ? 'text-gray-400' : owed > 0 ? 'text-status-danger' : 'text-brand-primary';
                 return (
@@ -87,6 +96,15 @@ export const RentAccountCard = ({ account, fileName = 'rent-account' }) => {
               })}
             </tbody>
           </table>
+          {later.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowFuture((v) => !v)}
+              className="mt-3 text-xs font-bold text-brand-accent hover:underline cursor-pointer"
+            >
+              {showFuture ? 'Hide Future Months' : `Show Next ${later.length} Month${later.length === 1 ? '' : 's'}`}
+            </button>
+          )}
         </div>
       )}
       {payments.length === 0 && totals.months_due > 0 && (

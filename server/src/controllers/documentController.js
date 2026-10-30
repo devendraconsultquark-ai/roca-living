@@ -114,7 +114,10 @@ export const getFolders = catchAsync(async (req, res, next) => {
         date: toYmd(d.created_at) || '',
         scope: d.owner_type,
         entityId: entityRefFor(d),
-        doc_reference: d.doc_reference
+        doc_reference: d.doc_reference,
+        // For the pages' category groups and file-type filter.
+        folder: folder.name,
+        mime_type: d.mime_type || null
       }))
     };
   });
@@ -422,8 +425,16 @@ export const getMyDocuments = catchAsync(async (req, res, next) => {
       related = p ? `Tenancy at ${p.name || p.address_line1 || p.property_reference}` : `Tenancy ${d.owner_id}`;
     }
 
-    if (d.doc_type === 'landlord_statement') {
+    if (d.doc_type === 'landlord_statement' || d.doc_type === 'statement_before_rl') {
       category = 'Statements';
+    } else if (d.doc_type === 'previous_agent_document') {
+      category = 'Previous Agent';
+    } else if (d.doc_type === 'landlord_document') {
+      category = 'Compliance';
+    } else if (d.doc_type === 'previous_tenancy') {
+      category = 'Previous Tenancies';
+    } else if (d.doc_type === 'property_report') {
+      category = 'Reports';
     } else if (d.doc_type === 'landlord_invoice') {
       category = 'Invoices';
     } else if (d.doc_type === 'kyc_document') {

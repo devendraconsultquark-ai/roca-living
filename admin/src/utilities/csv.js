@@ -10,7 +10,8 @@ export const toCsv = (rows, headers) => {
 };
 
 export const downloadCsv = (filename, rows, headers) => {
-  const blob = new Blob([toCsv(rows, headers)], { type: 'text/csv;charset=utf-8;' });
+  // The byte-order mark makes Excel read UTF-8 (else £ shows as Â£).
+  const blob = new Blob(['﻿' + toCsv(rows, headers)], { type: 'text/csv;charset=utf-8;' });
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

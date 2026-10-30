@@ -605,6 +605,7 @@ export const Invoices = () => {
                   <DatePicker 
                     label="Invoice Period End"
                     id="endDate"
+                    min={startDate || null}
                     value={endDate}
                     onChange={(val) => setEndDate(val)}
                   />

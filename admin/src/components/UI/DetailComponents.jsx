@@ -7,15 +7,19 @@ import { Skeleton } from './Skeleton';
 import { InfoTip } from './InfoTip';
 import { titleCase } from '../../utilities/titleCase';
 
-export const DataRow = ({ icon: Icon, label, value }) => (
-  <div className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
-    <div className="flex items-center gap-3 text-status-muted">
+// hint: a short explanation shown from an ⓘ next to the label.
+export const DataRow = ({ icon: Icon, label, value, hint = null }) => (
+  <div className="flex items-center justify-between gap-4 py-3 border-b border-gray-50 last:border-0">
+    <div className="flex items-center gap-3 text-status-muted shrink-0">
       <div className="flex items-center justify-center w-8 h-8 rounded-full bg-surface-light border border-card-border text-status-muted">
         {Icon && <Icon size={14} />}
       </div>
       <span className="text-xs-portal font-semibold">{titleCase(label)}</span>
+      {hint && <InfoTip text={hint} />}
     </div>
-    <span className="text-xs-portal font-bold text-brand-primary text-right max-w-[50%] truncate" title={typeof value === 'string' ? value : ''}>
+    {/* Long values (addresses) wrap onto a second line rather than being cut off. */}
+    <span className="text-xs-portal font-bold text-brand-primary text-right min-w-0 break-words">
+
       {value || '—'}
     </span>
   </div>

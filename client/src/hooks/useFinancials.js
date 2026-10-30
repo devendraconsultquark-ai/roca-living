@@ -232,7 +232,8 @@ export const useFinancials = () => {
           .join(","),
       ),
     );
-    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    // The byte-order mark makes Excel read UTF-8 (else £ shows as Â£).
+    const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
     downloadBlob(blob, "ROCA_Transactions.csv");
   };
 

@@ -15,8 +15,11 @@ import { StatCard } from '../components/UI/StatCard';
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
 import { DatePicker } from '../components/UI/DatePicker';
+import { todayYmd } from '../utilities/designTokens';
 import { Button } from '../components/UI/Button';
 import { DocumentUploadModal } from '../components/UI/DocumentUploadModal';
+import { DocumentPreviewModal } from '../components/UI/DocumentPreviewModal';
+import { DocumentList } from '../components/UI/DocumentList';
 import { PropertyThumb } from '../components/UI/PropertyImage';
 import { EstatesLandlordInfo } from '../components/UI/EstatesViews';
 import { KpiRow, KpiCard } from '../components/UI/DesignKit';
@@ -131,6 +134,7 @@ export const LandlordDetailPage = () => {
   const [allDocs, setAllDocs] = useState([]);
   const [docsReloadKey, setDocsReloadKey] = useState(0);
   const [pendingUpload, setPendingUpload] = useState(null);
+  const [previewDoc, setPreviewDoc] = useState(null);
   const fileInputRef = useRef(null);
 
   // Bump to re-fetch after a mutation (verify / bank-details update).
@@ -278,6 +282,23 @@ export const LandlordDetailPage = () => {
       }
     } finally {
       setEditSaving(false);
+    }
+  };
+
+  const handleDocDelete = async (doc) => {
+    const ok = await confirm({
+      title: 'Delete Document',
+      message: `Delete ${doc.name}? It is removed from Documents too.`,
+      variant: 'danger',
+      confirmText: 'Delete',
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`/documents/${doc.id}`, { skipInterceptorError: true });
+      addToast('Document deleted', 'success');
+      setDocsReloadKey((k) => k + 1);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to delete the document', 'error');
     }
   };
 
@@ -1231,39 +1252,7 @@ export const LandlordDetailPage = () => {
                         Upload Document
                       </Button>
                     </div>
-                    {landlordDocs.map((file) => (
-                      <div
-                        key={file.id}
-                        className="flex items-center justify-between p-3.5 bg-surface-light/50 border border-card-border rounded-card hover:bg-surface-light transition-colors gap-3"
-                      >
-                        <div className="flex items-start gap-3 min-w-0">
-                          <div className="card-bg p-2 rounded-lg border border-card-border text-brand-accent shrink-0">
-                            <FileText size={18} />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-xs sm:text-sm font-bold text-brand-primary truncate">{file.name}</p>
-                            <div className="flex flex-wrap items-center gap-2 text-2xs text-gray-400 font-semibold mt-1">
-                              {file.doc_reference && (
-                                <>
-                                  <span className="text-brand-primary font-bold bg-surface-hover px-1.5 py-0.5 rounded-sm border border-card-border">{file.doc_reference}</span>
-                                  <span>•</span>
-                                </>
-                              )}
-                              <span>Uploaded: {file.date}</span>
-                              <span>•</span>
-                              <span>Size: {file.size}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => handleDownloadDocument(file)}
-                          className="p-2 text-gray-400 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors border border-transparent hover:border-brand-accent/10 cursor-pointer shrink-0"
-                          title="Download document"
-                        >
-                          <Download size={16} />
-                        </button>
-                      </div>
-                    ))}
+                    <DocumentList documents={landlordDocs} onPreview={setPreviewDoc} onDownload={handleDownloadDocument} onDelete={handleDocDelete} />
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center p-12 bg-surface-light rounded-card border border-dashed border-card-border">
@@ -1417,6 +1406,7 @@ export const LandlordDetailPage = () => {
                     <DatePicker
                       label="Date signed"
                       id="tob-signed-at"
+                      max={todayYmd()}
                       required
                       value={tobForm.tob_signed_at}
                       onChange={(val) => setTobForm((f) => ({ ...f, tob_signed_at: val }))}
@@ -1734,6 +1724,8 @@ export const LandlordDetailPage = () => {
         </div>
       )}
 
+
+      <DocumentPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} onDownload={handleDownloadDocument} />
 
       <DocumentUploadModal
         file={pendingUpload}

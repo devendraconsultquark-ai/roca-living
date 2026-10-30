@@ -51,7 +51,7 @@ const nextRentDue = (tenancy) => {
   return d;
 };
 
-export const PropertyOverview = ({ data, documents, onTab, onDownloadDoc, onUploadDoc, onEditNotes }) => {
+export const PropertyOverview = ({ data, documents, onTab, onDownloadDoc, onPreviewDoc, onUploadDoc, onEditNotes }) => {
   const navigate = useNavigate();
   const [estate, setEstate] = useState(null);
   const [transactions, setTransactions] = useState(null);
@@ -251,6 +251,9 @@ export const PropertyOverview = ({ data, documents, onTab, onDownloadDoc, onUplo
                     <span className="block text-xs font-bold text-brand-primary truncate">{doc.name}</span>
                     <span className="block text-[11px] text-gray-400 font-semibold">Added {doc.date}</span>
                   </span>
+                  <button type="button" onClick={() => onPreviewDoc(doc)} className="p-1.5 text-gray-400 hover:text-brand-accent cursor-pointer" title="Preview document" aria-label="Preview document">
+                    <Eye size={15} />
+                  </button>
                   <button type="button" onClick={() => onDownloadDoc(doc)} className="p-1.5 text-gray-400 hover:text-brand-accent cursor-pointer" title="Download document">
                     <Download size={15} />
                   </button>

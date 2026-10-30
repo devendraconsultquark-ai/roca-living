@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Home, ShieldCheck, Users, Wrench, FileText, Clock, Receipt, Download, Upload, Image as ImageIcon, X, PoundSterling, ClipboardCheck, Zap, History, StickyNote, AlertTriangle
+  Home, ShieldCheck, Users, Wrench, FileText, Clock, Receipt, Upload, Image as ImageIcon, X, PoundSterling, ClipboardCheck, Zap, History, StickyNote, AlertTriangle
 } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
 import { StatusPill } from '../components/UI/StatusPill';
@@ -11,6 +11,8 @@ import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
 import { Button } from '../components/UI/Button';
 import { DocumentUploadModal } from '../components/UI/DocumentUploadModal';
+import { DocumentPreviewModal } from '../components/UI/DocumentPreviewModal';
+import { DocumentList } from '../components/UI/DocumentList';
 import { PropertyFinancials } from '../components/UI/PropertyFinancials';
 import { PropertyPhotos } from '../components/UI/PropertyPhotos';
 import { PropertyExpenses } from '../components/UI/PropertyExpenses';
@@ -60,6 +62,7 @@ export const PropertyDetailPage = () => {
   // Documents tab
   const [documents, setDocuments] = useState([]);
   const [pendingUpload, setPendingUpload] = useState(null);
+  const [previewDoc, setPreviewDoc] = useState(null);
   const fileInputRef = useRef(null);
   const [docsReloadKey, setDocsReloadKey] = useState(0);
 
@@ -190,6 +193,23 @@ export const PropertyDetailPage = () => {
       } else {
         addToast(err.response?.data?.message || 'Failed to update property', 'error');
       }
+    }
+  };
+
+  const handleDocDelete = async (doc) => {
+    const ok = await confirm({
+      title: 'Delete Document',
+      message: `Delete ${doc.name}? It is removed from Documents too.`,
+      variant: 'danger',
+      confirmText: 'Delete',
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`/documents/${doc.id}`, { skipInterceptorError: true });
+      addToast('Document deleted', 'success');
+      setDocsReloadKey((k) => k + 1);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to delete the document', 'error');
     }
   };
 
@@ -424,6 +444,7 @@ export const PropertyDetailPage = () => {
               documents={documents}
               onTab={setActiveTab}
               onDownloadDoc={handleDocDownload}
+              onPreviewDoc={setPreviewDoc}
               onUploadDoc={() => fileInputRef.current?.click()}
               onEditNotes={openEditModal}
             />
@@ -610,35 +631,7 @@ export const PropertyDetailPage = () => {
                         Upload Document
                       </Button>
                     </div>
-                    {documents.map((doc) => (
-                      <div
-                        key={doc.id}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-surface-light/50 border border-card-border rounded-card hover:bg-surface-light transition-colors gap-3"
-                      >
-                        <div className="flex items-start gap-3 min-w-0">
-                          <div className="card-bg p-2 rounded-lg border border-card-border text-brand-accent shrink-0">
-                            <FileText size={18} />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-xs sm:text-sm font-bold text-brand-primary truncate">{doc.name}</p>
-                            <div className="flex flex-wrap items-center gap-2 text-2xs text-gray-400 font-semibold mt-1">
-                              <span>Uploaded: {doc.date}</span>
-                              <span>•</span>
-                              <span>Size: {doc.size}</span>
-                              <span>•</span>
-                              <span className="text-brand-accent">{doc.scope === 'property' ? 'Property' : 'Tenancy'}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => handleDocDownload(doc)}
-                          className="p-2 text-gray-400 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors border border-transparent hover:border-brand-accent/10 cursor-pointer self-end sm:self-center"
-                          title="Download document"
-                        >
-                          <Download size={16} />
-                        </button>
-                      </div>
-                    ))}
+                    <DocumentList documents={documents} onPreview={setPreviewDoc} onDownload={handleDocDownload} onDelete={handleDocDelete} />
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center p-12 bg-surface-light rounded-card border border-dashed border-card-border">
@@ -830,6 +823,8 @@ export const PropertyDetailPage = () => {
           </div>
         </div>
       )}
+
+      <DocumentPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} onDownload={handleDocDownload} />
 
       <DocumentUploadModal
         file={pendingUpload}

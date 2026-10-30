@@ -5,6 +5,7 @@ import { Input } from './Input';
 import { Dropdown } from './Dropdown';
 import { Button } from './Button';
 import { DatePicker } from './DatePicker';
+import { todayYmd } from '../../utilities/designTokens';
 import { RentDuePreview } from './RentDuePreview';
 import api from '../../utilities/api';
 import { DEPOSIT_SCHEME_OPTIONS } from '../../utilities/depositSchemes';
@@ -150,7 +151,7 @@ export const EditTenantModal = ({ tenantId, onClose, onSaved, onChangeDueDay = n
     <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-3xl shadow-xl border border-card-border max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-center px-6 pt-6 pb-4 border-b border-card-border shrink-0">
-          <h3 className="text-lg font-bold text-brand-primary">Edit Tenant Details</h3>
+          <h3 className="text-lg font-bold text-brand-primary">Edit Tenant</h3>
           <button onClick={onClose} disabled={saving} className="text-gray-400 hover:text-brand-primary cursor-pointer" aria-label="Close">
             <X size={20} />
           </button>
@@ -181,6 +182,11 @@ export const EditTenantModal = ({ tenantId, onClose, onSaved, onChangeDueDay = n
               <DatePicker label="Right to Rent Expiry" id="edit-t-rtr-expiry" value={form.right_to_rent_expiry} onChange={set('right_to_rent_expiry')}
                 hint="Only for a time-limited visa: re-check before this date. Blank for British/Irish tenants." />
             </div>
+            {data.co_tenants?.length > 0 && (
+              <p className="text-xs text-status-muted -mt-1">
+                Joint {data.co_tenants.length === 1 ? 'tenant' : 'tenants'}: <b className="text-brand-primary">{data.co_tenants.map((c) => c.name).join(', ')}</b>. Open their page to edit their details.
+              </p>
+            )}
 
             {t && (
               <div className="border-t border-card-border pt-4 flex flex-col gap-4">
@@ -221,8 +227,18 @@ export const EditTenantModal = ({ tenantId, onClose, onSaved, onChangeDueDay = n
                   </div>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <DatePicker label="End Date" id="edit-t-end-date" value={form.end_date} onChange={set('end_date')} error={errors.end_date}
+                  <DatePicker label="End Date" id="edit-t-end-date" min={form.start_date || null} value={form.end_date} onChange={set('end_date')} error={errors.end_date}
                     hint="Blank if it rolls on month to month (periodic)." />
+                </div>
+              </div>
+            )}
+
+            {t && (
+              <div className="border-t border-card-border pt-4 flex flex-col gap-4">
+                <Section title="Already Managed Before? (Optional)" info="For tenancies statemented by hand: earlier rent isn't counted as owed, and numbering continues after your last statement." />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <DatePicker label="Rent Handled in Roca Living From" id="edit-t-statements-from" min={form.start_date || null} value={form.statements_from} onChange={set('statements_from')} error={errors.statements_from}
+                    hint="For tenancies running before Roca Living. Unpaid rent months before this date are removed. Blank = from the start date." />
                   <Input
                     label="Last Statement Number Issued"
                     id="edit-t-last-seq"
@@ -233,8 +249,6 @@ export const EditTenantModal = ({ tenantId, onClose, onSaved, onChangeDueDay = n
                     error={errors.last_statement_seq}
                     hint="Only if statements were made by hand before Roca Living. Numbering continues after it."
                   />
-                  <DatePicker label="Rent Handled in Roca Living From" id="edit-t-statements-from" value={form.statements_from} onChange={set('statements_from')} error={errors.statements_from}
-                    hint="For tenancies running before Roca Living. Unpaid rent months before this date are removed. Blank = from the start date." />
                 </div>
               </div>
             )}
@@ -245,13 +259,13 @@ export const EditTenantModal = ({ tenantId, onClose, onSaved, onChangeDueDay = n
                   title="Deposit"
                   info={data.deposit
                     ? `Must be registered within 30 days of receipt${data.deposit.registered_at ? '' : ` (by ${uk(data.deposit.register_due)})`}.`
-                    : 'Enter the amount and date received to add one. Register it within 30 days.'}
+                    : 'Optional. Enter the amount and date received to add one. Register it within 30 days.'}
                 />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input label="Deposit amount (£)" id="edit-t-dep-amount" type="number" min="0" step="0.01" placeholder={data.deposit ? '' : 'Leave blank if none'} value={form.deposit_amount} onChange={(e) => set('deposit_amount')(e.target.value)} error={errors.deposit_amount} />
                   <Dropdown label="Scheme" id="edit-t-dep-scheme" options={DEPOSIT_SCHEME_OPTIONS} value={form.deposit_scheme} onChange={set('deposit_scheme')} />
-                  <DatePicker label="Date received" id="edit-t-dep-received" value={form.deposit_received_at} onChange={set('deposit_received_at')} error={errors.deposit_received_at} />
-                  <DatePicker label="Registered with the scheme on" id="edit-t-dep-registered" value={form.deposit_registered_at} onChange={set('deposit_registered_at')} error={errors.deposit_registered_at} />
+                  <DatePicker label="Date received" id="edit-t-dep-received" max={todayYmd()} value={form.deposit_received_at} onChange={set('deposit_received_at')} error={errors.deposit_received_at} />
+                  <DatePicker label="Registered with the scheme on" id="edit-t-dep-registered" min={form.deposit_received_at || null} max={todayYmd()} value={form.deposit_registered_at} onChange={set('deposit_registered_at')} error={errors.deposit_registered_at} />
                 </div>
               </div>
             )}

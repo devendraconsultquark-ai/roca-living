@@ -7,6 +7,7 @@ import {
   FolderCheck,
   ChevronRight,
   Download,
+  Eye,
 } from "lucide-react";
 import { PortalMetricCard } from "../components/UI/PortalMetricCard";
 import { FilterRibbon } from "../components/UI/FilterRibbon";
@@ -15,10 +16,12 @@ import { TableEmptyState } from "../components/UI/TableEmptyState";
 import { Button } from "../components/UI/Button";
 
 import { useDocuments } from "../hooks/useDocuments";
+import { DocumentPreviewModal } from "../components/UI/DocumentPreviewModal";
 
 export const Documents = () => {
   const { selectedProperty } = usePropertyContext();
   const { documents, loading, handleDownload } = useDocuments();
+  const [previewDoc, setPreviewDoc] = useState(null);
   // Filter states
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCategory, setFilterCategory] = useState("All Categories");
@@ -215,7 +218,17 @@ export const Documents = () => {
                         <td className="py-3 px-2">{row.related}</td>
                         <td className="py-3 px-2">{row.uploaded}</td>
                         <td className="py-3 px-2">{row.size}</td>
-                        <td className="py-3 px-2 text-center">
+                        <td className="py-3 px-2 text-center whitespace-nowrap">
+                          <Button
+                            variant="icon-only"
+                            size="sm"
+                            className="p-1 hover:text-brand-primary rounded cursor-pointer"
+                            onClick={() => setPreviewDoc({ ...row, name: row.item })}
+                            title="Preview document"
+                            aria-label="Preview document"
+                          >
+                            <Eye size={13} />
+                          </Button>
                           <Button
                             variant="icon-only"
                             size="sm"
@@ -320,6 +333,7 @@ export const Documents = () => {
           </div>
         </div>
       </div>
+      <DocumentPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} onDownload={handleDownload} />
     </div>
   );
 };

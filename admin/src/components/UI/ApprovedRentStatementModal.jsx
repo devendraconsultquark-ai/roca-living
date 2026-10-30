@@ -101,7 +101,7 @@ export const ApprovedRentStatementModal = ({ onClose, onCreated }) => {
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <DatePicker label="Period from" id="approvedFrom" value={from} onChange={setFrom} />
-                    <DatePicker label="Period to" id="approvedTo" value={to} onChange={setTo} />
+                    <DatePicker label="Period to" id="approvedTo" min={from || null} value={to} onChange={setTo} />
                   </div>
                   <div className="grid grid-cols-3 gap-3 text-center">
                     <div className="bg-surface-light border border-card-border rounded-lg p-3">

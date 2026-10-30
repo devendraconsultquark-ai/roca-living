@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Folder, FolderOpen, FileText, Upload, Trash2, CheckCircle2, ChevronRight, ChevronDown, Download } from 'lucide-react';
+import { Folder, FolderOpen, FileText, Upload, Trash2, CheckCircle2, ChevronRight, ChevronDown, Download, Eye } from 'lucide-react';
+import { DocumentPreviewModal } from '../components/UI/DocumentPreviewModal';
 import { useToast } from '../components/UI/ToastContext';
 import { Input } from '../components/UI/Input';
 import { Dropdown } from '../components/UI/Dropdown';
@@ -8,6 +9,7 @@ import api from '../utilities/api';
 
 export const DocumentLibrary = () => {
   const [folders, setFolders] = useState([]);
+  const [previewDoc, setPreviewDoc] = useState(null);
   const [selectedFolderId, setSelectedFolderId] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const [uploadedFile, setUploadedFile] = useState(null);
@@ -295,6 +297,14 @@ export const DocumentLibrary = () => {
                     </div>
                     <div className="flex items-center gap-1 self-end sm:self-center">
                       <button
+                        onClick={() => setPreviewDoc(file)}
+                        className="p-2 text-gray-400 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors border border-transparent hover:border-brand-accent/10 cursor-pointer"
+                        title="Preview document"
+                        aria-label="Preview document"
+                      >
+                        <Eye size={16} />
+                      </button>
+                      <button
                         onClick={() => handleDownloadFile(file)}
                         className="p-2 text-gray-400 hover:text-brand-accent hover:bg-brand-accent/5 rounded-lg transition-colors border border-transparent hover:border-brand-accent/10 cursor-pointer"
                         title="Download document"
@@ -456,6 +466,7 @@ export const DocumentLibrary = () => {
         </div>
 
       </div>
+      <DocumentPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} onDownload={handleDownloadFile} />
     </div>
   );
 };

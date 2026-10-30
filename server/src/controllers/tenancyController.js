@@ -142,14 +142,28 @@ export const createTenancy = catchAsync(async (req, res, next) => {
   if (hasDeposit && deposit.scheme && !DEPOSIT_SCHEMES.includes(deposit.scheme)) {
     throw new ApiError(400, `Deposit scheme must be one of ${DEPOSIT_SCHEMES.join(', ')}`);
   }
+  // Registered with the scheme already (optional): same rules as Edit Tenant.
+  const depositRegisteredAt = hasDeposit && deposit.registered_at ? toYmd(deposit.registered_at) : null;
+  if (depositRegisteredAt && (depositRegisteredAt > todayYmd() || depositRegisteredAt < toYmd(deposit.received_at))) {
+    throw new ApiError(400, 'The deposit registered date must be between the date received and today');
+  }
+  // Right to Rent per tenant (optional): as on Edit Tenant.
+  const RTR_STATUSES = ['pending', 'verified', 'failed'];
+  for (const t of tenants) {
+    if (t.right_to_rent_status && !RTR_STATUSES.includes(t.right_to_rent_status)) {
+      throw new ApiError(400, `Right to Rent status must be one of ${RTR_STATUSES.join(', ')}`);
+    }
+  }
 
   // Opening position (optional): tenancy already running and statemented by hand.
   const statementsFrom = statements_from || null;
   if (statementsFrom && (!/^\d{4}-\d{2}-\d{2}$/.test(statementsFrom) || statementsFrom < String(start_date).slice(0, 10))) {
-    throw new ApiError(400, 'First period in this system must be a valid date on or after the tenancy start date');
+    throw new ApiError(400, 'Rent Handled in Roca Living From must be a valid date on or after the tenancy start date');
   }
-  if (statementsFrom && Number(statementsFrom.slice(8, 10)) !== Number(String(start_date).slice(8, 10))) {
-    throw new ApiError(400, 'First period in this system must fall on the rent due day (same day of the month as the start date)');
+  // It starts a rent month: the due day (the start day unless another is given).
+  const fromDueDay = rent_due_day !== undefined && rent_due_day !== null && rent_due_day !== '' ? Number(rent_due_day) : Number(String(start_date).slice(8, 10));
+  if (statementsFrom && Number(statementsFrom.slice(8, 10)) !== fromDueDay) {
+    throw new ApiError(400, 'Rent Handled in Roca Living From must fall on the rent due day');
   }
   const lastSeq = last_statement_seq === undefined || last_statement_seq === null || last_statement_seq === '' ? null : Number(last_statement_seq);
   if (lastSeq !== null && (!Number.isInteger(lastSeq) || lastSeq < 0 || lastSeq > 9999)) {
@@ -193,7 +207,8 @@ export const createTenancy = catchAsync(async (req, res, next) => {
       email: t.email || null,
       phone: t.phone || null,
       is_lead_tenant: i === leadIndex ? 1 : 0,
-      right_to_rent_status: 'pending'
+      right_to_rent_status: t.right_to_rent_status || 'pending',
+      right_to_rent_expiry: t.right_to_rent_expiry ? toYmd(t.right_to_rent_expiry) : null
     }));
     await trx('tenants').insert(tenantRows);
 
@@ -207,7 +222,8 @@ export const createTenancy = catchAsync(async (req, res, next) => {
         scheme: deposit.scheme || 'TDS',
         received_at: deposit.received_at,
         register_due: addDays(deposit.received_at, 30),
-        status: 'pending_registration'
+        registered_at: depositRegisteredAt,
+        status: depositRegisteredAt ? 'registered' : 'pending_registration'
       });
     }
 
@@ -1465,11 +1481,11 @@ export const getTenantById = catchAsync(async (req, res, next) => {
     .where('tenancy_id', tenant.tenancy_id)
     .whereNot('id', id);
 
-  // Rent payment history (most recent 20)
+  // Rent payment history, newest first (all of it: about 12 a year).
   const payments = await db('rent_payments')
     .where('tenancy_id', tenant.tenancy_id)
     .orderBy('received_at', 'desc')
-    .limit(20);
+    .orderBy('id', 'desc');
   const deleteBlocks = await paymentDeleteBlocks(db, payments.map((p) => p.id));
 
   // Account balance: payments received minus rent fallen due to date
@@ -1523,6 +1539,7 @@ export const getTenantById = catchAsync(async (req, res, next) => {
         created_at: p.created_at ? new Date(p.created_at).toISOString() : null,
         // A hand-typed payment no statement has used yet can be deleted.
         can_delete: !deleteBlocks[p.id],
+        delete_block: deleteBlocks[p.id] || null,
       })),
     }
   });

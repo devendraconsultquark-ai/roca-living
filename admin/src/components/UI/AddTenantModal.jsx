@@ -3,6 +3,7 @@ import { UserPlus, Plus, Trash2, X } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { DatePicker } from './DatePicker';
+import { todayYmd } from '../../utilities/designTokens';
 import { Dropdown } from './Dropdown';
 import { useToast } from './ToastContext';
 import api from '../../utilities/api';
@@ -10,7 +11,20 @@ import { DEPOSIT_SCHEME_OPTIONS } from '../../utilities/depositSchemes';
 import { RentDuePreview } from './RentDuePreview';
 import { InfoTip } from './InfoTip';
 
-const emptyTenant = () => ({ name: '', email: '', phone: '' });
+const emptyTenant = () => ({ name: '', email: '', phone: '', right_to_rent_status: 'pending', right_to_rent_expiry: '' });
+// Same choices as Edit Tenant.
+const RTR_OPTIONS = [
+  { value: 'pending', label: 'Pending (not checked yet)' },
+  { value: 'verified', label: 'Approved (checked)' },
+  { value: 'failed', label: 'Rejected (failed)' },
+];
+// Section heading with an optional ⓘ explanation (as in Edit Tenant).
+const Section = ({ title, info, children }) => (
+  <div className="flex items-center justify-between gap-3">
+    <h4 className="text-sm-portal font-bold text-brand-primary flex items-center gap-1.5">{title}{info && <InfoTip text={info} />}</h4>
+    {children}
+  </div>
+);
 
 // Add a tenant (tenancy) to an existing property: property, tenant(s), rent,
 // start date (sets the rent due day) and an optional deposit. Apartments come
@@ -30,6 +44,7 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
   const [depositAmount, setDepositAmount] = useState('');
   const [depositReceived, setDepositReceived] = useState('');
   const [depositScheme, setDepositScheme] = useState('TDS');
+  const [depositRegistered, setDepositRegistered] = useState('');
   // Opening position: tenancy already running and statemented by hand before this system.
   const [statementsFrom, setStatementsFrom] = useState('');
   const [lastSeq, setLastSeq] = useState('');
@@ -68,8 +83,10 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
     if (endDate && startDate && endDate < startDate) errs.end = 'End date must be after the start date';
     if (rentDueDay !== '' && !(Number.isInteger(Number(rentDueDay)) && Number(rentDueDay) >= 1 && Number(rentDueDay) <= 28)) errs.rentDueDay = 'A day from 1 to 28';
     if (depositAmount && !depositReceived) errs.deposit = 'Enter the date the deposit was received';
+    if (depositRegistered && depositReceived && depositRegistered < depositReceived) errs.depositRegistered = 'Can\'t be before the date received';
+    const dueDay = rentDueDay !== '' ? Number(rentDueDay) : Number(startDate.slice(8, 10));
     if (statementsFrom && startDate && statementsFrom < startDate) errs.statementsFrom = 'Must be on or after the start date';
-    if (statementsFrom && startDate && statementsFrom.slice(8, 10) !== startDate.slice(8, 10)) errs.statementsFrom = 'Must be on the rent due day (same day of the month as the start date)';
+    else if (statementsFrom && startDate && Number(statementsFrom.slice(8, 10)) !== dueDay) errs.statementsFrom = `Must be on the rent due day (the ${dueDay}${[11, 12, 13].includes(dueDay) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[dueDay % 10] || 'th')})`;
     if (lastSeq !== '' && !(Number.isInteger(Number(lastSeq)) && Number(lastSeq) >= 0)) errs.lastSeq = 'Enter a whole number, e.g. 3';
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
@@ -84,8 +101,13 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
         rent_due_day: rentDueDay === '' ? null : Number(rentDueDay),
         tenants: tenants
           .filter((t) => t.name.trim())
-          .map((t, i) => ({ name: t.name.trim(), email: t.email.trim(), phone: t.phone.trim(), is_lead_tenant: i === 0 })),
-        deposit: depositAmount ? { amount: parseFloat(depositAmount), received_at: depositReceived, scheme: depositScheme } : null,
+          .map((t, i) => ({
+            name: t.name.trim(), email: t.email.trim(), phone: t.phone.trim(), is_lead_tenant: i === 0,
+            right_to_rent_status: t.right_to_rent_status, right_to_rent_expiry: t.right_to_rent_expiry || null,
+          })),
+        deposit: depositAmount
+          ? { amount: parseFloat(depositAmount), received_at: depositReceived, scheme: depositScheme, registered_at: depositRegistered || null }
+          : null,
         statements_from: statementsFrom || null,
         last_statement_seq: lastSeq === '' ? null : Number(lastSeq),
       });
@@ -142,97 +164,98 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
             Apartment not listed? Switch on <span className="font-semibold">Managed by ROCA Living</span> for it on the Properties page first.
           </p>
 
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm-portal font-bold text-brand-primary">Tenants</h3>
+          {/* Same sections, order and labels as Edit Tenant. */}
+          <div className="flex flex-col gap-4">
+            <Section title="Tenant">
               <Button type="button" variant="ghost" size="sm" icon={Plus} onClick={() => setTenants((l) => [...l, emptyTenant()])}>
-                Add joint tenant
+                Add Joint Tenant
               </Button>
-            </div>
+            </Section>
             {tenants.map((t, i) => (
-              <div key={i} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
-                <Input
-                  id={`tenant-name-${i}`}
-                  label={i === 0 ? 'Lead Tenant Name' : 'Joint Tenant Name'}
-                  required={i === 0}
-                  value={t.name}
-                  onChange={(e) => setTenant(i, 'name', e.target.value)}
-                  placeholder="e.g. Mr Joshua Harrison North"
-                  error={i === 0 ? errors.tenant : null}
-                />
-                <Input id={`tenant-email-${i}`} label="Email" type="email" value={t.email} onChange={(e) => setTenant(i, 'email', e.target.value)} />
-                <Input id={`tenant-phone-${i}`} label="Phone" value={t.phone} onChange={(e) => setTenant(i, 'phone', e.target.value)} />
-                {i > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => setTenants((l) => l.filter((_, idx) => idx !== i))}
-                    className="p-2.5 text-gray-400 hover:text-status-danger cursor-pointer"
-                    aria-label="Remove tenant"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                ) : <span className="w-9" />}
+              <div key={i} className={`flex flex-col gap-3 ${i > 0 ? 'border-t border-dashed border-card-border pt-3' : ''}`}>
+                {i > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-status-muted">Joint Tenant {i + 1}</span>
+                    <button
+                      type="button"
+                      onClick={() => setTenants((l) => l.filter((_, idx) => idx !== i))}
+                      className="p-1.5 text-gray-400 hover:text-status-danger cursor-pointer"
+                      aria-label="Remove tenant"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    id={`tenant-name-${i}`}
+                    label="Full Name"
+                    required={i === 0}
+                    value={t.name}
+                    onChange={(e) => setTenant(i, 'name', e.target.value)}
+                    placeholder="e.g. Mr Joshua Harrison North"
+                    error={i === 0 ? errors.tenant : null}
+                  />
+                  <Input id={`tenant-email-${i}`} label="Email Address" type="email" value={t.email} onChange={(e) => setTenant(i, 'email', e.target.value)} />
+                  <Input id={`tenant-phone-${i}`} label="Phone Number" value={t.phone} onChange={(e) => setTenant(i, 'phone', e.target.value)} />
+                  <Dropdown
+                    label="Right to Rent Status"
+                    id={`tenant-rtr-${i}`}
+                    options={RTR_OPTIONS}
+                    value={t.right_to_rent_status}
+                    onChange={(v) => setTenant(i, 'right_to_rent_status', v)}
+                  />
+                  <DatePicker label="Right to Rent Expiry" id={`tenant-rtr-expiry-${i}`} value={t.right_to_rent_expiry} onChange={(v) => setTenant(i, 'right_to_rent_expiry', v)}
+                    hint="Only for a time-limited visa: re-check before this date. Blank for British/Irish tenants." />
+                </div>
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Input
-              id="rent"
-              label="Rent (£ per month)"
-              type="number"
-              step="0.01"
-              min="0"
-              required
-              value={rent}
-              onChange={(e) => setRent(e.target.value)}
-              error={errors.rent}
-            />
-            <DatePicker label="Start Date" id="startDate" required value={startDate} onChange={setStartDate} error={errors.start} />
-            <DatePicker label="End Date (optional)" id="endDate" value={endDate} onChange={setEndDate} error={errors.end} />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 -mt-1">
-            <Input
-              id="rentDueDay"
-              label="Rent due day (optional)"
-              type="number"
-              min="1"
-              max="28"
-              step="1"
-              placeholder="start day"
-              value={rentDueDay}
-              onChange={(e) => setRentDueDay(e.target.value)}
-              error={errors.rentDueDay}
-            />
-            <div className="md:col-span-2 self-end">
-              <RentDuePreview startDate={startDate} rent={rent} rentDueDay={rentDueDay} />
+          <div className="flex flex-col gap-4 border-t border-card-border pt-4">
+            <Section title="Tenancy" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <DatePicker label="Start Date" id="startDate" required value={startDate} onChange={setStartDate} error={errors.start} />
+              <Input
+                id="rent"
+                label="Rent (£ per month)"
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                value={rent}
+                onChange={(e) => setRent(e.target.value)}
+                error={errors.rent}
+              />
+              <Input
+                id="rentDueDay"
+                label="Rent due day"
+                type="number"
+                min="1"
+                max="28"
+                step="1"
+                placeholder="Start day"
+                value={rentDueDay}
+                onChange={(e) => setRentDueDay(e.target.value)}
+                error={errors.rentDueDay}
+                hint="Blank = the same day as the start date. Another day gives a pro-rata first payment."
+              />
+            </div>
+            <RentDuePreview startDate={startDate} rent={rent} rentDueDay={rentDueDay} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <DatePicker label="End Date" id="endDate" min={startDate || null} value={endDate} onChange={setEndDate} error={errors.end}
+                hint="Blank if it rolls on month to month (periodic)." />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-card-border pt-4">
-            <Input
-              id="depositAmount"
-              label="Deposit (£, optional)"
-              type="number"
-              step="0.01"
-              min="0"
-              value={depositAmount}
-              onChange={(e) => setDepositAmount(e.target.value)}
-            />
-            <DatePicker label="Deposit Received" id="depositReceived" value={depositReceived} onChange={setDepositReceived} error={errors.deposit} />
-            <Dropdown label="Deposit Scheme" id="depositScheme" options={DEPOSIT_SCHEME_OPTIONS} value={depositScheme} onChange={setDepositScheme} />
-          </div>
-
-          <div className="flex flex-col gap-2 border-t border-card-border pt-4">
-            <h3 className="text-sm-portal font-bold text-brand-primary flex items-center gap-1.5">
-              Already Managed Before? (Optional)
-              <InfoTip text="For tenancies statemented by hand: earlier rent isn't counted as owed, and numbering continues after your last statement." />
-            </h3>
+          <div className="flex flex-col gap-4 border-t border-card-border pt-4">
+            <Section title="Already Managed Before? (Optional)" info="For tenancies statemented by hand: earlier rent isn't counted as owed, and numbering continues after your last statement." />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <DatePicker label="First period in this system" id="statementsFrom" value={statementsFrom} onChange={setStatementsFrom} error={errors.statementsFrom} />
+              <DatePicker label="Rent Handled in Roca Living From" id="statementsFrom" min={startDate || null} value={statementsFrom} onChange={setStatementsFrom} error={errors.statementsFrom}
+                hint="For tenancies running before Roca Living. Unpaid rent months before this date are removed. Blank = from the start date." />
               <Input
                 id="lastSeq"
-                label="Last statement number issued"
+                label="Last Statement Number Issued"
                 type="number"
                 min="0"
                 step="1"
@@ -240,7 +263,27 @@ export const AddTenantModal = ({ onClose, onCreated }) => {
                 value={lastSeq}
                 onChange={(e) => setLastSeq(e.target.value)}
                 error={errors.lastSeq}
+                hint="Only if statements were made by hand before Roca Living. Numbering continues after it."
               />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4 border-t border-card-border pt-4">
+            <Section title="Deposit" info="Optional. Enter the amount and date received to add one. Register it within 30 days." />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                id="depositAmount"
+                label="Deposit amount (£)"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Leave blank if none"
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)}
+              />
+              <Dropdown label="Scheme" id="depositScheme" options={DEPOSIT_SCHEME_OPTIONS} value={depositScheme} onChange={setDepositScheme} />
+              <DatePicker label="Date received" id="depositReceived" max={todayYmd()} value={depositReceived} onChange={setDepositReceived} error={errors.deposit} />
+              <DatePicker label="Registered with the scheme on" id="depositRegistered" min={depositReceived || null} max={todayYmd()} value={depositRegistered} onChange={setDepositRegistered} error={errors.depositRegistered} />
             </div>
           </div>
 

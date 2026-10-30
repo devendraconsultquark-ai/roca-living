@@ -270,6 +270,7 @@ export const Statements = () => {
                   to
                 </span>
                 <DatePicker
+                  min={fromDate || null}
                   value={toDate}
                   onChange={setToDate}
                   size="sm"

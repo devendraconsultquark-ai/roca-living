@@ -3,6 +3,7 @@ import { X, User, Users, ShieldCheck, Briefcase } from 'lucide-react';
 import { Input } from './Input';
 import { Dropdown } from './Dropdown';
 import { DatePicker } from './DatePicker';
+import { todayYmd } from '../../utilities/designTokens';
 import { Button } from './Button';
 import { useToast } from './ToastContext';
 import api from '../../utilities/api';
@@ -226,7 +227,7 @@ export const EstatesLandlordForm = ({ landlord, onClose, onSaved }) => {
                       {field('email', 'Email', { type: 'email', required: true })}
                       {field('phone', 'Phone', { required: true })}
                     </div>
-                    <DatePicker id="ll_owner_dob" label="Date Of Birth" value={form.owner_dob} onChange={set('owner_dob')} />
+                    <DatePicker id="ll_owner_dob" label="Date Of Birth" max={todayYmd()} value={form.owner_dob} onChange={set('owner_dob')} />
                   </div>
                   <div className="flex flex-col gap-4 border border-card-border rounded-card p-5">
                     <GroupTitle>Address Details</GroupTitle>
@@ -286,7 +287,7 @@ export const EstatesLandlordForm = ({ landlord, onClose, onSaved }) => {
                         {field('secondary_nrl_number', 'NRL Number (HMRC)', { placeholder: 'e.g. 922/NL942174' })}
                         {field('secondary_statement_initials', 'Statement Initials', { placeholder: 'e.g. ML' })}
                       </div>
-                      <DatePicker id="ll_secondary_owner_dob" label="Date Of Birth" value={form.secondary_owner_dob} onChange={set('secondary_owner_dob')} />
+                      <DatePicker id="ll_secondary_owner_dob" label="Date Of Birth" max={todayYmd()} value={form.secondary_owner_dob} onChange={set('secondary_owner_dob')} />
                     </div>
                     <div className="flex flex-col gap-4 border border-card-border rounded-card p-5">
                       <GroupTitle>Address Details</GroupTitle>

@@ -97,7 +97,7 @@ export const PropertyStatementCard = ({ propertyId, unit }) => {
     <SectionCard title="Property statement" sub="Any period up to 12 months: income and expenses, tenant account, owner summary and cash flow.">
       <div className="flex flex-wrap items-end gap-3">
         <div className="w-44"><DatePicker id="psFrom" label="From" value={range.from} onChange={(v) => { setRange((r) => ({ ...r, from: v })); setData(null); }} size="sm" /></div>
-        <div className="w-44"><DatePicker id="psTo" label="To" value={range.to} onChange={(v) => { setRange((r) => ({ ...r, to: v })); setData(null); }} size="sm" /></div>
+        <div className="w-44"><DatePicker id="psTo" label="To" min={range.from || null} value={range.to} onChange={(v) => { setRange((r) => ({ ...r, to: v })); setData(null); }} size="sm" /></div>
         <div className="flex border border-card-border rounded-lg overflow-hidden text-xs font-bold">
           {[['Summary', false], ['Detail', true]].map(([label, value]) => (
             <button key={label} type="button" onClick={() => setDetail(value)}

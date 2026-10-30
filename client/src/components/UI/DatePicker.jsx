@@ -16,6 +16,8 @@ export const DatePicker = ({
   error = null,
   className = "",
   size = "md", // sm | md
+  min = null, // YYYY-MM-DD: earliest date that can be picked (e.g. "not before the start date")
+  max = null, // YYYY-MM-DD: latest date that can be picked (e.g. today for "received")
   ...props
 }) => {
   const [open, setOpen] = useState(false);
@@ -53,42 +55,65 @@ export const DatePicker = ({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Dates compare as YYYY-MM-DD strings.
+  const ymdOf = (y, m, d) => `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  const todayYmd = ymdOf(today.getFullYear(), today.getMonth(), today.getDate());
+  const outOfRange = (ymd) => !!((min && ymd < min) || (max && ymd > max));
+  const monthOutOfRange = (y, m) => !!((min && ymdOf(y, m, 31) < min) || (max && ymdOf(y, m, 1) > max));
+
+  // Opening with no date while today is outside the limits shows the nearest allowed month.
+  const toggleOpen = () => {
+    if (disabled) return;
+    if (!open && !isValidDate) {
+      const edge = max && todayYmd > max ? max : min && todayYmd < min ? min : null;
+      if (edge) {
+        setNavYear(Number(edge.slice(0, 4)));
+        setNavMonth(Number(edge.slice(5, 7)) - 1);
+      }
+    }
+    setOpen(!open);
+  };
+
+  // A year change can land on a month outside the limits: move to the nearest allowed one.
+  const goTo = (y, m) => {
+    if (min && ymdOf(y, m, 31) < min && Number(min.slice(0, 4)) === y) m = Number(min.slice(5, 7)) - 1;
+    if (max && ymdOf(y, m, 1) > max && Number(max.slice(0, 4)) === y) m = Number(max.slice(5, 7)) - 1;
+    setNavYear(y);
+    setNavMonth(m);
+  };
+
   const handlePrevMonth = (e) => {
     e.stopPropagation();
-    if (navMonth === 0) {
-      setNavMonth(11);
-      setNavYear(navYear - 1);
-    } else {
-      setNavMonth(navMonth - 1);
-    }
+    if (navMonth === 0) goTo(navYear - 1, 11);
+    else goTo(navYear, navMonth - 1);
   };
 
   const handleNextMonth = (e) => {
     e.stopPropagation();
-    if (navMonth === 11) {
-      setNavMonth(0);
-      setNavYear(navYear + 1);
-    } else {
-      setNavMonth(navMonth + 1);
-    }
+    if (navMonth === 11) goTo(navYear + 1, 0);
+    else goTo(navYear, navMonth + 1);
   };
 
+  const prevDisabled = navMonth === 0 ? monthOutOfRange(navYear - 1, 11) : monthOutOfRange(navYear, navMonth - 1);
+  const nextDisabled = navMonth === 11 ? monthOutOfRange(navYear + 1, 0) : monthOutOfRange(navYear, navMonth + 1);
+
+  // Year list: 100 years back (dates of birth) to 10 ahead, within the limits.
+  const firstYear = min ? Number(min.slice(0, 4)) : Math.min(today.getFullYear() - 100, navYear);
+  const lastYear = max ? Number(max.slice(0, 4)) : Math.max(today.getFullYear() + 10, navYear);
+  const years = [];
+  for (let y = lastYear; y >= firstYear; y--) years.push(y);
+
   const handleSelectDay = (day) => {
-    const selectedDate = new Date(navYear, navMonth, day);
-    // Format to YYYY-MM-DD with local timezone safety
-    const offset = selectedDate.getTimezoneOffset();
-    const localDate = new Date(selectedDate.getTime() - offset * 60 * 1000);
-    const ymd = localDate.toISOString().split("T")[0];
+    const ymd = ymdOf(navYear, navMonth, day);
+    if (outOfRange(ymd)) return;
     onChange?.(ymd);
     setOpen(false);
   };
 
   const handleToday = (e) => {
     e.stopPropagation();
-    const offset = today.getTimezoneOffset();
-    const localDate = new Date(today.getTime() - offset * 60 * 1000);
-    const ymd = localDate.toISOString().split("T")[0];
-    onChange?.(ymd);
+    if (outOfRange(todayYmd)) return;
+    onChange?.(todayYmd);
     setOpen(false);
   };
 
@@ -135,19 +160,23 @@ export const DatePicker = ({
       today.getDate() === d &&
       today.getMonth() === navMonth &&
       today.getFullYear() === navYear;
+    const isBlocked = outOfRange(ymdOf(navYear, navMonth, d));
 
     calendarCells.push(
       <button
         key={`day-${d}`}
         type="button"
+        disabled={isBlocked}
         onClick={() => handleSelectDay(d)}
-        className={`h-8 w-8 text-xs font-semibold rounded-[4px] flex items-center justify-center cursor-pointer transition-colors duration-100
+        className={`h-8 w-8 text-xs font-semibold rounded-[4px] flex items-center justify-center transition-colors duration-100
           ${
-            isSelected
-              ? "bg-brand-accent text-white border border-brand-accent shadow-sm"
-              : isCurrentToday
-                ? "border border-brand-accent text-brand-accent bg-brand-accent/5"
-                : "text-brand-primary hover:bg-surface-hover"
+            isBlocked
+              ? "text-gray-300 cursor-not-allowed"
+              : isSelected
+                ? "bg-brand-accent text-white border border-brand-accent shadow-sm cursor-pointer"
+                : isCurrentToday
+                  ? "border border-brand-accent text-brand-accent bg-brand-accent/5 cursor-pointer"
+                  : "text-brand-primary hover:bg-surface-hover cursor-pointer"
           }
         `}
       >
@@ -182,7 +211,7 @@ export const DatePicker = ({
           readOnly
           disabled={disabled}
           value={displayValue}
-          onClick={() => !disabled && setOpen(!open)}
+          onClick={toggleOpen}
           placeholder={placeholder}
           className={`
             w-full text-sm font-sans card-bg border rounded-[4px] pl-3 pr-10 cursor-pointer transition-all duration-150 focus:outline-none
@@ -221,19 +250,40 @@ export const DatePicker = ({
             <button
               type="button"
               onClick={handlePrevMonth}
-              className="p-1 hover:bg-surface-hover rounded text-status-muted transition-colors cursor-pointer"
+              disabled={prevDisabled}
+              aria-label="Previous month"
+              className="p-1 hover:bg-surface-hover rounded text-status-muted transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <ChevronLeft size={16} />
             </button>
 
-            <span className="font-bold text-sm text-text-primary">
-              {monthNames[navMonth]} {navYear}
-            </span>
+            <div className="flex items-center gap-1">
+              <select
+                aria-label="Month"
+                value={navMonth}
+                onChange={(e) => goTo(navYear, Number(e.target.value))}
+                className="font-bold text-sm text-text-primary card-bg border border-transparent hover:border-card-border rounded px-1 py-0.5 cursor-pointer focus:outline-none focus:border-brand-accent"
+              >
+                {monthNames.map((name, i) => (
+                  <option key={name} value={i} disabled={monthOutOfRange(navYear, i)}>{name}</option>
+                ))}
+              </select>
+              <select
+                aria-label="Year"
+                value={navYear}
+                onChange={(e) => goTo(Number(e.target.value), navMonth)}
+                className="font-bold text-sm text-text-primary card-bg border border-transparent hover:border-card-border rounded px-1 py-0.5 cursor-pointer focus:outline-none focus:border-brand-accent"
+              >
+                {years.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </div>
 
             <button
               type="button"
               onClick={handleNextMonth}
-              className="p-1 hover:bg-surface-hover rounded text-status-muted transition-colors cursor-pointer"
+              disabled={nextDisabled}
+              aria-label="Next month"
+              className="p-1 hover:bg-surface-hover rounded text-status-muted transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <ChevronRight size={16} />
             </button>
@@ -267,7 +317,8 @@ export const DatePicker = ({
             <button
               type="button"
               onClick={handleToday}
-              className="text-xs font-bold text-brand-accent hover:underline cursor-pointer"
+              disabled={outOfRange(todayYmd)}
+              className="text-xs font-bold text-brand-accent hover:underline cursor-pointer disabled:text-gray-300 disabled:no-underline disabled:cursor-not-allowed"
             >
               Today
             </button>

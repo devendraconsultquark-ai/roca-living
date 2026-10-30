@@ -49,3 +49,10 @@ export const daysUntil = (v) => {
 
 // Share of a total as "90.5%".
 export const pct = (part, total) => (total ? `${Math.round((part / total) * 1000) / 10}%` : '0%');
+
+// Today as YYYY-MM-DD (local time), e.g. max={todayYmd()} on a DatePicker for
+// "received" / "signed" dates that can't be in the future.
+export const todayYmd = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};

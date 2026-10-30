@@ -3,6 +3,7 @@ import { Plus, Trash2, Receipt, Paperclip, Download } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { DatePicker } from './DatePicker';
+import { todayYmd } from '../../utilities/designTokens';
 import { Skeleton } from './Skeleton';
 import { useToast } from './ToastContext';
 import { useConfirm } from './ConfirmContext';
@@ -11,10 +12,6 @@ import { InfoTip } from './InfoTip';
 
 const money = (v) => `£${(parseFloat(v) || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const ukDate = (ymd) => (ymd ? ymd.split('-').reverse().join('/') : '—');
-const todayYmd = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
 const emptyForm = () => ({ expense_date: todayYmd(), description: '', supplier: '', amount: '' });
 
 // Costs paid for an apartment during the month (cleaning, small repairs…).
@@ -130,7 +127,7 @@ export const PropertyExpenses = ({ propertyId }) => {
           <InfoTip text="Money spent on this apartment (e.g. cleaning). Deducted on the landlord's statement for that month." />
         </h3>
         <form onSubmit={add} className="grid grid-cols-1 md:grid-cols-[160px_1fr_1fr_130px_auto] gap-3 items-end">
-          <DatePicker label="Date" id="expenseDate" value={form.expense_date} onChange={(v) => setForm((f) => ({ ...f, expense_date: v }))} error={errors.date} />
+          <DatePicker label="Date" id="expenseDate" max={todayYmd()} value={form.expense_date} onChange={(v) => setForm((f) => ({ ...f, expense_date: v }))} error={errors.date} />
           <Input id="expenseDescription" label="Description" placeholder="e.g. End of tenancy cleaning" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} error={errors.description} />
           <Input id="expenseSupplier" label="Supplier (optional)" placeholder="e.g. Sparkle Cleaners" value={form.supplier} onChange={(e) => setForm((f) => ({ ...f, supplier: e.target.value }))} />
           <Input id="expenseAmount" label="Amount (£)" type="number" step="0.01" min="0" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} error={errors.amount} />
