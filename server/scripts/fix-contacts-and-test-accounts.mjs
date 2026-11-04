@@ -5,7 +5,9 @@
 //    mangled by Excel ("+31-6-51290737" became 31-6-51290737 = -51290712); the
 //    real numbers below are |value| + 25, checked against 7 numbers that were
 //    already right in ROCA Estates.
-//    Only a placeholder or empty value is replaced — a real value is never
+//    Only a placeholder or empty value is replaced, plus two exact known-wrong
+//    cases found on live (4 Nov): the Excel-damaged phone (real − 25) and an
+//    address field holding "street,city,postcode". Any other real value is never
 //    overwritten. Roca Living's copy of a linked landlord is updated the same way.
 // 2) Test tenant accounts in ROCA Estates (tenant portal): "Tenant One",
 //    "Tenant" and the developer's own login, with their test leases.
@@ -49,6 +51,23 @@ const TEST_TENANTS = [
 
 const isPlaceholder = (k, v) => v === null || v === undefined || String(v).trim() === ''
   || (k === 'email' && /\.invalid$/i.test(String(v))) || (k === 'phone' && /^0+$/.test(String(v).trim()));
+const digits = (v) => String(v ?? '').replace(/\D/g, '');
+const squash = (v) => String(v ?? '').toLowerCase().replace(/\s*,\s*/g, ',').replace(/\s+/g, ' ').trim();
+// A stored value known to be wrong in a precise way (exact match only):
+//  - phone: the Excel-damaged number = the real mobile's last 8 digits minus 25
+//    (live had 22124697 for +31 6 22124722);
+//  - address: street, city and postcode packed into the address field
+//    ("Ruysdaelkade 51 hs,Amsterdam,1072 AJ") while city/postcode are filled too.
+const isKnownWrong = (k, cur, want, set) => {
+  if (k === 'phone') {
+    const real8 = digits(want).slice(-8);
+    return real8.length === 8 && digits(cur) === String(Number(real8) - 25);
+  }
+  if (k === 'address' && set.city && set.postcode) return squash(cur) === squash([want, set.city, set.postcode].join(','));
+  return false;
+};
+// Same value written differently (+32 494 28 40 81 vs 32494284081): nothing to do.
+const sameValue = (k, cur, want) => String(cur ?? '') === want || (k === 'phone' && digits(cur) !== '' && digits(cur) === digits(want));
 
 // ── 1. Landlord contacts ─────────────────────────────────────────────────────
 const plans = [];
@@ -56,13 +75,15 @@ console.log('Landlord contacts (ROCA Estates):');
 for (const c of CONTACTS) {
   const u = await emDb('users').where({ role: 'LANDLORD', name: c.name }).first();
   if (!u) { console.log(`  REFUSED  ${c.name}: no ROCA Estates landlord with exactly this name — not changed`); continue; }
-  const changes = Object.entries(c.set).filter(([k, v]) => isPlaceholder(k, u[k]) && String(u[k] ?? '') !== v).map(([k, v]) => ({ k, from: u[k], to: v }));
-  const kept = Object.entries(c.set).filter(([k, v]) => !isPlaceholder(k, u[k]) && String(u[k]) !== v);
+  const changes = Object.entries(c.set)
+    .filter(([k, v]) => !sameValue(k, u[k], v) && (isPlaceholder(k, u[k]) || isKnownWrong(k, u[k], v, c.set)))
+    .map(([k, v]) => ({ k, from: u[k], to: v, why: isPlaceholder(k, u[k]) ? '' : k === 'phone' ? '  (Excel-damaged number)' : '  (city/postcode now in their own fields)' }));
+  const kept = Object.entries(c.set).filter(([k, v]) => !sameValue(k, u[k], v) && !isPlaceholder(k, u[k]) && !isKnownWrong(k, u[k], v, c.set));
   if (!changes.length) { console.log(`  #${u.id} ${c.name}: nothing to change`); }
-  for (const ch of changes) console.log(`  #${u.id} ${c.name}: ${ch.k} ${ch.from ?? '—'} → ${ch.to}`);
+  for (const ch of changes) console.log(`  #${u.id} ${c.name}: ${ch.k} ${ch.from || '—'} → ${ch.to}${ch.why}`);
   for (const [k, v] of kept) console.log(`  #${u.id} ${c.name}: ${k} kept as ${u[k]} (sheet says ${v})`);
   const rl = await db('users').where({ role: 'LANDLORD', rocaem_user_id: u.id }).first();
-  const rlChanges = rl ? ['email', 'phone'].filter((k) => c.set[k] && isPlaceholder(k, rl[k]) && rl[k] !== c.set[k]).map((k) => ({ k, from: rl[k], to: c.set[k] })) : [];
+  const rlChanges = rl ? ['email', 'phone'].filter((k) => c.set[k] && !sameValue(k, rl[k], c.set[k]) && (isPlaceholder(k, rl[k]) || isKnownWrong(k, rl[k], c.set[k], c.set))).map((k) => ({ k, from: rl[k], to: c.set[k] })) : [];
   for (const ch of rlChanges) console.log(`      Roca Living landlord #${rl.id}: ${ch.k} ${ch.from || '—'} → ${ch.to}`);
   if (changes.length || rlChanges.length) plans.push({ c, u, changes, rl, rlChanges });
 }
