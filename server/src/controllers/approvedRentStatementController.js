@@ -10,6 +10,7 @@ import { generatePortraitPDFWithPuppeteer } from '../utils/puppeteerGenerator.js
 import { rocaLivingStatementPdfHtml, rocaLivingInvoicePdfHtml } from '../templates/rocaLivingStatementTemplate.js';
 import { sendEmail } from '../utils/email.js';
 import { niceName } from '../utils/names.js';
+import { issuedStatementCovering } from '../utils/statementCover.js';
 
 // "Statement from approved rent" — a SEPARATE flow next to the existing
 // Generate Statement (which is not changed, by client request). A landlord
@@ -144,6 +145,9 @@ const readRequest = async (body) => {
     ? await db('rent_payments').whereIn('id', ids).where({ tenancy_id: tenancyId, approval_status: 'approved' }).whereNull('approved_statement_id').orderBy('received_at')
     : await paymentsFor(tenancyId, from, to);
   if (!payments.length) throw new ApiError(400, 'No approved rent in this period that is not already on an approved-rent statement');
+  // The landlord already has a statement for this month from the Statements page.
+  const made = await issuedStatementCovering(tenancyId, from, to);
+  if (made) throw new ApiError(400, `${made.statement_number} on the Statements page already covers this month — no second statement`);
   return { t, payments, from, to };
 };
 

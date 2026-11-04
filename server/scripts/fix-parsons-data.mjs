@@ -1,7 +1,7 @@
 // Correct the Parsons House flats Roca Living manages (PH-8, 13, 19, 31, 33, 36)
-// to the signed documents in the client's Dropbox (checked 27 Oct 2026; "from"
-// dates of PH-8, 19 and 31 moved a month on 3 Nov: the client made their
-// November statements by hand, so Roca Living starts with December):
+// to the signed documents in the client's Dropbox (checked 27 Oct 2026; the
+// 3 Nov "start in December" change for PH-8, 19 and 31 was cancelled on 4 Nov:
+// live showed Roca Living made their November statements itself):
 // tenancy start, rent, due day, "Rent handled in Roca Living from" (the day
 // after the client's last hand-made statement) and the last hand-made number,
 // deposits, and the owners' NRL numbers in ROCA Estates. Run from the server
@@ -56,12 +56,12 @@ console.log(`${APPLY ? 'APPLY' : 'DRY RUN'} on ${rlName} (Roca Living)\n`);
 // ── What the documents say ───────────────────────────────────────────────────
 // from = day after the client's last hand-made statement; lastSeq = its number.
 const FLATS = [
-  { apt: '8', start: '2026-08-22', rent: 595, dueDay: 2, from: '2026-12-02', lastSeq: 3, source: 'PH_8_0003 to 01/12/2026 (hand-made, 2 Nov); agreement £595' },
+  { apt: '8', start: '2026-08-22', rent: 595, dueDay: 2, from: '2026-11-02', lastSeq: 2, source: 'PH_8_0002 to 01/11/2026; agreement £595' },
   { apt: '13', start: '2026-06-23', rent: 850, dueDay: 23, from: '2026-11-23', lastSeq: 5, source: 'tenancy agreement 23/06/2026; PH_13_0005 to 22/11/2026',
     deposit: { amount: 980.77, scheme: 'TDS', received: '2026-06-23', registered: null, note: 'TDS (no certificate in the client\'s Dropbox — check the registration)' } },
-  { apt: '19', start: '2026-08-28', rent: 795, dueDay: 28, from: '2026-12-01', lastSeq: 6, source: 'tenancy agreement 28/08/2026; PH_19_0006 to 30/11/2026 (hand-made, 2 Nov)',
+  { apt: '19', start: '2026-08-28', rent: 795, dueDay: 28, from: '2026-11-01', lastSeq: 5, source: 'tenancy agreement 28/08/2026; PH_19_0005 to 31/10/2026',
     deposit: { amount: 917.31, scheme: 'TDS', received: '2026-08-28', registered: '2026-09-07', note: 'TDS ref EW48897287' } },
-  { apt: '31', start: '2026-08-28', rent: 970, dueDay: 28, from: '2026-11-28', lastSeq: 3, source: 'tenancy agreement 28/08/2026; PH_31_0003 to 27/11/2026 (hand-made, 28 Oct)',
+  { apt: '31', start: '2026-08-28', rent: 970, dueDay: 28, from: '2026-10-28', lastSeq: 2, source: 'tenancy agreement 28/08/2026; PH_31_0002 to 27/10/2026',
     deposit: { amount: 1096.15, scheme: 'TDS', received: '2026-08-28', registered: '2026-09-07', note: 'TDS ref EW48897233' } },
   { apt: '33', start: '2026-05-25', rent: 965, dueDay: 25, from: '2026-11-25', lastSeq: 6, source: 'tenancy agreement 25/05/2026; PH_33_0006 to 24/11/2026',
     deposit: { amount: 1096.15, scheme: 'TDS', received: '2026-05-25', registered: '2026-06-03', note: 'TDS ref EW46832166' } },
@@ -137,8 +137,15 @@ for (const f of FLATS) {
   const fieldChanges = Object.keys(want).filter((k) => String(cur[k]) !== String(want[k]));
   for (const k of fieldChanges) lines.push(`  ${fieldNames[k]}: ${show(k, cur[k])} → ${show(k, want[k])}`);
 
-  // Statements Roca Living made for this tenancy (all predate the hand-made ones).
-  const statements = await db('landlord_statements').where('tenancy_id', t.id).select('id', 'statement_number', 'status', 'sent_at', 'invoice_id', 'document_id', 'period_start', 'period_end');
+  // Statements Roca Living made for this tenancy. Those starting before "from"
+  // cover months on the client's hand-made statements (delete, or refuse if
+  // issued); those from "from" on are Roca Living's own work and are kept.
+  const allStatements = await db('landlord_statements').where('tenancy_id', t.id).select('id', 'statement_number', 'status', 'sent_at', 'invoice_id', 'document_id', 'period_start', 'period_end');
+  const statements = allStatements.filter((s) => toYmd(s.period_start) < f.from);
+  const ownStatements = allStatements.filter((s) => toYmd(s.period_start) >= f.from);
+  if (ownStatements.length && (fieldChanges.length || statements.length)) {
+    lines.push(`  keep statement(s) ${ownStatements.map((s) => s.statement_number).join(', ')} (from ${uk(f.from)} on — Roca Living's own)`);
+  }
   for (const s of statements) {
     const sent = s.status !== 'draft' || s.sent_at;
     if (sent && !DELETE_SENT.includes(s.statement_number)) why.push(`statement ${s.statement_number} (${uk(toYmd(s.period_start))} – ${uk(toYmd(s.period_end))}) was issued (${s.sent_at ? 'sent' : s.status}) — it can't be deleted`);

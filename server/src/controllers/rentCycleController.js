@@ -11,6 +11,7 @@ import { sendRentSplit, settleRentMonth, pullLandlordBillStatus } from '../utils
 import { applyRepairDeductions } from '../utils/repairDeductions.js';
 import { billOpen, latestOf } from '../utils/rentGroups.js';
 import { historyRows } from '../utils/xeroHistory.js';
+import { issuedStatementCovering } from '../utils/statementCover.js';
 
 // Rent Cycle — the whole monthly rent flow on one page (Accounting → Rent Cycle).
 // One row per managed flat's rent month, moving through:
@@ -192,6 +193,12 @@ export const getRentCycle = catchAsync(async (req, res) => {
         st = { stage: 'attention', reason: `${partFailed.ticket_id ? `Contractor bill (ticket #${partFailed.ticket_id})` : 'Fee transfer'} not in Xero: ${partFailed.error || 'unknown error'}`, retry_send: true };
       }
     }
+    const period = rentPeriodFor(due, toYmd(m.start_date), m.rent_due_day, m.rent_due_day_from ? toYmd(m.rent_due_day_from) : null);
+    // Already on a statement made on the Statements page: no second one here.
+    if (st.stage === 'landlord_paid') {
+      const made = await issuedStatementCovering(m.tenancy_id, period.start, period.end);
+      if (made) st = { stage: 'statement', outside: true, reason: `Statement ${made.statement_number} (Statements page)` };
+    }
 
     // Rent paid in parts: the month waits for the rest, then is approved once
     // (one landlord bill, one fee transfer). The admin can settle what has
@@ -208,7 +215,6 @@ export const getRentCycle = catchAsync(async (req, res) => {
       ? (await db('approved_rent_statements').whereIn('id', statementIds).select('id', 'statement_number', 'status', 'sent_at'))
         .map((x) => ({ ...x, sent_at: x.sent_at ? new Date(x.sent_at).toISOString() : null }))
       : [];
-    const period = rentPeriodFor(due, toYmd(m.start_date), m.rent_due_day, m.rent_due_day_from ? toYmd(m.rent_due_day_from) : null);
     rows.push({
       key: `${m.tenancy_id}-${due}`,
       tenancy_id: m.tenancy_id,
