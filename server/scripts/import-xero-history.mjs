@@ -2,8 +2,9 @@
 // landlord bill, fee / repair transfers) so the client's old bank lines can be
 // matched, and keep them as read-only history in Roca Living (rent_history).
 //
-//   node scripts/import-xero-history.mjs --file="<months.json>"                      dry run (changes nothing)
-//   node scripts/import-xero-history.mjs --file="<months.json>" --apply --org="<Xero organisation name>"
+//   node scripts/import-xero-history.mjs                                             dry run (changes nothing)
+//   node scripts/import-xero-history.mjs --apply --org="<Xero organisation name>"
+// (months: scripts/data/history-months.json; another file with --file="<months.json>")
 //
 // The months file comes from the reconcile worksheet: only months where
 // rent − fee − repairs = the landlord payout. Run again to carry on after a
@@ -15,7 +16,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APPLY = process.argv.includes('--apply');
 const argValue = (name) => process.argv.find((a) => a.startsWith(`--${name}=`))?.split('=').slice(1).join('=') || null;
-const FILE = argValue('file');
+const FILE = argValue('file') || path.join(HERE, 'data', 'history-months.json');
 const mod = (rel) => import(pathToFileURL(path.join(HERE, '..', rel)).href);
 const { emDb, default: db } = await mod('src/config/db.js');
 const { getStoredConnection } = await mod('src/utils/xero.js');
@@ -24,7 +25,7 @@ const { importHistory } = await mod('src/utils/xeroHistory.js');
 const done = async (code = 0) => { await db.destroy(); await emDb.destroy(); process.exit(code); };
 
 if (!FILE || !fs.existsSync(FILE)) {
-  console.log('Pass --file="<months.json>" (made with the reconcile worksheet).');
+  console.log(`Months file not found: ${FILE}`);
   await done(1);
 }
 const months = JSON.parse(fs.readFileSync(FILE, 'utf8'));

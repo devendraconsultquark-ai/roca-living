@@ -1,0 +1,449 @@
+[
+ {
+  "block": "PH",
+  "flat": "8",
+  "month_label": "2026-10",
+  "tenant": "Kian Wagstaff",
+  "landlord": "Narek Darbinian & Nelli Badaljan",
+  "rents": [
+   {
+    "date": "2026-10-02",
+    "amount": 150.0,
+    "text": "WAGSTAFF DJ PH-APT 8 Rent BGC"
+   },
+   {
+    "date": "2026-10-05",
+    "amount": 200.0,
+    "text": "WAGSTAFF CL PH-APT8 RENT BGC"
+   },
+   {
+    "date": "2026-10-06",
+    "amount": 122.5,
+    "text": "WAGSTAFF CL PH-APT8 RENT BGC"
+   },
+   {
+    "date": "2026-10-06",
+    "amount": 122.5,
+    "text": "WAGSTAFF DJ PH-APT 8 Rent BGC"
+   }
+  ],
+  "fee": {
+   "date": "2026-10-06",
+   "amount": 47.6,
+   "text": "204276 50831697 PH-APT8 MF OCT26 FT"
+  },
+  "repairs": [],
+  "payout": {
+   "date": "2026-10-06",
+   "amount": 547.4,
+   "text": "NELLI BADALJAN PH APT8 RENT OCT26 FT"
+  }
+ },
+ {
+  "block": "PH",
+  "flat": "13",
+  "month_label": "2026-07",
+  "tenant": "Mr Muhammad Babar Mahmood",
+  "landlord": "Marcia Esseline Wilhelmina Huizing & Paul Belema",
+  "rents": [
+   {
+    "date": "2026-07-23",
+    "amount": 850.0,
+    "text": "M Mahmood 13 Parson NE371EY BGC"
+   }
+  ],
+  "fee": {
+   "date": "2026-07-23",
+   "amount": 68.0,
+   "text": "204276 50831697 MF PH APT 13 JUL FT"
+  },
+  "repairs": [],
+  "payout": {
+   "date": "2026-07-23",
+   "amount": 782.0,
+   "text": "MARCIA HUIZING PH -APT 13 JUL 26 FT"
+  }
+ },
+ {
+  "block": "PH",
+  "flat": "13",
+  "month_label": "2026-08",
+  "tenant": "Mr Muhammad Babar Mahmood",
+  "landlord": "Marcia Esseline Wilhelmina Huizing & Paul Belema",
+  "rents": [
+   {
+    "date": "2026-08-24",
+    "amount": 850.0,
+    "text": "M MAHMOOD 13,PARSON, NE371EY STO"
+   }
+  ],
+  "fee": {
+   "date": "2026-08-24",
+   "amount": 68.0,
+   "text": "204276 50831697 PH APT 13 MF AUG FT"
+  },
+  "repairs": [],
+  "payout": {
+   "date": "2026-08-24",
+   "amount": 782.0,
+   "text": "MARCIA HUIZING PH -APT 13 AUG 26 FT"
+  }
+ },
+ {
+  "block": "PH",
+  "flat": "13",
+  "month_label": "2026-09",
+  "tenant": "Mr Muhammad Babar Mahmood",
+  "landlord": "Marcia Esseline Wilhelmina Huizing & Paul Belema",
+  "rents": [
+   {
+    "date": "2026-09-23",
+    "amount": 850.0,
+    "text": "M MAHMOOD 13,PARSON, NE371EY STO"
+   }
+  ],
+  "fee": {
+   "date": "2026-09-23",
+   "amount": 68.0,
+   "text": "204276 50831697 PH 13 MF SEPT 26 FT"
+  },
+  "repairs": [],
+  "payout": {
+   "date": "2026-09-23",
+   "amount": 782.0,
+   "text": "MARCIA HUIZING PH -APT 13 SEPT 26 FT"
+  }
+ },
+ {
+  "block": "PH",
+  "flat": "13",
+  "month_label": "2026-10",
+  "tenant": "Mr Muhammad Babar Mahmood",
+  "landlord": "Marcia Esseline Wilhelmina Huizing & Paul Belema",
+  "rents": [
+   {
+    "date": "2026-10-23",
+    "amount": 850.0,
+    "text": "M MAHMOOD 13,PARSON, NE371EY STO"
+   }
+  ],
+  "fee": {
+   "date": "2026-10-27",
+   "amount": 68.0,
+   "text": "204276 50831697 PH13 MF OCT 2026 FT"
+  },
+  "repairs": [],
+  "payout": {
+   "date": "2026-10-23",
+   "amount": 782.0,
+   "text": "MARCIA HUIZING PH -APT 13 OCT 26 FT"
+  }
+ },
+ {
+  "block": "PH",
+  "flat": "19",
+  "month_label": "2026-06",
+  "tenant": "Kirsty Scott",
+  "landlord": "Rob Belema & Geertje Adriaantje Hogenes",
+  "rents": [
+   {
+    "date": "2026-06-30",
+    "amount": 795.0,
+    "text": "KIRSTY SCOTT 19 parsons house BGC"
+   }
+  ],
+  "fee": {
+   "date": "2026-07-01",
+   "amount": 63.6,
+   "text": "204276 50831697 INV -PH 0002 FT"
+  },
+  "repairs": [],
+  "payout": {
+   "date": "2026-07-01",
+   "amount": 731.4,
+   "text": "GEERTJE ADRIAANTJE PH-19-0002 JUL 26 FT"
+  }
+ },
+ {
+  "block": "PH",
+  "flat": "19",
+  "month_label": "2026-09",
+  "tenant": "Gladys Bouna",
+  "landlord": "Rob Belema & Geertje Adriaantje Hogenes",
+  "rents": [
+   {
+    "date": "2026-09-30",
+    "amount": 874.5,
+    "text": "E Miata Bouna PH-19 Rent BGC"
+   }
+  ],
+  "fee": {
+   "date": "2026-10-01",
+   "amount": 63.6,
+   "text": "204276 50831697 PH-19 MF SEPT26 FT"
+  },
+  "repairs": [],
+  "payout": {
+   "date": "2026-10-01",
+   "amount": 810.9,
+   "text": "GEERTJE ADRIAANTJE PH-19 RENT SEPT26 BBP"
+  }
+ },
+ {
+  "block": "PH",
+  "flat": "31",
+  "month_label": "2026-09",
+  "tenant": "Dr Ewa Szewczyk",
+  "landlord": "Malitholo Ltd",
+  "rents": [
+   {
+    "date": "2026-09-28",
+    "amount": 970.0,
+    "text": "E Szewczyk PH-31 Rent BGC"
+   }
+  ],
+  "fee": {
+   "date": "2026-09-28",
+   "amount": 77.6,
+   "text": "204276 50831697 PH-APT31 MF SEPT26 FT"
+  },
+  "repairs": [],
+  "payout": {
+   "date": "2026-09-28",
+   "amount": 892.4,
+   "text": "MALITHOLO LTD PH-APT31 SEPT 26 FT"
+  }
+ },
+ {
+  "block": "PH",
+  "flat": "33",
+  "month_label": "2026-06",
+  "tenant": "Mr Joshua Harrison North",
+  "landlord": "Matthijs van Leeuwen & Marisa Novita Liani",
+  "rents": [
+   {
+    "date": "2026-06-22",
+    "amount": 965.0,
+    "text": "JOSHUA HARRISON-NO JHN 33Parons House STO"
+   }
+  ],
+  "fee": {
+   "date": "2026-06-26",
+   "amount": 77.2,
+   "text": "204276 50831697 MF APT 33 FT"
+  },
+  "repairs": [],
+  "payout": {
+   "date": "2026-06-25",
+   "amount": 887.8,
+   "text": "MATTHIJS VAN LEEUW PH APT 33 JUN 2026 BBP"
+  }
+ },
+ {
+  "block": "PH",
+  "flat": "33",
+  "month_label": "2026-07",
+  "tenant": "Mr Joshua Harrison North",
+  "landlord": "Matthijs van Leeuwen & Marisa Novita Liani",
+  "rents": [
+   {
+    "date": "2026-07-22",
+    "amount": 965.0,
+    "text": "JOSHUA HARRISON-NO JHN 33Parons House STO"
+   }
+  ],
+  "fee": {
+   "date": "2026-07-27",
+   "amount": 77.2,
+   "text": "204276 50831697 MF PH APT 33 JUL FT"
+  },
+  "repairs": [],
+  "payout": {
+   "date": "2026-07-27",
+   "amount": 887.8,
+   "text": "MATTHIJS VAN LEEUW PH APT 33 JUL 2026 FT"
+  }
+ },
+ {
+  "block": "PH",
+  "flat": "33",
+  "month_label": "2026-08",
+  "tenant": "Mr Joshua Harrison North",
+  "landlord": "Matthijs van Leeuwen & Marisa Novita Liani",
+  "rents": [
+   {
+    "date": "2026-08-24",
+    "amount": 965.0,
+    "text": "JOSHUA HARRISON-NO JHN 33Parons House STO"
+   }
+  ],
+  "fee": {
+   "date": "2026-08-25",
+   "amount": 77.2,
+   "text": "204276 50831697 PH APT 33 MF AUG FT"
+  },
+  "repairs": [],
+  "payout": {
+   "date": "2026-08-25",
+   "amount": 887.8,
+   "text": "MATTHIJS VAN LEEUW PH APT 33 AUG 2026 FT"
+  }
+ },
+ {
+  "block": "PH",
+  "flat": "33",
+  "month_label": "2026-09",
+  "tenant": "Mr Joshua Harrison North",
+  "landlord": "Matthijs van Leeuwen & Marisa Novita Liani",
+  "rents": [
+   {
+    "date": "2026-09-22",
+    "amount": 965.0,
+    "text": "JOSHUA HARRISON-NO JHN 33Parons House STO"
+   }
+  ],
+  "fee": {
+   "date": "2026-09-25",
+   "amount": 77.2,
+   "text": "204276 50831697 PH33 MF SEP26 FT"
+  },
+  "repairs": [
+   {
+    "date": "2026-09-25",
+    "amount": 179.0,
+    "text": "204276 50831697 PH33 -MAIN PACIFIC FT",
+    "description": "Repair \u2013 PH33 -MAIN PACIFIC FT"
+   }
+  ],
+  "payout": {
+   "date": "2026-09-25",
+   "amount": 708.8,
+   "text": "MATTHIJS VAN LEEUW PH APT 33 SEP 2026 FT"
+  }
+ },
+ {
+  "block": "PH",
+  "flat": "33",
+  "month_label": "2026-10",
+  "tenant": "Mr Joshua Harrison North",
+  "landlord": "Matthijs van Leeuwen & Marisa Novita Liani",
+  "rents": [
+   {
+    "date": "2026-10-22",
+    "amount": 965.0,
+    "text": "JOSHUA HARRISON-NO JHN 33Parons House STO"
+   }
+  ],
+  "fee": {
+   "date": "2026-10-27",
+   "amount": 77.2,
+   "text": "204276 50831697 PH33 MF OCT26 FT"
+  },
+  "repairs": [],
+  "payout": {
+   "date": "2026-10-27",
+   "amount": 887.8,
+   "text": "MATTHIJS VAN LEEUW PH APT 33 OCT 2026 FT"
+  }
+ },
+ {
+  "block": "PH",
+  "flat": "36",
+  "month_label": "2026-07",
+  "tenant": "Miss Dhriti Kuchi",
+  "landlord": "GKP UK Investments Ltd",
+  "rents": [
+   {
+    "date": "2026-07-17",
+    "amount": 985.0,
+    "text": "KUCHI D Rent July 2026 BGC"
+   }
+  ],
+  "fee": {
+   "date": "2026-07-17",
+   "amount": 78.0,
+   "text": "204276 50831697 MF PHAPT 36 JUL 26 FT"
+  },
+  "repairs": [],
+  "payout": {
+   "date": "2026-07-17",
+   "amount": 907.0,
+   "text": "GKP UK INVESTMENTS PH-36 JUL-2026 FT"
+  }
+ },
+ {
+  "block": "PH",
+  "flat": "36",
+  "month_label": "2026-08",
+  "tenant": "Miss Dhriti Kuchi",
+  "landlord": "GKP UK Investments Ltd",
+  "rents": [
+   {
+    "date": "2026-08-17",
+    "amount": 985.0,
+    "text": "KUCHI D RENT PARSONS HOUSE STO"
+   }
+  ],
+  "fee": {
+   "date": "2026-08-17",
+   "amount": 78.8,
+   "text": "204276 50831697 PH APT 36 MF FT"
+  },
+  "repairs": [],
+  "payout": {
+   "date": "2026-08-17",
+   "amount": 906.2,
+   "text": "GKP UK INVESTMENTS PH-36 AUG-2026 FT"
+  }
+ },
+ {
+  "block": "PH",
+  "flat": "36",
+  "month_label": "2026-09",
+  "tenant": "Miss Dhriti Kuchi",
+  "landlord": "GKP UK Investments Ltd",
+  "rents": [
+   {
+    "date": "2026-09-14",
+    "amount": 985.0,
+    "text": "KUCHI D RENT PARSONS HOUSE STO"
+   }
+  ],
+  "fee": {
+   "date": "2026-09-17",
+   "amount": 78.8,
+   "text": "204276 50831697 PH 36 MF SEPT 26 FT"
+  },
+  "repairs": [],
+  "payout": {
+   "date": "2026-09-17",
+   "amount": 906.2,
+   "text": "GKP UK INVESTMENTS PH-36 SEP 2026 FT"
+  }
+ },
+ {
+  "block": "PH",
+  "flat": "36",
+  "month_label": "2026-10",
+  "tenant": "Miss Dhriti Kuchi",
+  "landlord": "GKP UK Investments Ltd",
+  "rents": [
+   {
+    "date": "2026-10-12",
+    "amount": 985.0,
+    "text": "KUCHI D RENT PARSONS HOUSE STO"
+   }
+  ],
+  "fee": {
+   "date": "2026-10-19",
+   "amount": 78.8,
+   "text": "204276 50831697 PH36 MF OCT 2026 FT"
+  },
+  "repairs": [],
+  "payout": {
+   "date": "2026-10-19",
+   "amount": 906.2,
+   "text": "GKP UK INVESTMENTS PH-36 OCT 2026 FT"
+  }
+ }
+]
