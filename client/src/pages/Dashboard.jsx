@@ -15,6 +15,7 @@ import { TimelineItem } from "../components/UI/TimelineItem";
 import { Button } from "../components/UI/Button";
 import { Dropdown } from "../components/UI/Dropdown";
 import { Skeleton } from "../components/UI/Skeleton";
+import { dueLabel } from "../utilities/tenancyFacts";
 
 export const Dashboard = () => {
   const navigate = useNavigate();
@@ -139,7 +140,7 @@ export const Dashboard = () => {
                       : "—"}
                   </span>
                   <span className="text-2xs text-gray-400 mt-1 leading-none">
-                    Due 1st Monthly
+                    {activeTenancy ? dueLabel(activeTenancy) : "—"}
                   </span>
                 </div>
                 <div className="flex flex-col border-l border-card-border pl-2">

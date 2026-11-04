@@ -6,6 +6,7 @@ import { toYmd, todayYmd as todayYmdLocal } from './dateHelpers.js';
 import { getStoredConnection } from './xero.js';
 import { xeroThrottled as xero, xeroMessage, xeroDateYmd, round2, contactNotFound } from './xeroRentInvoices.js';
 import { applyRepairDeductions } from './repairDeductions.js';
+import { billOpen, shareOf, latestOf, groupFee, leadIdOf } from './rentGroups.js';
 
 // "Send to Xero" for approved rent (rent cycle phase 4, separate approved-rent
 // flow — the existing statements are not involved). One bill to the landlord
@@ -53,15 +54,16 @@ const chooseNumber = async (base, total, contact, call = xero, table = 'rent_pay
   }
   throw new Error(`No free bill number for ${base}`);
 };
-const chooseBillNumber = (base, total, contact) => chooseNumber(base, total, contact);
 
-// The bill's lines: rent (+), ROCA's fee (−) and each deduction (−). Their sum
-// is what ROCA owes the landlord (the payment's net).
-export const landlordBillLines = ({ flat, tenantName, receivedUk, amount, feePct, fee }, deductions, codes) => {
-  const lines = [{
-    Description: `Rent ${flat} ${tenantName || ''}, received ${receivedUk}`.replace(/\s+/g, ' ').trim(),
-    Quantity: 1, UnitAmount: round2(amount), AccountCode: codes.bill
-  }];
+// The bill's lines: rent (+, one line per part when the month was paid in
+// parts), ROCA's fee (−) and each deduction (−). Their sum is what ROCA owes
+// the landlord.
+export const landlordBillLines = ({ flat, tenantName, receivedUk, amount, feePct, fee, rents = null }, deductions, codes) => {
+  const parts = rents || [{ receivedUk, amount }];
+  const lines = parts.map((r) => ({
+    Description: `Rent ${flat} ${tenantName || ''}, received ${r.receivedUk}`.replace(/\s+/g, ' ').trim(),
+    Quantity: 1, UnitAmount: round2(r.amount), AccountCode: codes.bill
+  }));
   if (fee > 0) lines.push({ Description: `Management fee ${Number(feePct)}%`, Quantity: 1, UnitAmount: -round2(fee), AccountCode: codes.fee });
   for (const d of deductions) {
     lines.push({
@@ -86,12 +88,20 @@ export const paymentContext = (paymentId) => db('rent_payments as p')
     'l.name as landlord_name', 'lead.name as tenant_name'
   );
 
-export const postLandlordBill = async (paymentId, actorId = null) => {
-  const connection = await getStoredConnection();
-  if (!connection || connection.status !== 'active') throw new ApiError(409, 'Xero is not connected');
-  const p = await paymentContext(paymentId);
+// The payments one bill covers: the settlement group led by this payment, else
+// just this payment.
+const groupFor = async (p) => (p.settlement_lead_id === p.id
+  ? db('rent_payments').where('settlement_lead_id', p.id).orderBy('received_at').orderBy('id')
+  : [p]);
+
+export const postLandlordBill = async (paymentId, actorId = null, call = xero) => {
+  await ensureConnected(call);
+  const p = await paymentContext(await leadIdOf(db, paymentId));
   if (!p || p.approval_status !== 'approved') throw new ApiError(409, 'Only approved rent can be sent to Xero');
   if (['posted', 'paid'].includes(p.xero_bill_status)) return { status: p.xero_bill_status, number: p.xero_bill_number, already: true };
+  const group = await groupFor(p);
+  if (group.some((g) => g.approval_status !== 'approved')) throw new ApiError(409, 'Only approved rent can be sent to Xero');
+  const groupIds = group.map((g) => g.id);
 
   const billCode = await getSetting('xeroLandlordBillAccountCode', null);
   const feeCode = await getSetting('xeroFeeIncomeAccountCode', null);
@@ -100,7 +110,7 @@ export const postLandlordBill = async (paymentId, actorId = null) => {
   // A repair completed since the rent came in comes off this bill too.
   const tenancy = await db('tenancies').where('id', p.tenancy_id).first('property_id');
   await db.transaction((trx) => applyRepairDeductions(trx, tenancy?.property_id));
-  const deductions = await db('rent_payment_deductions').where('rent_payment_id', p.id).orderBy('id').select('description', 'supplier', 'amount');
+  const deductions = await db('rent_payment_deductions').whereIn('rent_payment_id', groupIds).orderBy('id').select('description', 'supplier', 'amount');
   const expenseCode = deductions.length ? await getSetting('xeroLandlordExpenseAccountCode', null) : null;
   if (deductions.length && !expenseCode) {
     throw new ApiError(400, 'This payment has deductions: choose the "Landlord expenses account" in Settings → Xero first');
@@ -108,8 +118,10 @@ export const postLandlordBill = async (paymentId, actorId = null) => {
 
   const received = toYmd(p.received_at);
   const flat = `${String(p.block_name || '').toUpperCase()}-${p.apartment_number}`;
-  const amount = round2(p.amount);
-  const fee = round2(p.fee_amount || 0);
+  const amount = round2(group.reduce((s, g) => s + Number(g.amount), 0));
+  const fee = round2(group.reduce((s, g) => s + Number(g.fee_amount || 0), 0));
+  const rents = group.map((g) => ({ receivedUk: uk(toYmd(g.received_at)), amount: round2(g.amount) }));
+  const invoiceRefs = [...new Set(group.map((g) => g.xero_invoice_number).filter(Boolean))].join(' ');
   const deducted = round2(deductions.reduce((s, d) => s + Number(d.amount), 0));
   const net = round2(amount - fee - deducted);
   const base = `PAY-${String(p.block_name || '').toUpperCase()}${pad2(p.apartment_number)}-${received.replace(/-/g, '')}`;
@@ -118,14 +130,14 @@ export const postLandlordBill = async (paymentId, actorId = null) => {
   let bill;
   try {
     for (let attempt = 1; !bill; attempt++) {
-      const { number, existing } = await chooseBillNumber(base, net.toFixed(2), contact);
+      const { number, existing } = await chooseNumber(base, net.toFixed(2), contact, call);
       if (existing) { bill = { ...existing, InvoiceNumber: number }; break; }
       const lines = landlordBillLines(
-        { flat, tenantName: p.tenant_name, receivedUk: uk(received), amount, feePct: p.fee_pct, fee },
+        { flat, tenantName: p.tenant_name, amount, feePct: p.fee_pct, fee, rents },
         deductions,
         { bill: billCode, fee: feeCode, expense: expenseCode }
       );
-      const r = await xero('PUT', '/Invoices', {
+      const r = await call('PUT', '/Invoices', {
         searchParams: { summarizeErrors: 'false' },
         body: {
           Invoices: [{
@@ -134,7 +146,7 @@ export const postLandlordBill = async (paymentId, actorId = null) => {
             Date: received,
             DueDate: received,
             InvoiceNumber: number,
-            Reference: `${p.tenant_name || flat} ${p.xero_invoice_number || ''}`.trim().slice(0, 255),
+            Reference: `${p.tenant_name || flat} ${invoiceRefs}`.trim().slice(0, 255),
             Status: 'AUTHORISED',
             LineAmountTypes: 'NoTax',
             LineItems: lines
@@ -159,13 +171,14 @@ export const postLandlordBill = async (paymentId, actorId = null) => {
     }
   } catch (err) {
     const error = String(err.message || 'Xero refused the bill').slice(0, 480);
-    await db('rent_payments').where('id', p.id).update({ xero_bill_status: 'failed', xero_bill_error: error });
+    await db('rent_payments').whereIn('id', groupIds).update({ xero_bill_status: 'failed', xero_bill_error: error });
     logger.warn(`[XeroLandlordBills] payment ${p.id}: ${error}`);
     return { status: 'failed', error };
   }
 
   await db.transaction(async (trx) => {
-    await trx('rent_payments').where('id', p.id).update({
+    // Every part of the month shares the one bill.
+    await trx('rent_payments').whereIn('id', groupIds).update({
       xero_bill_id: bill.InvoiceID, xero_bill_number: bill.InvoiceNumber, xero_bill_status: 'posted', xero_bill_error: null
     });
     const contactId = bill.Contact?.ContactID;
@@ -175,25 +188,25 @@ export const postLandlordBill = async (paymentId, actorId = null) => {
     await trx('audit_log').insert({
       actor_id: actorId, actor_role: actorId ? 'ADMIN' : 'SYSTEM', action: 'XERO_LANDLORD_BILL_POSTED',
       entity_type: 'rent_payment', entity_id: p.id,
-      meta: JSON.stringify({ bill: bill.InvoiceNumber, rent: amount, fee, deductions: deducted, net }), ip_address: null
+      meta: JSON.stringify({ bill: bill.InvoiceNumber, rent: amount, fee, deductions: deducted, net, payments: groupIds }), ip_address: null
     });
   });
   return { status: 'posted', number: bill.InvoiceNumber, net };
 };
 
 // Undo "Send to Xero" while the landlord has not been paid: the bill is voided.
-export const voidLandlordBill = async (paymentId, actorId = null) => {
+export const voidLandlordBill = async (paymentId, actorId = null, call = xero) => {
   const p = await db('rent_payments').where('id', paymentId).first();
   if (!p?.xero_bill_id || p.xero_bill_status !== 'posted') throw new ApiError(409, 'There is no unpaid Xero bill to undo for this payment');
-  const r = await xero('GET', `/Invoices/${p.xero_bill_id}`);
+  const r = await call('GET', `/Invoices/${p.xero_bill_id}`);
   const bill = r.body?.Invoices?.[0];
   if (!r.ok || !bill) throw new ApiError(502, 'Could not read the bill in Xero');
   if (Number(bill.AmountPaid || 0) > 0) throw new ApiError(409, 'The landlord has already been paid against this bill in Xero');
   if (!['VOIDED', 'DELETED'].includes(bill.Status)) {
-    const v = await xero('POST', `/Invoices/${p.xero_bill_id}`, { body: { Invoices: [{ InvoiceID: p.xero_bill_id, Status: 'VOIDED' }] } });
+    const v = await call('POST', `/Invoices/${p.xero_bill_id}`, { body: { Invoices: [{ InvoiceID: p.xero_bill_id, Status: 'VOIDED' }] } });
     if (!v.ok) throw new ApiError(502, `Xero did not void the bill: ${xeroMessage(v.error)}`);
   }
-  await db('rent_payments').where('id', p.id).update({ xero_bill_status: 'voided' });
+  await db('rent_payments').where('xero_bill_id', p.xero_bill_id).update({ xero_bill_status: 'voided' });
   await db('audit_log').insert({
     actor_id: actorId, actor_role: actorId ? 'ADMIN' : 'SYSTEM', action: 'XERO_LANDLORD_BILL_VOIDED',
     entity_type: 'rent_payment', entity_id: p.id, meta: JSON.stringify({ bill: p.xero_bill_number }), ip_address: null
@@ -250,7 +263,7 @@ const ensureConnected = async (call) => {
 // Bill each repair line's contractor (lines with a ticket whose ticket has a
 // contractor, not billed yet or failed before). Returns one result per line.
 export const postContractorBills = async (paymentId, actorId = null, call = xero) => {
-  const p = await paymentContext(paymentId);
+  const p = await paymentContext(await leadIdOf(db, paymentId));
   if (!p || p.approval_status !== 'approved') throw new ApiError(409, 'Only approved rent can be sent to Xero');
   const lines = await db('rent_payment_deductions as d')
     .join('maintenance_tickets as m', 'd.ticket_id', 'm.id')
@@ -321,18 +334,22 @@ export const postContractorBills = async (paymentId, actorId = null, call = xero
   return results;
 };
 
-// Record ROCA's fee moving to ROCA's account (once per payment).
+// Record ROCA's fee moving to ROCA's account: one transfer for the settlement
+// (the month's parts not transferred yet), saved on each of them.
+const FEE_DONE = ['recorded', 'moved', 'done'];
 export const postFeeTransfer = async (paymentId, actorId = null, call = xero) => {
-  const p = await paymentContext(paymentId);
+  const p = await paymentContext(await leadIdOf(db, paymentId));
   if (!p || p.approval_status !== 'approved') throw new ApiError(409, 'Only approved rent can be sent to Xero');
-  if (['recorded', 'moved', 'done'].includes(p.fee_transfer_status)) return { status: p.fee_transfer_status, already: true };
-  const fee = round2(p.fee_amount || 0);
+  const todo = (await groupFor(p)).filter((g) => !FEE_DONE.includes(g.fee_transfer_status));
+  if (!todo.length) return { status: p.fee_transfer_status, already: true };
+  const groupIds = todo.map((g) => g.id);
+  const fee = round2(todo.reduce((s, g) => s + Number(g.fee_amount || 0), 0));
   if (fee <= 0) return { status: 'none' };
   const from = await getSetting('xeroRentBankAccountId', null);
   const to = await getSetting('xeroFeeBankAccountId', null);
   if (!from || !to) {
     const note = 'Choose the "Rent (client) bank account" and "ROCA fee bank account" in Settings → Xero to record the fee transfer';
-    await db('rent_payments').where('id', p.id).update({ fee_transfer_status: 'skipped', fee_transfer_error: note });
+    await db('rent_payments').whereIn('id', groupIds).update({ fee_transfer_status: 'skipped', fee_transfer_error: note });
     return { status: 'skipped', note };
   }
   await ensureConnected(call);
@@ -343,12 +360,12 @@ export const postFeeTransfer = async (paymentId, actorId = null, call = xero) =>
   const errors = made?.ValidationErrors?.map((e) => e.Message).filter(Boolean) || [];
   if (!r.ok || !made?.BankTransferID || errors.length) {
     const error = (errors.length ? errors.join('; ') : xeroMessage(r.error) || 'Xero refused the transfer').slice(0, 480);
-    await db('rent_payments').where('id', p.id).update({ fee_transfer_status: 'failed', fee_transfer_error: error });
+    await db('rent_payments').whereIn('id', groupIds).update({ fee_transfer_status: 'failed', fee_transfer_error: error });
     logger.warn(`[XeroFeeTransfer] payment ${p.id}: ${error}`);
     return { status: 'failed', error };
   }
   await db.transaction(async (trx) => {
-    await trx('rent_payments').where('id', p.id).update({ fee_transfer_id: made.BankTransferID, fee_transfer_status: 'recorded', fee_transfer_error: null });
+    await trx('rent_payments').whereIn('id', groupIds).update({ fee_transfer_id: made.BankTransferID, fee_transfer_status: 'recorded', fee_transfer_error: null });
     await trx('audit_log').insert({
       actor_id: actorId, actor_role: actorId ? 'ADMIN' : 'SYSTEM', action: 'XERO_FEE_TRANSFER_RECORDED',
       entity_type: 'rent_payment', entity_id: p.id, meta: JSON.stringify({ amount: fee, reference: payload.Reference }), ip_address: null
@@ -363,14 +380,15 @@ export const postFeeTransfer = async (paymentId, actorId = null, call = xero) =>
 export const pullFeeTransferStatus = async (call = xero, onlyPaymentIds = null) => {
   const q = db('rent_payments').whereIn('fee_transfer_status', ['recorded', 'done']).whereNotNull('fee_transfer_id');
   if (onlyPaymentIds) q.whereIn('id', onlyPaymentIds);
-  const rows = await q.select('id', 'fee_transfer_id');
+  const ids = [...new Set((await q.select('fee_transfer_id')).map((r) => r.fee_transfer_id))];
   let moved = 0;
-  for (const row of rows) {
-    const r = await call('GET', `/BankTransfers/${row.fee_transfer_id}`);
+  for (const id of ids) {
+    const r = await call('GET', `/BankTransfers/${id}`);
     const bt = r.body?.BankTransfers?.[0];
-    if (!r.ok || !bt) { logger.warn(`[XeroFeeTransfer] Could not read transfer ${row.fee_transfer_id}: ${xeroMessage(r.error)}`); continue; }
+    if (!r.ok || !bt) { logger.warn(`[XeroFeeTransfer] Could not read transfer ${id}: ${xeroMessage(r.error)}`); continue; }
     if (bt.FromIsReconciled && bt.ToIsReconciled) {
-      await db('rent_payments').where('id', row.id).update({ fee_transfer_status: 'moved', fee_moved_at: toYmd(new Date()) });
+      // Every part of the month shares the one transfer.
+      await db('rent_payments').where('fee_transfer_id', id).update({ fee_transfer_status: 'moved', fee_moved_at: toYmd(new Date()) });
       moved++;
     }
   }
@@ -379,23 +397,23 @@ export const pullFeeTransferStatus = async (call = xero, onlyPaymentIds = null) 
 
 // Approve → Xero: the landlord bill, the contractor bills and the fee transfer.
 // One part failing doesn't stop the others; a retry redoes only what is missing.
-export const sendRentSplit = async (paymentId, actorId = null) => {
+export const sendRentSplit = async (paymentId, actorId = null, call = xero) => {
   const out = { landlord: null, contractors: [], fee: null, errors: [] };
   try {
-    out.landlord = await postLandlordBill(paymentId, actorId);
+    out.landlord = await postLandlordBill(paymentId, actorId, call);
     if (out.landlord.status === 'failed') out.errors.push(`Landlord bill: ${out.landlord.error}`);
   } catch (err) {
     out.landlord = { status: 'failed', error: err.message };
     out.errors.push(`Landlord bill: ${err.message}`);
   }
   try {
-    out.contractors = await postContractorBills(paymentId, actorId);
+    out.contractors = await postContractorBills(paymentId, actorId, call);
     for (const c of out.contractors.filter((x) => x.status === 'failed')) out.errors.push(`Contractor bill: ${c.error}`);
   } catch (err) {
     out.errors.push(`Contractor bills: ${err.message}`);
   }
   try {
-    out.fee = await postFeeTransfer(paymentId, actorId);
+    out.fee = await postFeeTransfer(paymentId, actorId, call);
     if (out.fee.status === 'failed') out.errors.push(`Fee transfer: ${out.fee.error}`);
   } catch (err) {
     out.fee = { status: 'failed', error: err.message };
@@ -404,8 +422,40 @@ export const sendRentSplit = async (paymentId, actorId = null) => {
   return out;
 };
 
+// Settle a rent month: the approved payments given (the parts received and not
+// yet on a landlord bill) become one settlement led by the latest of them — the
+// fee is worked out on their total, their deductions move onto the lead — then
+// one landlord bill, the contractor bills and one fee transfer are sent.
+export const settleRentMonth = async (paymentIds, actorId = null, call = xero) => {
+  const rows = await db('rent_payments').whereIn('id', paymentIds);
+  const open = rows.filter((r) => r.approval_status === 'approved' && billOpen(r));
+  if (!open.length) return null;
+  if (new Set(open.map((r) => r.tenancy_id)).size > 1) throw new ApiError(400, 'Rent of different tenancies cannot be settled together');
+  const lead = latestOf(open);
+  const ids = open.map((r) => r.id);
+  await db.transaction(async (trx) => {
+    await trx('rent_payments').whereIn('id', ids).update({ settlement_lead_id: lead.id });
+    if (open.length > 1) {
+      // 8% of the month's total (not the sum of rounded parts): the lead takes the pennies.
+      const others = round2(open.filter((r) => r.id !== lead.id).reduce((s, r) => s + Number(r.fee_amount || 0), 0));
+      lead.fee_amount = round2(groupFee(open) - others);
+      await trx('rent_payments').where('id', lead.id).update({ fee_amount: lead.fee_amount.toFixed(2) });
+    }
+    await trx('rent_payment_deductions').whereIn('rent_payment_id', ids).update({ rent_payment_id: lead.id });
+    for (const r of open) {
+      const fee = r.id === lead.id ? lead.fee_amount : r.fee_amount;
+      const deducted = round2((await trx('rent_payment_deductions').where('rent_payment_id', r.id).sum('amount as s').first())?.s || 0);
+      await trx('rent_payments').where('id', r.id).update({
+        deductions_amount: deducted.toFixed(2), net_amount: round2(shareOf({ amount: r.amount, fee_amount: fee }) - deducted).toFixed(2)
+      });
+    }
+  });
+  return sendRentSplit(lead.id, actorId, call);
+};
+
 // Undo: void the contractor bills not paid yet (the landlord bill is voided by voidLandlordBill).
 export const voidContractorBills = async (paymentId, actorId = null, call = xero) => {
+  paymentId = await leadIdOf(db, paymentId);
   const lines = await db('rent_payment_deductions').where({ rent_payment_id: paymentId, xero_bill_status: 'posted' }).whereNotNull('xero_bill_id');
   let voided = 0;
   const kept = [];
@@ -457,31 +507,34 @@ export const pullContractorBillStatus = async (call = xero, onlyPaymentIds = nul
 };
 
 // Has the landlord been paid? Bills sent from Roca Living are read back in the
-// same sync as the rent payments (contractor bills too).
-export const pullLandlordBillStatus = async () => {
-  const rows = await db('rent_payments').where('xero_bill_status', 'posted').whereNotNull('xero_bill_id').select('id', 'xero_bill_id');
+// same sync as the rent payments (contractor bills too). onlyPaymentIds limits
+// the check (tests).
+export const pullLandlordBillStatus = async (call = xero, onlyPaymentIds = null) => {
+  // One bill can cover several parts of a month: read each bill once, update every part.
+  const q = db('rent_payments').where('xero_bill_status', 'posted').whereNotNull('xero_bill_id');
+  if (onlyPaymentIds) q.whereIn('id', onlyPaymentIds);
+  const billIds = [...new Set((await q.select('xero_bill_id')).map((r) => r.xero_bill_id))];
   let paid = 0, voided = 0;
-  for (let i = 0; i < rows.length; i += 40) {
-    const chunk = rows.slice(i, i + 40);
-    const r = await xero('GET', '/Invoices', { searchParams: { IDs: chunk.map((c) => c.xero_bill_id).join(',') } });
+  for (let i = 0; i < billIds.length; i += 40) {
+    const chunk = billIds.slice(i, i + 40);
+    const r = await call('GET', '/Invoices', { searchParams: { IDs: chunk.join(',') } });
     if (!r.ok) { logger.warn(`[XeroLandlordBills] Could not read bills: ${xeroMessage(r.error)}`); continue; }
     for (const bill of r.body?.Invoices || []) {
-      const row = chunk.find((c) => c.xero_bill_id === bill.InvoiceID);
-      if (!row) continue;
+      if (!chunk.includes(bill.InvoiceID)) continue;
       if (bill.Status === 'PAID') {
         const lastPayment = (bill.Payments || []).map((pm) => xeroDateYmd(pm.Date)).sort().pop();
-        await db('rent_payments').where('id', row.id).update({
+        await db('rent_payments').where('xero_bill_id', bill.InvoiceID).update({
           xero_bill_status: 'paid',
           landlord_paid_at: bill.FullyPaidOnDate ? xeroDateYmd(bill.FullyPaidOnDate) : (lastPayment || toYmd(new Date()))
         });
         paid++;
       } else if (['VOIDED', 'DELETED'].includes(bill.Status)) {
-        await db('rent_payments').where('id', row.id).update({ xero_bill_status: 'voided' });
+        await db('rent_payments').where('xero_bill_id', bill.InvoiceID).update({ xero_bill_status: 'voided' });
         voided++;
       }
     }
   }
-  const contractors = await pullContractorBillStatus();
-  const fees = await pullFeeTransferStatus();
+  const contractors = await pullContractorBillStatus(call, onlyPaymentIds);
+  const fees = await pullFeeTransferStatus(call, onlyPaymentIds);
   return { paid, voided, contractors_paid: contractors.paid, fees_moved: fees.moved };
 };

@@ -1,4 +1,5 @@
 import { toYmd } from './dateHelpers.js';
+import { billOpen, shareOf, groupKey, latestOf } from './rentGroups.js';
 
 // Completed repairs come off the landlord's share automatically (Rent Cycle):
 // a maintenance ticket marked Complete with a cost (final invoice, else quote)
@@ -25,11 +26,6 @@ export const repairLimitFor = async (conn, propertyId) => {
 export const ticketCost = (t) => round2(t.invoice_amount ?? t.quote_amount ?? 0);
 export const repairDescription = (t) => `Repair – ${t.title} (ticket #${t.id})`;
 
-// The landlord bill can still change (no bill in Xero, or it failed / was voided).
-const billOpen = (p) => ['pending', 'approved'].includes(p.approval_status)
-  && (!p.xero_bill_status || ['failed', 'voided'].includes(p.xero_bill_status));
-
-const shareOf = (p) => round2(Number(p.amount) - Number(p.fee_amount || 0));
 
 const deductedOn = async (trx, paymentId) => round2(
   (await trx('rent_payment_deductions').where('rent_payment_id', paymentId).sum('amount as s').first())?.s || 0
@@ -41,8 +37,10 @@ const refreshTotals = async (trx, p) => {
   await trx('rent_payments').where('id', p.id).update({ deductions_amount: total.toFixed(2), net_amount: round2(shareOf(p) - total).toFixed(2) });
 };
 
-// Bring one flat's repair deductions up to date. Returns the repairs still
-// waiting because no open payment had room: [{ id, title, cost }].
+// Bring one flat's repair deductions up to date. Room is per rent month (all the
+// parts of a month paid in parts count together); a repair goes on the month's
+// latest payment. Returns the repairs still waiting because no open month had
+// room: [{ id, title, cost }].
 export const applyRepairDeductions = async (trx, propertyId) => {
   if (!propertyId) return [];
   const from = (await trx('settings').where('key', 'repairDeductionsFrom').first('value'))?.value;
@@ -60,10 +58,25 @@ export const applyRepairDeductions = async (trx, propertyId) => {
     .where('t.property_id', propertyId)
     .whereIn('p.approval_status', ['pending', 'approved'])
     .orderBy('p.received_at').orderBy('p.id')
-    .select('p.id', 'p.amount', 'p.fee_amount', 'p.approval_status', 'p.xero_bill_status', 't.statements_from', 't.start_date');
+    .select('p.id', 'p.tenancy_id', 'p.received_at', 'p.amount', 'p.fee_amount', 'p.approval_status', 'p.xero_bill_status',
+      'p.xero_invoice_number', 'p.settlement_lead_id', 't.statements_from', 't.start_date');
   const open = payments.filter(billOpen);
   const openIds = new Set(open.map((p) => p.id));
   const byId = new Map(payments.map((p) => [p.id, p]));
+  // Open months, oldest first: their payments, latest payment, and room left.
+  const groups = new Map();
+  for (const p of open) {
+    const k = groupKey(p);
+    if (!groups.has(k)) groups.set(k, { key: k, payments: [] });
+    groups.get(k).payments.push(p);
+  }
+  for (const g of groups.values()) g.latest = latestOf(g.payments);
+  const groupOf = (paymentId) => groups.get(groupKey(byId.get(paymentId)));
+  const roomOf = async (g) => {
+    let room = 0;
+    for (const p of g.payments) room += shareOf(p) - (await deductedOn(trx, p.id));
+    return round2(room);
+  };
   const rows = await trx('rent_payment_deductions').whereIn('ticket_id', tickets.map((t) => t.id)).select('id', 'ticket_id', 'rent_payment_id', 'amount', 'description');
   const rowOf = new Map(rows.map((r) => [r.ticket_id, r]));
   const touched = new Set();
@@ -75,25 +88,31 @@ export const applyRepairDeductions = async (trx, propertyId) => {
     if (row) {
       // On a bill already in Xero: final.
       if (!openIds.has(row.rent_payment_id)) continue;
-      const p = byId.get(row.rent_payment_id);
-      const room = round2(shareOf(p) - (await deductedOn(trx, p.id)) + Number(row.amount));
+      const g = groupOf(row.rent_payment_id);
+      const room = round2((await roomOf(g)) + Number(row.amount));
       if (cost > 0 && cost <= room) {
-        if (round2(row.amount) !== cost || row.description !== repairDescription(t)) {
-          await trx('rent_payment_deductions').where('id', row.id).update({ amount: cost.toFixed(2), description: repairDescription(t), supplier: t.supplier || null });
-          touched.add(p.id);
+        // Keep it on the month's latest payment (a later part may have arrived).
+        const target = g.latest.id;
+        if (round2(row.amount) !== cost || row.description !== repairDescription(t) || row.rent_payment_id !== target) {
+          await trx('rent_payment_deductions').where('id', row.id).update({
+            amount: cost.toFixed(2), description: repairDescription(t), supplier: t.supplier || null, rent_payment_id: target,
+          });
+          touched.add(row.rent_payment_id);
+          touched.add(target);
         }
         continue;
       }
-      // Cost now nothing, or too big for this payment: take it off and place it again.
+      // Cost now nothing, or too big for this month: take it off and place it again.
       await trx('rent_payment_deductions').where('id', row.id).delete();
-      touched.add(p.id);
+      touched.add(row.rent_payment_id);
     }
     if (cost <= 0) continue;
     const done = toYmd(t.completed_at);
     let placed = false;
-    for (const p of open) {
+    for (const g of groups.values()) {
+      const p = g.latest;
       if (done < toYmd(p.statements_from || p.start_date)) continue;
-      if (cost <= round2(shareOf(p) - (await deductedOn(trx, p.id)))) {
+      if (cost <= (await roomOf(g))) {
         await trx('rent_payment_deductions').insert({
           rent_payment_id: p.id, ticket_id: t.id, description: repairDescription(t), supplier: t.supplier || null, amount: cost.toFixed(2),
         });

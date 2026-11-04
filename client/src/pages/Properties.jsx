@@ -149,9 +149,9 @@ export const Properties = () => {
         <PortalMetricCard
           label="Portfolio Compliance"
           value={`${compliancePct}%`}
-          subText="Overall compliant"
+          subText={compliancePct === 100 ? "All certificates in date" : "Certificates missing or expired"}
           icon={ShieldCheck}
-          variant="success"
+          variant={compliancePct === 100 ? "success" : "warning"}
         />
       </div>
 
@@ -354,9 +354,9 @@ export const Properties = () => {
                       <span className="text-sm-portal font-bold text-brand-primary mt-1.5 block leading-none">
                         £{Number(p.rent).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
-                      {p.status === "let" && (
-                        <span className="text-2xs text-status-success font-semibold mt-1 block leading-none">
-                          Protected
+                      {p.status === "let" && p.due_label !== "-" && (
+                        <span className="text-2xs text-gray-400 font-semibold mt-1 block leading-none">
+                          {p.due_label}
                         </span>
                       )}
                     </div>
@@ -387,13 +387,13 @@ export const Properties = () => {
                       <span className="text-sm-portal font-bold text-brand-primary mt-1.5 block leading-none">
                         £{Number(p.deposit_amount).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
-                      <span className="text-2xs text-status-success font-semibold mt-1 block leading-none">
+                      <span className={`text-2xs font-semibold mt-1 block leading-none ${String(p.deposit_status).startsWith("Protected") ? "text-status-success" : "text-status-warning"}`}>
                         {p.deposit_status}
                       </span>
                     </div>
                     <div>
                       <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider leading-none">
-                        Net Paid This Month
+                        Net Paid To Date
                       </span>
                       <span className="text-sm-portal font-bold text-brand-primary mt-1.5 block leading-none">
                         £{Number(p.net_paid).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

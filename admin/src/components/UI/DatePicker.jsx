@@ -3,11 +3,75 @@ import {
   Calendar as CalendarIcon,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { InfoTip } from "./InfoTip";
 import { useFloating } from "./useFloating";
 import { titleCase } from "../../utilities/titleCase";
+
+// Month / year choice inside the calendar: the same look as the app's
+// Dropdown, kept inside the calendar so choosing doesn't close it.
+const MenuSelect = ({ label, value, options, onChange, menuWidth = "w-36" }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const listRef = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", close);
+    // Open with the chosen one in view (scroll the list only, not the page).
+    const list = listRef.current;
+    const chosen = list?.querySelector('[aria-selected="true"]');
+    if (list && chosen) list.scrollTop = chosen.offsetTop - list.clientHeight / 2 + chosen.clientHeight / 2;
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+  const current = options.find((o) => o.value === value);
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        aria-label={label}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => { if (e.key === "Escape" && open) { e.stopPropagation(); setOpen(false); } }}
+        className="flex items-center gap-1 font-bold text-sm text-text-primary rounded px-1.5 py-0.5 border border-transparent hover:border-card-border cursor-pointer focus:outline-none focus:border-brand-accent"
+      >
+        {current?.label}
+        <ChevronDown size={14} className={`text-gray-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div
+          ref={listRef}
+          role="listbox"
+          aria-label={label}
+          className={`absolute z-10 top-full left-0 mt-1 ${menuWidth} max-h-60 overflow-y-auto bg-white border border-card-border shadow-xl rounded-card p-1 flex flex-col`}
+        >
+          {options.map((o) => {
+            const chosen = o.value === value;
+            return (
+              <div
+                key={o.value}
+                role="option"
+                aria-selected={chosen}
+                aria-disabled={o.disabled || undefined}
+                onClick={() => { if (!o.disabled) { onChange(o.value); setOpen(false); } }}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium select-none transition-colors duration-75
+                  ${o.disabled ? "opacity-40 cursor-not-allowed text-text-primary" : "cursor-pointer"}
+                  ${chosen ? "bg-status-info text-white font-semibold" : !o.disabled ? "text-text-primary hover:bg-surface-light" : ""}`}
+              >
+                <span className="flex-1">{o.label}</span>
+                {chosen && <Check size={14} className="shrink-0 text-white" />}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const DatePicker = ({
   label,
@@ -268,24 +332,19 @@ export const DatePicker = ({
             </button>
 
             <div className="flex items-center gap-1">
-              <select
-                aria-label="Month"
+              <MenuSelect
+                label="Month"
                 value={navMonth}
-                onChange={(e) => goTo(navYear, Number(e.target.value))}
-                className="font-bold text-sm text-text-primary card-bg border border-transparent hover:border-card-border rounded px-1 py-0.5 cursor-pointer focus:outline-none focus:border-brand-accent"
-              >
-                {monthNames.map((name, i) => (
-                  <option key={name} value={i} disabled={monthOutOfRange(navYear, i)}>{name}</option>
-                ))}
-              </select>
-              <select
-                aria-label="Year"
+                onChange={(m) => goTo(navYear, m)}
+                options={monthNames.map((name, i) => ({ value: i, label: name, disabled: monthOutOfRange(navYear, i) }))}
+              />
+              <MenuSelect
+                label="Year"
                 value={navYear}
-                onChange={(e) => goTo(Number(e.target.value), navMonth)}
-                className="font-bold text-sm text-text-primary card-bg border border-transparent hover:border-card-border rounded px-1 py-0.5 cursor-pointer focus:outline-none focus:border-brand-accent"
-              >
-                {years.map((y) => <option key={y} value={y}>{y}</option>)}
-              </select>
+                onChange={(y) => goTo(y, navMonth)}
+                options={years.map((y) => ({ value: y, label: String(y) }))}
+                menuWidth="w-24"
+              />
             </div>
 
             <button

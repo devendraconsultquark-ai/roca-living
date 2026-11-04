@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import logger from "./logger.js";
+import { graphConfig, sendViaGraph } from "./msGraphMail.js";
 
 // Create a transporter using SMTP settings from environment variables
 const transporter = nodemailer.createTransport({
@@ -31,13 +32,27 @@ if (!EMAIL_ENABLED) {
  * @param {string} options.text - Plain text content
  * @param {string} options.html - HTML rich text content
  * @param {Array}  [options.attachments] - nodemailer attachments, e.g. [{ filename, content }]
- * @param {boolean} [options.essential] - send even when EMAIL_ENABLED is off (reset links, login alerts)
- * @returns the send info, or null when SMTP is not configured (nothing sent)
+ * @param {boolean} [options.essential] - send even when EMAIL_ENABLED is off (reset links, login alerts) * @returns the send info, or null when SMTP is not configured (nothing sent)
  */
 export const sendEmail = async ({ to, cc, subject, text, html, attachments, essential = false }) => {
   if (!EMAIL_ENABLED && !essential) {
     logger.warn(`[EMAIL DISABLED] Suppressed email to ${to}${cc ? ` (cc ${cc})` : ''}. Subject: ${subject}`);
     return { messageId: "suppressed", accepted: [], rejected: [], response: "Email suppressed: EMAIL_ENABLED is not 'true'" };
+  }
+
+  // Microsoft 365 when MS_TENANT_ID / MS_CLIENT_ID / MS_CLIENT_SECRET /
+  // MS_SENDER are set in .env: every email goes from MS_SENDER. Otherwise
+  // SMTP from .env, as before.
+  const graph = graphConfig();
+  if (graph) {
+    try {
+      const info = await sendViaGraph(graph, { to, cc, subject, text, html, attachments });
+      logger.info(`Email sent via Microsoft 365 from ${graph.sender} to ${to}`);
+      return info;
+    } catch (error) {
+      logger.error(`Error sending email via Microsoft 365 from ${graph.sender} to ${to}: ${error.message}`);
+      throw error;
+    }
   }
 
   // If SMTP user/password is not configured, warn and skip sending (fallback to logging)

@@ -213,39 +213,25 @@ const buildAlerts = ({ expiredCertifications, inspections, quotes, activeTenancy
     });
   }
 
-  // 4. Rent review due (always visible)
-  if (activeTenancy && activeTenancy.start_date) {
-    const startDate = new Date(activeTenancy.start_date);
-    const oneYearAgo = new Date();
-    oneYearAgo.setDate(oneYearAgo.getDate() - 365);
-    const nextReviewDate = new Date(startDate);
-    nextReviewDate.setFullYear(nextReviewDate.getFullYear() + 1);
-
-    if (startDate < oneYearAgo) {
-      alerts.push({
-        title: 'Rent Review Due',
-        detail: 'Tenancy active over a year. Rent review recommended.',
-        subText: gb(nextReviewDate),
-        variant: 'warning',
-        icon: Clock,
-        route: '/properties',
-        subTextColor: 'text-status-info',
-      });
-    } else {
-      alerts.push({
-        title: 'Rent Review Due',
-        detail: 'Rent review is due in 6 months',
-        subText: gb(nextReviewDate),
-        variant: 'neutral',
-        icon: Clock,
-        route: '/properties',
-        subTextColor: 'text-status-info',
-      });
-    }
+  // 4. Rent review (always visible): the tenancy's real review date, if one is set.
+  const reviewYmd = activeTenancy?.rent_review_date ? String(activeTenancy.rent_review_date).slice(0, 10) : null;
+  if (reviewYmd) {
+    const reviewDate = new Date(`${reviewYmd}T00:00:00`);
+    const daysLeft = Math.ceil((reviewDate - new Date()) / 86400000);
+    const soon = daysLeft <= 60;
+    alerts.push({
+      title: 'Rent Review',
+      detail: daysLeft < 0 ? 'Rent review date has passed' : soon ? `Rent review due in ${daysLeft} day${daysLeft === 1 ? '' : 's'}` : 'Next rent review',
+      subText: gb(reviewDate),
+      variant: soon ? 'warning' : 'neutral',
+      icon: Clock,
+      route: '/properties',
+      subTextColor: 'text-status-info',
+    });
   } else {
     alerts.push({
-      title: 'Rent Review Due',
-      detail: 'Rent review up to date',
+      title: 'Rent Review',
+      detail: activeTenancy ? 'No rent review date set' : 'No current tenancy',
       subText: '—',
       variant: 'neutral',
       icon: Clock,

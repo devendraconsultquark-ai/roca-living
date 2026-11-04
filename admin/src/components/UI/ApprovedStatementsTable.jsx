@@ -1,5 +1,8 @@
-import { Download, Trash2 } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { Download, Trash2, Mail } from 'lucide-react';
 import { Button } from './Button';
+import { InfoTip } from './InfoTip';
+import { StatementEmailModal } from './StatementEmailModal';
 import { useToast } from './ToastContext';
 import { useConfirm } from './ConfirmContext';
 import api from '../../utilities/api';
@@ -7,11 +10,15 @@ import api from '../../utilities/api';
 const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const ukDate = (ymd) => (ymd ? ymd.split('-').reverse().join('/') : '—');
 
-// Statements from approved rent: the list with PDF download and draft delete.
+// Statements from approved rent: the list with PDF download, Send (email to
+// the landlord, same popup as the Statements page) and draft delete.
 // Used on the Rent Cycle page and on the separate statements page.
 export const ApprovedStatementsTable = ({ rows, onChanged, emptyText = 'No statements yet.' }) => {
   const { addToast } = useToast();
   const confirm = useConfirm();
+  const [emailFor, setEmailFor] = useState(null);
+  // Stable, so the popup doesn't reload its draft (and lose edits) when the page re-renders.
+  const closeEmail = useCallback(() => setEmailFor(null), []);
 
   const download = async (s) => {
     try {
@@ -68,24 +75,35 @@ export const ApprovedStatementsTable = ({ rows, onChanged, emptyText = 'No state
         <tbody>
           {rows.map((s) => (
             <tr key={s.id} className="border-b border-card-border/60 last:border-0">
-              <td className="p-3 font-semibold text-brand-primary whitespace-nowrap">{s.statement_number}</td>
+              <td className="p-3 whitespace-nowrap">
+                <div className="font-semibold text-brand-primary">{s.statement_number}</div>
+                {s.sent_at && (
+                  <div className="text-xs text-status-success inline-flex items-center gap-1">
+                    Sent {new Date(s.sent_at).toLocaleDateString('en-GB')} ✓ <InfoTip text={`Emailed to ${s.sent_to}`} />
+                  </div>
+                )}
+              </td>
               <td className="p-3">{s.landlord_name || '—'}</td>
-              <td className="p-3">{s.flat} · {s.tenant_name || '—'}</td>
+              <td className="p-3"><span className="whitespace-nowrap">{s.flat}</span> · {s.tenant_name || '—'}</td>
               <td className="p-3 whitespace-nowrap">{ukDate(s.period_start)} – {ukDate(s.period_end)}</td>
-              <td className="p-3 text-right">{money(s.total_rent)}</td>
-              <td className="p-3 text-right">−{money(s.total_fee)}</td>
-              <td className="p-3 text-right">{Number(s.total_deductions) > 0 ? `−${money(s.total_deductions)}` : '—'}</td>
-              <td className="p-3 text-right font-semibold">{money(s.net_payout)}</td>
+              <td className="p-3 text-right whitespace-nowrap">{money(s.total_rent)}</td>
+              <td className="p-3 text-right whitespace-nowrap">−{money(s.total_fee)}</td>
+              <td className="p-3 text-right whitespace-nowrap">{Number(s.total_deductions) > 0 ? `−${money(s.total_deductions)}` : '—'}</td>
+              <td className="p-3 text-right font-semibold whitespace-nowrap">{money(s.net_payout)}</td>
               <td className="p-3">
-                <div className="flex justify-end gap-1">
+                <div className="flex justify-end gap-1 whitespace-nowrap">
                   <Button variant="ghost" size="sm" icon={Download} onClick={() => download(s)}>PDF</Button>
-                  {s.status === 'draft' && <Button variant="ghost" size="sm" icon={Trash2} onClick={() => remove(s)}>Delete</Button>}
+                  <Button variant={s.sent_at ? 'ghost' : 'primary'} size="sm" icon={Mail} onClick={() => setEmailFor(s.id)}>{s.sent_at ? 'Send Again' : 'Send'}</Button>
+                  {s.status === 'draft' && !s.sent_at && <Button variant="ghost" size="sm" icon={Trash2} onClick={() => remove(s)}>Delete</Button>}
                 </div>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+      {emailFor && (
+        <StatementEmailModal statementId={emailFor} basePath="/approved-statements" onClose={closeEmail} onSent={() => onChanged?.()} />
+      )}
     </div>
   );
 };

@@ -7,6 +7,7 @@ import {
   getEstateProperties,
   getEstateProperty,
   getEstateLandlords,
+  getLandlordOnboarding,
   getEstateLandlord,
   setEstatePropertyManaged
 } from '../controllers/estatesController.js';
@@ -52,6 +53,7 @@ estatesRouter.get('/buildings', getEstateBuildings);
 estatesRouter.get('/properties', getEstateProperties);
 estatesRouter.get('/properties/:id', getEstateProperty);
 estatesRouter.patch('/properties/:id/managed', setEstatePropertyManaged);
+estatesRouter.get('/onboarding', getLandlordOnboarding);
 estatesRouter.get('/landlords', getEstateLandlords);
 estatesRouter.get('/landlords/:id', getEstateLandlord);
 

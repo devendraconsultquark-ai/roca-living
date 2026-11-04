@@ -9,6 +9,7 @@ import { sendEmail } from "../utils/email.js";
 import { getForgotPasswordEmail, getLoginAlertEmail, getPasswordResetSuccessEmail } from "../utils/emailTemplates.js";
 import { eraseLandlordData } from "./landlordController.js";
 import { ensureLandlordSetup } from "../utils/landlordSetup.js";
+import { fetchEstateLandlord, estateNrlOf } from "../utils/estatesLink.js";
 
 // bcrypt work factor — configurable via env so it can be tuned without code changes.
 const BCRYPT_COST = parseInt(process.env.BCRYPT_COST || '12', 10);
@@ -168,6 +169,30 @@ export const logout = catchAsync(async (req, res, next) => {
     });
 });
 
+// Tax details as ROCA Estates keeps them (the same NRL numbers the statements
+// print). null when the landlord isn't linked or ROCA Estates can't be reached:
+// the portal then shows the Roca Living fields as before.
+const isUk = (c) => /^(uk|gb|united kingdom|great britain|england|scotland|wales|northern ireland)$/i.test(String(c || '').trim());
+const estatesTaxOf = async (rocaemUserId) => {
+    if (!rocaemUserId) return null;
+    try {
+        const l = await fetchEstateLandlord(rocaemUserId);
+        if (!l) return null;
+        const company = l.ownership_type === 'COMPANY';
+        const country = l.country ? String(l.country).trim() : null;
+        return {
+            is_company: company,
+            company_name: company ? (l.company_name || null) : null,
+            joint: !!l.is_joint_ownership,
+            country,
+            is_overseas: country ? !isUk(country) : null,
+            nrl: company ? null : (estateNrlOf(l)?.formatted || null),
+        };
+    } catch {
+        return null;
+    }
+};
+
 const getUserPayload = async (userId, role) => {
     if (role === 'LANDLORD') {
         const data = await db("users")
@@ -175,6 +200,7 @@ const getUserPayload = async (userId, role) => {
             .leftJoin("landlord_payment_details", "users.id", "landlord_payment_details.user_id")
             .select(
                 "users.id", "users.name", "users.email", "users.phone", "users.role", "users.address", "users.created_at",
+                "users.rocaem_user_id",
                 "landlord_profiles.company_name",
                 "landlord_profiles.landlord_reference",
                 "landlord_profiles.initials",
@@ -208,6 +234,8 @@ const getUserPayload = async (userId, role) => {
             if (data.ownership_share !== null && data.ownership_share !== undefined) {
                 data.ownership_share = parseFloat(data.ownership_share).toFixed(2);
             }
+            data.estates_tax = await estatesTaxOf(data.rocaem_user_id);
+            delete data.rocaem_user_id;
         }
         return data;
     } else {

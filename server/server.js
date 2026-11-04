@@ -37,6 +37,9 @@ import { runPhase33Migrations } from './src/db/migrations/phase33_estates_sync.j
 import { runPhase34Migrations } from './src/db/migrations/phase34_due_day_change.js';
 import { runPhase35Migrations } from './src/db/migrations/phase35_repair_deductions.js';
 import { runPhase36Migrations } from './src/db/migrations/phase36_rent_split.js';
+import { runPhase37Migrations } from './src/db/migrations/phase37_rent_settlement.js';
+import { runPhase38Migrations } from './src/db/migrations/phase38_approved_statement_email.js';
+import { runPhase39Migrations } from './src/db/migrations/phase39_rent_history.js';
 import { startScheduler } from './src/jobs/scheduler.js';
 import { ensurePuppeteerDependencies } from './src/utils/puppeteerGenerator.js';
 const PORT = Number(process.env.PORT) || 9000;
@@ -143,6 +146,9 @@ const startServer = async () => {
   await runPhase34Migrations();
   await runPhase35Migrations();
   await runPhase36Migrations();
+  await runPhase37Migrations();
+  await runPhase38Migrations();
+  await runPhase39Migrations();
   logger.info('Phase 27 migrations complete');
 
   await ensurePuppeteerDependencies();

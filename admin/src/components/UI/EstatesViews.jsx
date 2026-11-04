@@ -18,6 +18,7 @@ import { useEstatesEditable } from '../../utilities/useEstatesEditable';
 import { KpiRow, KpiCard, PageActions, InfoFooter } from './DesignKit';
 import { EstatesLandlordForm } from './EstatesLandlordForm';
 import { EstatesApartmentForm } from './EstatesApartmentForm';
+import { realEmail, realPhone } from '../../utilities/contact';
 
 // ROCA Estates (rocaem) blocks, apartments and landlords, shown read-only.
 // They are managed in ROCA Estates; Roca Living only adds lettings (tenants,
@@ -625,8 +626,8 @@ export const LandlordSections = ({ ll }) => (
   <>
     <Section title="Landlord" rows={[
       ['Name', dash(ll.name)],
-      ['Email', dash(ll.email)],
-      ['Phone', dash(ll.phone)],
+      ['Email', dash(realEmail(ll.email))],
+      ['Phone', dash(realPhone(ll.phone))],
       ['Ownership', ownershipLabel(ll)],
       ['Address', address(ll.address, ll.city, ll.postcode, ll.country)],
       ['Residence', dash(ll.residence_country)],
@@ -708,8 +709,8 @@ export const EstatesLandlords = () => {
 
   const columns = [
     { header: 'Landlord', accessor: 'name', sortable: true, renderCell: (r) => <span className="font-bold">{r.name}</span> },
-    { header: 'Email', accessor: 'email', sortable: true, renderCell: (r) => dash(r.email) },
-    { header: 'Phone', accessor: 'phone', renderCell: (r) => dash(r.phone) },
+    { header: 'Email', accessor: 'email', sortable: true, renderCell: (r) => dash(realEmail(r.email)) },
+    { header: 'Phone', accessor: 'phone', renderCell: (r) => dash(realPhone(r.phone)) },
     { header: 'Ownership', accessor: 'ownership_type', renderCell: (r) => ownershipLabel(r) },
     { header: 'Apartments', accessor: 'units', renderCell: (r) => (r.units.length ? r.units.join(', ') : <span className="text-gray-400">None</span>) },
     { header: 'Roca Living', accessor: 'roca_living_landlord_id', renderCell: (r) => (r.roca_living_landlord_id ? <StatusPill status="active" customLabel="Has account" size="sm" /> : <span className="text-gray-400 text-xs">—</span>) }

@@ -757,6 +757,22 @@ export const eraseLandlordData = async (trx, id, actor) => {
   // Delete agent_instructions for this landlord (viewings cascade automatically via FK)
   await trx('agent_instructions').where('landlord_id', id).delete();
 
+  // Rows that only record who did something (audit log, uploads, …) stay, but
+  // without the link to this account; otherwise a landlord who ever logged in
+  // could not be deleted (foreign keys to users).
+  for (const [table, column] of [
+    ['audit_log', 'actor_id'], ['documents', 'uploaded_by'], ['folders', 'created_by'],
+    ['inspections', 'created_by'], ['invitation_tokens', 'created_by'], ['invitation_tokens', 'landlord_id'],
+    ['maintenance_images', 'uploaded_by'], ['maintenance_tickets', 'reported_by'], ['property_images', 'uploaded_by'],
+    ['news_items', 'created_by'], ['compliance_checklist', 'verified_by'], ['landlord_statements', 'generated_by'],
+    ['transactions', 'created_by'], ['rent_payments', 'reconciled_by'], ['tenancies', 'created_by'],
+    ['fire_safety_signoffs', 'briefed_by'], ['agent_instructions', 'created_by'],
+    ['landlord_payment_details', 'change_verified_by'], ['landlord_profiles', 'account_manager_id'],
+    ['xero_connections', 'connected_by'],
+  ]) {
+    await trx(table).where(column, id).update({ [column]: null });
+  }
+
   await trx('users').where({ id, role: 'LANDLORD' }).delete();
 
   await trx('audit_log').insert({

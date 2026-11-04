@@ -7,6 +7,7 @@ import { useStatements } from './useStatements';
 import { useDocuments } from './useDocuments';
 import { useUtilities } from './useUtilities';
 import { useCertificates } from './useCertificates';
+import { TENANCY_TYPE, reviewLabel, netPaidOf, tenantCompliancePct, dueLabel, depositLabel } from '../utilities/tenancyFacts';
 
 // ── Pure derivation helpers (unit-testable without React) ───────────────────
 
@@ -221,13 +222,16 @@ export const usePropertyDetails = (id) => {
       deposit: activeT?.deposit_amount ? parseFloat(activeT.deposit_amount) : 0,
       tenantName: activeT?.lead_tenant_name || '-',
       startDate: activeT?.start_date ? gb(activeT.start_date) : '—',
-      nextReview: '—', // TODO: backend needs to return next rent review date
-      netPaid: propStatements.length > 0 ? propStatements.reduce((sum, s) => sum + (s.payout || 0), 0) : 0,
+      nextReview: activeT ? reviewLabel(activeT) : '—',
+      dueLabel: activeT ? dueLabel(activeT) : '—',
+      depositStatus: activeT ? depositLabel(activeT) : '—',
+      netPaid: netPaidOf(propStatements, id),
       maintenanceIssues: openIssuesCount,
       compliancePct,
-      tenancy_type: activeT ? 'Assured Shorthold Tenancy' : '—',
+      tenantCompliancePct: tenantCompliancePct(activeT),
+      tenancy_type: activeT ? TENANCY_TYPE : '—',
     }),
-    [p, activeT, propStatements, openIssuesCount, compliancePct],
+    [p, id, activeT, propStatements, openIssuesCount, compliancePct],
   );
 
   const propInspections = useMemo(

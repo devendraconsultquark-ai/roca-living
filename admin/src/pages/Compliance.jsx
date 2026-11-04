@@ -11,9 +11,7 @@ import {
   InfoFooter, Pill, Two, SearchInput,
 } from '../components/UI/DesignKit';
 import { C, shortDate, pct } from '../utilities/designTokens';
-import { DummyBanner } from './mock/MockKit';
-import { TenantComplianceMock } from './mock/TenantComplianceMock';
-import { TENANT_COMPLIANCE } from '../utilities/plannedPages';
+import { TenantComplianceTab } from '../components/UI/TenantComplianceTab';
 import api from '../utilities/api';
 import { downloadCsv } from '../utilities/csv';
 
@@ -159,8 +157,7 @@ export const Compliance = () => {
 
       {tab === 'tenant' ? (
         <>
-          <DummyBanner related={TENANT_COMPLIANCE.related} />
-          <TenantComplianceMock />
+          <TenantComplianceTab />
         </>
       ) : (
         <>

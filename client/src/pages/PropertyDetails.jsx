@@ -196,9 +196,9 @@ export const PropertyDetails = () => {
                   <span className="text-base-portal font-bold text-brand-primary mt-1.5 block leading-none">
                     £{Number(details.rent).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
-                  {details.status === "let" && (
-                    <span className="text-2xs text-status-success font-semibold mt-1 block leading-none">
-                      Protected
+                  {details.status === "let" && details.dueLabel !== "—" && (
+                    <span className="text-2xs text-gray-400 font-semibold mt-1 block leading-none">
+                      {details.dueLabel}
                     </span>
                   )}
                 </div>
@@ -210,8 +210,8 @@ export const PropertyDetails = () => {
                     £{Number(details.deposit).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                   {details.status === "let" && (
-                    <span className="text-2xs text-status-success font-semibold mt-1 block leading-none">
-                      Protected
+                    <span className={`text-2xs font-semibold mt-1 block leading-none ${String(details.depositStatus).startsWith("Protected") ? "text-status-success" : "text-status-warning"}`}>
+                      {details.depositStatus}
                     </span>
                   )}
                 </div>
@@ -261,7 +261,7 @@ export const PropertyDetails = () => {
                 </div>
                 <div className="border-l border-card-border pl-4">
                   <span className="text-2xs text-gray-400 font-bold uppercase tracking-wider leading-none">
-                    Net Paid This Month
+                    Net Paid To Date
                   </span>
                   <span className="text-base-portal font-bold text-brand-primary mt-1.5 block leading-none">
                     £{Number(details.netPaid).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -395,7 +395,7 @@ export const PropertyDetails = () => {
                     Tenant Compliance
                   </span>
                   <span className="font-mono font-bold text-brand-primary">
-                    {hasActiveTenancy ? "100%" : "—"}
+                    {hasActiveTenancy && details.tenantCompliancePct !== null ? `${details.tenantCompliancePct}%` : "—"}
                   </span>
                 </div>
                 <div className="flex justify-between items-center border-b border-card-border pb-1.5">

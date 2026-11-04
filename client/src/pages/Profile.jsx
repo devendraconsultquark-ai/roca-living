@@ -18,7 +18,8 @@ import {
   Building,
   Landmark,
   FileSignature,
-  Hash
+  Hash,
+  Info
 } from "lucide-react";
 import { useProfile } from "../hooks/useProfile";
 import { usePropertyContext } from "../context/PropertyContext";
@@ -47,6 +48,8 @@ export const Profile = () => {
   } = useProfile();
 
   const { properties } = usePropertyContext();
+  // Tax details kept in ROCA Estates (as on statements); null → local fields, editable.
+  const tax = profileData.estatesTax;
 
   // Each editable card opens independently — editingCard scopes the shared
   // isEditing flag from the hook to the card whose Edit button was clicked.
@@ -296,8 +299,9 @@ export const Profile = () => {
                   Landlord Type
                 </span>
                 <span className="font-semibold text-brand-primary">
-                  {profileData.companyName ? "Company" : "Individual"}
-                  {profileData.isOverseas ? " (Overseas)" : ""}
+                  {tax
+                    ? `${tax.is_company ? "Company" : tax.joint ? "Joint Owners" : "Individual"}${tax.is_overseas ? " (Overseas)" : ""}`
+                    : `${profileData.companyName ? "Company" : "Individual"}${profileData.isOverseas ? " (Overseas)" : ""}`}
                 </span>
               </div>
             </div>
@@ -477,6 +481,40 @@ export const Profile = () => {
         </PortalCard>
 
         {/* Card 5: Tax & Compliance */}
+        {tax ? (
+          <PortalCard
+            title="Tax & Compliance"
+            subtitle="Your business and tax compliance details."
+            headerActions={
+              <span
+                className="inline-flex items-center gap-1 text-2xs font-bold text-status-muted cursor-help"
+                title="Kept by ROCA, the same details as on your statements. Contact us to change them."
+              >
+                <Info size={12} /> Kept By ROCA
+              </span>
+            }
+          >
+            <div className="flex flex-col gap-3.5 mt-2 text-xs-portal">
+              {[
+                { icon: Building, label: "Company Name", value: tax.company_name || "—" },
+                {
+                  icon: Globe,
+                  label: "Overseas Landlord",
+                  value: tax.is_overseas === null ? "—" : `${tax.is_overseas ? "Yes" : "No"}${tax.country ? ` (${tax.country})` : ""}`,
+                },
+                { icon: FileSignature, label: "NRL Number", value: tax.is_company ? "N/A (Company)" : tax.nrl || "—" },
+              ].map(({ icon: Icon, label, value }, i, rows) => (
+                <div key={label} className={`flex flex-col gap-1 py-1 ${i < rows.length - 1 ? "border-b border-card-border/60" : ""}`}>
+                  <div className="flex items-center gap-3">
+                    <Icon size={13} className="text-gray-400 shrink-0" />
+                    <span className="text-status-muted font-bold w-24 shrink-0">{label}</span>
+                    <span className="font-semibold text-brand-primary">{value}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </PortalCard>
+        ) : (
         <PortalCard
           title="Tax & Compliance"
           subtitle="Your business and tax compliance details."
@@ -603,6 +641,7 @@ export const Profile = () => {
             </div>
           </div>
         </PortalCard>
+        )}
 
 
         {/* Card 6: Account Actions */}

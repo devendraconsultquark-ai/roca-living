@@ -5,7 +5,10 @@ import {
   createApprovedStatement,
   listApprovedStatements,
   downloadApprovedStatement,
-  deleteApprovedStatement
+  deleteApprovedStatement,
+  getApprovedStatementEmail,
+  saveApprovedStatementEmail,
+  sendApprovedStatement
 } from '../controllers/approvedRentStatementController.js';
 import { protect } from '../middlewares/protect.js';
 import { restrictTo } from '../middlewares/restrictTo.js';
@@ -21,5 +24,8 @@ approvedRentStatementRouter.get('/', listApprovedStatements);
 approvedRentStatementRouter.post('/', createApprovedStatement);
 approvedRentStatementRouter.get('/:id/pdf', downloadApprovedStatement);
 approvedRentStatementRouter.delete('/:id', deleteApprovedStatement);
+approvedRentStatementRouter.get('/:id/email', getApprovedStatementEmail);
+approvedRentStatementRouter.put('/:id/email', saveApprovedStatementEmail);
+approvedRentStatementRouter.post('/:id/send', sendApprovedStatement);
 
 export default approvedRentStatementRouter;

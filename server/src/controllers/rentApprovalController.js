@@ -3,8 +3,9 @@ import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
 import { toYmd } from '../utils/dateHelpers.js';
 import { pullInvoicePayments, splitFor, round2 } from '../utils/xeroRentInvoices.js';
-import { voidLandlordBill, voidContractorBills, pullLandlordBillStatus, sendRentSplit } from '../utils/xeroLandlordBills.js';
+import { voidLandlordBill, voidContractorBills, pullLandlordBillStatus, sendRentSplit, settleRentMonth } from '../utils/xeroLandlordBills.js';
 import { applyRepairDeductions } from '../utils/repairDeductions.js';
+import { openGroupOf, latestOf, groupFee, shareOf } from '../utils/rentGroups.js';
 import { getSetting } from '../utils/settings.js';
 
 // Rent to approve (rent cycle phase 3): rent paid against Roca Living's rent
@@ -87,7 +88,10 @@ export const changeRentSplit = catchAsync(async (req, res) => {
   // Deductions already set stay: the landlord gets rent − fee − deductions.
   const deductions = Number(p.deductions_amount || 0);
   const net = round2(Number(split.net_amount) - deductions);
-  if (net < 0) throw new ApiError(400, `With £${deductions.toFixed(2)} of deductions, this fee would leave the landlord less than £0`);
+  // Rent paid in parts: the deductions sit on the latest part, so check the month.
+  const others = (await openGroupOf(db, p.id)).filter((g) => g.id !== p.id);
+  const monthNet = round2(net + others.reduce((s, g) => s + Number(g.net_amount ?? shareOf(g)), 0));
+  if (monthNet < 0) throw new ApiError(400, `With £${round2(deductions + others.reduce((s, g) => s + Number(g.deductions_amount || 0), 0)).toFixed(2)} of deductions, this fee would leave the landlord less than £0`);
   split.net_amount = net.toFixed(2);
   await db.transaction(async (trx) => {
     await trx('rent_payments').where('id', p.id).update({ ...split, split_note: reason.slice(0, 500) });
@@ -115,33 +119,52 @@ const loadForDeductions = async (id) => {
   return p;
 };
 
-// The most that can be deducted: the landlord's share before deductions.
-const landlordShare = (p) => round2(Number(p.amount) - Number(p.fee_amount || 0));
+// A rent month paid in parts is settled together: its deductions and fee are
+// worked out on all of its parts. While the bill can change that is the open
+// group (every part not on a landlord bill yet); after, the parts settled together.
+const monthGroup = async (p) => {
+  if (deductionsEditable(p)) return openGroupOf(db, p.id);
+  if (p.settlement_lead_id) return db('rent_payments').where('settlement_lead_id', p.settlement_lead_id).orderBy('received_at').orderBy('id');
+  return [p];
+};
+// ROCA's fee on the month: on the total (8% of £595 = £47.60) for parts not
+// settled yet, else as saved.
+const feeOf = (group, editable) => (editable && group.length > 1
+  ? groupFee(group)
+  : round2(group.reduce((s, g) => s + Number(g.fee_amount || 0), 0)));
 
 // GET /xero/rent-approvals/:id/deductions
 export const getRentDeductions = catchAsync(async (req, res) => {
   const p = await loadForDeductions(req.params.id);
+  const editable = deductionsEditable(p);
   // Completed repairs are added automatically (lines with a ticket_id).
   const tenancy = await db('tenancies').where('id', p.tenancy_id).first('property_id');
-  const waiting = deductionsEditable(p) ? await db.transaction((trx) => applyRepairDeductions(trx, tenancy?.property_id)) : [];
+  const waiting = editable ? await db.transaction((trx) => applyRepairDeductions(trx, tenancy?.property_id)) : [];
+  const group = await monthGroup(p);
+  const amount = round2(group.reduce((s, g) => s + Number(g.amount), 0));
+  const fee = feeOf(group, editable);
   const items = await db('rent_payment_deductions as d')
     .leftJoin('maintenance_tickets as m', 'd.ticket_id', 'm.id')
     .leftJoin('contractors as c', 'm.contractor_id', 'c.id')
-    .where('d.rent_payment_id', p.id).orderBy('d.id')
+    .whereIn('d.rent_payment_id', group.map((g) => g.id)).orderBy('d.id')
     .select('d.id', 'd.description', 'd.supplier', 'd.amount', 'd.ticket_id', 'd.xero_bill_status', 'c.company_name as contractor');
   // Where ROCA's fee goes on approval (Settings → Xero).
   const feeReady = !!(await getSetting('xeroRentBankAccountId', null)) && !!(await getSetting('xeroFeeBankAccountId', null));
   res.json({
     success: true,
     data: {
-      payment: { id: p.id, amount: Number(p.amount), fee_pct: Number(p.fee_pct || 0), fee_amount: Number(p.fee_amount || 0), fee_transfer_status: p.fee_transfer_status || null },
+      payment: {
+        id: latestOf(group).id, amount, fee_pct: Number(p.fee_pct || 0), fee_amount: fee, fee_transfer_status: p.fee_transfer_status || null,
+        // Rent paid in parts: each part received (settled together).
+        parts: group.length > 1 ? group.map((g) => ({ id: g.id, received_at: toYmd(g.received_at), amount: round2(g.amount) })) : []
+      },
       // Repairs are billed to their contractor on approval (contractor: null = no bill).
       items: items.map((i) => ({ ...i, amount: Number(i.amount), from_maintenance: !!i.ticket_id })),
       fee_transfer_ready: feeReady,
       // Repairs too big for what is left of this flat's open payments.
       repairs_waiting: waiting,
-      max: landlordShare(p),
-      editable: deductionsEditable(p)
+      max: round2(amount - fee),
+      editable
     }
   });
 });
@@ -165,26 +188,35 @@ export const saveRentDeductions = catchAsync(async (req, res) => {
     if (!Number.isFinite(amount) || amount <= 0) throw new ApiError(400, `Deduction ${i + 1}: the amount must be more than £0`);
     return { description, supplier: supplier || null, amount };
   });
+  // The whole month (all parts not on a landlord bill yet): typed deductions go
+  // on its latest part, like the repairs.
+  const group = await monthGroup(p);
+  const ids = group.map((g) => g.id);
+  const lead = latestOf(group);
   // Repairs from Maintenance stay (they change on the ticket, not here).
-  const repairs = round2((await db('rent_payment_deductions').where('rent_payment_id', p.id).whereNotNull('ticket_id').sum('amount as s').first())?.s || 0);
+  const repairs = round2((await db('rent_payment_deductions').whereIn('rent_payment_id', ids).whereNotNull('ticket_id').sum('amount as s').first())?.s || 0);
   const total = round2(items.reduce((s, i) => s + i.amount, 0) + repairs);
-  const share = landlordShare(p);
+  const share = round2(group.reduce((s, g) => s + Number(g.amount), 0) - feeOf(group, true));
   if (total > share) {
     throw new ApiError(400, `Deductions (£${total.toFixed(2)}) can't be more than the landlord's share (£${share.toFixed(2)})`);
   }
   const net = round2(share - total);
   await db.transaction(async (trx) => {
-    await trx('rent_payment_deductions').where('rent_payment_id', p.id).whereNull('ticket_id').delete();
+    await trx('rent_payment_deductions').whereIn('rent_payment_id', ids).whereNull('ticket_id').delete();
     if (items.length) {
       await trx('rent_payment_deductions').insert(items.map((i) => ({
-        rent_payment_id: p.id, description: i.description, supplier: i.supplier, amount: i.amount.toFixed(2), created_by: req.user.id
+        rent_payment_id: lead.id, description: i.description, supplier: i.supplier, amount: i.amount.toFixed(2), created_by: req.user.id
       })));
     }
-    await trx('rent_payments').where('id', p.id).update({ deductions_amount: total.toFixed(2), net_amount: net.toFixed(2) });
+    // Each part's totals follow its own lines (the month's totals add up).
+    for (const g of group) {
+      const own = round2((await trx('rent_payment_deductions').where('rent_payment_id', g.id).sum('amount as s').first())?.s || 0);
+      await trx('rent_payments').where('id', g.id).update({ deductions_amount: own.toFixed(2), net_amount: round2(shareOf(g) - own).toFixed(2) });
+    }
     await trx('audit_log').insert({
       actor_id: req.user.id, actor_role: req.user.role, action: 'RENT_DEDUCTIONS_SET',
       entity_type: 'rent_payment', entity_id: p.id,
-      meta: JSON.stringify({ items, total, net }),
+      meta: JSON.stringify({ items, total, net, payments: ids }),
       ip_address: req.ip || null
     });
   });
@@ -212,8 +244,11 @@ export const pullRentPayments = catchAsync(async (req, res) => {
 
 // POST /xero/rent-approvals/:id/send-to-xero — bill to the landlord (rent − fee).
 export const sendRentToXero = catchAsync(async (req, res) => {
-  // The whole split: landlord bill, contractor bills, fee transfer.
-  const out = await sendRentSplit(Number(req.params.id), req.user.id);
+  // The whole split: landlord bill, contractor bills, fee transfer — for the
+  // month's approved parts not on a bill yet together (else a retry).
+  const id = Number(req.params.id);
+  const group = await openGroupOf(db, id);
+  const out = (await settleRentMonth(group.map((g) => g.id), req.user.id)) || (await sendRentSplit(id, req.user.id));
   const result = out.landlord || {};
   if (result.status === 'failed') throw new ApiError(502, `Xero refused the bill: ${result.error}`);
   res.json({
@@ -231,8 +266,12 @@ export const sendAllRentToXero = catchAsync(async (req, res) => {
   const ids = await db('rent_payments').where('approval_status', 'approved')
     .where((w) => w.whereNull('xero_bill_status').orWhereIn('xero_bill_status', ['failed', 'voided'])).pluck('id');
   let sent = 0, failed = 0;
+  const done = new Set();
   for (const id of ids) {
-    const r = (await sendRentSplit(id, req.user.id)).landlord || {};
+    if (done.has(id)) continue;
+    const group = (await openGroupOf(db, id)).map((g) => g.id);
+    group.forEach((g) => done.add(g));
+    const r = ((await settleRentMonth(group, req.user.id)) || (await sendRentSplit(id, req.user.id))).landlord || {};
     if (r.status === 'posted') sent++; else if (r.status === 'failed') failed++;
   }
   res.json({ success: true, message: `Sent to Xero: ${sent} bill(s)${failed ? `, ${failed} failed` : ''}`, data: { sent, failed } });

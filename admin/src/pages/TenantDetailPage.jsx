@@ -20,6 +20,8 @@ import { EditTenantModal } from '../components/UI/EditTenantModal';
 import { RentAccountCard } from '../components/UI/RentAccountCard';
 import { InfoTip } from '../components/UI/InfoTip';
 
+const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 const methodLabel = { bank_transfer: 'Bank Transfer', direct_debit: 'Direct Debit', card: 'Card', cash: 'Cash', other: 'Other' };
 const ordinal = (d) => `${d}${[11, 12, 13].includes(d % 100) ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[d % 10] || 'th')}`;
 
@@ -484,6 +486,39 @@ export const TenantDetailPage = () => {
                       </span>
                     </div>
                   ))}
+                </div>
+              </Card>
+            )}
+            {data.before_rl?.length > 0 && (
+              <Card title={`Before Roca Living (${data.before_rl.length})`} info="Rent months from before Roca Living handled the rent. Read-only: put into Xero as paid invoices and bills so the bank could be reconciled. Not part of the rent account or statements here.">
+                <div className="overflow-x-auto rounded-xl border border-card-border">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-card-border text-2xs text-gray-400 font-bold capitalize">
+                        <th className="text-left py-3 px-4">Month</th>
+                        <th className="text-right py-3 px-4">Received</th>
+                        <th className="text-right py-3 px-4">ROCA Fee</th>
+                        <th className="text-right py-3 px-4">Repairs</th>
+                        <th className="text-right py-3 px-4">Landlord Paid</th>
+                        <th className="text-left py-3 px-4">Xero</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.before_rl.map((h) => (
+                        <tr key={h.id} className="border-b border-card-border/60 last:border-0">
+                          <td className="py-3 px-4 whitespace-nowrap">{new Date(`${h.month_label}-01T12:00:00`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                            {money(h.rent_total)}
+                            {h.parts.length > 1 && <div className="text-xs text-status-muted">{h.parts.length} payments</div>}
+                          </td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap">−{money(h.fee)}</td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap">{h.repairs > 0 ? <span className="text-status-danger">−{money(h.repairs)}</span> : '—'}</td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap font-semibold">{money(h.landlord_paid)}<div className="text-xs font-normal text-status-muted">{new Date(`${h.paid_on}T12:00:00`).toLocaleDateString('en-GB')}</div></td>
+                          <td className="py-3 px-4 text-xs text-status-muted">{h.xero_invoice_number}<br />{h.xero_bill_number}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </Card>
             )}

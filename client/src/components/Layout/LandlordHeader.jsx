@@ -46,17 +46,28 @@ export const LandlordHeader = ({ setMobileMenuOpen }) => {
         compliancePct = selectedProperty?.compliance_pct ?? 100;
       }
 
+      // Managed by ROCA Living: from each flat's real setting, not a fixed claim.
+      const scope = selectedProperty === "all" || !selectedProperty ? props : [selectedProperty];
+      const managedCount = scope.filter((p) => Number(p?.managed_by_rl) === 1 || p?.managed_by_rl === true).length;
+      const managed = !scope.length
+        ? null
+        : managedCount === scope.length
+          ? { text: "Fully Managed", variant: "info" }
+          : managedCount > 0
+            ? { text: `${managedCount}/${scope.length} Managed`, variant: "info" }
+            : { text: "Not Managed", variant: "info" };
+
       return {
         title,
         subTitle: "performance overview",
         indicators: [
           occupancy,
-          { text: "Fully Managed", variant: "info" },
+          managed,
           {
             text: `${compliancePct}% Compliant`,
             variant: compliancePct === 100 ? "success" : "warning",
           },
-        ],
+        ].filter(Boolean),
       };
     }
 

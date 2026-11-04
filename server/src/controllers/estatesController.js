@@ -335,3 +335,66 @@ export const setEstatePropertyManaged = catchAsync(async (req, res) => {
     data: result
   });
 });
+
+// GET /estates/onboarding — Landlord Onboarding page: per ROCA Estates landlord,
+// the set-up steps from real records. Contact, NRL and statement email live in
+// ROCA Estates; Terms of Business, KYC and bank details in Roca Living (only
+// once the landlord has a flat Roca Living manages).
+const PLACEHOLDER_EMAIL = /\.invalid$/i;
+export const getLandlordOnboarding = catchAsync(async (req, res) => {
+  const [rows, units] = await fromEstates(async () => {
+    const list = await emDb('users as u').where('u.role', 'LANDLORD').orderBy('u.name')
+      .select('u.id', 'u.name', 'u.email', 'u.ownership_type', 'u.company_name', 'u.is_joint_ownership', 'u.secondary_owner_name',
+        'u.nrl_number', 'u.secondary_nrl_number', 'u.preferred_statement_email', 'u.created_at');
+    const ids = list.map((l) => l.id);
+    const owned = ids.length
+      ? await emDb('properties as p').leftJoin('buildings as b', 'p.building_id', 'b.id').whereIn('p.landlord_id', ids)
+        .select('p.id', 'p.landlord_id', 'p.unit_code', 'p.unit_id', 'p.unit_number', 'b.name as building_name', 'b.short_code as building_short_code')
+      : [];
+    return [list, owned];
+  });
+  const findLiving = await livingLandlordFinder();
+  const living = await livingPropertiesByUnit();
+  const unitsBy = {};
+  const managedBy = {};
+  for (const u of units) {
+    const { block, apt } = estateUnitCodes(u);
+    (unitsBy[u.landlord_id] ||= []).push(block && apt ? `${block}-${apt}` : u.unit_code);
+    const link = living.byRocaem.get(u.id) || living.byKey.get(unitKey(block, apt));
+    if (link?.managed) managedBy[u.landlord_id] = (managedBy[u.landlord_id] || 0) + 1;
+  }
+  const rlIds = rows.map(findLiving).filter(Boolean);
+  const profiles = rlIds.length ? await db('landlord_profiles').whereIn('user_id', rlIds).select('user_id', 'tob_status', 'tob_signed_at', 'kyc_status', 'sanctions_checked') : [];
+  const banks = rlIds.length ? await db('landlord_payment_details').whereIn('user_id', rlIds).select('user_id', 'verified_at') : [];
+
+  res.json({
+    success: true,
+    data: rows.map((l) => {
+      const rlId = findLiving(l);
+      const prof = profiles.find((p) => p.user_id === rlId) || null;
+      const bank = banks.find((b) => b.user_id === rlId) || null;
+      const company = l.ownership_type === 'COMPANY';
+      const joint = !!l.is_joint_ownership;
+      return {
+        id: l.id,
+        name: niceName(company && l.company_name ? l.company_name : l.name),
+        joint_name: joint ? niceName(l.secondary_owner_name) : null,
+        email: PLACEHOLDER_EMAIL.test(l.email || '') ? null : l.email,
+        units: unitsBy[l.id] || [],
+        managed_units: managedBy[l.id] || 0,
+        roca_living_landlord_id: rlId,
+        steps: {
+          contact_email: !!l.email && !PLACEHOLDER_EMAIL.test(l.email),
+          // Companies have no NRL number; joint owners need one each.
+          nrl: company ? null : !!(l.nrl_number && (!joint || l.secondary_nrl_number)),
+          statement_email: !!l.preferred_statement_email,
+          terms_signed: prof ? prof.tob_status === 'signed' : false,
+          kyc: prof ? prof.kyc_status === 'passed' : false,
+          bank_details: !!bank,
+        },
+        tob_signed_at: prof?.tob_signed_at || null,
+        kyc_status: prof?.kyc_status || null,
+      };
+    }),
+  });
+});

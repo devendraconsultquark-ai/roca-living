@@ -4,12 +4,6 @@
 // Routes (App.jsx) and page headers (AdminLayout HEADERS) read this list.
 export const PLANNED_PAGES = [
   {
-    slug: 'landlord-onboarding',
-    title: 'Landlord Onboarding',
-    subtitle: 'End-to-end onboarding workflow for landlords, properties and compliance.',
-    related: [{ label: 'All Landlords', path: '/landlords', note: "KYC, NRL and Terms of Business are on each landlord's Settings tab." }],
-  },
-  {
     slug: 'landlord-groups',
     title: 'Landlord Groups',
     subtitle: 'Group landlords (families, companies) for combined portfolio views.',
@@ -26,27 +20,6 @@ export const PLANNED_PAGES = [
     title: 'Management Packages',
     subtitle: 'Service packages and fees offered to landlords.',
     related: [{ label: 'Settings', path: '/settings', note: 'The management fee % is set under Financial Settings.' }],
-  },
-  {
-    slug: 'renewals',
-    title: 'Renewals',
-    subtitle: 'Tenancies coming up for renewal.',
-    related: [{ label: 'Tenancies', path: '/tenancies', note: 'Use the "Ending soon" tab.' }],
-  },
-  {
-    slug: 'payments-received',
-    title: 'Payments Received',
-    subtitle: 'Track and manage all rent and other payments received.',
-    related: [
-      { label: 'Accounting Overview', path: '/accounting', note: 'See the Incoming Payments tab.' },
-      { label: 'Rent Cycle', path: '/rent-cycle' },
-    ],
-  },
-  {
-    slug: 'expenses',
-    title: 'Expenses',
-    subtitle: 'Track all expenses and supplier payments across properties.',
-    related: [{ label: 'Properties', path: '/properties', note: "Expenses are recorded on each property's Expenses tab." }],
   },
   {
     slug: 'bank-reconciliation',
@@ -67,16 +40,6 @@ export const PLANNED_PAGES = [
     related: [
       { label: 'Statements', path: '/statements', note: 'Generate, email and mark statements as paid.' },
       { label: 'Rent Cycle', path: '/rent-cycle', note: 'Approve rent, pay the landlord, make the statement.' },
-    ],
-  },
-  {
-    slug: 'tenancy-lifecycle',
-    title: 'Tenancy Lifecycle',
-    subtitle: 'Each tenancy from move-in to move-out.',
-    related: [
-      { label: 'Tenancies', path: '/tenancies' },
-      { label: 'Calendar', path: '/calendar', note: 'Shows move-ins and move-outs.' },
-      { label: 'Deposits', path: '/deposits' },
     ],
   },
   {

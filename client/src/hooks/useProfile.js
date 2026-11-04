@@ -22,7 +22,7 @@ export const useProfile = () => {
     isOverseas: false,
     nrlHmrcApproved: false,
     nrlHmrcRef: '',
-    nrlWithholdPct: '20.00',
+    nrlWithholdPct: '',
 
     // Bank
     bankName: '',
@@ -43,6 +43,7 @@ export const useProfile = () => {
     ownershipConfirmed: false,
     ownershipShare: '',
     joinedAt: null,
+    estatesTax: null,
   });
 
   const handleCancel = () => {
@@ -51,7 +52,7 @@ export const useProfile = () => {
       setProfileData({
         name: user.name || '',
         email: user.email || '',
-        phone: user.phone || '',
+        phone: /^0+$/.test(String(user.phone || '').replace(/\s/g, '')) ? '' : (user.phone || ''), // 0000000000 = placeholder from the sheet import
         address: user.address || '',
         landlord_reference: user.landlord_reference || '',
         
@@ -59,7 +60,7 @@ export const useProfile = () => {
         isOverseas: !!user.is_overseas,
         nrlHmrcApproved: !!user.nrl_hmrc_approved,
         nrlHmrcRef: user.nrl_hmrc_ref || '',
-        nrlWithholdPct: user.nrl_withhold_pct !== null && user.nrl_withhold_pct !== undefined ? String(user.nrl_withhold_pct) : '20.00',
+        nrlWithholdPct: user.nrl_withhold_pct !== null && user.nrl_withhold_pct !== undefined ? String(user.nrl_withhold_pct) : '',
 
         bankName: user.bank_name || '',
         accountName: user.account_name || user.name || '',
@@ -78,6 +79,7 @@ export const useProfile = () => {
         ownershipConfirmed: !!user.ownership_confirmed,
         ownershipShare: user.ownership_share !== null && user.ownership_share !== undefined ? String(user.ownership_share) : '',
         joinedAt: user.created_at || null,
+        estatesTax: user.estates_tax || null, // tax details from ROCA Estates (read-only here)
       });
     }
   };
@@ -97,7 +99,7 @@ export const useProfile = () => {
       setProfileData({
         name: user.name || '',
         email: user.email || '',
-        phone: user.phone || '',
+        phone: /^0+$/.test(String(user.phone || '').replace(/\s/g, '')) ? '' : (user.phone || ''), // 0000000000 = placeholder from the sheet import
         address: user.address || '',
         landlord_reference: user.landlord_reference || '',
         
@@ -105,7 +107,7 @@ export const useProfile = () => {
         isOverseas: !!user.is_overseas,
         nrlHmrcApproved: !!user.nrl_hmrc_approved,
         nrlHmrcRef: user.nrl_hmrc_ref || '',
-        nrlWithholdPct: user.nrl_withhold_pct !== null && user.nrl_withhold_pct !== undefined ? String(user.nrl_withhold_pct) : '20.00',
+        nrlWithholdPct: user.nrl_withhold_pct !== null && user.nrl_withhold_pct !== undefined ? String(user.nrl_withhold_pct) : '',
 
         bankName: user.bank_name || '',
         accountName: user.account_name || user.name || '',
@@ -124,6 +126,7 @@ export const useProfile = () => {
         ownershipConfirmed: !!user.ownership_confirmed,
         ownershipShare: user.ownership_share !== null && user.ownership_share !== undefined ? String(user.ownership_share) : '',
         joinedAt: user.created_at || null,
+        estatesTax: user.estates_tax || null, // tax details from ROCA Estates (read-only here)
       });
     }
   }, [user]);

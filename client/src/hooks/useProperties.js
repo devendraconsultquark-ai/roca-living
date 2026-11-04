@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useToast } from '../components/UI/ToastContext';
 import api from '../utilities/api';
 import { formatProperty } from '../utilities/formatProperty';
+import { statementPropertyId } from '../utilities/propertyFilter';
+import { netPaidOf } from '../utilities/tenancyFacts';
 
 export const useProperties = () => {
   const [properties, setProperties] = useState([]);
@@ -13,15 +15,20 @@ export const useProperties = () => {
     setLoading(true);
     try {
       // Fetch properties, tenancies, and maintenance tickets in parallel
-      const [propRes, tenancyRes, maintenanceRes] = await Promise.all([
+      const [propRes, tenancyRes, maintenanceRes, statementRes] = await Promise.all([
         api.get('/properties/my'),
         api.get('/tenancies/my').catch(() => ({ data: { data: [] } })),
-        api.get('/maintenance/my').catch(() => ({ data: { data: [] } }))
+        api.get('/maintenance/my').catch(() => ({ data: { data: [] } })),
+        api.get('/statements/my').catch(() => ({ data: { data: [] } }))
       ]);
 
       const propertiesList = propRes.data.data || [];
       const tenanciesList = tenancyRes.data?.data || [];
       const maintenanceTickets = maintenanceRes.data?.data || [];
+      // Statements in the shape netPaidOf expects (flat id, payout, status).
+      const statements = (statementRes.data?.data || []).map((s) => ({
+        property_id: statementPropertyId(s), payout: parseFloat(s.net_paid || 0), status: s.status,
+      }));
 
       // Create tenancy property-id mapping
       const tenancyMap = {};
@@ -40,7 +47,7 @@ export const useProperties = () => {
       });
 
       const formatted = propertiesList.map((p) => {
-        return formatProperty(p, tenancyMap[p.id], openTicketsCountMap[p.id]);
+        return formatProperty(p, tenancyMap[p.id], openTicketsCountMap[p.id], netPaidOf(statements, p.id));
       });
 
       setProperties(formatted);

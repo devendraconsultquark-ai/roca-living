@@ -9,7 +9,8 @@ import api from '../../utilities/api';
 
 // Email draft for a statement (handover RL-006): prepared automatically,
 // reviewed and edited here, then sent with the statement PDF attached.
-export const StatementEmailModal = ({ statementId, onClose, onSent }) => {
+// basePath: '/statements' (Statements page) or '/approved-statements' (Rent Cycle).
+export const StatementEmailModal = ({ statementId, onClose, onSent, basePath = '/statements' }) => {
   const { addToast } = useToast();
   const confirm = useConfirm();
   const [draft, setDraft] = useState(null);
@@ -20,7 +21,7 @@ export const StatementEmailModal = ({ statementId, onClose, onSent }) => {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await api.get(`/statements/${statementId}/email`);
+        const res = await api.get(`${basePath}/${statementId}/email`);
         setDraft(res.data.data);
       } catch (err) {
         addToast(err.response?.data?.message || 'Failed to load the email draft', 'error');
@@ -28,7 +29,7 @@ export const StatementEmailModal = ({ statementId, onClose, onSent }) => {
       }
     };
     load();
-  }, [statementId, addToast, onClose]);
+  }, [statementId, basePath, addToast, onClose]);
 
   const set = (key, value) => {
     setDraft((d) => ({ ...d, [key]: value }));
@@ -38,7 +39,7 @@ export const StatementEmailModal = ({ statementId, onClose, onSent }) => {
   const save = async (quiet = false) => {
     setSaving(true);
     try {
-      await api.put(`/statements/${statementId}/email`, { to: draft.to, cc: draft.cc, subject: draft.subject, body: draft.body });
+      await api.put(`${basePath}/${statementId}/email`, { to: draft.to, cc: draft.cc, subject: draft.subject, body: draft.body });
       setDirty(false);
       if (!quiet) addToast('Email draft saved', 'success');
       return true;
@@ -64,7 +65,7 @@ export const StatementEmailModal = ({ statementId, onClose, onSent }) => {
     if (dirty && !(await save(true))) return;
     setSending(true);
     try {
-      const res = await api.post(`/statements/${statementId}/send`);
+      const res = await api.post(`${basePath}/${statementId}/send`);
       addToast(`Statement emailed to ${res.data.data.sent_to}`, 'success');
       onSent();
       onClose();
@@ -77,7 +78,7 @@ export const StatementEmailModal = ({ statementId, onClose, onSent }) => {
 
   const downloadAttachment = async () => {
     try {
-      const res = await api.get(`/statements/${statementId}/pdf`, { responseType: 'blob', skipInterceptorError: true });
+      const res = await api.get(`${basePath}/${statementId}/pdf`, { responseType: 'blob', skipInterceptorError: true });
       const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
       window.open(url, '_blank');
     } catch {

@@ -29,6 +29,7 @@ import { useEstatesEditable } from '../utilities/useEstatesEditable';
 import { EstatesDeleteModal } from '../components/UI/EstatesDeleteModal';
 import api from '../utilities/api';
 import { InfoTip } from '../components/UI/InfoTip';
+import { realEmail, realPhone } from '../utilities/contact';
 
 const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
@@ -240,7 +241,7 @@ export const LandlordDetailPage = () => {
     setEditForm({
       name: data.name || '',
       email: data.email || '',
-      phone: data.phone || '',
+      phone: realPhone(data.phone) || '',
       address: data.address || '',
       initials: data.initials || '',
       nrl_hmrc_ref: data.nrl_hmrc_ref || '',
@@ -904,8 +905,8 @@ export const LandlordDetailPage = () => {
             <div className="flex flex-col gap-6 min-w-0">
               <Card title="Key Information">
                 <DataRow icon={Hash} label="Landlord ID" value={data.landlord_reference || `LND-${String(data.id).padStart(3, '0')}`} />
-                <DataRow icon={Mail} label="Email Address" value={data.email} />
-                <DataRow icon={Phone} label="Phone Number" value={data.phone} />
+                <DataRow icon={Mail} label="Email Address" value={realEmail(data.email) || '—'} />
+                <DataRow icon={Phone} label="Phone Number" value={realPhone(data.phone) || '—'} />
                 <DataRow icon={MapPin} label="Full Address" value={data.address} />
                 <DataRow icon={Building2} label="Company Name" value={data.company_name || '—'} />
                 <DataRow icon={Flag} label="Residency" value={data.is_overseas ? 'Overseas (NRL)' : 'United Kingdom'} />
@@ -1600,8 +1601,8 @@ export const LandlordDetailPage = () => {
                 {fromEstates ? (
                   <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 bg-surface-light border border-card-border rounded-xl px-4 py-3">
                     <DataRow icon={User} label="Name" value={data.name} />
-                    <DataRow icon={Mail} label="Email" value={data.email} />
-                    <DataRow icon={Phone} label="Phone" value={data.phone || '—'} />
+                    <DataRow icon={Mail} label="Email" value={realEmail(data.email) || '—'} />
+                    <DataRow icon={Phone} label="Phone" value={realPhone(data.phone) || '—'} />
                     <DataRow icon={MapPin} label="Address" value={data.address || '—'} />
                   </div>
                 ) : (

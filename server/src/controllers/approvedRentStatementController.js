@@ -8,13 +8,16 @@ import { estateDisplayFor } from '../utils/estatesLink.js';
 import { formatNrl } from '../utils/statementNumbering.js';
 import { generatePortraitPDFWithPuppeteer } from '../utils/puppeteerGenerator.js';
 import { rocaLivingStatementPdfHtml, rocaLivingInvoicePdfHtml } from '../templates/rocaLivingStatementTemplate.js';
+import { sendEmail } from '../utils/email.js';
+import { niceName } from '../utils/names.js';
 
 // "Statement from approved rent" — a SEPARATE flow next to the existing
 // Generate Statement (which is not changed, by client request). A landlord
 // statement built only from rent the admin approved in Accounting → Rent to
 // Approve: rent received, ROCA's management fee and the landlord's net, with its
 // own numbering (AR-PH_08_0001) so the two flows never collide. The PDF uses the
-// same design as today's statements (template imported unchanged). No email.
+// same design as today's statements (template imported unchanged). Emailed to
+// the landlord like the usual statements: a draft the admin checks, then Send.
 
 const TENANCY_TYPE = 'Assured Periodic (APT)';
 const pad = (n, w) => String(n).padStart(w, '0');
@@ -260,8 +263,15 @@ export const createApprovedStatement = catchAsync(async (req, res) => {
 export const listApprovedStatements = catchAsync(async (req, res) => {
   // ?month=YYYY-MM → statements whose period starts in that month (Rent Cycle page).
   const month = /^\d{4}-\d{2}$/.test(String(req.query.month || '')) ? req.query.month : null;
+  // ?from=YYYY-MM-DD&to=YYYY-MM-DD → statements whose period starts in that range.
+  const ymd = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? v : null);
+  const from = ymd(req.query.from), to = ymd(req.query.to);
   const rows = await db('approved_rent_statements as s')
-    .modify((q) => { if (month) q.whereRaw("DATE_FORMAT(s.period_start, '%Y-%m') = ?", [month]); else q.limit(50); })
+    .modify((q) => {
+      if (from && to) q.whereBetween('s.period_start', [from, to]);
+      else if (month) q.whereRaw("DATE_FORMAT(s.period_start, '%Y-%m') = ?", [month]);
+      else q.limit(50);
+    })
     .join('properties as p', 's.property_id', 'p.id')
     .leftJoin('tenants as lead', function () {
       this.on('lead.tenancy_id', '=', 's.tenancy_id').andOn('lead.is_lead_tenant', '=', db.raw('1'));
@@ -275,7 +285,8 @@ export const listApprovedStatements = catchAsync(async (req, res) => {
       flat: `${String(r.block_name || '').toUpperCase()}-${r.apartment_number}`,
       period_start: toYmd(r.period_start),
       period_end: toYmd(r.period_end),
-      created_at: r.created_at ? new Date(r.created_at).toISOString() : null
+      created_at: r.created_at ? new Date(r.created_at).toISOString() : null,
+      sent_at: r.sent_at ? new Date(r.sent_at).toISOString() : null
     }))
   });
 });
@@ -312,4 +323,122 @@ export const deleteApprovedStatement = catchAsync(async (req, res) => {
     fs.promises.unlink(abs).catch(() => {});
   }
   res.json({ success: true, message: `Statement ${s.statement_number} deleted` });
+});
+
+// ── Email to the landlord ───────────────────────────────────────────────────
+// Same as the usual statements' email (statementController, not changed): a
+// draft (to, cc, subject, message) the admin checks and edits, then sent with
+// the PDF attached. Sending marks the statement issued (it can't be deleted).
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const emailList = (value, label, { required = false } = {}) => {
+  const list = String(value || '').split(/[,;\s]+/).map((e) => e.trim()).filter(Boolean);
+  if (required && !list.length) throw new ApiError(400, `Enter at least one ${label} email address`);
+  if (list.length > 10) throw new ApiError(400, `Up to 10 ${label} addresses`);
+  const bad = list.find((e) => !EMAIL_RE.test(e));
+  if (bad) throw new ApiError(400, `"${bad}" is not a valid email address`);
+  return list.join(', ');
+};
+const escapeHtmlText = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+const loadStatement = async (id) => {
+  const s = await db('approved_rent_statements').where('id', id).first();
+  if (!s) throw new ApiError(404, 'Statement not found');
+  return s;
+};
+
+// The saved draft, or the standard one: to the landlord's statement email in
+// ROCA Estates (preferred statement email, else their email), else Roca Living's copy.
+const loadEmailDraft = async (s) => {
+  let to = s.email_to;
+  if (to === null || to === undefined) {
+    const t = await tenancyContext(s.tenancy_id);
+    const live = t?.rocaem_property_id ? await estateDisplayFor(t.rocaem_property_id) : null;
+    const email = live?.landlord_email || t?.landlord_email || '';
+    to = EMAIL_RE.test(email) ? email : '';
+  }
+  const period = `${uk(toYmd(s.period_start))} – ${uk(toYmd(s.period_end))}`;
+  const name = niceName(s.landlord_name) || 'Landlord';
+  return {
+    to,
+    cc: s.email_cc ?? '',
+    subject: s.email_subject ?? `ROCA Living statement ${s.statement_number} (${period})`,
+    body: s.email_body ?? `Dear ${name},\n\nPlease find attached your statement ${s.statement_number}${s.invoice_number ? ' and invoice' : ''} for the period ${period}.\n\nIf you have any questions, please reply to this email or call us on 0207 101 9551.\n\nKind regards,\nROCA Living`
+  };
+};
+
+const pdfOf = async (s) => {
+  const doc = s.document_id ? await db('documents').where('id', s.document_id).first() : null;
+  const abs = doc ? (path.isAbsolute(doc.file_path) ? doc.file_path : path.join(process.cwd(), doc.file_path)) : null;
+  return { doc, abs: abs && fs.existsSync(abs) ? abs : null };
+};
+
+// GET /approved-statements/:id/email — the email draft for review.
+export const getApprovedStatementEmail = catchAsync(async (req, res) => {
+  const s = await loadStatement(req.params.id);
+  const { doc } = await pdfOf(s);
+  res.json({
+    success: true,
+    data: {
+      ...(await loadEmailDraft(s)),
+      attachment: doc?.filename || `${s.statement_number}.pdf`,
+      statement_number: s.statement_number,
+      sent_at: s.sent_at ? new Date(s.sent_at).toISOString() : null,
+      sent_to: s.sent_to || null
+    }
+  });
+});
+
+// PUT /approved-statements/:id/email { to, cc, subject, body } — save the edited draft.
+export const saveApprovedStatementEmail = catchAsync(async (req, res) => {
+  const s = await loadStatement(req.params.id);
+  const b = req.body || {};
+  const subject = String(b.subject || '').trim();
+  const body = String(b.body || '').trim();
+  if (!subject || subject.length > 255) throw new ApiError(400, 'Enter a subject (up to 255 characters)');
+  if (!body || body.length > 10000) throw new ApiError(400, 'Enter a message (up to 10,000 characters)');
+  const update = { email_to: emailList(b.to, 'recipient'), email_cc: emailList(b.cc, 'CC'), email_subject: subject, email_body: body };
+  await db('approved_rent_statements').where('id', s.id).update(update);
+  res.json({ success: true, data: { to: update.email_to, cc: update.email_cc, subject, body } });
+});
+
+// POST /approved-statements/:id/send — email the saved draft with the PDF and
+// mark the statement issued (sent).
+export const sendApprovedStatement = catchAsync(async (req, res) => {
+  const s = await loadStatement(req.params.id);
+  const draft = await loadEmailDraft(s);
+  const to = emailList(draft.to, 'recipient', { required: true });
+  const cc = emailList(draft.cc, 'CC');
+  const { doc, abs } = await pdfOf(s);
+  if (!abs) throw new ApiError(404, 'Statement PDF not found');
+
+  const html = draft.body.split(/\n{2,}/).map((p) => `<p>${escapeHtmlText(p).replace(/\n/g, '<br>')}</p>`).join('');
+  // A mail server refusal is shown to the admin as it is.
+  const info = await sendEmail({
+    to,
+    ...(cc ? { cc } : {}),
+    subject: draft.subject,
+    text: draft.body,
+    html,
+    attachments: [{ filename: doc.filename || `${s.statement_number}.pdf`, path: abs, contentType: 'application/pdf' }]
+  }).catch((err) => {
+    throw new ApiError(502, `The email could not be sent (${err.message}) — the statement was not marked as sent`);
+  });
+  if (!info) throw new ApiError(503, 'Email is not configured on this server (SMTP settings missing) — nothing was sent');
+
+  const sentTo = (cc ? `${to} (cc ${cc})` : to).slice(0, 255);
+  await db.transaction(async (trx) => {
+    await trx('approved_rent_statements').where('id', s.id).update({
+      status: 'issued', sent_at: trx.fn.now(), sent_to: sentTo,
+      // The draft as sent (the standard one is saved too).
+      email_to: to, email_cc: cc, email_subject: draft.subject, email_body: draft.body
+    });
+    await trx('audit_log').insert({
+      actor_id: req.user.id, actor_role: req.user.role, action: 'APPROVED_RENT_STATEMENT_SENT',
+      entity_type: 'approved_rent_statement', entity_id: s.id,
+      meta: JSON.stringify({ to, cc, subject: draft.subject, number: s.statement_number, resend: !!s.sent_at, suppressed: info.messageId === 'suppressed' }),
+      ip_address: req.ip || null
+    });
+  });
+  res.json({ success: true, message: `Statement ${s.statement_number} emailed to ${to}`, data: { sent_to: to, cc } });
 });

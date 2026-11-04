@@ -1,4 +1,5 @@
 import db from '../config/db.js';
+import { historyRows } from '../utils/xeroHistory.js';
 import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
 import { addDays, addMonths, toYmd, todayYmd } from '../utils/dateHelpers.js';
@@ -1051,6 +1052,7 @@ export const getMyTenancies = catchAsync(async (req, res, next) => {
       'properties.city',
       'properties.postcode',
       'tenants.name as lead_tenant_name',
+      'tenants.right_to_rent_status as lead_right_to_rent',
       'deposits.tenancy_deposit as deposit_amount',
       'deposits.scheme as deposit_scheme',
       'deposits.status as deposit_status',
@@ -1532,6 +1534,8 @@ export const getTenantById = catchAsync(async (req, res, next) => {
       xero_invoices: xeroInvoices.map((x) => ({ ...x, due_date: toYmd(x.due_date), amount: parseFloat(x.amount).toFixed(2) })),
       balance: parseFloat(balance.toFixed(2)),
       rent_account: tenancy ? await rentAccountOf(tenancy.id) : null,
+      // Rent months from before Roca Living (read-only, from the Xero history import).
+      before_rl: tenancy ? await historyRows(db('rent_history').where({ tenancy_id: tenancy.id, status: 'done' }).orderBy('month_label')) : [],
       payment_history: payments.map(p => ({
         ...p,
         amount: parseFloat(p.amount).toFixed(2),

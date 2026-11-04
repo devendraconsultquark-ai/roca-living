@@ -31,6 +31,11 @@ import { Inspections } from './pages/Inspections';
 import { Utilities } from './pages/Utilities';
 import { Reports } from './pages/Reports';
 import { RentReviews } from './pages/RentReviews';
+import { PaymentsReceived } from './pages/PaymentsReceived';
+import { LandlordOnboarding } from './pages/LandlordOnboarding';
+import { TenancyLifecycle } from './pages/TenancyLifecycle';
+import { Renewals } from './pages/Renewals';
+import { Expenses } from './pages/Expenses';
 import { Arrears } from './pages/Arrears';
 import { Compliance } from './pages/Compliance';
 import { CalendarPage } from './pages/CalendarPage';
@@ -94,6 +99,11 @@ function App() {
               <Route path="/documents" element={<DocumentLibrary />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/rent-reviews" element={<RentReviews />} />
+              <Route path="/payments-received" element={<PaymentsReceived />} />
+              <Route path="/landlord-onboarding" element={<LandlordOnboarding />} />
+              <Route path="/tenancy-lifecycle" element={<TenancyLifecycle />} />
+              <Route path="/renewals" element={<Renewals />} />
+              <Route path="/expenses" element={<Expenses />} />
               <Route path="/arrears" element={<Arrears />} />
               <Route path="/compliance" element={<Compliance />} />
               <Route path="/calendar" element={<CalendarPage />} />

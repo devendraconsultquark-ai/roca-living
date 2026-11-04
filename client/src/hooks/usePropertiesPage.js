@@ -44,7 +44,7 @@ const matchesFilter = (p, activeFilter, arrearsPropertyIds) => {
  * toggle that doesn't affect the data.)
  */
 export const usePropertiesPage = () => {
-  const { properties, loading, error, monthlyGrossYield, complianceWarnings } = useProperties();
+  const { properties, loading, error, monthlyGrossYield } = useProperties();
   const { statements } = useStatements();
   const { schedules } = useRentSchedule();
 
@@ -82,12 +82,14 @@ export const usePropertiesPage = () => {
       vacantCount,
       occupiedPct: totalCount > 0 ? ((occupiedCount / totalCount) * 100).toFixed(1) : '0',
       vacantPct: totalCount > 0 ? ((vacantCount / totalCount) * 100).toFixed(1) : '0',
+      // Same rule as each flat's card: a flat counts when all its certificates
+      // (Gas, EPC, EICR) are on file and in date.
       compliancePct:
         totalCount > 0
-          ? Math.round(((totalCount - complianceWarnings) / totalCount) * 100)
+          ? Math.round((enrichedProperties.filter((p) => p.compliance_pct === 100).length / totalCount) * 100)
           : 100,
     };
-  }, [enrichedProperties, complianceWarnings]);
+  }, [enrichedProperties]);
 
   // Portfolio totals from each property's most recent statement.
   const financialSummary = useMemo(() => {
