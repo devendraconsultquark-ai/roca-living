@@ -1,0 +1,1706 @@
+[
+ {
+  "flat": "8",
+  "statement_number": "PH_8_0001",
+  "invoice_number": "INV_PH_8_0001",
+  "issued_on": "2026-09-03",
+  "period_start": "2026-08-22",
+  "period_end": "2026-10-01",
+  "tenant_name": "Kian Wagstaff",
+  "income_lines": [
+   {
+    "description": "Rent received — Kian Wagstaff (22/08/26 - 01/10/26)",
+    "amount": 806.77
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee 8% (22/08/2026 - 01/10/2026)",
+    "cost": 64.54,
+    "discount": 0
+   },
+   {
+    "description": "Tenant Find Fee (*UKV 50% discount)",
+    "cost": 500.0,
+    "discount": 250.0
+   },
+   {
+    "description": "Check In / Out — Inventory",
+    "cost": 100.0,
+    "discount": 0
+   },
+   {
+    "description": "Deposit registration (*UKV 100% discount)",
+    "cost": 25.0,
+    "discount": 25.0
+   },
+   {
+    "description": "Tenancy set up — admin (*UKV 100% discount)",
+    "cost": 25.0,
+    "discount": 25.0
+   },
+   {
+    "description": "Landlord ID / KYC (*UKV 100% discount)",
+    "cost": 30.0,
+    "discount": 30.0
+   },
+   {
+    "description": "EPC — on file",
+    "cost": 0,
+    "discount": 0
+   },
+   {
+    "description": "EICR — on file",
+    "cost": 0,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 414.54,
+  "payment_amount": 392.23,
+  "invoice_notes": "UK Vastgoed (UKV) introductory discount / new tenant discount applied.",
+  "source_file": "Apartment 8\\LANDLORD\\STATEMENTS\\RL_Statement PH_8_0001_INV_PH_8_0001.pdf",
+  "replaces_rl_statement": true,
+  "flags": [
+   "Client version kept (user, 4 Nov): on live it replaces Roca Living's own PH_8_0001 (22/08–21/09, on the ended PH-8 tenancy)"
+  ],
+  "tenancy_start": "2026-08-22",
+  "total_income": 806.77,
+  "invoice_total_gross": 744.54,
+  "invoice_total_discount": 330.0,
+  "invoice_total_net": 414.54,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_8_0001 (see accompanying invoice)",
+    "amount": 414.54
+   }
+  ],
+  "total_expenditure": 414.54,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "04/09/2026",
+    "amount": 392.23,
+    "text": "NELLI BADALJAN PH APT8 RENT AUG26 FT",
+    "q": "Q1"
+   }
+  ],
+  "paid_on": "2026-09-04",
+  "in_xero_history": false
+ },
+ {
+  "flat": "8",
+  "statement_number": "PH_8_0002",
+  "invoice_number": "INV_PH_8_0002",
+  "issued_on": "2026-10-06",
+  "period_start": "2026-10-02",
+  "period_end": "2026-11-01",
+  "tenant_name": "Kian Wagstaff",
+  "income_lines": [
+   {
+    "description": "Rent received — Kian Wagstaff (02/10/26 - 01/11/26)",
+    "amount": 595.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee 8% (02/10/2026 - 01/11/2026)",
+    "cost": 47.6,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 47.6,
+  "payment_amount": 547.4,
+  "invoice_notes": "UK Vastgoed (UKV) introductory / new tenant discount applied per the landlord management agreement.",
+  "source_file": "Apartment 8\\LANDLORD\\STATEMENTS\\RL_Statement PH_8_0002_INV_PH8_0002.pdf",
+  "flags": [
+   "Issued with PH-19's NRL numbers — the re-made one prints PH-8's (from ROCA Estates)"
+  ],
+  "tenancy_start": "2026-08-22",
+  "total_income": 595.0,
+  "invoice_total_gross": 47.6,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 47.6,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_8_0002 (see accompanying invoice)",
+    "amount": 47.6
+   }
+  ],
+  "total_expenditure": 47.6,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "06/10/2026",
+    "amount": 547.4,
+    "text": "NELLI BADALJAN PH APT8 RENT OCT26 FT",
+    "q": null
+   }
+  ],
+  "paid_on": "2026-10-06",
+  "in_xero_history": true
+ },
+ {
+  "flat": "8",
+  "statement_number": "PH_8_0003",
+  "invoice_number": "INV_PH_8_0003",
+  "issued_on": "2026-11-02",
+  "period_start": "2026-11-02",
+  "period_end": "2026-12-01",
+  "tenant_name": "Kian Wagstaff",
+  "income_lines": [
+   {
+    "description": "Rent received — Kian Wagstaff (02/11/26 - 01/12/26)",
+    "amount": 595.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee 8% (02/11/2026 - 01/12/2026)",
+    "cost": 47.6,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 47.6,
+  "payment_amount": 547.4,
+  "invoice_notes": null,
+  "source_file": "Apartment 8\\LANDLORD\\STATEMENTS\\RL_Statement PH_8_0003_INV_PH8_0003.pdf",
+  "flags": [
+   "Already a Roca Living statement on live — skipped there"
+  ],
+  "tenancy_start": "2026-08-22",
+  "total_income": 595.0,
+  "invoice_total_gross": 47.6,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 47.6,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_8_0003 (see accompanying invoice)",
+    "amount": 47.6
+   }
+  ],
+  "total_expenditure": 47.6,
+  "checks": [],
+  "bank_payout": [],
+  "paid_on": null,
+  "in_xero_history": false
+ },
+ {
+  "flat": "13",
+  "statement_number": "PH_13_0001",
+  "invoice_number": "INV_PH_13_0001",
+  "issued_on": "2026-06-26",
+  "period_start": "2026-06-23",
+  "period_end": "2026-07-22",
+  "tenant_name": "Mr Muhammad Babar Mahmood",
+  "income_lines": [
+   {
+    "description": "Rent received — Mr Muhammad Babar Mahmood (23/06/26 - 22/07/26)",
+    "amount": 850.0
+   },
+   {
+    "description": "Void period rent credit (Roca Living)",
+    "amount": 250.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Tenancy sourcing fee (*1st month's rent less 100% RL)",
+    "cost": 850.4,
+    "discount": 850.4
+   },
+   {
+    "description": "Tenant referencing / right to rent checks",
+    "cost": 0,
+    "discount": 0
+   },
+   {
+    "description": "Deposit registration (*UKV 100% discount)",
+    "cost": 25.0,
+    "discount": 25.0
+   },
+   {
+    "description": "Tenancy set up — admin (*UKV 100% discount)",
+    "cost": 25.0,
+    "discount": 25.0
+   },
+   {
+    "description": "Landlord ID / KYC (*UKV 100% discount)",
+    "cost": 30.0,
+    "discount": 30.0
+   },
+   {
+    "description": "Check Out — Inventory",
+    "cost": 100.0,
+    "discount": 100.0
+   },
+   {
+    "description": "Check In — Inventory",
+    "cost": 100.0,
+    "discount": 100.0
+   },
+   {
+    "description": "Proof of Ownership — on file",
+    "cost": 0,
+    "discount": 0
+   },
+   {
+    "description": "EPC — on file",
+    "cost": 0,
+    "discount": 0
+   },
+   {
+    "description": "EICR — on file",
+    "cost": 0,
+    "discount": 0
+   },
+   {
+    "description": "Management Fee 8% (*discounted 100% RL) (23/06/2026 - 22/07/2026)",
+    "cost": 68.0,
+    "discount": 68.0
+   }
+  ],
+  "statement_expenditure": 0.0,
+  "payment_amount": 1100.0,
+  "invoice_notes": "UK Vastgoed (UKV) introductory / new tenant discount applied.",
+  "source_file": "Apartment 13\\LANDLORD\\STATEMENTS\\RL_Statement 1_INV_PH_13_0001.pdf",
+  "flags": [
+   "Original showed the £1,198 invoice and a £1,198 \"Tenancy Set up – Roca Living rebate\" line; re-made shows the invoice fully discounted (same £0 cost, same £1,100 paid)"
+  ],
+  "tenancy_start": "2026-06-23",
+  "total_income": 1100.0,
+  "invoice_total_gross": 1198.4,
+  "invoice_total_discount": 1198.4,
+  "invoice_total_net": 0.0,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_13_0001 (see accompanying invoice)",
+    "amount": 0.0
+   }
+  ],
+  "total_expenditure": 0.0,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "30/06/2026",
+    "amount": 1100.0,
+    "text": "MARCIA HUIZING PH -APT 13 JUN 26 FT",
+    "q": "Q2"
+   }
+  ],
+  "paid_on": "2026-06-30",
+  "in_xero_history": false
+ },
+ {
+  "flat": "13",
+  "statement_number": "PH_13_0002",
+  "invoice_number": "INV_PH_13_0002",
+  "issued_on": "2026-07-22",
+  "period_start": "2026-07-23",
+  "period_end": "2026-08-22",
+  "tenant_name": "Mr Muhammad Babar Mahmood",
+  "income_lines": [
+   {
+    "description": "Rent received — Mr Muhammad Babar Mahmood (23/07/26 - 22/08/26)",
+    "amount": 850.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee 8% (23/07/2026 - 22/08/2026)",
+    "cost": 68.0,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 68.0,
+  "payment_amount": 782.0,
+  "invoice_notes": "UK Vastgoed (UKV) management fee discount applied.",
+  "source_file": "Apartment 13\\LANDLORD\\STATEMENTS\\RL_PH_13_0002_INV_PH_13_0002.pdf",
+  "flags": [
+   "Issued saying \"Invoice No. PH_19_0001\" — the re-made one says INV_PH_13_0002"
+  ],
+  "tenancy_start": "2026-06-23",
+  "total_income": 850.0,
+  "invoice_total_gross": 68.0,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 68.0,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_13_0002 (see accompanying invoice)",
+    "amount": 68.0
+   }
+  ],
+  "total_expenditure": 68.0,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "23/07/2026",
+    "amount": 782.0,
+    "text": "MARCIA HUIZING PH -APT 13 JUL 26 FT",
+    "q": null
+   }
+  ],
+  "paid_on": "2026-07-23",
+  "in_xero_history": true
+ },
+ {
+  "flat": "13",
+  "statement_number": "PH_13_0003",
+  "invoice_number": "INV_PH_13_0003",
+  "issued_on": "2026-08-24",
+  "period_start": "2026-08-23",
+  "period_end": "2026-09-22",
+  "tenant_name": "Mr Muhammad Babar Mahmood",
+  "income_lines": [
+   {
+    "description": "Rent received — Mr Muhammad Babar Mahmood (23/08/26 - 22/09/26)",
+    "amount": 850.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee 8% (23/08/2026 - 22/09/2026)",
+    "cost": 68.0,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 68.0,
+  "payment_amount": 782.0,
+  "invoice_notes": "UK Vastgoed (UKV) introductory / new tenant discount applied per the landlord management agreement.",
+  "source_file": "Apartment 13\\LANDLORD\\STATEMENTS\\RL_PH_13_0002_INV_PH_13_0003.pdf",
+  "flags": [
+   "File was named RL_PH_13_0002_INV_PH_13_0003 (statement inside is PH_13_0003)"
+  ],
+  "tenancy_start": "2026-06-23",
+  "total_income": 850.0,
+  "invoice_total_gross": 68.0,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 68.0,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_13_0003 (see accompanying invoice)",
+    "amount": 68.0
+   }
+  ],
+  "total_expenditure": 68.0,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "24/08/2026",
+    "amount": 782.0,
+    "text": "MARCIA HUIZING PH -APT 13 AUG 26 FT",
+    "q": null
+   }
+  ],
+  "paid_on": "2026-08-24",
+  "in_xero_history": true
+ },
+ {
+  "flat": "13",
+  "statement_number": "PH_13_0004",
+  "invoice_number": "INV_PH_13_0004",
+  "issued_on": "2026-09-23",
+  "period_start": "2026-09-23",
+  "period_end": "2026-10-22",
+  "tenant_name": "Mr Muhammad Babar Mahmood",
+  "income_lines": [
+   {
+    "description": "Rent received — Mr Muhammad Babar Mahmood (23/09/26 - 22/10/26)",
+    "amount": 850.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee 8% (23/09/2026 - 22/10/2026)",
+    "cost": 68.0,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 68.0,
+  "payment_amount": 782.0,
+  "invoice_notes": "UK Vastgoed (UKV) introductory / new tenant discount applied per the landlord management agreement.",
+  "source_file": "Apartment 13\\LANDLORD\\STATEMENTS\\RL_PH_13_0004_INV_PH_13_0004.pdf",
+  "flags": [],
+  "tenancy_start": "2026-06-23",
+  "total_income": 850.0,
+  "invoice_total_gross": 68.0,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 68.0,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_13_0004 (see accompanying invoice)",
+    "amount": 68.0
+   }
+  ],
+  "total_expenditure": 68.0,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "23/09/2026",
+    "amount": 782.0,
+    "text": "MARCIA HUIZING PH -APT 13 SEPT 26 FT",
+    "q": null
+   }
+  ],
+  "paid_on": "2026-09-23",
+  "in_xero_history": true
+ },
+ {
+  "flat": "13",
+  "statement_number": "PH_13_0005",
+  "invoice_number": "INV_PH_13_0005",
+  "issued_on": "2026-10-23",
+  "period_start": "2026-10-23",
+  "period_end": "2026-11-22",
+  "tenant_name": "Mr Muhammad Babar Mahmood",
+  "income_lines": [
+   {
+    "description": "Rent received — Mr Muhammad Babar Mahmood (23/10/26 - 22/11/26)",
+    "amount": 850.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee 8% (23/10/2026 - 22/11/2026)",
+    "cost": 68.0,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 68.0,
+  "payment_amount": 782.0,
+  "invoice_notes": null,
+  "source_file": "Apartment 13\\LANDLORD\\STATEMENTS\\RL_PH_13_0005_INV_PH_13_0005.pdf",
+  "flags": [],
+  "tenancy_start": "2026-06-23",
+  "total_income": 850.0,
+  "invoice_total_gross": 68.0,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 68.0,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_13_0005 (see accompanying invoice)",
+    "amount": 68.0
+   }
+  ],
+  "total_expenditure": 68.0,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "23/10/2026",
+    "amount": 782.0,
+    "text": "MARCIA HUIZING PH -APT 13 OCT 26 FT",
+    "q": null
+   }
+  ],
+  "paid_on": "2026-10-23",
+  "in_xero_history": true
+ },
+ {
+  "flat": "19",
+  "statement_number": "PH_19_0001",
+  "invoice_number": "INV_PH_19_0001",
+  "issued_on": "2026-06-14",
+  "period_start": "2026-06-01",
+  "period_end": "2026-06-30",
+  "tenant_name": "Ms Kirsty Scott",
+  "income_lines": [
+   {
+    "description": "Rent received — Ms Kirsty Scott (01/06/26 - 30/06/26)",
+    "amount": 795.0
+   },
+   {
+    "description": "Void period rent credit (Roca Living)",
+    "amount": 250.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Tenancy sourcing fee (*1st month's rent less 28% discount UKV)",
+    "cost": 572.4,
+    "discount": 572.4
+   },
+   {
+    "description": "Tenant referencing / right to rent checks",
+    "cost": 0,
+    "discount": 0
+   },
+   {
+    "description": "Deposit registration (*UKV 100% discount)",
+    "cost": 25.0,
+    "discount": 25.0
+   },
+   {
+    "description": "Tenancy set up — admin (*UKV 100% discount)",
+    "cost": 25.0,
+    "discount": 25.0
+   },
+   {
+    "description": "Landlord ID / KYC (*UKV 100% discount)",
+    "cost": 30.0,
+    "discount": 30.0
+   },
+   {
+    "description": "Check Out — Inventory",
+    "cost": 100.0,
+    "discount": 100.0
+   },
+   {
+    "description": "Proof of Ownership — on file",
+    "cost": 0,
+    "discount": 0
+   },
+   {
+    "description": "EPC — on file",
+    "cost": 0,
+    "discount": 0
+   },
+   {
+    "description": "EICR — on file",
+    "cost": 0,
+    "discount": 0
+   },
+   {
+    "description": "Management Fee 8% (*discounted 100% UKV) (01/06/2026 - 30/06/2026)",
+    "cost": 63.6,
+    "discount": 63.6
+   }
+  ],
+  "statement_expenditure": 0.0,
+  "payment_amount": 1045.0,
+  "invoice_notes": "UK Vastgoed (UKV) introductory/new tenant discount applied in accordance with the landlord management agreement.",
+  "source_file": "Apartment 19\\LANDLORD\\STATEMENTS\\RL_Statement PH_19_0001_INV_PH_19_0001.pdf",
+  "flags": [
+   "Paid in two bank lines: £1.00 test on 15/06 + £1,044.00 on 16/06",
+   "Dropbox also has PH_19_0001.pdf — the same statement (skipped)"
+  ],
+  "tenancy_start": "2026-06-01",
+  "total_income": 1045.0,
+  "invoice_total_gross": 816.0,
+  "invoice_total_discount": 816.0,
+  "invoice_total_net": 0.0,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_19_0001 (see accompanying invoice)",
+    "amount": 0.0
+   }
+  ],
+  "total_expenditure": 0.0,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "15/06/2026",
+    "amount": 1.0,
+    "text": "GEERTJE ADRIAANTJE TEST ROCA LIVING BBP",
+    "q": "Q26"
+   },
+   {
+    "date": "16/06/2026",
+    "amount": 1044.0,
+    "text": "GEERTJE ADRIAANTJE PH-19-0001 FT",
+    "q": "Q3"
+   }
+  ],
+  "paid_on": "2026-06-16",
+  "in_xero_history": false
+ },
+ {
+  "flat": "19",
+  "statement_number": "PH_19_0002",
+  "invoice_number": "INV_PH_19_0002",
+  "issued_on": "2026-06-30",
+  "period_start": "2026-07-01",
+  "period_end": "2026-07-30",
+  "tenant_name": "Ms Kirsty Scott",
+  "income_lines": [
+   {
+    "description": "Rent received — Ms Kirsty Scott (01/07/26 - 30/07/26)",
+    "amount": 795.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee 8% (01/07/2026 - 30/07/2026)",
+    "cost": 63.6,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 63.6,
+  "payment_amount": 731.4,
+  "invoice_notes": "UK Vastgoed (UKV) introductory / new tenant discount applied per the landlord management agreement.",
+  "source_file": "Apartment 19\\LANDLORD\\STATEMENTS\\RL_Statement PH_19_0002_INV_PH_19_0002.pdf",
+  "flags": [
+   "Period printed 01/07–30/07 (31 July not covered) — kept as issued",
+   "Invoice was printed INV_PH_0002"
+  ],
+  "tenancy_start": "2026-06-01",
+  "total_income": 795.0,
+  "invoice_total_gross": 63.6,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 63.6,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_19_0002 (see accompanying invoice)",
+    "amount": 63.6
+   }
+  ],
+  "total_expenditure": 63.6,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "01/07/2026",
+    "amount": 731.4,
+    "text": "GEERTJE ADRIAANTJE PH-19-0002 JUL 26 FT",
+    "q": null
+   }
+  ],
+  "paid_on": "2026-07-01",
+  "in_xero_history": true
+ },
+ {
+  "flat": "19",
+  "statement_number": "PH_19_0003",
+  "invoice_number": "INV_PH_19_0003",
+  "issued_on": "2026-08-07",
+  "period_start": "2026-08-01",
+  "period_end": "2026-08-31",
+  "tenant_name": "Ms Kirsty Scott",
+  "income_lines": [
+   {
+    "description": "Rent received — Ms Kirsty Scott (01/08/26 - 31/08/26)",
+    "amount": 795.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee 8% (01/08/2026 - 31/08/2026)",
+    "cost": 63.6,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 63.6,
+  "payment_amount": 731.4,
+  "invoice_notes": "UK Vastgoed (UKV) discounted rate applied.",
+  "source_file": "Apartment 19\\LANDLORD\\STATEMENTS\\RL_Statement PH_19_0002_INV_PH_19_0003.pdf",
+  "flags": [
+   "File was named …PH_19_0002_INV_PH_19_0003; invoice printed INV_PH_0003"
+  ],
+  "tenancy_start": "2026-06-01",
+  "total_income": 795.0,
+  "invoice_total_gross": 63.6,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 63.6,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_19_0003 (see accompanying invoice)",
+    "amount": 63.6
+   }
+  ],
+  "total_expenditure": 63.6,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "07/08/2026",
+    "amount": 731.4,
+    "text": "GEERTJE ADRIAANTJE PH 19 AUG 2026 FT",
+    "q": "Q4"
+   }
+  ],
+  "paid_on": "2026-08-07",
+  "in_xero_history": false
+ },
+ {
+  "flat": "19",
+  "statement_number": "PH_19_0004",
+  "invoice_number": "INV_PH_19_0004",
+  "issued_on": "2026-09-03",
+  "period_start": "2026-08-28",
+  "period_end": "2026-09-27",
+  "tenant_name": "Gladys Bouna",
+  "income_lines": [
+   {
+    "description": "Rent received — Gladys Bouna (28/08/26 - 27/09/26)",
+    "amount": 795.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee 8% (28/08/2026 - 27/09/2026)",
+    "cost": 63.6,
+    "discount": 0
+   },
+   {
+    "description": "Tenant Find Fee (* 3rd Party)",
+    "cost": 381.6,
+    "discount": 0
+   },
+   {
+    "description": "Check In / Out — Inventory",
+    "cost": 100.0,
+    "discount": 0
+   },
+   {
+    "description": "Existing Tenancy Rebate (2 days 29th Aug - 31st Aug 2026)",
+    "cost": 51.29,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 596.49,
+  "payment_amount": 198.51,
+  "invoice_notes": "UK Vastgoed (UKV) introductory discount / new tenant discount applied per the landlord management agreement.",
+  "source_file": "Apartment 19\\LANDLORD\\STATEMENTS\\RL_Statement PH_19_0004_INV_PH_19_0004.pdf",
+  "flags": [
+   "Invoice was printed INV_PH_0004"
+  ],
+  "tenancy_start": "2026-08-28",
+  "total_income": 795.0,
+  "invoice_total_gross": 596.49,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 596.49,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_19_0004 (see accompanying invoice)",
+    "amount": 596.49
+   }
+  ],
+  "total_expenditure": 596.49,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "03/09/2026",
+    "amount": 198.51,
+    "text": "GEERTJE ADRIAANTJE PH-APT19 RENTAUG26 FT",
+    "q": "Q5"
+   }
+  ],
+  "paid_on": "2026-09-03",
+  "in_xero_history": false
+ },
+ {
+  "flat": "19",
+  "statement_number": "PH_19_0005",
+  "invoice_number": "INV_PH_19_0005",
+  "issued_on": "2026-10-01",
+  "period_start": "2026-09-28",
+  "period_end": "2026-10-31",
+  "tenant_name": "Gladys Bouna",
+  "income_lines": [
+   {
+    "description": "Rent received — Gladys Bouna (28/09/26 - 31/10/26)",
+    "amount": 874.5
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee (28/09/2026 - 31/10/2026)",
+    "cost": 63.6,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 63.6,
+  "payment_amount": 810.9,
+  "invoice_notes": "UK Vastgoed (UKV) introductory / new tenant discount applied per the landlord management agreement.",
+  "source_file": "Apartment 19\\LANDLORD\\STATEMENTS\\RL_Statement PH_19_0005_INV_PH_19_0005.pdf",
+  "flags": [
+   "Invoice was £69.96 (8% of £874.50) but £63.60 was deducted and moved in the bank — invoice set to £63.60 (bank = source of truth)",
+   "Invoice was printed INV_PH_0005"
+  ],
+  "tenancy_start": "2026-08-28",
+  "total_income": 874.5,
+  "invoice_total_gross": 63.6,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 63.6,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_19_0005 (see accompanying invoice)",
+    "amount": 63.6
+   }
+  ],
+  "total_expenditure": 63.6,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "01/10/2026",
+    "amount": 810.9,
+    "text": "GEERTJE ADRIAANTJE PH-19 RENT SEPT26 BBP",
+    "q": null
+   }
+  ],
+  "paid_on": "2026-10-01",
+  "in_xero_history": true
+ },
+ {
+  "flat": "19",
+  "statement_number": "PH_19_0006",
+  "invoice_number": "INV_PH_19_0006",
+  "issued_on": "2026-11-02",
+  "period_start": "2026-11-01",
+  "period_end": "2026-11-30",
+  "tenant_name": "Gladys Bouna",
+  "income_lines": [
+   {
+    "description": "Rent received — Gladys Bouna (01/11/26 - 30/11/26)",
+    "amount": 795.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee 8% (01/11/2026 - 30/11/2026)",
+    "cost": 63.6,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 63.6,
+  "payment_amount": 731.4,
+  "invoice_notes": null,
+  "source_file": "Apartment 19\\LANDLORD\\STATEMENTS\\RL_PH_19_0006_INV_PH_19_0006.pdf",
+  "flags": [
+   "Already a Roca Living statement on live — skipped there"
+  ],
+  "tenancy_start": "2026-08-28",
+  "total_income": 795.0,
+  "invoice_total_gross": 63.6,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 63.6,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_19_0006 (see accompanying invoice)",
+    "amount": 63.6
+   }
+  ],
+  "total_expenditure": 63.6,
+  "checks": [],
+  "bank_payout": [],
+  "paid_on": null,
+  "in_xero_history": false
+ },
+ {
+  "flat": "31",
+  "statement_number": "PH_31_0001",
+  "invoice_number": "INV_PH_31_0001",
+  "issued_on": "2026-09-02",
+  "period_start": "2026-08-28",
+  "period_end": "2026-09-27",
+  "tenant_name": "Dr Ewa Szewczyk",
+  "income_lines": [
+   {
+    "description": "Rent received — Dr Ewa Szewczyk (28/08/26 - 27/09/26)",
+    "amount": 970.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Tenancy sourcing fee (*see notes)",
+    "cost": 684.0,
+    "discount": 0
+   },
+   {
+    "description": "Tenant referencing / right to rent checks (*see notes)",
+    "cost": 0,
+    "discount": 0
+   },
+   {
+    "description": "Deposit registration",
+    "cost": 25.0,
+    "discount": 0
+   },
+   {
+    "description": "Tenancy set up — admin",
+    "cost": 25.0,
+    "discount": 0
+   },
+   {
+    "description": "Landlord ID / KYC (*see notes)",
+    "cost": 0,
+    "discount": 0
+   },
+   {
+    "description": "Check Out — Inventory",
+    "cost": 100.0,
+    "discount": 0
+   },
+   {
+    "description": "Proof of Ownership — on file",
+    "cost": 0,
+    "discount": 0
+   },
+   {
+    "description": "EPC — on file",
+    "cost": 0,
+    "discount": 0
+   },
+   {
+    "description": "EICR — on file",
+    "cost": 0,
+    "discount": 0
+   },
+   {
+    "description": "Management Fee 8% (28/08/2026 - 27/09/2026)",
+    "cost": 77.6,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 911.6,
+  "payment_amount": 58.4,
+  "invoice_notes": "UK Vastgoed (UKV) introductory discount applied.\nTenant sourcing fee charged by 3rd Party. No additional fee added.",
+  "source_file": "Apartment 31\\LANDLORD\\STATEMENTS\\RL_Statement PH_31_0001_INV_PH_31_0001.pdf",
+  "flags": [],
+  "tenancy_start": "2026-08-28",
+  "total_income": 970.0,
+  "invoice_total_gross": 911.6,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 911.6,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_31_0001 (see accompanying invoice)",
+    "amount": 911.6
+   }
+  ],
+  "total_expenditure": 911.6,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "02/09/2026",
+    "amount": 58.4,
+    "text": "MALITHOLO LTD PH-APT 31 AUG 26 FT",
+    "q": "Q6"
+   }
+  ],
+  "paid_on": "2026-09-02",
+  "in_xero_history": false
+ },
+ {
+  "flat": "31",
+  "statement_number": "PH_31_0002",
+  "invoice_number": "INV_PH_31_0002",
+  "issued_on": "2026-09-27",
+  "period_start": "2026-09-28",
+  "period_end": "2026-10-27",
+  "tenant_name": "Dr Ewa Szewczyk",
+  "income_lines": [
+   {
+    "description": "Rent received — Dr Ewa Szewczyk (28/09/26 - 27/10/26)",
+    "amount": 970.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee 8% (28/09/2026 - 27/10/2026)",
+    "cost": 77.6,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 77.6,
+  "payment_amount": 892.4,
+  "invoice_notes": "UK Vastgoed (UKV) introductory / new tenant discount applied per the landlord management agreement.",
+  "source_file": "Apartment 31\\LANDLORD\\STATEMENTS\\RL_Statement PH_31_0002_INV_PH_31_0002.pdf",
+  "flags": [
+   "Tenant name was misspelt \"Szewcyk\"; statement said \"Invoice No. PH_19_31_0002\""
+  ],
+  "tenancy_start": "2026-08-28",
+  "total_income": 970.0,
+  "invoice_total_gross": 77.6,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 77.6,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_31_0002 (see accompanying invoice)",
+    "amount": 77.6
+   }
+  ],
+  "total_expenditure": 77.6,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "28/09/2026",
+    "amount": 892.4,
+    "text": "MALITHOLO LTD PH-APT31 SEPT 26 FT",
+    "q": null
+   }
+  ],
+  "paid_on": "2026-09-28",
+  "in_xero_history": true
+ },
+ {
+  "flat": "31",
+  "statement_number": "PH_31_0003",
+  "invoice_number": "INV_PH_31_0003",
+  "issued_on": "2026-10-28",
+  "period_start": "2026-10-28",
+  "period_end": "2026-11-27",
+  "tenant_name": "Dr Ewa Szewczyk",
+  "income_lines": [
+   {
+    "description": "Rent received — Dr Ewa Szewczyk (28/10/26 - 27/11/26)",
+    "amount": 970.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee 8% (28/10/2026 - 27/11/2026)",
+    "cost": 77.6,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 77.6,
+  "payment_amount": 892.4,
+  "invoice_notes": null,
+  "source_file": "Apartment 31\\LANDLORD\\STATEMENTS\\RL_PH_31_0003_INV_PH_31_0003.pdf",
+  "flags": [],
+  "tenancy_start": "2026-08-28",
+  "total_income": 970.0,
+  "invoice_total_gross": 77.6,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 77.6,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_31_0003 (see accompanying invoice)",
+    "amount": 77.6
+   }
+  ],
+  "total_expenditure": 77.6,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "29/10/2026",
+    "amount": 892.4,
+    "text": "MALITHOLO LTD PH-APT 31 OCT 26 FT (reconciled on live)",
+    "q": null
+   }
+  ],
+  "paid_on": "2026-10-29",
+  "in_xero_history": false
+ },
+ {
+  "flat": "33",
+  "statement_number": "PH_33_0001",
+  "invoice_number": "INV_PH_33_0001",
+  "issued_on": "2026-06-03",
+  "period_start": "2026-05-25",
+  "period_end": "2026-06-24",
+  "tenant_name": "Mr Joshua Harrison North",
+  "income_lines": [
+   {
+    "description": "Rent received — Mr Joshua Harrison North (25/05/26 - 24/06/26)",
+    "amount": 950.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Tenancy sourcing fee (*1st month's rent less 28% discount UKV)",
+    "cost": 950.0,
+    "discount": 266.0
+   },
+   {
+    "description": "Tenant referencing / right to rent checks",
+    "cost": 0,
+    "discount": 0
+   },
+   {
+    "description": "Deposit registration (*UKV 100% discount)",
+    "cost": 25.0,
+    "discount": 25.0
+   },
+   {
+    "description": "Tenancy set up — admin (*UKV 100% discount)",
+    "cost": 25.0,
+    "discount": 25.0
+   },
+   {
+    "description": "Landlord ID / KYC (*UKV 100% discount)",
+    "cost": 30.0,
+    "discount": 30.0
+   },
+   {
+    "description": "Check In — Inventory",
+    "cost": 100.0,
+    "discount": 0
+   },
+   {
+    "description": "Proof of Ownership — on file",
+    "cost": 0,
+    "discount": 0
+   },
+   {
+    "description": "EPC — on file",
+    "cost": 0,
+    "discount": 0
+   },
+   {
+    "description": "EICR — on file",
+    "cost": 0,
+    "discount": 0
+   },
+   {
+    "description": "Management Fee 8% (*discounted 20% UKV) (25/05/2026 - 24/06/2026)",
+    "cost": 95.0,
+    "discount": 19.0
+   },
+   {
+    "description": "Maintenance (INV_1462 - 02/06/2026) Loose tap, light bulb change, loose door handle (*100% discount UKV)",
+    "cost": 80.0,
+    "discount": 80.0
+   }
+  ],
+  "statement_expenditure": 860.0,
+  "payment_amount": 90.0,
+  "invoice_notes": "UK Vastgoed (UKV) introductory/new tenant discount applied.",
+  "source_file": "Apartment 33\\LANDLORD\\Statements\\RL_Statement 1_INV_RL_PH001.pdf",
+  "flags": [
+   "Invoice was printed PH_33_0001"
+  ],
+  "tenancy_start": "2026-05-25",
+  "total_income": 950.0,
+  "invoice_total_gross": 1305.0,
+  "invoice_total_discount": 445.0,
+  "invoice_total_net": 860.0,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_33_0001 (see accompanying invoice)",
+    "amount": 860.0
+   }
+  ],
+  "total_expenditure": 860.0,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "15/06/2026",
+    "amount": 90.0,
+    "text": "MATTHIJS VAN LEEUW PH APT 33 MAY 2026 BBP",
+    "q": "Q27"
+   }
+  ],
+  "paid_on": "2026-06-15",
+  "in_xero_history": false
+ },
+ {
+  "flat": "33",
+  "statement_number": "PH_33_0002",
+  "invoice_number": "INV_PH_33_0002",
+  "issued_on": "2026-06-25",
+  "period_start": "2026-06-25",
+  "period_end": "2026-07-24",
+  "tenant_name": "Mr Joshua Harrison North",
+  "income_lines": [
+   {
+    "description": "Rent received — Mr Joshua Harrison North (25/06/26 - 24/07/26)",
+    "amount": 965.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee 8% (*discounted 20% UKV) (25/06/2026 - 24/07/2026)",
+    "cost": 96.5,
+    "discount": 19.3
+   }
+  ],
+  "statement_expenditure": 77.2,
+  "payment_amount": 887.8,
+  "invoice_notes": "UK Vastgoed (UKV) discounted management rate.",
+  "source_file": "Apartment 33\\LANDLORD\\Statements\\RL_Statement 2_INV_RL_PH002.pdf",
+  "flags": [
+   "Dropbox file \"RL_Statement PH_33_0002_INV_PH_33_0002.pdf\" holds PH-19's statement by mistake (skipped)",
+   "Invoice was printed PH_33_0002"
+  ],
+  "tenancy_start": "2026-05-25",
+  "total_income": 965.0,
+  "invoice_total_gross": 96.5,
+  "invoice_total_discount": 19.3,
+  "invoice_total_net": 77.2,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_33_0002 (see accompanying invoice)",
+    "amount": 77.2
+   }
+  ],
+  "total_expenditure": 77.2,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "25/06/2026",
+    "amount": 887.8,
+    "text": "MATTHIJS VAN LEEUW PH APT 33 JUN 2026 BBP",
+    "q": null
+   }
+  ],
+  "paid_on": "2026-06-25",
+  "in_xero_history": true
+ },
+ {
+  "flat": "33",
+  "statement_number": "PH_33_0003",
+  "invoice_number": "INV_PH_33_0003",
+  "issued_on": "2026-07-25",
+  "period_start": "2026-07-25",
+  "period_end": "2026-08-24",
+  "tenant_name": "Mr Joshua Harrison North",
+  "income_lines": [
+   {
+    "description": "Rent received — Mr Joshua Harrison North (25/07/26 - 24/08/26)",
+    "amount": 965.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee 8% (25/07/2026 - 24/08/2026)",
+    "cost": 77.2,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 77.2,
+  "payment_amount": 887.8,
+  "invoice_notes": "UK Vastgoed (UKV) introductory / new tenant discount applied per the landlord management agreement.",
+  "source_file": "Apartment 33\\LANDLORD\\Statements\\RL_ PH_33_0003_INV_PH_33_0003.pdf",
+  "flags": [
+   "Tenancy start printed 25/04/2026 — re-made shows 25/05/2026"
+  ],
+  "tenancy_start": "2026-05-25",
+  "total_income": 965.0,
+  "invoice_total_gross": 77.2,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 77.2,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_33_0003 (see accompanying invoice)",
+    "amount": 77.2
+   }
+  ],
+  "total_expenditure": 77.2,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "27/07/2026",
+    "amount": 887.8,
+    "text": "MATTHIJS VAN LEEUW PH APT 33 JUL 2026 FT",
+    "q": null
+   }
+  ],
+  "paid_on": "2026-07-27",
+  "in_xero_history": true
+ },
+ {
+  "flat": "33",
+  "statement_number": "PH_33_0004",
+  "invoice_number": "INV_PH_33_0004",
+  "issued_on": "2026-08-25",
+  "period_start": "2026-08-25",
+  "period_end": "2026-09-24",
+  "tenant_name": "Mr Joshua Harrison North",
+  "income_lines": [
+   {
+    "description": "Rent received — Mr Joshua Harrison North (25/08/26 - 24/09/26)",
+    "amount": 965.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee 8% (25/08/2026 - 24/09/2026)",
+    "cost": 77.2,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 77.2,
+  "payment_amount": 887.8,
+  "invoice_notes": "UK Vastgoed (UKV) introductory / new tenant discount applied per the landlord management agreement.",
+  "source_file": "Apartment 33\\LANDLORD\\Statements\\RL_ PH_33_0004_INV_PH_33_0004.pdf",
+  "flags": [
+   "Tenancy start printed 25/04/2026 — re-made shows 25/05/2026"
+  ],
+  "tenancy_start": "2026-05-25",
+  "total_income": 965.0,
+  "invoice_total_gross": 77.2,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 77.2,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_33_0004 (see accompanying invoice)",
+    "amount": 77.2
+   }
+  ],
+  "total_expenditure": 77.2,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "25/08/2026",
+    "amount": 887.8,
+    "text": "MATTHIJS VAN LEEUW PH APT 33 AUG 2026 FT",
+    "q": null
+   }
+  ],
+  "paid_on": "2026-08-25",
+  "in_xero_history": true
+ },
+ {
+  "flat": "33",
+  "statement_number": "PH_33_0005",
+  "invoice_number": "INV_PH_33_0005",
+  "issued_on": "2026-09-25",
+  "period_start": "2026-09-25",
+  "period_end": "2026-10-24",
+  "tenant_name": "Mr Joshua Harrison North",
+  "income_lines": [
+   {
+    "description": "Rent received — Mr Joshua Harrison North (25/09/26 - 24/10/26)",
+    "amount": 965.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee 8% (25/09/2026 - 24/10/2026)",
+    "cost": 77.2,
+    "discount": 0
+   },
+   {
+    "description": "Maintenance Expense — Oven repair / Pacifica",
+    "cost": 179.0,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 256.2,
+  "payment_amount": 708.8,
+  "invoice_notes": "UK Vastgoed (UKV) introductory / new tenant discount applied per the landlord management agreement.",
+  "source_file": "Apartment 33\\LANDLORD\\Statements\\RL_ PH_33_0004_INV_PH_33_0005.pdf",
+  "flags": [
+   "File was named RL_ PH_33_0004_INV_PH_33_0005",
+   "Tenancy start printed 25/04/2026 — re-made shows 25/05/2026"
+  ],
+  "tenancy_start": "2026-05-25",
+  "total_income": 965.0,
+  "invoice_total_gross": 256.2,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 256.2,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_33_0005 (see accompanying invoice)",
+    "amount": 256.2
+   }
+  ],
+  "total_expenditure": 256.2,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "25/09/2026",
+    "amount": 708.8,
+    "text": "MATTHIJS VAN LEEUW PH APT 33 SEP 2026 FT",
+    "q": null
+   }
+  ],
+  "paid_on": "2026-09-25",
+  "in_xero_history": true
+ },
+ {
+  "flat": "33",
+  "statement_number": "PH_33_0006",
+  "invoice_number": "INV_PH_33_0006",
+  "issued_on": "2026-10-26",
+  "period_start": "2026-10-25",
+  "period_end": "2026-11-24",
+  "tenant_name": "Mr Joshua Harrison North",
+  "income_lines": [
+   {
+    "description": "Rent received — Mr Joshua Harrison North (25/10/26 - 24/11/26)",
+    "amount": 965.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee 8% (25/10/2026 - 24/11/2026)",
+    "cost": 77.2,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 77.2,
+  "payment_amount": 887.8,
+  "invoice_notes": "UK Vastgoed (UKV) introductory / new tenant discount applied per the landlord management agreement.",
+  "source_file": "Apartment 33\\LANDLORD\\Statements\\RL_ PH_33_0006_INV_PH_33_0006.pdf",
+  "flags": [
+   "Tenancy start printed 25/04/2026 — re-made shows 25/05/2026"
+  ],
+  "tenancy_start": "2026-05-25",
+  "total_income": 965.0,
+  "invoice_total_gross": 77.2,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 77.2,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_33_0006 (see accompanying invoice)",
+    "amount": 77.2
+   }
+  ],
+  "total_expenditure": 77.2,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "27/10/2026",
+    "amount": 887.8,
+    "text": "MATTHIJS VAN LEEUW PH APT 33 OCT 2026 FT",
+    "q": null
+   }
+  ],
+  "paid_on": "2026-10-27",
+  "in_xero_history": true
+ },
+ {
+  "flat": "36",
+  "statement_number": "PH_36_0001",
+  "invoice_number": "INV_PH_36_0001",
+  "issued_on": "2026-07-06",
+  "period_start": "2026-06-17",
+  "period_end": "2026-07-16",
+  "tenant_name": "Miss Dhriti Kuchi",
+  "income_lines": [
+   {
+    "description": "Rent received — Miss Dhriti Kuchi (17/06/26 - 16/07/26)",
+    "amount": 985.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Tenancy sourcing fee",
+    "cost": 600.0,
+    "discount": 0
+   },
+   {
+    "description": "Check In — Inventory",
+    "cost": 100.0,
+    "discount": 0
+   },
+   {
+    "description": "Management Fee 8% (17/06/2026 - 16/07/2026)",
+    "cost": 78.0,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 778.0,
+  "payment_amount": 207.0,
+  "invoice_notes": "UK Vastgoed (UKV) introductory / new tenant discount applied per the landlord management agreement.",
+  "source_file": "Apartment 36\\LANDLORD\\STATEMENTS\\RL_Statement_INV_PH_36_001.pdf",
+  "flags": [
+   "Management fee £78.00 (8% of £985 would be £78.80) — kept as issued"
+  ],
+  "tenancy_start": "2026-06-17",
+  "total_income": 985.0,
+  "invoice_total_gross": 778.0,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 778.0,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_36_0001 (see accompanying invoice)",
+    "amount": 778.0
+   }
+  ],
+  "total_expenditure": 778.0,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "06/07/2026",
+    "amount": 207.0,
+    "text": "GKP UK INVESTMENTS PH-36 JUN-2026 BBP",
+    "q": "Q7"
+   }
+  ],
+  "paid_on": "2026-07-06",
+  "in_xero_history": false
+ },
+ {
+  "flat": "36",
+  "statement_number": "PH_36_0002",
+  "invoice_number": "INV_PH_36_0002",
+  "issued_on": "2026-07-17",
+  "period_start": "2026-07-17",
+  "period_end": "2026-08-16",
+  "tenant_name": "Miss Dhriti Kuchi",
+  "income_lines": [
+   {
+    "description": "Rent received — Miss Dhriti Kuchi (17/07/26 - 16/08/26)",
+    "amount": 985.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee (17/07/2026 - 16/08/2026)",
+    "cost": 78.0,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 78.0,
+  "payment_amount": 907.0,
+  "invoice_notes": "UK Vastgoed (UKV) introductory / new tenant discount applied per the landlord management agreement.",
+  "source_file": "Apartment 36\\LANDLORD\\STATEMENTS\\RL_Statement_INV_PH_36_002.pdf",
+  "flags": [
+   "Printed as PH_36_0001 (numbering error) — this is PH_36_0002",
+   "Invoice was £78.80 but £78.00 was deducted and moved in the bank — invoice set to £78.00 (bank = source of truth)"
+  ],
+  "tenancy_start": "2026-06-17",
+  "total_income": 985.0,
+  "invoice_total_gross": 78.0,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 78.0,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_36_0002 (see accompanying invoice)",
+    "amount": 78.0
+   }
+  ],
+  "total_expenditure": 78.0,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "17/07/2026",
+    "amount": 907.0,
+    "text": "GKP UK INVESTMENTS PH-36 JUL-2026 FT",
+    "q": null
+   }
+  ],
+  "paid_on": "2026-07-17",
+  "in_xero_history": true
+ },
+ {
+  "flat": "36",
+  "statement_number": "PH_36_0003",
+  "invoice_number": "INV_PH_36_0003",
+  "issued_on": "2026-08-17",
+  "period_start": "2026-08-17",
+  "period_end": "2026-09-16",
+  "tenant_name": "Miss Dhriti Kuchi",
+  "income_lines": [
+   {
+    "description": "Rent received — Miss Dhriti Kuchi (17/08/26 - 16/09/26)",
+    "amount": 985.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee 8% (17/08/2026 - 16/09/2026)",
+    "cost": 78.8,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 78.8,
+  "payment_amount": 906.2,
+  "invoice_notes": "UK Vastgoed (UKV) management fee discount applied.",
+  "source_file": "Apartment 36\\LANDLORD\\STATEMENTS\\RL_Statement_INV_PH_36_003.pdf",
+  "flags": [],
+  "tenancy_start": "2026-06-17",
+  "total_income": 985.0,
+  "invoice_total_gross": 78.8,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 78.8,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_36_0003 (see accompanying invoice)",
+    "amount": 78.8
+   }
+  ],
+  "total_expenditure": 78.8,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "17/08/2026",
+    "amount": 906.2,
+    "text": "GKP UK INVESTMENTS PH-36 AUG-2026 FT",
+    "q": null
+   }
+  ],
+  "paid_on": "2026-08-17",
+  "in_xero_history": true
+ },
+ {
+  "flat": "36",
+  "statement_number": "PH_36_0004",
+  "invoice_number": "INV_PH_36_0004",
+  "issued_on": "2026-09-17",
+  "period_start": "2026-09-17",
+  "period_end": "2026-10-16",
+  "tenant_name": "Miss Dhriti Kuchi",
+  "income_lines": [
+   {
+    "description": "Rent received — Miss Dhriti Kuchi (17/09/26 - 16/10/26)",
+    "amount": 985.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee 8% (17/09/2026 - 16/10/2026)",
+    "cost": 78.8,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 78.8,
+  "payment_amount": 906.2,
+  "invoice_notes": "UK Vastgoed (UKV) introductory / new tenant discount applied per the landlord management agreement.",
+  "source_file": "Apartment 36\\LANDLORD\\STATEMENTS\\RL_Statement_INV_PH_36_004.pdf",
+  "flags": [],
+  "tenancy_start": "2026-06-17",
+  "total_income": 985.0,
+  "invoice_total_gross": 78.8,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 78.8,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_36_0004 (see accompanying invoice)",
+    "amount": 78.8
+   }
+  ],
+  "total_expenditure": 78.8,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "17/09/2026",
+    "amount": 906.2,
+    "text": "GKP UK INVESTMENTS PH-36 SEP 2026 FT",
+    "q": null
+   }
+  ],
+  "paid_on": "2026-09-17",
+  "in_xero_history": true
+ },
+ {
+  "flat": "36",
+  "statement_number": "PH_36_0005",
+  "invoice_number": "INV_PH_36_0005",
+  "issued_on": "2026-10-19",
+  "period_start": "2026-10-17",
+  "period_end": "2026-11-16",
+  "tenant_name": "Miss Dhriti Kuchi",
+  "income_lines": [
+   {
+    "description": "Rent received — Miss Dhriti Kuchi (17/10/26 - 16/11/26)",
+    "amount": 985.0
+   }
+  ],
+  "invoice_lines": [
+   {
+    "description": "Management Fee 8% (17/10/2026 - 16/11/2026)",
+    "cost": 78.8,
+    "discount": 0
+   }
+  ],
+  "statement_expenditure": 78.8,
+  "payment_amount": 906.2,
+  "invoice_notes": "UK Vastgoed (UKV) introductory / new tenant discount applied per the landlord management agreement.",
+  "source_file": "Apartment 36\\LANDLORD\\STATEMENTS\\RL_Statement_INV_PH_36_005.pdf",
+  "flags": [],
+  "tenancy_start": "2026-06-17",
+  "total_income": 985.0,
+  "invoice_total_gross": 78.8,
+  "invoice_total_discount": 0,
+  "invoice_total_net": 78.8,
+  "expenditure_lines": [
+   {
+    "description": "Invoice No. INV_PH_36_0005 (see accompanying invoice)",
+    "amount": 78.8
+   }
+  ],
+  "total_expenditure": 78.8,
+  "checks": [],
+  "bank_payout": [
+   {
+    "date": "19/10/2026",
+    "amount": 906.2,
+    "text": "GKP UK INVESTMENTS PH-36 OCT 2026 FT",
+    "q": null
+   }
+  ],
+  "paid_on": "2026-10-19",
+  "in_xero_history": true
+ }
+]

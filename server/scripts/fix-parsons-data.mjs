@@ -1,7 +1,8 @@
 // Correct the Parsons House flats Roca Living manages (PH-8, 13, 19, 31, 33, 36)
 // to the signed documents in the client's Dropbox (checked 27 Oct 2026; the
 // 3 Nov "start in December" change for PH-8, 19 and 31 was cancelled on 4 Nov:
-// live showed Roca Living made their November statements itself):
+// live showed Roca Living made their November statements itself; lastSeq
+// = the highest historic statement number, so Generate Statement never reuses it):
 // tenancy start, rent, due day, "Rent handled in Roca Living from" (the day
 // after the client's last hand-made statement) and the last hand-made number,
 // deposits, and the owners' NRL numbers in ROCA Estates. Run from the server
@@ -56,12 +57,12 @@ console.log(`${APPLY ? 'APPLY' : 'DRY RUN'} on ${rlName} (Roca Living)\n`);
 // ── What the documents say ───────────────────────────────────────────────────
 // from = day after the client's last hand-made statement; lastSeq = its number.
 const FLATS = [
-  { apt: '8', start: '2026-08-22', rent: 595, dueDay: 2, from: '2026-11-02', lastSeq: 2, source: 'PH_8_0002 to 01/11/2026; agreement £595' },
+  { apt: '8', start: '2026-08-22', rent: 595, dueDay: 2, from: '2026-11-02', lastSeq: 3, source: 'PH_8_0002 to 01/11/2026; agreement £595; PH_8_0003 is historic' },
   { apt: '13', start: '2026-06-23', rent: 850, dueDay: 23, from: '2026-11-23', lastSeq: 5, source: 'tenancy agreement 23/06/2026; PH_13_0005 to 22/11/2026',
     deposit: { amount: 980.77, scheme: 'TDS', received: '2026-06-23', registered: null, note: 'TDS (no certificate in the client\'s Dropbox — check the registration)' } },
-  { apt: '19', start: '2026-08-28', rent: 795, dueDay: 28, from: '2026-11-01', lastSeq: 5, source: 'tenancy agreement 28/08/2026; PH_19_0005 to 31/10/2026',
+  { apt: '19', start: '2026-08-28', rent: 795, dueDay: 28, from: '2026-11-01', lastSeq: 6, source: 'tenancy agreement 28/08/2026; PH_19_0005 to 31/10/2026; PH_19_0006 is historic',
     deposit: { amount: 917.31, scheme: 'TDS', received: '2026-08-28', registered: '2026-09-07', note: 'TDS ref EW48897287' } },
-  { apt: '31', start: '2026-08-28', rent: 970, dueDay: 28, from: '2026-10-28', lastSeq: 2, source: 'tenancy agreement 28/08/2026; PH_31_0002 to 27/10/2026',
+  { apt: '31', start: '2026-08-28', rent: 970, dueDay: 28, from: '2026-10-28', lastSeq: 3, source: 'tenancy agreement 28/08/2026; PH_31_0002 to 27/10/2026; PH_31_0003 is historic',
     deposit: { amount: 1096.15, scheme: 'TDS', received: '2026-08-28', registered: '2026-09-07', note: 'TDS ref EW48897233' } },
   { apt: '33', start: '2026-05-25', rent: 965, dueDay: 25, from: '2026-11-25', lastSeq: 6, source: 'tenancy agreement 25/05/2026; PH_33_0006 to 24/11/2026',
     deposit: { amount: 1096.15, scheme: 'TDS', received: '2026-05-25', registered: '2026-06-03', note: 'TDS ref EW46832166' } },

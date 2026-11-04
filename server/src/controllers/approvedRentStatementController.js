@@ -147,7 +147,7 @@ const readRequest = async (body) => {
   if (!payments.length) throw new ApiError(400, 'No approved rent in this period that is not already on an approved-rent statement');
   // The landlord already has a statement for this month from the Statements page.
   const made = await issuedStatementCovering(tenancyId, from, to);
-  if (made) throw new ApiError(400, `${made.statement_number} on the Statements page already covers this month — no second statement`);
+  if (made) throw new ApiError(400, `${made.statement_number} ${made.historic ? '(historic statement)' : 'on the Statements page'} already covers this month — no second statement`);
   return { t, payments, from, to };
 };
 

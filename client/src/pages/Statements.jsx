@@ -324,6 +324,14 @@ export const Statements = () => {
                               <span className="font-bold text-brand-primary leading-tight">
                                 {row.period}
                               </span>
+                              {row.historic && (
+                                <span
+                                  className="mt-1 self-start text-2xs font-bold px-2 py-0.5 rounded-full bg-gray-100 text-status-muted"
+                                  title="Made before ROCA Living's system; same figures as the statement you received."
+                                >
+                                  Historic · {row.statementNumber}
+                                </span>
+                              )}
                             </div>
                           </td>
                           <td className="py-3 px-2 font-bold font-mono text-brand-primary">

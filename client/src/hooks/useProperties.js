@@ -15,11 +15,12 @@ export const useProperties = () => {
     setLoading(true);
     try {
       // Fetch properties, tenancies, and maintenance tickets in parallel
-      const [propRes, tenancyRes, maintenanceRes, statementRes] = await Promise.all([
+      const [propRes, tenancyRes, maintenanceRes, statementRes, historicRes] = await Promise.all([
         api.get('/properties/my'),
         api.get('/tenancies/my').catch(() => ({ data: { data: [] } })),
         api.get('/maintenance/my').catch(() => ({ data: { data: [] } })),
-        api.get('/statements/my').catch(() => ({ data: { data: [] } }))
+        api.get('/statements/my').catch(() => ({ data: { data: [] } })),
+        api.get('/historic-statements/my').catch(() => ({ data: { data: [] } }))
       ]);
 
       const propertiesList = propRes.data.data || [];
@@ -28,7 +29,10 @@ export const useProperties = () => {
       // Statements in the shape netPaidOf expects (flat id, payout, status).
       const statements = (statementRes.data?.data || []).map((s) => ({
         property_id: statementPropertyId(s), payout: parseFloat(s.net_paid || 0), status: s.status,
-      }));
+      })).concat((historicRes.data?.data || []).map((h) => ({
+        // Statements from before Roca Living: paid once the bank shows the payout.
+        property_id: h.property_id, payout: Number(h.net_paid || 0), status: h.paid_on ? 'paid' : 'sent',
+      })));
 
       // Create tenancy property-id mapping
       const tenancyMap = {};

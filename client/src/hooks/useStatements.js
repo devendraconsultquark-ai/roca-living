@@ -4,6 +4,9 @@ import { downloadBlob } from '../utilities/download';
 import { statementPropertyId } from '../utilities/propertyFilter';
 import api from '../utilities/api';
 
+// Historic statements carry an "h" id (h12 → /historic-statements/12/pdf).
+const pdfUrl = (id) => (String(id).startsWith('h') ? `/historic-statements/${String(id).slice(1)}/pdf` : `/statements/${id}/pdf`);
+
 export const useStatements = () => {
   const [statements, setStatements] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -13,7 +16,27 @@ export const useStatements = () => {
   const fetchStatements = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/statements/my');
+      const [response, historicRes] = await Promise.all([
+        api.get('/statements/my'),
+        // Statements from before Roca Living took over (read-only, same design).
+        api.get('/historic-statements/my').catch(() => ({ data: { data: [] } }))
+      ]);
+      const ukDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB') : '');
+      const historic = (historicRes.data?.data || []).map((h) => ({
+        id: `h${h.id}`,
+        historic: true,
+        statementNumber: h.statement_number,
+        property_id: h.property_id,
+        period: `${ukDate(h.period_start)} - ${ukDate(h.period_end)}`,
+        date: ukDate(h.issued_on) || '-',
+        invoiced: Number(h.total_income || 0),
+        fees: Number(h.total_expenditure || 0),
+        payout: Number(h.net_paid || 0),
+        status: h.paid_on ? 'Paid' : 'Sent',
+        rawStartDate: h.period_start,
+        rawEndDate: h.period_end,
+        rawGeneratedAt: h.issued_on
+      }));
       const formatted = (response.data.data || []).map((s) => {
         // Real money out of the statement: expense deductions + NRL withholding.
         // (The mgmt_fee/letting-fee columns are always 0 in this statement format.)
@@ -38,7 +61,8 @@ export const useStatements = () => {
           rawGeneratedAt: s.generated_at
         };
       });
-      setStatements(formatted);
+      // Newest period first; historic ones sit with the rest by their period.
+      setStatements([...formatted, ...historic].sort((a, b) => String(b.rawStartDate || '').localeCompare(String(a.rawStartDate || ''))));
       setError(null);
     } catch (err) {
       console.error(err);
@@ -57,7 +81,7 @@ export const useStatements = () => {
   const handleDownloadPDF = async (id, period) => {
     addToast(`Requesting statement PDF for ${period}...`, 'info');
     try {
-      const response = await api.get(`/statements/${id}/pdf`, { responseType: 'blob' });
+      const response = await api.get(pdfUrl(id), { responseType: 'blob' });
       const filename = `ROCA_Statement_${period.replace(/\s+/g, '_')}.pdf`;
       downloadBlob(response.data, filename);
       addToast(`Statement PDF downloaded for ${period}`, 'success');
@@ -80,7 +104,7 @@ export const useStatements = () => {
     let failed = 0;
     for (const s of items) {
       try {
-        const response = await api.get(`/statements/${s.id}/pdf`, { responseType: 'blob' });
+        const response = await api.get(pdfUrl(s.id), { responseType: 'blob' });
         downloadBlob(response.data, `ROCA_Statement_${String(s.period).replace(/\s+/g, '_')}.pdf`);
         downloaded++;
       } catch (err) {

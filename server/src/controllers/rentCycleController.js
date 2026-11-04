@@ -197,7 +197,7 @@ export const getRentCycle = catchAsync(async (req, res) => {
     // Already on a statement made on the Statements page: no second one here.
     if (st.stage === 'landlord_paid') {
       const made = await issuedStatementCovering(m.tenancy_id, period.start, period.end);
-      if (made) st = { stage: 'statement', outside: true, reason: `Statement ${made.statement_number} (Statements page)` };
+      if (made) st = { stage: 'statement', outside: true, reason: `Statement ${made.statement_number} (${made.historic ? 'Historic' : 'Statements page'})` };
     }
 
     // Rent paid in parts: the month waits for the rest, then is approved once

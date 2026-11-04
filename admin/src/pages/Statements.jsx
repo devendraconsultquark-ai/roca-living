@@ -9,6 +9,9 @@ import { useConfirm } from '../components/UI/ConfirmContext';
 import { Skeleton } from '../components/UI/Skeleton';
 import { TenantStatementModal } from '../components/UI/TenantStatementModal';
 import { StatementEmailModal } from '../components/UI/StatementEmailModal';
+import { ListTabs } from '../components/UI/ListToolbar';
+import { HistoricStatementsTable } from '../components/UI/HistoricStatementsTable';
+import { useHistoricStatements } from '../hooks/useHistoricStatements';
 import { useNavigate } from 'react-router-dom';
 import api from '../utilities/api';
 
@@ -34,6 +37,9 @@ export const Statements = () => {
   
   // Generate-statement form (select tenant → autofill → check → generate)
   const [showModal, setShowModal] = useState(false);
+  // Roca Living's statements | Historic (made before Roca Living took over).
+  const [listTab, setListTab] = useState('rl');
+  const historic = useHistoricStatements();
   const { addToast } = useToast();
   const confirm = useConfirm();
 
@@ -298,7 +304,19 @@ export const Statements = () => {
 
       {/* Grid container */}
       <div className="card-bg border border-card-border rounded-card shadow-premium p-4">
-        {loading ? (
+        <div className="border-b border-card-border mb-4">
+          <ListTabs
+            tabs={[
+              { id: 'rl', label: 'Roca Living', count: loading ? undefined : statements.length },
+              { id: 'historic', label: 'Historic', count: historic.rows ? historic.rows.length : undefined }
+            ]}
+            value={listTab}
+            onChange={setListTab}
+          />
+        </div>
+        {listTab === 'historic' ? (
+          <HistoricStatementsTable rows={historic.rows} error={historic.error} />
+        ) : loading ? (
           <div className="space-y-4 py-4">
             <Skeleton radius="bar" className="h-10 w-full" />
             <Skeleton className="h-16 w-full" />
