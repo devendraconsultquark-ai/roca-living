@@ -10,6 +10,7 @@ import { deriveInitials } from '../utils/initials.js';
 import { createActivationLink } from '../utils/activationLink.js';
 import { todayYmd, toYmd } from '../utils/dateHelpers.js';
 import { fetchEstateLandlord, estateNrlOf } from '../utils/estatesLink.js';
+import { taskActivity, landlordTaskIds } from './taskController.js';
 import fs from 'fs';
 
 const BCRYPT_COST = parseInt(process.env.BCRYPT_COST || '12', 10);
@@ -105,6 +106,7 @@ export const getLandlordActivity = catchAsync(async (req, res, next) => {
   const tenancyIds = propertyIds.length
     ? (await db('tenancies').whereIn('property_id', propertyIds).select('id')).map((t) => t.id)
     : [];
+  const taskIds = await landlordTaskIds(id, propertyIds);
 
   const logs = await db('audit_log')
     .where(function () {
@@ -121,6 +123,12 @@ export const getLandlordActivity = catchAsync(async (req, res, next) => {
           this.where('entity_type', 'tenancy').whereIn('entity_id', tenancyIds);
         });
       }
+      // Tasks assigned to this landlord or about their flats
+      if (taskIds.length) {
+        this.orWhere(function () {
+          this.where('entity_type', 'task').whereIn('entity_id', taskIds);
+        });
+      }
     })
     .orderBy('created_at', 'desc')
     .limit(30);
@@ -135,6 +143,7 @@ export const getLandlordActivity = catchAsync(async (req, res, next) => {
         if (meta.amount) desc = `£${parseFloat(meta.amount).toFixed(2)} — ${desc}`;
       }
     } catch { /* meta stays basic */ }
+    if (log.entity_type === 'task') ({ title, desc } = taskActivity(log));
 
     const diffMs = new Date() - new Date(log.created_at);
     const mins = Math.floor(diffMs / 60000);

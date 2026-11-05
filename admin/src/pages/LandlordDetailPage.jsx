@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Hash, Mail, Phone, MapPin,
@@ -33,6 +33,7 @@ import { AllStatementsTable } from '../components/UI/AllStatementsTable';
 import { TYPE_LABEL } from '../utilities/statementTypes';
 import { realEmail, realPhone } from '../utilities/contact';
 import { RecordTasks } from '../components/UI/RecordTasks';
+import { isOpenTask } from '../utilities/tasks';
 
 const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
@@ -132,6 +133,9 @@ export const LandlordDetailPage = () => {
 
   // Compliance certificates, activity feed, account managers
   const [myCerts, setMyCerts] = useState([]);
+  // Open tasks for this landlord or their flats (from the Tasks card) → Outstanding Actions
+  const [openTasks, setOpenTasks] = useState([]);
+  const onTaskRows = useCallback((rows) => setOpenTasks(rows.filter(isOpenTask)), []);
   const [activity, setActivity] = useState([]);
   const [managers, setManagers] = useState([]);
   const [managerSel, setManagerSel] = useState('');
@@ -593,6 +597,11 @@ export const LandlordDetailPage = () => {
   if (expiredCerts > 0) outstanding.push({ label: `${expiredCerts} certificate${expiredCerts > 1 ? 's' : ''} expired`, severity: 'high', tab: 'compliance' });
   if (dueSoonCerts > 0) outstanding.push({ label: `${dueSoonCerts} certificate${dueSoonCerts > 1 ? 's' : ''} expiring within 30 days`, severity: 'medium', tab: 'compliance' });
   if (pendingPayout > 0) outstanding.push({ label: `${money(pendingPayout)} in unpaid statements`, severity: 'medium', tab: 'statements' });
+  openTasks.forEach((t) => outstanding.push({
+    label: `Task: ${t.title}${t.flat ? ` (${t.flat})` : ''}${t.overdue ? ' · overdue' : ''}`,
+    severity: t.overdue || t.priority === 'high' ? 'high' : 'medium',
+    to: `/tasks-alerts?task=${t.id}`,
+  }));
 
   const severityPill = {
     high: 'bg-status-danger-bg text-status-danger',
@@ -896,7 +905,7 @@ export const LandlordDetailPage = () => {
                     {outstanding.map((o, i) => (
                       <button
                         key={i}
-                        onClick={() => setActiveTab(o.tab)}
+                        onClick={() => (o.to ? navigate(o.to) : setActiveTab(o.tab))}
                         className="flex items-center justify-between gap-3 py-2.5 border-b border-card-border/60 last:border-0 text-left cursor-pointer hover:bg-surface-light/60 rounded-lg px-2 transition-colors"
                       >
                         <span className="text-xs font-semibold text-brand-primary min-w-0">{o.label}</span>
@@ -968,7 +977,7 @@ export const LandlordDetailPage = () => {
               </Card>
             </div>
           </div>
-            <RecordTasks filter={{ landlord_id: id }} prefill={{ assignee_type: 'landlord', assignee_id: Number(id) }} />
+            <RecordTasks filter={{ landlord_id: id }} prefill={{ assignee_type: 'landlord', assignee_id: Number(id) }} onRows={onTaskRows} />
           </div>
         )}
 

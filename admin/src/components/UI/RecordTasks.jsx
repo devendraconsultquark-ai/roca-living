@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Check, RotateCcw } from 'lucide-react';
 import { SectionCard, Pill } from './DesignKit';
@@ -10,8 +10,12 @@ import { shortDate } from '../../utilities/designTokens';
 
 // "Tasks (n)" card on a landlord / property / tenant / contractor page: the
 // tasks for that record, New Task pre-filled with it. filter = GET /tasks params.
-export const RecordTasks = ({ filter, prefill, className = '' }) => {
+// onRows(rows): called with the loaded tasks (e.g. the landlord's Outstanding Actions).
+export const RecordTasks = ({ filter, prefill, onRows, className = '' }) => {
   const { rows, reload, setStatus } = useTasks(filter);
+  useEffect(() => {
+    if (rows && onRows) onRows(rows);
+  }, [rows, onRows]);
   const [showDone, setShowDone] = useState(false);
   const [modal, setModal] = useState(null); // { task } | { } for new
   const open = (rows || []).filter(isOpenTask);

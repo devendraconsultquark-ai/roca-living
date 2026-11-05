@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ClipboardCheck, CalendarClock, CheckCircle2, AlertTriangle, PoundSterling, Wrench, FileText, Home, Zap, Users, Pencil, Plus, Calendar } from 'lucide-react';
+import { ClipboardCheck, CalendarClock, CheckCircle2, AlertTriangle, PoundSterling, Wrench, FileText, Home, Zap, Users, Pencil, Plus, Calendar, ListTodo } from 'lucide-react';
 import { DataTable } from './DataTable';
 import { Skeleton } from './Skeleton';
 import { Dropdown } from './Dropdown';
@@ -110,6 +110,7 @@ const EVENT_TYPES = {
   inspection: { label: 'Inspection', icon: ClipboardCheck, tone: 'blue' },
   document: { label: 'Document', icon: FileText, tone: 'blue' },
   utility: { label: 'Utility', icon: Zap, tone: 'green' },
+  task: { label: 'Task', icon: ListTodo, tone: 'indigo' },
 };
 
 export const PropertyTimeline = ({ data, documents }) => {
@@ -117,8 +118,9 @@ export const PropertyTimeline = ({ data, documents }) => {
   const { rows: statements } = useAllStatements({ property_id: data.id });
   const inspections = useList('/inspections', { property_id: data.id });
   const utilities = useList('/utilities', { property_id: data.id });
+  const tasks = useList('/tasks', { property_id: data.id, status: 'all' });
   const [type, setType] = useState('');
-  if (statements === null || inspections === null || utilities === null) return <Skeleton radius="card" className="h-64 w-full" />;
+  if (statements === null || inspections === null || utilities === null || tasks === null) return <Skeleton radius="card" className="h-64 w-full" />;
 
   const t = data.active_tenancy;
   const events = [
@@ -133,6 +135,9 @@ export const PropertyTimeline = ({ data, documents }) => {
     ...inspections.map((i) => ({ type: 'inspection', date: i.inspected_at, title: 'Inspection Completed', sub: i.rating ? `Overall condition: ${pretty(i.rating)}.` : 'Inspection recorded.' })),
     ...documents.map((d) => ({ type: 'document', date: d.date || null, title: 'Document Added', sub: d.name })),
     ...utilities.filter((u) => u.handover_date).map((u) => ({ type: 'utility', date: u.handover_date, title: `${pretty(u.utility_type)} handover`, sub: `${pretty(u.direction)}${u.supplier ? ` · ${u.supplier}` : ''}` })),
+    // Tasks about this flat: when made, and when done
+    ...tasks.map((k) => ({ type: 'task', date: k.created_at, title: 'Task Created', sub: `${k.title}${k.assignee_name ? ` · ${k.assignee_name}` : ''}` })),
+    ...tasks.filter((k) => k.completed_at).map((k) => ({ type: 'task', date: k.completed_at, title: 'Task Done', sub: k.title })),
   ].filter(Boolean).filter((e) => e.date || e.dateText)
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
 

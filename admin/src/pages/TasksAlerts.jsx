@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { BellRing, AlertTriangle, ListTodo, CalendarX, Plus, Pencil, Trash2, Check, RotateCcw } from 'lucide-react';
 import { StatCard } from '../components/UI/StatCard';
 import { Skeleton } from '../components/UI/Skeleton';
@@ -12,7 +12,7 @@ import { TaskModal } from '../components/UI/TaskModal';
 import { SearchInput, Pill } from '../components/UI/DesignKit';
 import { useToast } from '../components/UI/ToastContext';
 import { useTasks } from '../hooks/useTasks';
-import { TASK_STATUS, TASK_PRIORITY, ASSIGNEE_TYPE, ASSIGNEE_OPTIONS, NOT_ASSIGNED, assigneeLink, isOpenTask } from '../utilities/tasks';
+import { TASK_STATUS, TASK_PRIORITY, ASSIGNEE_TYPE, ASSIGNEE_OPTIONS, NOT_ASSIGNED, assigneeLink, isOpenTask, prefillFromAlert } from '../utilities/tasks';
 import { shortDate } from '../utilities/designTokens';
 import api from '../utilities/api';
 
@@ -28,7 +28,19 @@ export const TasksAlerts = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('open');
   const [typeFilter, setTypeFilter] = useState('');
-  const [modal, setModal] = useState(null); // { task } | {} for new
+  const [modal, setModal] = useState(null); // { task } | { prefill } | {} for new
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // ?task=<id> (from the Dashboard or the header search) opens that task.
+  useEffect(() => {
+    const wanted = searchParams.get('task');
+    if (!wanted || rows === null) return;
+    const t = rows.find((x) => String(x.id) === String(wanted));
+    Promise.resolve().then(() => {
+      if (t) setModal({ task: t });
+      setSearchParams({}, { replace: true });
+    });
+  }, [searchParams, rows, setSearchParams]);
 
   const loadAlerts = useCallback(() => api.get('/reports/alerts', { params: { all: 1 } })
     .then((res) => setAlerts(res.data.data))
@@ -176,11 +188,15 @@ export const TasksAlerts = () => {
             Nothing needs attention — no expiring certificates, unregistered deposits, urgent maintenance, pending payments or tasks due.
           </p>
         ) : (
-          <AlertsTable alerts={items} />
+          <AlertsTable
+            alerts={items}
+            onMakeTask={(a) => setModal({ prefill: prefillFromAlert(a) })}
+            onOpenTask={(a) => setModal({ task: tasks.find((t) => t.id === a.task_id) })}
+          />
         )}
       </div>
 
-      {modal && <TaskModal task={modal.task} onClose={() => setModal(null)} onSaved={afterChange} />}
+      {modal && <TaskModal task={modal.task} prefill={modal.prefill} onClose={() => setModal(null)} onSaved={afterChange} />}
     </div>
   );
 };

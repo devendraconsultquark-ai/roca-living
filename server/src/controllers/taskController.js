@@ -109,8 +109,9 @@ export const createTask = catchAsync(async (req, res) => {
   await checkLinks(row);
   if (row.status === 'done') row.completed_at = db.fn.now();
   const [id] = await db('tasks').insert(row);
-  await audit(req, 'TASK_CREATED', id, { title: row.title, assignee_type: type, assignee_id: row.assignee_id, property_id: row.property_id });
-  res.status(201).json({ success: true, data: await findTask(id) });
+  const created = await findTask(id);
+  await audit(req, 'TASK_CREATED', id, { title: row.title, flat: created.flat, assignee_type: type, assignee_id: row.assignee_id, property_id: row.property_id });
+  res.status(201).json({ success: true, data: created });
 });
 
 export const updateTask = catchAsync(async (req, res) => {
@@ -135,7 +136,8 @@ export const updateTask = catchAsync(async (req, res) => {
   if (Object.keys(patch).length) {
     await db('tasks').where('id', current.id).update({ ...patch, updated_at: db.fn.now() });
     const changed = Object.keys(patch).filter((k) => k !== 'completed_at');
-    await audit(req, 'TASK_UPDATED', current.id, { changed, status: patch.status });
+    const updated = await findTask(current.id);
+    await audit(req, 'TASK_UPDATED', current.id, { title: updated.title, flat: updated.flat, changed, status: patch.status });
   }
   res.json({ success: true, data: await findTask(current.id) });
 });
@@ -143,10 +145,72 @@ export const updateTask = catchAsync(async (req, res) => {
 export const deleteTask = catchAsync(async (req, res) => {
   const current = await db('tasks').where('id', req.params.id).first();
   if (!current) throw new ApiError(404, 'Task not found');
+  const { flat } = await findTask(current.id);
   await db('tasks').where('id', current.id).delete();
-  await audit(req, 'TASK_DELETED', current.id, { title: current.title });
+  await audit(req, 'TASK_DELETED', current.id, { title: current.title, flat });
   res.json({ success: true });
 });
+
+// A task's audit row as an activity line (bell Recent Activity, landlord
+// Recent Activity / Timeline): "Task Done" + "Cleaning · PH-8".
+export const taskActivity = (log) => {
+  let meta = {};
+  try { meta = typeof log.meta === 'string' ? JSON.parse(log.meta) : (log.meta || {}); } catch { /* keep empty */ }
+  const title = {
+    TASK_CREATED: 'Task Created',
+    TASK_DELETED: 'Task Deleted',
+    TASK_UPDATED: meta.status === 'done' ? 'Task Done' : meta.status ? 'Task Reopened' : 'Task Updated'
+  }[log.action] || 'Task';
+  return { title, desc: [meta.title || `Task #${log.entity_id}`, meta.flat].filter(Boolean).join(' · ') };
+};
+
+// Task ids linked to a landlord: assigned to them, or about one of their flats.
+export const landlordTaskIds = (landlordId, propertyIds) => db('tasks')
+  .where((w) => {
+    w.where({ assignee_type: 'landlord', assignee_id: landlordId });
+    if (propertyIds.length) w.orWhereIn('property_id', propertyIds);
+  })
+  .pluck('id');
+
+// For the calendar: open tasks due in [from, to).
+export const calendarTasks = (from, to) => baseQuery()
+  .whereIn('t.status', OPEN)
+  .where('t.due_date', '>=', from)
+  .where('t.due_date', '<', to)
+  .then((rows) => rows.map(shape));
+
+// For the Dashboard: open tasks not yet due (later, or no date) — the due ones
+// are already alerts. total = how many there are; rows = the next few.
+export const upcomingTasks = async (limit = 5) => {
+  const notDue = (q) => q.whereIn('t.status', OPEN).where((w) => w.whereNull('t.due_date').orWhere('t.due_date', '>', db.raw('CURDATE()')));
+  const [rows, [{ c }]] = await Promise.all([
+    notDue(baseQuery())
+      .select(db.raw('DATEDIFF(t.due_date, CURDATE()) as days_left'))
+      .orderByRaw('t.due_date IS NULL asc')
+      .orderBy('t.due_date', 'asc')
+      .orderByRaw("FIELD(t.priority, 'high', 'normal', 'low')")
+      .limit(limit),
+    notDue(db('tasks as t')).count('t.id as c')
+  ]);
+  return { total: Number(c), rows: rows.map(shape) };
+};
+
+// One task as an item of the alerts feed (Dashboard card, bell, Tasks & Alerts).
+export const taskAlertItem = (t) => {
+  const days = t.days_left === null || t.days_left === undefined ? null : parseInt(t.days_left, 10);
+  const flat = t.block_name && t.apartment_number ? `${t.block_name}-${t.apartment_number}` : null;
+  return {
+    type: 'task',
+    task_id: t.id,
+    description: t.title,
+    related_to: [t.assignee_name || 'Not Assigned', flat].filter(Boolean).join(' · '),
+    due: days === null ? null : days < 0 ? 'Overdue' : days === 0 ? 'Today' : `${days} day${days === 1 ? '' : 's'}`,
+    priority: (days !== null && days < 0) || t.priority === 'high' ? 'high' : 'medium',
+    status: t.status,
+    property_id: t.property_id || null,
+    _sort: days === null ? 9999 : days
+  };
+};
 
 // For the alerts feed: open tasks due today or overdue.
 export const dueTasks = () => baseQuery()

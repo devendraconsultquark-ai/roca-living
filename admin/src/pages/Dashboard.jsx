@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Users, Home, UserCheck, Wallet, Banknote, PiggyBank,
   Wrench, Upload, BarChart3,
@@ -11,6 +11,8 @@ import { Button } from '../components/UI/Button';
 import { StatCard } from '../components/UI/StatCard';
 import { Skeleton } from '../components/UI/Skeleton';
 import { AlertsTable } from '../components/UI/AlertsTable';
+import { TaskModal } from '../components/UI/TaskModal';
+import { prefillFromAlert } from '../utilities/tasks';
 import { NewsList } from '../components/UI/NewsList';
 import api from '../utilities/api';
 
@@ -99,6 +101,9 @@ export const Dashboard = () => {
   const [month, setMonth] = useState(currentMonthKey);
   const [monthMenuOpen, setMonthMenuOpen] = useState(false);
   const monthMenuRef = useRef(null);
+  const navigate = useNavigate();
+  const [reloadKey, setReloadKey] = useState(0);
+  const [taskModal, setTaskModal] = useState(null); // { prefill } from "Make Task"
   const isCurrentMonth = month === currentMonthKey;
   const periodLabel = isCurrentMonth
     ? 'This Month'
@@ -121,7 +126,7 @@ export const Dashboard = () => {
       }
     };
     fetchData();
-  }, [month]);
+  }, [month, reloadKey]);
 
   useEffect(() => {
     if (!monthMenuOpen) return;
@@ -139,8 +144,9 @@ export const Dashboard = () => {
   const topArrears = summary?.top_arrears || [];
   const rentReviews = summary?.rent_reviews || [];
   const news = summary?.news || [];
-  const alerts = summary?.alerts?.items || [];
-  const alertsTotal = summary?.alerts?.total || 0;
+  // Alerts (incl. tasks due today / overdue), then the next open tasks not yet due.
+  const alerts = [...(summary?.alerts?.items || []), ...(summary?.upcoming_tasks?.items || [])];
+  const alertsTotal = (summary?.alerts?.total || 0) + (summary?.upcoming_tasks?.total || 0);
 
   const complianceAttention = compliance
     ? compliance.due_30 + compliance.overdue + compliance.not_uploaded
@@ -511,11 +517,16 @@ export const Dashboard = () => {
             <Skeleton radius="card" className="h-48 w-full" />
           ) : alerts.length === 0 ? (
             <p className="text-xs text-gray-400 font-semibold py-8 text-center">
-              Nothing needs attention — no expiring certificates, unregistered deposits, urgent maintenance or pending payments.
+              Nothing needs attention — no open tasks, expiring certificates, unregistered deposits, urgent maintenance or pending payments.
             </p>
           ) : (
-            <AlertsTable alerts={alerts} />
+            <AlertsTable
+              alerts={alerts}
+              onMakeTask={(a) => setTaskModal({ prefill: prefillFromAlert(a) })}
+              onOpenTask={(a) => navigate(`/tasks-alerts?task=${a.task_id}`)}
+            />
           )}
+          {taskModal && <TaskModal prefill={taskModal.prefill} onClose={() => setTaskModal(null)} onSaved={() => setReloadKey((k) => k + 1)} />}
         </div>
 
         {/* Quick Actions */}

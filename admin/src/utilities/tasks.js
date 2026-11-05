@@ -31,3 +31,11 @@ export const assigneeLink = (t) => ({
 }[t.assignee_type] || null);
 
 export const isOpenTask = (t) => t.status !== 'done';
+
+// "Make Task" from an alert: its text, flat and priority.
+export const prefillFromAlert = (a) => ({
+  title: a.description,
+  notes: a.related_to || '',
+  property_id: a.property_id || null,
+  priority: a.priority === 'high' ? 'high' : 'normal',
+});

@@ -9,16 +9,17 @@ import { DatePicker } from './DatePicker';
 import { TASK_STATUS, TASK_PRIORITY, ASSIGNEE_TYPE, ASSIGNEE_OPTIONS } from '../../utilities/tasks';
 
 // New / edit task. `task` = the task being edited (omit for new); `prefill` =
-// { assignee_type, assignee_id, property_id } when opened from a record page.
+// { assignee_type, assignee_id, property_id, title, notes, priority, due_date }
+// when opened from a record page or "Make Task".
 const flatOf = (p) => (p.block_name && p.apartment_number ? `${p.block_name}-${p.apartment_number}` : null);
 
 export const TaskModal = ({ task = null, prefill = {}, onClose, onSaved }) => {
   const { addToast } = useToast();
   const [form, setForm] = useState(() => ({
-    title: task?.title || '',
-    notes: task?.notes || '',
-    due_date: task?.due_date || '',
-    priority: task?.priority || 'normal',
+    title: task?.title || prefill.title || '',
+    notes: task?.notes || prefill.notes || '',
+    due_date: task?.due_date || prefill.due_date || '',
+    priority: task?.priority || prefill.priority || 'normal',
     status: task?.status || 'todo',
     // None, or a landlord / tenant / contractor (then the person)
     assignee_type: task?.assignee_type || prefill.assignee_type || 'none',

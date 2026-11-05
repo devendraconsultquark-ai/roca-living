@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, Clock, AlertTriangle, ClipboardList, CalendarCheck, FileText, Zap, Flame, Bell, Plug, Home, Calendar, BarChart3, Building2 } from 'lucide-react';
+import { ShieldCheck, Clock, AlertTriangle, ClipboardList, CalendarCheck, FileText, Zap, Flame, Bell, Plug, Home, Calendar, BarChart3, Building2, Plus } from 'lucide-react';
 import { DataTable } from '../components/UI/DataTable';
 import { Skeleton } from '../components/UI/Skeleton';
 import { Dropdown } from '../components/UI/Dropdown';
@@ -12,6 +12,7 @@ import {
 } from '../components/UI/DesignKit';
 import { C, shortDate, pct } from '../utilities/designTokens';
 import { TenantComplianceTab } from '../components/UI/TenantComplianceTab';
+import { TaskModal } from '../components/UI/TaskModal';
 import api from '../utilities/api';
 import { downloadCsv } from '../utilities/csv';
 
@@ -57,6 +58,7 @@ export const Compliance = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  const [taskPrefill, setTaskPrefill] = useState(null); // "Make Task" on a certificate
   // Landlord Compliance (certificates) | Tenant Compliance (design p27/p28)
   const [tab, setTab] = useState('landlord');
 
@@ -136,7 +138,35 @@ export const Compliance = () => {
         />
       ) : <span className="text-gray-400">—</span>),
     },
-    { header: 'Status', accessor: 'bucket', sortable: true, renderCell: (r) => <Pill tone={BUCKETS[r.bucket].tone}>{BUCKETS[r.bucket].label}</Pill> },
+    {
+      header: 'Status',
+      accessor: 'bucket',
+      sortable: true,
+      renderCell: (r) => (
+        <span className="flex flex-col items-start gap-1">
+          <Pill tone={BUCKETS[r.bucket].tone}>{BUCKETS[r.bucket].label}</Pill>
+          {!['compliant', 'not_required'].includes(r.bucket) && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                const today = new Date().toISOString().slice(0, 10);
+                setTaskPrefill({
+                  title: `${certOf(r.cert_type).label}: ${r.bucket === 'not_uploaded' ? 'get certificate' : 'renew'}`,
+                  notes: [r.property_name || r.property_address, BUCKETS[r.bucket].label].filter(Boolean).join(' · '),
+                  property_id: r.property_id,
+                  priority: ['overdue', 'not_uploaded', 'due_30'].includes(r.bucket) ? 'high' : 'normal',
+                  due_date: r.expires_at && r.expires_at > today ? r.expires_at : '',
+                });
+              }}
+              className="inline-flex items-center gap-1 text-2xs font-bold text-brand-accent hover:underline cursor-pointer whitespace-nowrap"
+            >
+              <Plus size={12} /> Make Task
+            </button>
+          )}
+        </span>
+      ),
+    },
     { header: 'Last Completed', accessor: 'issued_at', sortable: true, renderCell: (r) => shortDate(r.issued_at) },
   ];
 
@@ -251,6 +281,7 @@ export const Compliance = () => {
           <InfoFooter text="Certificates for the flats ROCA Living manages. Tenant compliance items are on the Tenant Compliance tab." onRefresh={() => setReloadKey((k) => k + 1)} />
         </>
       )}
+      {taskPrefill && <TaskModal prefill={taskPrefill} onClose={() => setTaskPrefill(null)} />}
     </div>
   );
 };

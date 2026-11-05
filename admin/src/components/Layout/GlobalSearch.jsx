@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Users, Home, UserCheck } from 'lucide-react';
+import { Search, Users, Home, UserCheck, ListTodo } from 'lucide-react';
 import api from '../../utilities/api';
 
 // Header global search (design-spec pattern). The three directories are small,
 // so they're fetched once on first focus and filtered client-side per keystroke.
+// Tasks are fetched again on every focus (they change often); a task opens on
+// Tasks & Alerts.
 export const GlobalSearch = () => {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [data, setData] = useState(null); // { landlords, properties, tenants } | null = not fetched
   const [loading, setLoading] = useState(false);
+  const [tasks, setTasks] = useState([]);
   const boxRef = useRef(null);
 
   useEffect(() => {
@@ -23,6 +26,9 @@ export const GlobalSearch = () => {
   }, [open]);
 
   const ensureData = () => {
+    api.get('/tasks', { params: { status: 'all' }, skipInterceptorError: true })
+      .then((r) => setTasks(r.data.data || []))
+      .catch(() => {});
     if (data !== null || loading) return;
     setLoading(true);
     Promise.allSettled([
@@ -54,8 +60,12 @@ export const GlobalSearch = () => {
       tenants: data.tenants
         .filter((t) => match(t.name, t.email, t.property))
         .slice(0, 5),
+      tasks: tasks
+        .filter((t) => match(t.title, t.notes, t.flat))
+        .sort((a, b) => (a.status === 'done') - (b.status === 'done'))
+        .slice(0, 5),
     };
-  }, [data, query]);
+  }, [data, tasks, query]);
 
   const goTo = (path) => {
     setOpen(false);
@@ -64,7 +74,7 @@ export const GlobalSearch = () => {
   };
 
   const hasResults =
-    results && (results.landlords.length || results.properties.length || results.tenants.length);
+    results && (results.landlords.length || results.properties.length || results.tenants.length || results.tasks.length);
 
   const section = (label, Icon, rows, rowMain, rowSub, pathFor) =>
     rows.length > 0 && (
@@ -96,7 +106,7 @@ export const GlobalSearch = () => {
       <input
         type="text"
         value={query}
-        placeholder="Search landlords, properties, tenants..."
+        placeholder="Search landlords, properties, tenants, tasks..."
         onFocus={() => {
           setOpen(true);
           ensureData();
@@ -133,6 +143,10 @@ export const GlobalSearch = () => {
                 (t) => t.name,
                 (t) => t.property || t.email,
                 (t) => `/tenants/${t.rawId}`)}
+              {section('Tasks', ListTodo, results.tasks,
+                (t) => t.title,
+                (t) => [t.status === 'done' ? 'Done' : t.overdue ? 'Overdue' : null, t.assignee_name || 'Not Assigned', t.flat].filter(Boolean).join(' • '),
+                (t) => `/tasks-alerts?task=${t.id}`)}
             </>
           )}
         </div>

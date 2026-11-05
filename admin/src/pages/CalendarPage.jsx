@@ -16,7 +16,10 @@ const EVENT_TYPES = {
   utility: { label: 'Utility Handovers', color: '#0891B2' },
   rent_review: { label: 'Rent Reviews', color: '#F16900' },
   deposit: { label: 'Deposits', color: '#E8A020' },
+  task: { label: 'Tasks', color: '#DB2777' },
 };
+// Overdue tasks show in red.
+const colorOf = (e) => (e.overdue ? '#C62828' : EVENT_TYPES[e.type].color);
 
 const pad = (n) => String(n).padStart(2, '0');
 const monthKeyOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
@@ -97,7 +100,7 @@ export const CalendarPage = () => {
       onClick={() => navigate(e.link)}
       title={`${e.title} — ${e.place}`}
       className="text-left text-2xs font-semibold leading-tight rounded px-1.5 py-1 truncate cursor-pointer hover:opacity-80 transition-opacity"
-      style={{ backgroundColor: `${EVENT_TYPES[e.type].color}1A`, color: EVENT_TYPES[e.type].color }}
+      style={{ backgroundColor: `${colorOf(e)}1A`, color: colorOf(e) }}
     >
       {e.title}
     </button>
@@ -232,7 +235,7 @@ export const CalendarPage = () => {
                   </span>
                   <span className="min-w-0">
                     <span className="flex items-center gap-1.5 text-xs font-bold text-brand-primary leading-tight">
-                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: EVENT_TYPES[e.type].color }} />
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: colorOf(e) }} />
                       <span className="truncate">{e.title}</span>
                     </span>
                     <span className="block text-2xs font-semibold text-gray-400 truncate mt-0.5">{e.place}</span>

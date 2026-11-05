@@ -4,7 +4,7 @@ import { catchAsync } from '../utils/catchAsync.js';
 import { toYmd, todayYmd } from '../utils/dateHelpers.js';
 import { buildPropertyStatement } from '../utils/propertyStatement.js';
 import { listStatements } from '../utils/statementsIndex.js';
-import { dueTasks } from './taskController.js';
+import { dueTasks, calendarTasks, upcomingTasks, taskAlertItem, taskActivity } from './taskController.js';
 import { propertyStatementPdfHtml } from '../templates/propertyStatementTemplate.js';
 import { generatePortraitPDFWithPuppeteer } from '../utils/puppeteerGenerator.js';
 
@@ -241,6 +241,7 @@ const loadAlerts = async () => {
       .join('properties', 'property_certificates.property_id', 'properties.id')
       .select(
         'property_certificates.cert_type',
+        'properties.id as property_id',
         db.raw("CONCAT(properties.address_line1, ', ', properties.city) as related_to"),
         db.raw('DATEDIFF(property_certificates.expires_at, CURDATE()) as days_left')
       )
@@ -253,6 +254,7 @@ const loadAlerts = async () => {
       .join('tenancies', 'deposits.tenancy_id', 'tenancies.id')
       .join('properties', 'tenancies.property_id', 'properties.id')
       .select(
+        'properties.id as property_id',
         db.raw("CONCAT(properties.address_line1, ', ', properties.city) as related_to"),
         db.raw('DATEDIFF(deposits.register_due, CURDATE()) as days_left')
       )
@@ -265,6 +267,7 @@ const loadAlerts = async () => {
         'maintenance_tickets.title',
         'maintenance_tickets.urgency',
         'maintenance_tickets.status',
+        'properties.id as property_id',
         db.raw("CONCAT(properties.address_line1, ', ', properties.city) as related_to")
       )
       .whereIn('maintenance_tickets.urgency', ['emergency', 'urgent'])
@@ -294,6 +297,7 @@ const loadAlerts = async () => {
         type: 'compliance',
         description: `${CERT_LABELS[c.cert_type] || c.cert_type} certificate ${days < 0 ? 'expired' : `due in ${days} day${days === 1 ? '' : 's'}`}`,
         related_to: c.related_to,
+        property_id: c.property_id,
         due: dueLabel(days),
         priority: days < 0 ? 'high' : 'medium',
         status: 'open',
@@ -306,6 +310,7 @@ const loadAlerts = async () => {
         type: 'deposit',
         description: days < 0 ? 'Deposit protection registration overdue' : 'Deposit protection deadline approaching',
         related_to: d.related_to,
+        property_id: d.property_id,
         due: dueLabel(days),
         priority: days <= 5 ? 'high' : 'medium',
         status: 'open',
@@ -316,24 +321,13 @@ const loadAlerts = async () => {
       type: 'maintenance',
       description: m.title,
       related_to: m.related_to,
+      property_id: m.property_id,
       due: null,
       priority: m.urgency === 'emergency' ? 'high' : 'medium',
       status: m.status,
       _sort: m.urgency === 'emergency' ? -1000 : 1
     })),
-    ...taskAlerts.map((t) => {
-      const days = int(t.days_left);
-      const flat = t.block_name && t.apartment_number ? `${t.block_name}-${t.apartment_number}` : null;
-      return {
-        type: 'task',
-        description: t.title,
-        related_to: [t.assignee_name, flat].filter(Boolean).join(' · '),
-        due: dueLabel(days),
-        priority: days < 0 || t.priority === 'high' ? 'high' : 'medium',
-        status: 'open',
-        _sort: days
-      };
-    }),
+    ...taskAlerts.map(taskAlertItem),
     ...paymentAlerts.map((p) => ({
       type: 'landlord_payment',
       description: 'Landlord payment ready to run',
@@ -394,7 +388,8 @@ export const getDashboardSummary = catchAsync(async (req, res, next) => {
     topArrears,
     rentReviews,
     newsItems,
-    alerts
+    alerts,
+    upcoming
   ] = await Promise.all([
     db('users').where('role', 'LANDLORD').select(
       db.raw('COUNT(id) as total'),
@@ -478,7 +473,8 @@ export const getDashboardSummary = catchAsync(async (req, res, next) => {
       .orderBy('published_on', 'desc')
       .orderBy('id', 'desc')
       .limit(5),
-    loadAlerts()
+    loadAlerts(),
+    upcomingTasks(5)
   ]);
 
   const num = (v) => parseFloat(v || 0);
@@ -575,6 +571,14 @@ res.json({
       alerts: {
         total: alertsTotal,
         items: alertsTop
+      },
+      // Open tasks not yet due (the due ones are in alerts)
+      upcoming_tasks: {
+        total: upcoming.total,
+        items: upcoming.rows.map((t) => {
+          const { _sort, ...rest } = taskAlertItem(t);
+          return rest;
+        })
       }
     }
   });
@@ -665,7 +669,7 @@ export const getCalendarEvents = catchAsync(async (req, res, next) => {
   }
   const inMonth = (qb, col) => qb.where(col, '>=', monthStart).andWhere(col, '<', monthEnd);
 
-  const [certs, inspections, rents, tenancyEnds, reviews, deposits, moveIns, handovers] = await Promise.all([
+  const [certs, inspections, rents, tenancyEnds, reviews, deposits, moveIns, handovers, tasks] = await Promise.all([
     inMonth(
       db('property_certificates')
         .join('properties', 'property_certificates.property_id', 'properties.id')
@@ -754,7 +758,9 @@ export const getCalendarEvents = catchAsync(async (req, res, next) => {
           db.raw("CONCAT(properties.address_line1, ', ', properties.city) as place")
         ),
       'utilities.handover_date'
-    )
+    ),
+    // Open tasks with a due date (Tasks & Alerts); done tasks drop off
+    calendarTasks(monthStart, monthEnd)
   ]);
 
   const events = [
@@ -813,6 +819,14 @@ export const getCalendarEvents = catchAsync(async (req, res, next) => {
       title: 'Deposit registration due',
       place: d.place,
       link: '/deposits'
+    })),
+    ...tasks.map((t) => ({
+      type: 'task',
+      date: t.due_date,
+      title: `Task: ${t.title}`,
+      place: [t.assignee_name || 'Not Assigned', t.flat].filter(Boolean).join(' · '),
+      link: '/tasks-alerts',
+      overdue: t.overdue
     }))
   ].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
@@ -885,6 +899,9 @@ export const getRecentActivity = catchAsync(async (req, res, next) => {
       title = 'Compliance Status Change';
       desc = `Safety certificate is expiring or expired`;
       type = 'danger';
+    } else if (log.entity_type === 'task') {
+      ({ title, desc } = taskActivity(log));
+      type = title === 'Task Done' ? 'success' : 'info';
     }
 
     // Parse meta details if present to make description richer

@@ -1,3 +1,5 @@
+import { Plus } from 'lucide-react';
+
 // Items needing attention (the /reports/alerts feed): shared by the Dashboard's
 // "Recent Alerts & Tasks" card and the Tasks & Alerts page.
 
@@ -16,13 +18,16 @@ const ALERT_STATUSES = {
   triaged: { label: 'Triaged', cls: 'bg-brand-accent/10 text-brand-accent' },
   awaiting_approval: { label: 'Awaiting Approval', cls: 'bg-status-warning/10 text-status-warning' },
   in_progress: { label: 'In Progress', cls: 'bg-status-info-bg text-status-info' },
+  todo: { label: 'To Do', cls: 'bg-surface-hover text-gray-500' },
 };
 const PRIORITY_STYLES = {
   high: 'bg-status-danger-bg text-status-danger',
   medium: 'bg-status-warning/10 text-status-warning',
 };
 
-export const AlertsTable = ({ alerts }) => (
+// onMakeTask(alert): shows a "Make Task" button on each alert (not on tasks).
+// onOpenTask(alert): a task row's description opens it.
+export const AlertsTable = ({ alerts, onMakeTask, onOpenTask }) => (
   <div className="overflow-x-auto">
     <table className="w-full min-w-[640px]">
       <thead>
@@ -44,7 +49,11 @@ export const AlertsTable = ({ alerts }) => (
               <td className="py-2.5 pr-3">
                 <span className={`px-2 py-0.5 rounded-sm text-2xs font-bold whitespace-nowrap ${type.cls}`}>{type.label}</span>
               </td>
-              <td className="py-2.5 pr-3 text-xs font-semibold text-brand-primary">{a.description}</td>
+              <td className="py-2.5 pr-3 text-xs font-semibold text-brand-primary">
+                {a.type === 'task' && onOpenTask ? (
+                  <button type="button" onClick={() => onOpenTask(a)} className="text-left font-semibold hover:underline cursor-pointer">{a.description}</button>
+                ) : a.description}
+              </td>
               <td className="py-2.5 pr-3 text-xs font-semibold text-gray-400 whitespace-nowrap">{a.related_to}</td>
               <td className={`py-2.5 pr-3 text-xs font-bold whitespace-nowrap ${
                 a.due === 'Overdue' ? 'text-status-danger' : a.due === 'Today' ? 'text-status-warning' : 'text-gray-400'
@@ -57,7 +66,14 @@ export const AlertsTable = ({ alerts }) => (
                 </span>
               </td>
               <td className="py-2.5">
-                <span className={`px-2 py-0.5 rounded-sm text-2xs font-bold whitespace-nowrap ${status.cls}`}>{status.label}</span>
+                <span className="flex flex-col items-start gap-1">
+                  <span className={`px-2 py-0.5 rounded-sm text-2xs font-bold whitespace-nowrap ${status.cls}`}>{status.label}</span>
+                  {onMakeTask && a.type !== 'task' && (
+                    <button type="button" onClick={() => onMakeTask(a)} className="inline-flex items-center gap-1 text-2xs font-bold text-brand-accent hover:underline cursor-pointer whitespace-nowrap">
+                      <Plus size={12} /> Make Task
+                    </button>
+                  )}
+                </span>
               </td>
             </tr>
           );
