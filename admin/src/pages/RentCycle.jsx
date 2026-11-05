@@ -5,7 +5,7 @@ import { Button } from '../components/UI/Button';
 import { Input } from '../components/UI/Input';
 import { useToast } from '../components/UI/ToastContext';
 import { useConfirm } from '../components/UI/ConfirmContext';
-import { ApprovedStatementsTable } from '../components/UI/ApprovedStatementsTable';
+import { AllStatementsTable } from '../components/UI/AllStatementsTable';
 import { StatementEmailModal } from '../components/UI/StatementEmailModal';
 import api from '../utilities/api';
 import { InfoTip } from '../components/UI/InfoTip';
@@ -131,7 +131,8 @@ export const RentCycle = () => {
   const shownStatements = useMemo(() => {
     if (!statements) return statements;
     const q = stmtSearch.trim().toLowerCase();
-    return statements.filter((st) => (!stmtStatus || (stmtStatus === 'sent' ? !!st.sent_at : !st.sent_at))
+    // "Sent" = issued to the landlord (sent or paid); "Not sent" = drafts.
+    return statements.filter((st) => (!stmtStatus || (stmtStatus === 'sent' ? st.status !== 'draft' : st.status === 'draft'))
       && (!q || [st.statement_number, st.landlord_name, st.flat, st.tenant_name].some((v) => String(v || '').toLowerCase().includes(q))));
   }, [statements, stmtStatus, stmtSearch]);
   const [showHelp, setShowHelp] = useState(() => {
@@ -155,8 +156,9 @@ export const RentCycle = () => {
   const loadStatements = useCallback(async () => {
     try {
       if (!stmtParams) { setStatements([]); return; } // custom range not chosen yet
-      const res = await api.get('/approved-statements', { params: stmtParams, skipInterceptorError: true });
-      setStatements(res.data.data);
+      // Every statement for the period (Rent Cycle, Roca Living, Historic) — one list everywhere.
+      const res = await api.get('/all-statements', { params: stmtParams, skipInterceptorError: true });
+      setStatements(res.data.data?.rows || []);
     } catch {
       setStatements([]);
     }
@@ -567,10 +569,10 @@ export const RentCycle = () => {
                     className="pl-9 pr-3 py-2 w-72 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-brand-accent" />
                 </div>
                 <p className="ml-auto text-xs text-status-muted flex items-center gap-1.5">
-                  {shownStatements ? `${shownStatements.length} statement(s)` : ''} <InfoTip text='Made with "Make Statement" on this page. Period = the statement period start. Generate Statement on the Statements page is separate.' />
+                  {shownStatements ? `${shownStatements.length} statement(s)` : ''} <InfoTip text='Every statement for these months: Rent Cycle (Make Statement), Roca Living (Generate Statement) and Historic — the same list as the Statements page. Period = the statement period start.' />
                 </p>
               </div>
-              <ApprovedStatementsTable
+              <AllStatementsTable
                 rows={shownStatements}
                 onChanged={() => { loadStatements(); load(); }}
                 emptyText={!stmtParams ? 'Choose From and To, then Show.' : stmtSearch || stmtStatus ? 'No statements match these filters.' : 'No statements in this period yet — rows at "Landlord paid" have a Make Statement button.'}

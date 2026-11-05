@@ -7,6 +7,7 @@ import { Dropdown } from './Dropdown';
 import { KpiRow, KpiCard, SectionCard, Donut, Pill, Two, KeyValues, UpcomingList, InfoFooter } from './DesignKit';
 import { C, gbp, shortDate, daysUntil, pct } from '../../utilities/designTokens';
 import api from '../../utilities/api';
+import { useAllStatements } from '../../hooks/useAllStatements';
 
 // Property tabs from the design (p11 Inspections, p12 Timeline, p13 Notes)
 // plus Utilities, all from data Roca Living already records.
@@ -112,20 +113,25 @@ const EVENT_TYPES = {
 };
 
 export const PropertyTimeline = ({ data, documents }) => {
-  const payments = useList('/transactions', { property_id: data.id });
+  // Statements (all kinds) from the single statements list — the same as the Financials tab.
+  const { rows: statements } = useAllStatements({ property_id: data.id });
   const inspections = useList('/inspections', { property_id: data.id });
   const utilities = useList('/utilities', { property_id: data.id });
   const [type, setType] = useState('');
-  if (payments === null || inspections === null || utilities === null) return <Skeleton radius="card" className="h-64 w-full" />;
+  if (statements === null || inspections === null || utilities === null) return <Skeleton radius="card" className="h-64 w-full" />;
 
   const t = data.active_tenancy;
   const events = [
     t && { type: 'tenancy', date: t.start_date, title: 'Tenancy Started', sub: `${(t.tenants || []).map((x) => x.name).join(', ') || 'Tenant'} moved in. Rent ${gbp(t.rent_pcm)} pcm.` },
     t?.deposit?.registered_at && { type: 'tenancy', date: t.deposit.registered_at, title: 'Deposit Registered', sub: `Deposit of ${gbp(t.deposit.tenancy_deposit)} protected.` },
-    ...payments.filter((p) => p.type === 'rent_in').map((p) => ({ type: 'payment', date: p.transaction_date, title: 'Rent Payment Received', sub: `${gbp(p.amount)}${p.description ? ` — ${p.description}` : ''}` })),
+    ...statements.filter((st) => st.status !== 'draft').map((st) => ({
+      type: 'payment', date: st.paid_on || st.issued_on || st.period_start,
+      title: st.status === 'paid' ? `Landlord Paid · ${st.statement_number}` : `Statement Issued · ${st.statement_number}`,
+      sub: `Rent ${gbp(st.rent)} · fees ${gbp(st.fees)} · ${st.status === 'paid' ? 'paid to landlord' : 'to pay'} ${gbp(st.net)}`,
+    })),
     ...(data.maintenance_tickets || []).map((m) => ({ type: 'maintenance', date: m.created_at, title: m.status === 'complete' ? 'Maintenance Completed' : 'Maintenance Reported', sub: m.title })),
     ...inspections.map((i) => ({ type: 'inspection', date: i.inspected_at, title: 'Inspection Completed', sub: i.rating ? `Overall condition: ${pretty(i.rating)}.` : 'Inspection recorded.' })),
-    ...documents.map((d) => ({ type: 'document', date: d.uploadedAt || d.createdAt || null, dateText: d.date, title: 'Document Added', sub: d.name })),
+    ...documents.map((d) => ({ type: 'document', date: d.date || null, title: 'Document Added', sub: d.name })),
     ...utilities.filter((u) => u.handover_date).map((u) => ({ type: 'utility', date: u.handover_date, title: `${pretty(u.utility_type)} handover`, sub: `${pretty(u.direction)}${u.supplier ? ` · ${u.supplier}` : ''}` })),
   ].filter(Boolean).filter((e) => e.date || e.dateText)
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));

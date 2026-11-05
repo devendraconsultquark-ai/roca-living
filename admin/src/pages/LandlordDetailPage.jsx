@@ -29,6 +29,8 @@ import { useEstatesEditable } from '../utilities/useEstatesEditable';
 import { EstatesDeleteModal } from '../components/UI/EstatesDeleteModal';
 import api from '../utilities/api';
 import { InfoTip } from '../components/UI/InfoTip';
+import { AllStatementsTable } from '../components/UI/AllStatementsTable';
+import { TYPE_LABEL } from '../utilities/statementTypes';
 import { realEmail, realPhone } from '../utilities/contact';
 
 const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -47,8 +49,10 @@ const CERT_BUCKETS = {
   due_60: { label: 'Due (60 days)', pill: 'bg-status-warning/10 text-status-warning' },
   overdue: { label: 'Overdue', pill: 'bg-status-danger-bg text-status-danger' },
   not_uploaded: { label: 'Not Uploaded', pill: 'bg-surface-hover text-gray-400' },
+  not_required: { label: 'Not Required', pill: 'bg-status-info-bg text-status-info' },
 };
 const certBucketOf = (c) => {
+  if (c.status === 'not_required') return 'not_required';
   if (c.days_left === null) return 'not_uploaded';
   if (c.days_left < 0) return 'overdue';
   if (c.days_left <= 30) return 'due_30';
@@ -121,6 +125,8 @@ export const LandlordDetailPage = () => {
   const [transactions, setTransactions] = useState([]);
   const [statementsList, setStatementsList] = useState([]);
   const [pendingPayout, setPendingPayout] = useState(0);
+  const [statementTotals, setStatementTotals] = useState({ all: null, year: null });
+  const [statementsKey, setStatementsKey] = useState(0); // bump to reload after a statement action
   const [arrearsTotal, setArrearsTotal] = useState(0);
 
   // Compliance certificates, activity feed, account managers
@@ -177,17 +183,18 @@ export const LandlordDetailPage = () => {
   useEffect(() => {
     const fetchFinancials = async () => {
       try {
+        // Statements (all kinds) and the money worked out from them — the same
+        // figures as the Statements page, the property page and the portal.
         const [txRes, stRes, arRes] = await Promise.all([
           api.get('/transactions', { params: { landlord_id: id } }),
-          api.get('/statements'),
+          api.get('/all-statements', { params: { landlord_id: id } }),
           api.get('/reports/arrears'),
         ]);
         setTransactions(txRes.data.data || []);
-        const statements = (stRes.data.data || []).filter((s) => String(s.landlord_id) === String(id));
-        setStatementsList(statements);
-        setPendingPayout(statements
-          .filter((s) => s.status !== 'paid')
-          .reduce((sum, s) => sum + (parseFloat(s.net_paid) || 0), 0));
+        const st = stRes.data.data || {};
+        setStatementsList(st.rows || []);
+        setStatementTotals({ all: st.totals || null, year: st.totals_year || null });
+        setPendingPayout(st.totals?.pending_payout || 0);
         const mine = (arRes.data.data?.landlord_summary || []).find((l) => String(l.landlord_id) === String(id));
         setArrearsTotal(mine ? parseFloat(mine.total_arrears) : 0);
       } catch (err) {
@@ -196,7 +203,7 @@ export const LandlordDetailPage = () => {
       }
     };
     fetchFinancials();
-  }, [id, addToast]);
+  }, [id, addToast, statementsKey]);
 
   useEffect(() => {
     const fetchExtras = async () => {
@@ -505,8 +512,12 @@ export const LandlordDetailPage = () => {
   // NRL numbers come from ROCA Estates (one per owner, as printed on statements);
   // Roca Living's own copy shows only when ROCA Estates has none.
   const estatesNrl = data.estates_nrl?.formatted || null;
-  const nrlShown = estatesNrl || data.nrl_hmrc_ref || '—';
-  const nrlNote = !estatesNrl && data.rocaem_user_id && data.nrl_hmrc_ref
+  // Companies have no NRL; an NRL number from ROCA Estates = HMRC approved, rent paid gross.
+  const isCompany = !!data.estates_nrl?.is_company;
+  const nrlShown = isCompany ? 'N/A (Company)' : estatesNrl || data.nrl_hmrc_ref || '—';
+  const nrlApproved = isCompany ? 'N/A' : estatesNrl ? 'Yes' : data.nrl_hmrc_approved ? 'Yes' : 'No';
+  const nrlWithholding = isCompany ? 'N/A' : estatesNrl ? 'None (approved)' : data.nrl_withhold_pct != null ? `${data.nrl_withhold_pct}%` : '—';
+  const nrlNote = !isCompany && !estatesNrl && data.rocaem_user_id && data.nrl_hmrc_ref
     ? 'Saved in Roca Living only. Add it in Edit Details (ROCA Estates) so both apps match.'
     : null;
 
@@ -546,22 +557,19 @@ export const LandlordDetailPage = () => {
   ];
 
   const currentYear = new Date().getFullYear();
-  const ytdIncome = transactions
-    .filter((t) => t.type === 'rent_in' && new Date(t.transaction_date).getFullYear() === currentYear)
-    .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
-  const ytdExpenses = transactions
-    .filter((t) => t.type !== 'rent_in' && t.type !== 'landlord_payout' && new Date(t.transaction_date).getFullYear() === currentYear)
-    .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
-  const netPaidYtd = statementsList
-    .filter((s) => s.status === 'paid' && new Date(s.paid_at || s.generated_at || s.created_at).getFullYear() === currentYear)
-    .reduce((sum, s) => sum + (parseFloat(s.net_paid) || 0), 0);
+  // This year's money = this landlord's statements (all kinds) whose period starts this year.
+  const ytdIncome = statementTotals.year?.rent || 0;
+  const ytdExpenses = statementTotals.year?.fees || 0;
+  const netPaidYtd = statementTotals.year?.paid_out || 0;
   const recentTransactions = [...transactions]
     .sort((a, b) => new Date(b.transaction_date) - new Date(a.transaction_date))
     .slice(0, 10);
   const typeLabel = (type) => (type || '—').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
   // Compliance % across this landlord's certificates
-  const certsWithBucket = myCerts.map((c) => ({ ...c, bucket: certBucketOf(c) }));
+  // Not Required certificates are listed but left out of the %.
+  const certRows = myCerts.map((c) => ({ ...c, bucket: certBucketOf(c) }));
+  const certsWithBucket = certRows.filter((c) => c.bucket !== 'not_required');
   const compliantCount = certsWithBucket.filter((c) => c.bucket === 'compliant').length;
   const compliancePct = certsWithBucket.length ? Math.round((compliantCount / certsWithBucket.length) * 100) : null;
   // Compliance % of one property's certificates (null when it has none)
@@ -1043,7 +1051,10 @@ export const LandlordDetailPage = () => {
                 </div>
 
                 <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-bold text-brand-primary">Recent Transactions</h4>
+                  <h4 className="font-bold text-brand-primary inline-flex items-center gap-1.5">
+                    Recent Bookkeeping Entries
+                    <InfoTip text="Entries made by Generate Statement and recorded rent. The figures above come from all of this landlord's statements (Roca Living, Rent Cycle and Historic)." />
+                  </h4>
                   <button
                     onClick={() => navigate('/accounting')}
                     className="text-xs font-bold text-brand-accent hover:underline cursor-pointer"
@@ -1098,12 +1109,12 @@ export const LandlordDetailPage = () => {
                 ) : (
                   <div className="flex flex-col">
                     {statementsList.slice(0, 6).map((s) => (
-                      <div key={s.id} className="flex items-center justify-between gap-3 py-2.5 border-b border-card-border/60 last:border-0">
+                      <div key={s.key} className="flex items-center justify-between gap-3 py-2.5 border-b border-card-border/60 last:border-0">
                         <div className="min-w-0">
                           <p className="text-xs font-bold text-brand-primary truncate">
                             {fmtDate(s.period_start)} – {fmtDate(s.period_end)}
                           </p>
-                          <p className="text-2xs text-gray-400 font-semibold mt-0.5">Net {money(s.net_paid)}</p>
+                          <p className="text-2xs text-gray-400 font-semibold mt-0.5">{s.statement_number} · {TYPE_LABEL[s.type]} · Net {money(s.net)}</p>
                         </div>
                         <span className={`px-2 py-0.5 rounded-sm text-2xs font-bold shrink-0 ${statementStatusPill[s.status] || statementStatusPill.draft}`}>
                           {s.status === 'paid' ? 'Paid' : s.status === 'sent' ? 'Sent' : 'Draft'}
@@ -1137,38 +1148,7 @@ export const LandlordDetailPage = () => {
                 <p className="text-xs text-gray-400 mt-1">Generate one from the Statements page.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px]">
-                  <thead>
-                    <tr className="text-left border-b border-card-border">
-                      <th className="py-2 pr-3 text-2xs font-bold text-gray-400 capitalize">Period</th>
-                      <th className="py-2 pr-3 text-2xs font-bold text-gray-400 capitalize text-right">Gross Rent</th>
-                      <th className="py-2 pr-3 text-2xs font-bold text-gray-400 capitalize text-right">Mgmt Fee</th>
-                      <th className="py-2 pr-3 text-2xs font-bold text-gray-400 capitalize text-right">Net Paid</th>
-                      <th className="py-2 pr-3 text-2xs font-bold text-gray-400 capitalize">Generated</th>
-                      <th className="py-2 text-2xs font-bold text-gray-400 capitalize">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {statementsList.map((s) => (
-                      <tr key={s.id} className="border-b border-card-border/60 last:border-0">
-                        <td className="py-2.5 pr-3 text-xs font-bold text-brand-primary whitespace-nowrap">
-                          {fmtDate(s.period_start)} – {fmtDate(s.period_end)}
-                        </td>
-                        <td className="py-2.5 pr-3 text-xs font-semibold text-right tabular-nums">{money(s.gross_rent)}</td>
-                        <td className="py-2.5 pr-3 text-xs font-semibold text-right tabular-nums">{money(s.mgmt_fee)}</td>
-                        <td className="py-2.5 pr-3 text-xs font-bold text-right tabular-nums">{money(s.net_paid)}</td>
-                        <td className="py-2.5 pr-3 text-xs font-semibold text-gray-400 whitespace-nowrap">{fmtDate(s.generated_at)}</td>
-                        <td className="py-2.5">
-                          <span className={`px-2 py-0.5 rounded-sm text-2xs font-bold ${statementStatusPill[s.status] || statementStatusPill.draft}`}>
-                            {s.status === 'paid' ? 'Paid' : s.status === 'sent' ? 'Sent' : 'Draft'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <AllStatementsTable rows={statementsList} showLandlord={false} onChanged={() => setStatementsKey((k) => k + 1)} />
             )}
           </Card>
         )}
@@ -1176,8 +1156,8 @@ export const LandlordDetailPage = () => {
         {activeTab === 'compliance' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
-              <Card title={`Property Certificates (${certsWithBucket.length})`}>
-                {certsWithBucket.length === 0 ? (
+              <Card title={`Property Certificates (${certRows.length})`}>
+                {certRows.length === 0 ? (
                   <p className="text-sm text-gray-400 italic">
                     No certificates recorded for this landlord's properties yet.
                   </p>
@@ -1193,7 +1173,7 @@ export const LandlordDetailPage = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {certsWithBucket.map((c) => (
+                        {certRows.map((c) => (
                           <tr key={c.id} className="border-b border-card-border/60 last:border-0">
                             <td className="py-2.5 pr-3 text-xs font-bold text-brand-primary whitespace-nowrap">{c.cert_type}</td>
                             <td className="py-2.5 pr-3 text-xs font-semibold text-gray-400">{c.property_address}</td>
@@ -1353,8 +1333,9 @@ export const LandlordDetailPage = () => {
         )}
 
         {activeTab === 'settings' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-1 space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            {/* Three even columns: checks · agreements & rules · money & tax */}
+            <div className="space-y-6">
               <Card title="Verification Status">
                 <form onSubmit={handleKycSubmit} className="flex flex-col gap-3">
                   <Dropdown
@@ -1409,6 +1390,9 @@ export const LandlordDetailPage = () => {
 
               </Card>
 
+            </div>
+
+            <div className="space-y-6">
               <Card title="Terms of Business">
                 <form onSubmit={handleTobSubmit} className="flex flex-col gap-3">
                   <Dropdown
@@ -1484,7 +1468,7 @@ export const LandlordDetailPage = () => {
               </Card>
             </div>
 
-            <div className="lg:col-span-1 space-y-6">
+            <div className="space-y-6">
               <Card title="Bank Details">
                 {data.bank_name ? (
                   <div className="space-y-1">
@@ -1532,9 +1516,6 @@ export const LandlordDetailPage = () => {
                   </div>
                 )}
               </Card>
-            </div>
-
-            <div className="lg:col-span-1 space-y-6">
               <Card title="Tax & Terms">
                 <DataRow
                   icon={FileText}
@@ -1549,8 +1530,8 @@ export const LandlordDetailPage = () => {
                 <DataRow icon={Hash} label="Ownership Share" value={data.ownership_share != null ? `${data.ownership_share}%` : '—'} />
                 <DataRow icon={Flag} label="NRL Number (HMRC)" value={nrlShown} />
                 {nrlNote && <p className="text-[11px] text-status-warning font-semibold -mt-1 mb-1">{nrlNote}</p>}
-                <DataRow icon={CheckCircle2} label="NRL HMRC Approved" value={data.nrl_hmrc_approved ? 'Yes' : 'No'} />
-                <DataRow icon={Hash} label="NRL Withholding" value={data.nrl_withhold_pct != null ? `${data.nrl_withhold_pct}%` : '—'} />
+                <DataRow icon={CheckCircle2} label="NRL HMRC Approved" value={nrlApproved} />
+                <DataRow icon={Hash} label="NRL Withholding" value={nrlWithholding} />
                 <Button type="button" variant="secondary" size="sm" className="mt-3" onClick={openEditModal}>
                   Edit lettings details
                 </Button>

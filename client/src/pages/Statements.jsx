@@ -23,6 +23,10 @@ import { useToast } from "../components/UI/ToastContext";
 import { usePropertyContext } from "../context/PropertyContext";
 import { filterByProperty } from "../utilities/propertyFilter";
 
+const ymdLocal = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const TODAY = ymdLocal(new Date());
+const YEAR_START = `${new Date().getFullYear()}-01-01`;
+
 export const Statements = () => {
   const navigate = useNavigate();
   const { statements, loading, error, handleDownloadPDF, handleDownloadAll } =
@@ -35,12 +39,13 @@ export const Statements = () => {
   const scopedStatements = filterByProperty(statements, selectedProperty);
 
   const [filterPeriod, setFilterPeriod] = useState("All Periods");
-  const [fromDate, setFromDate] = useState("2025-01-01");
-  const [toDate, setToDate] = useState("2026-06-14");
+  // Custom range starts as "this year so far" (was a fixed 2025–June 2026 range).
+  const [fromDate, setFromDate] = useState(YEAR_START);
+  const [toDate, setToDate] = useState(TODAY);
 
   const [appliedPeriod, setAppliedPeriod] = useState("All Periods");
-  const [appliedFromDate, setAppliedFromDate] = useState("2025-01-01");
-  const [appliedToDate, setAppliedToDate] = useState("2026-06-14");
+  const [appliedFromDate, setAppliedFromDate] = useState(YEAR_START);
+  const [appliedToDate, setAppliedToDate] = useState(TODAY);
 
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;

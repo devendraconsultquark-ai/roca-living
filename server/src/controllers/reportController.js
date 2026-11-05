@@ -3,6 +3,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { catchAsync } from '../utils/catchAsync.js';
 import { toYmd, todayYmd } from '../utils/dateHelpers.js';
 import { buildPropertyStatement } from '../utils/propertyStatement.js';
+import { listStatements } from '../utils/statementsIndex.js';
 import { propertyStatementPdfHtml } from '../templates/propertyStatementTemplate.js';
 import { generatePortraitPDFWithPuppeteer } from '../utils/puppeteerGenerator.js';
 
@@ -364,11 +365,11 @@ export const getDashboardSummary = catchAsync(async (req, res, next) => {
     tenancyActive,
     rentDueMonth,
     rentCollectedMonth,
-    payoutsMonth,
-    statementsPending,
+    allStatementRows, // every statement (listStatements)
+    , // statementsPending: now worked out from the statements list
     arrears,
     unreconciledReceipts,
-    mgmtFeesMonth,
+    , // mgmtFeesMonth: now worked out from the statements list
     contractorCostsMonth,
     certBuckets,
     maintByStatus,
@@ -391,20 +392,19 @@ export const getDashboardSummary = catchAsync(async (req, res, next) => {
     db('tenancies').where('status', 'active').count('id as cnt').first(),
     inMonth(db('rent_schedules'), 'due_date').sum('amount as total').first(),
     inMonth(db('rent_payments'), 'received_at').sum('amount as total').first(),
-    inMonth(db('transactions').where('type', 'landlord_payout'), 'transaction_date').sum('amount as total').first(),
-    db('landlord_statements').whereNot('status', 'paid').select(
-      db.raw('COUNT(id) as cnt'),
-      db.raw('SUM(net_paid) as total')
-    ).first(),
+    // Landlord money from the statements list (all kinds) — the same source as every other page.
+    listStatements(),
+    null,
     db('rent_schedules').where('status', 'overdue').select(
       db.raw('COUNT(id) as cnt'),
       db.raw('SUM(amount - paid_amount) as total')
     ).first(),
     db('rent_payments').where('reconciled', 0).sum('amount as total').first(),
-    inMonth(db('transactions').where('type', 'mgmt_fee'), 'transaction_date').sum('amount as total').first(),
+    null,
     inMonth(db('transactions').where('type', 'contractor_cost'), 'transaction_date').sum('amount as total').first(),
     // Certificates of flats ROCA Living manages (RL-003), like the Compliance page.
-    db('property_certificates').whereIn('property_id', db('properties').where('managed_by_rl', true).select('id')).select(
+    db('property_certificates').whereIn('property_id', db('properties').where('managed_by_rl', true).select('id'))
+      .where((q) => q.whereNull('status').orWhereNot('status', 'not_required')).select(
       db.raw('COUNT(id) as total'),
       db.raw('SUM(CASE WHEN expires_at IS NULL THEN 1 ELSE 0 END) as not_uploaded'),
       db.raw('SUM(CASE WHEN expires_at < CURDATE() THEN 1 ELSE 0 END) as overdue'),
@@ -475,7 +475,20 @@ export const getDashboardSummary = catchAsync(async (req, res, next) => {
   const alertsTotal = alerts.length;
   const alertsTop = alerts.slice(0, 8).map(({ _sort, ...rest }) => rest);
 
-  res.json({
+    // Statements (Roca Living, Rent Cycle, Historic): paid out in the month, waiting to be paid, fees of the month's statements.
+  const issuedStatements = (allStatementRows || []).filter((r) => r.status !== 'draft');
+  const inThisMonth = (d) => d && d >= monthStart && d < nextMonthStart;
+  const paidThisMonth = issuedStatements.filter((r) => r.status === 'paid' && inThisMonth(r.paid_on));
+  const waiting = issuedStatements.filter((r) => r.status !== 'paid');
+  const statementSum = (list, k) => list.reduce((a, r) => a + Number(r[k] || 0), 0);
+  const statementMoney = {
+    paid_month: statementSum(paidThisMonth, 'net'),
+    pending_count: waiting.length,
+    pending_total: statementSum(waiting, 'net'),
+    fees_month: statementSum(issuedStatements.filter((r) => inThisMonth(r.period_start)), 'fees')
+  };
+
+res.json({
     success: true,
     data: {
       kpis: {
@@ -491,17 +504,17 @@ export const getDashboardSummary = catchAsync(async (req, res, next) => {
         rent_due_month: rentDue.toFixed(2),
         rent_collected_month: rentCollected.toFixed(2),
         rent_collected_pct: rentDue > 0 ? +((rentCollected / rentDue) * 100).toFixed(1) : null,
-        landlord_payments_month: num(payoutsMonth?.total).toFixed(2),
-        statements_pending: int(statementsPending?.cnt)
+        landlord_payments_month: statementMoney.paid_month.toFixed(2),
+        statements_pending: statementMoney.pending_count
       },
       financial: {
         rent_due_month: rentDue.toFixed(2),
         rent_collected_month: rentCollected.toFixed(2),
         arrears_total: num(arrears?.total).toFixed(2),
         arrears_count: int(arrears?.cnt),
-        landlord_payments_pending: num(statementsPending?.total).toFixed(2),
+        landlord_payments_pending: statementMoney.pending_total.toFixed(2),
         unreconciled_receipts: num(unreconciledReceipts?.total).toFixed(2),
-        mgmt_fees_month: num(mgmtFeesMonth?.total).toFixed(2),
+        mgmt_fees_month: statementMoney.fees_month.toFixed(2),
         contractor_costs_month: num(contractorCostsMonth?.total).toFixed(2)
       },
       compliance: {

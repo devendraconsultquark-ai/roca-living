@@ -76,15 +76,16 @@ export const AccountingHub = () => {
         }));
         setUnreconciledDataState(formatted);
       } else if (tab === 'payouts') {
-        const res = await api.get('/statements');
-        const paidStatements = (res.data.data || []).filter(s => s.status === 'paid');
+        // Every paid statement (Roca Living, Rent Cycle, Historic) — one source everywhere.
+        const res = await api.get('/all-statements');
+        const paidStatements = (res.data.data?.rows || []).filter(s => s.status === 'paid');
         const formatted = paidStatements.map(s => ({
-          id: s.id,
-          dateTs: ts(s.paid_at || s.generated_at),
-          date: s.paid_at ? new Date(s.paid_at).toLocaleDateString('en-GB') : (s.generated_at ? new Date(s.generated_at).toLocaleDateString('en-GB') : '-'),
+          id: s.key,
+          dateTs: ts(s.paid_on || s.issued_on),
+          date: s.paid_on ? new Date(s.paid_on).toLocaleDateString('en-GB') : (s.issued_on ? new Date(s.issued_on).toLocaleDateString('en-GB') : '-'),
           landlord: s.landlord_name || 'Landlord',
-          amount: parseFloat(s.net_paid || 0),
-          statementRef: s.statement_reference || `STM-${s.id}`,
+          amount: Number(s.net || 0),
+          statementRef: s.statement_number,
           status: 'Paid'
         }));
         setPayoutsDataState(formatted);

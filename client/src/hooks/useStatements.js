@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '../components/UI/ToastContext';
 import { downloadBlob } from '../utilities/download';
-import { statementPropertyId } from '../utilities/propertyFilter';
+import { fetchMyStatements, statementPdfUrl } from '../utilities/myStatements';
 import api from '../utilities/api';
 
-// Historic statements carry an "h" id (h12 → /historic-statements/12/pdf).
-const pdfUrl = (id) => (String(id).startsWith('h') ? `/historic-statements/${String(id).slice(1)}/pdf` : `/statements/${id}/pdf`);
+// Statement ids are keys (rl-12 / ar-3 / h-5); one PDF route for every kind.
+const pdfUrl = (id) => statementPdfUrl(id);
 
 export const useStatements = () => {
   const [statements, setStatements] = useState([]);
@@ -16,53 +16,25 @@ export const useStatements = () => {
   const fetchStatements = async () => {
     setLoading(true);
     try {
-      const [response, historicRes] = await Promise.all([
-        api.get('/statements/my'),
-        // Statements from before Roca Living took over (read-only, same design).
-        api.get('/historic-statements/my').catch(() => ({ data: { data: [] } }))
-      ]);
+      // Every statement (Roca Living, Rent Cycle, Historic) from one list.
       const ukDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB') : '');
-      const historic = (historicRes.data?.data || []).map((h) => ({
-        id: `h${h.id}`,
-        historic: true,
-        statementNumber: h.statement_number,
-        property_id: h.property_id,
-        period: `${ukDate(h.period_start)} - ${ukDate(h.period_end)}`,
-        date: ukDate(h.issued_on) || '-',
-        invoiced: Number(h.total_income || 0),
-        fees: Number(h.total_expenditure || 0),
-        payout: Number(h.net_paid || 0),
-        status: h.paid_on ? 'Paid' : 'Sent',
-        rawStartDate: h.period_start,
-        rawEndDate: h.period_end,
-        rawGeneratedAt: h.issued_on
-      }));
-      const formatted = (response.data.data || []).map((s) => {
-        // Real money out of the statement: expense deductions + NRL withholding.
-        // (The mgmt_fee/letting-fee columns are always 0 in this statement format.)
-        const totalFees = parseFloat(s.deductions || 0) + parseFloat(s.nrl_withheld || 0);
-
-        const periodStartStr = s.period_start ? new Date(s.period_start).toLocaleDateString('en-GB') : '';
-        const periodEndStr = s.period_end ? new Date(s.period_end).toLocaleDateString('en-GB') : '';
-
-        return {
-          id: s.id,
-          // Resolve the local property id from the statement's cross-source
-          // reference (local-source only); enables per-property scoping.
-          property_id: statementPropertyId(s),
-          period: `${periodStartStr} - ${periodEndStr}`,
-          date: s.generated_at ? new Date(s.generated_at).toLocaleDateString('en-GB') : '-',
-          invoiced: parseFloat(s.gross_rent || 0),
-          fees: totalFees,
-          payout: parseFloat(s.net_paid || 0),
-          status: s.status ? s.status.charAt(0).toUpperCase() + s.status.slice(1) : 'Draft',
-          rawStartDate: s.period_start,
-          rawEndDate: s.period_end,
-          rawGeneratedAt: s.generated_at
-        };
-      });
-      // Newest period first; historic ones sit with the rest by their period.
-      setStatements([...formatted, ...historic].sort((a, b) => String(b.rawStartDate || '').localeCompare(String(a.rawStartDate || ''))));
+      const rows = await fetchMyStatements();
+      setStatements(rows.map((r) => ({
+        id: r.key,
+        historic: r.type === 'historic',
+        type: r.type,
+        statementNumber: r.statement_number,
+        property_id: r.property_id,
+        period: `${ukDate(r.period_start)} - ${ukDate(r.period_end)}`,
+        date: ukDate(r.issued_on) || '-',
+        invoiced: Number(r.rent || 0),
+        fees: Number(r.fees || 0),
+        payout: Number(r.net || 0),
+        status: r.status ? r.status.charAt(0).toUpperCase() + r.status.slice(1) : 'Draft',
+        rawStartDate: r.period_start,
+        rawEndDate: r.period_end,
+        rawGeneratedAt: r.issued_on
+      })));
       setError(null);
     } catch (err) {
       console.error(err);

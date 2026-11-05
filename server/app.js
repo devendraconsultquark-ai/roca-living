@@ -27,6 +27,7 @@ import newsRouter from './src/routes/newsRoutes.js';
 import xeroRouter from './src/routes/xeroRoutes.js';
 import approvedRentStatementRouter from './src/routes/approvedRentStatementRoutes.js';
 import historicStatementRouter from './src/routes/historicStatementRoutes.js';
+import allStatementsRouter from './src/routes/allStatementsRoutes.js';
 import estatesRouter from './src/routes/estatesRoutes.js';
 import { pullFromEstatesOnRead } from './src/utils/estatesSync.js';
 import previewRouter from './src/routes/previewRoutes.js';
@@ -138,6 +139,8 @@ app.use('/api/v1/xero', xeroRouter);
 app.use('/api/v1/approved-statements', approvedRentStatementRouter);
 // Historic statements (before Roca Living), read-only.
 app.use('/api/v1/historic-statements', historicStatementRouter);
+// Every statement in one list + money totals from it (single source of truth).
+app.use('/api/v1/all-statements', allStatementsRouter);
 app.use('/api/v1/estates', estatesRouter);
 app.use('/api/v1/transactions', transactionRouter);
 app.use('/api/v1/contact', contactRouter);

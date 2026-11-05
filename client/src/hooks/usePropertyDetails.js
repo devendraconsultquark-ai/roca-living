@@ -14,7 +14,7 @@ import { TENANCY_TYPE, reviewLabel, netPaidOf, tenantCompliancePct, dueLabel, de
 const gb = (d) => new Date(d).toLocaleDateString('en-GB');
 
 const computeCompliancePct = (certsList) => {
-  const tracked = certsList.filter((c) => ['GAS', 'EPC', 'EICR'].includes(c.cert_type));
+  const tracked = certsList.filter((c) => ['GAS', 'EPC', 'EICR'].includes(c.cert_type) && c.status !== 'not_required');
   const compliant = tracked.filter((c) => c.status === 'compliant').length;
   return tracked.length > 0 ? Math.round((compliant / tracked.length) * 100) : 100;
 };

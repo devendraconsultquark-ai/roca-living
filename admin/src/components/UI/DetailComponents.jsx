@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Edit, Trash2, CheckCircle2, AlertTriangle, HelpCircle, Clock
+  ArrowLeft, Edit, Trash2, CheckCircle2, AlertTriangle, HelpCircle, Clock, MinusCircle
 } from 'lucide-react';
 import { Skeleton } from './Skeleton';
 import { InfoTip } from './InfoTip';
@@ -139,6 +139,7 @@ export const certStatusConfig = {
   expiring_soon: { color: 'text-status-warning bg-status-warning/10 border-status-warning/15', icon: AlertTriangle, label: 'Expiring Soon' },
   expired: { color: 'text-status-danger bg-status-danger-bg border-status-danger/15', icon: AlertTriangle, label: 'Expired' },
   not_uploaded: { color: 'text-gray-400 bg-surface-hover border-card-border', icon: HelpCircle, label: 'Not Uploaded' },
+  not_required: { color: 'text-status-info bg-status-info-bg border-status-info/15', icon: MinusCircle, label: 'Not Required' },
 };
 
 export const CertBadge = ({ status }) => {

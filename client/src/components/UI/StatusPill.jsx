@@ -234,6 +234,11 @@ export const StatusPill = ({
       classes: "bg-surface-hover text-gray-400 border-card-border",
       icon: Circle,
     },
+    not_required: {
+      text: "Not Required",
+      classes: "bg-status-info-bg text-status-info border-status-info/15",
+      icon: Circle,
+    },
     not_applicable: {
       text: "N/A",
       classes: "bg-surface-hover text-gray-400 border-card-border",

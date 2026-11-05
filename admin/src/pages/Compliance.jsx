@@ -33,9 +33,14 @@ const BUCKETS = {
   due_60: { label: 'Due (60 days)', color: C.amber, tone: 'orange' },
   overdue: { label: 'Overdue', color: C.red, tone: 'red' },
   not_uploaded: { label: 'Not Uploaded', color: C.grey, tone: 'grey' },
+  // Not needed for this flat (e.g. no gas): listed, but outside every %.
+  not_required: { label: 'Not Required', color: C.grey, tone: 'blue' },
 };
+// Buckets that count towards the totals and percentages.
+const COUNTED = Object.keys(BUCKETS).filter((k) => k !== 'not_required');
 
 const bucketOf = (item) => {
+  if (item.status === 'not_required') return 'not_required';
   if (item.days_left === null) return 'not_uploaded';
   if (item.days_left < 0) return 'overdue';
   if (item.days_left <= 30) return 'due_30';
@@ -71,7 +76,7 @@ export const Compliance = () => {
 
   const withBucket = items.map((i) => ({ ...i, bucket: bucketOf(i) }));
   const counts = Object.keys(BUCKETS).reduce((acc, key) => ({ ...acc, [key]: withBucket.filter((i) => i.bucket === key).length }), {});
-  const total = withBucket.length;
+  const total = withBucket.filter((i) => i.bucket !== 'not_required').length;
   const thisMonth = new Date().toISOString().slice(0, 7);
   const completedThisMonth = withBucket.filter((i) => i.issued_at && i.issued_at.startsWith(thisMonth)).length;
   const attention = counts.due_30 + counts.overdue + counts.not_uploaded;
@@ -162,7 +167,7 @@ export const Compliance = () => {
       ) : (
         <>
           <KpiRow>
-            <KpiCard icon={ClipboardList} tone="indigo" label="Total Compliance Items" value={total} sub="Across managed properties" link="View all" onClick={() => setStatusFilter('')} loading={loading} />
+            <KpiCard icon={ClipboardList} tone="indigo" label="Total Compliance Items" value={total} sub={counts.not_required ? `${counts.not_required} more not required` : 'Across managed properties'} link="View all" onClick={() => setStatusFilter('')} loading={loading} />
             <KpiCard icon={ShieldCheck} tone="green" label="Compliant" value={counts.compliant || 0} sub={`${pct(counts.compliant || 0, total)} of total`} link="View compliant" onClick={() => setStatusFilter('compliant')} loading={loading} />
             <KpiCard icon={Clock} tone="orange" label="Due Soon (30 Days)" value={counts.due_30 || 0} sub={`${pct(counts.due_30 || 0, total)} of total`} link="View due soon" onClick={() => setStatusFilter('due_30')} loading={loading} />
             <KpiCard icon={AlertTriangle} tone="red" label="Overdue" value={counts.overdue || 0} sub={`${pct(counts.overdue || 0, total)} of total`} subTone={counts.overdue ? 'red' : undefined} link="View overdue" onClick={() => setStatusFilter('overdue')} loading={loading} />
@@ -174,7 +179,7 @@ export const Compliance = () => {
               <>
                 <SectionCard title="Compliance Overview" action="View full report" to="/reports">
                   <Donut
-                    data={Object.entries(BUCKETS).map(([key, b]) => ({ label: b.label, value: counts[key] || 0, color: b.color, display: `${counts[key] || 0} (${pct(counts[key] || 0, total)})` }))}
+                    data={COUNTED.map((key) => [key, BUCKETS[key]]).map(([key, b]) => ({ label: b.label, value: counts[key] || 0, color: b.color, display: `${counts[key] || 0} (${pct(counts[key] || 0, total)})` }))}
                     centre={total}
                     sub="Total Items"
                   />

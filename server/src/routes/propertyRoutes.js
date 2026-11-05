@@ -15,6 +15,7 @@ import {
   createProperty,
   updateProperty,
   updateCertificate,
+  setCertificateRequired,
   uploadCertificateDocument,
   downloadCertificateDocument,
   updateChecklistItem,
@@ -137,6 +138,7 @@ propertyRouter.post('/', protect('admin'), restrictTo('ADMIN'), managedInEstates
 propertyRouter.get('/:id', protect('admin'), restrictTo('ADMIN'), getPropertyById);
 propertyRouter.patch('/:id', protect('admin'), restrictTo('ADMIN'), rejectEstateFields(ESTATE_PROPERTY_FIELDS), updateProperty);
 propertyRouter.delete('/:id', protect('admin'), restrictTo('ADMIN'), managedInEstates);
+propertyRouter.patch('/:id/certificates/:certType/required', protect('admin'), restrictTo('ADMIN'), setCertificateRequired);
 propertyRouter.patch('/:id/certificates/:certType', protect('admin'), restrictTo('ADMIN'), updateCertificate);
 propertyRouter.post('/:id/certificates/:certType/document', protect('admin'), restrictTo('ADMIN'), certUpload.single('file'), uploadCertificateDocument);
 propertyRouter.patch('/:id/checklist/:itemCode', protect('admin'), restrictTo('ADMIN'), updateChecklistItem);

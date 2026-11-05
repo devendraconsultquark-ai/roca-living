@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useToast } from '../components/UI/ToastContext';
 import api from '../utilities/api';
 import { formatProperty } from '../utilities/formatProperty';
-import { statementPropertyId } from '../utilities/propertyFilter';
+import { fetchMyStatements } from '../utilities/myStatements';
 import { netPaidOf } from '../utilities/tenancyFacts';
 
 export const useProperties = () => {
@@ -15,24 +15,19 @@ export const useProperties = () => {
     setLoading(true);
     try {
       // Fetch properties, tenancies, and maintenance tickets in parallel
-      const [propRes, tenancyRes, maintenanceRes, statementRes, historicRes] = await Promise.all([
+      const [propRes, tenancyRes, maintenanceRes, myStatements] = await Promise.all([
         api.get('/properties/my'),
         api.get('/tenancies/my').catch(() => ({ data: { data: [] } })),
         api.get('/maintenance/my').catch(() => ({ data: { data: [] } })),
-        api.get('/statements/my').catch(() => ({ data: { data: [] } })),
-        api.get('/historic-statements/my').catch(() => ({ data: { data: [] } }))
+        // Every statement (Roca Living, Rent Cycle, Historic) — one list everywhere.
+        fetchMyStatements().catch(() => [])
       ]);
 
       const propertiesList = propRes.data.data || [];
       const tenanciesList = tenancyRes.data?.data || [];
       const maintenanceTickets = maintenanceRes.data?.data || [];
       // Statements in the shape netPaidOf expects (flat id, payout, status).
-      const statements = (statementRes.data?.data || []).map((s) => ({
-        property_id: statementPropertyId(s), payout: parseFloat(s.net_paid || 0), status: s.status,
-      })).concat((historicRes.data?.data || []).map((h) => ({
-        // Statements from before Roca Living: paid once the bank shows the payout.
-        property_id: h.property_id, payout: Number(h.net_paid || 0), status: h.paid_on ? 'paid' : 'sent',
-      })));
+      const statements = myStatements.map((s) => ({ property_id: s.property_id, payout: Number(s.net || 0), status: s.status }));
 
       // Create tenancy property-id mapping
       const tenancyMap = {};

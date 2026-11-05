@@ -1,0 +1,21 @@
+{
+  "source": "Client Dropbox (_PARSONS HOUSE), checked 5 Nov 2026. EICR = the new-build Electrical Installation Certificate (30 Nov 2022), due again after 5 years.",
+  "certificates": [
+    { "flat": "PH-8",  "type": "EPC",  "issued": "2024-12-03", "expires": "2034-12-02", "file": "PH-8_EPC.pdf" },
+    { "flat": "PH-8",  "type": "EICR", "issued": "2022-11-30", "expires": "2027-11-30", "file": "PH-8_EICR.pdf" },
+    { "flat": "PH-13", "type": "EPC",  "issued": "2022-11-18", "expires": "2032-11-17", "file": "PH-13_EPC.pdf" },
+    { "flat": "PH-13", "type": "EICR", "issued": "2022-11-30", "expires": "2027-11-30", "file": "PH-13_EICR.pdf" },
+    { "flat": "PH-19", "type": "EPC",  "issued": "2022-11-18", "expires": "2032-11-17", "file": "PH-19_EPC.pdf" },
+    { "flat": "PH-19", "type": "EICR", "issued": "2022-11-30", "expires": "2027-11-30", "file": "PH-19_EICR.pdf" },
+    { "flat": "PH-36", "type": "EPC",  "issued": "2024-12-03", "expires": "2034-12-02", "file": "PH-36_EPC.pdf" },
+    { "flat": "PH-36", "type": "EICR", "issued": "2022-11-30", "expires": "2027-11-30", "file": "PH-36_EICR.pdf" }
+  ],
+  "notRequired": [
+    { "flat": "PH-8",  "types": ["GAS", "HMO", "PAT"], "why": "EPC: electric heating and hot water (no gas); single let, not an HMO; PAT is not a legal requirement for a single let" },
+    { "flat": "PH-13", "types": ["GAS", "HMO", "PAT"], "why": "EPC: electric heating and hot water (no gas); single let; PAT not a legal requirement" },
+    { "flat": "PH-19", "types": ["GAS", "HMO", "PAT"], "why": "EPC: electric heating and hot water (no gas); single let; PAT not a legal requirement" },
+    { "flat": "PH-36", "types": ["GAS", "HMO", "PAT"], "why": "EPC: electric heating and hot water (no gas); single let; PAT not a legal requirement" },
+    { "flat": "PH-31", "types": ["HMO", "PAT"], "why": "single let; PAT not a legal requirement. Gas left as required until the client confirms (no EPC on file)" },
+    { "flat": "PH-33", "types": ["HMO", "PAT"], "why": "single let; PAT not a legal requirement. Gas left as required until the client confirms (no EPC on file)" }
+  ]
+}

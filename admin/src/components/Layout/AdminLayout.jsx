@@ -37,6 +37,7 @@ const HEADERS = {
   onboarding: { title: 'New-Let Onboarding Wizard', subtitle: 'Complete the 6 onboarding stages to register the landlord, property, and move-in details.' },
   'rent-reviews': { title: 'Rent Reviews', subtitle: 'Track, manage and process rent reviews across all tenancies.' },
   'payments-received': { title: 'Payments Received', subtitle: 'All rent received: in Roca Living and from before it.' },
+  'statements-payments': { title: 'Statements & Payments', subtitle: 'Every landlord statement and its payout, in one place.' },
   'landlord-onboarding': { title: 'Landlord Onboarding', subtitle: 'Set-up steps for every landlord: contact, NRL, statement email, terms, KYC, bank details.' },
   'tenancy-lifecycle': { title: 'Tenancy Lifecycle', subtitle: 'Every tenancy by stage, with its set-up steps.' },
   'renewals': { title: 'Renewals', subtitle: 'Tenancy end dates and renewals; periodic tenancies roll on.' },

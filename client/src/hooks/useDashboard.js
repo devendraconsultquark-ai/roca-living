@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Calendar, Wallet, Clock, Wrench, AlertCircle } from 'lucide-react';
 import api from '../utilities/api';
+import { fetchMyStatements, statementPdfUrl } from '../utilities/myStatements';
 import { useToast } from '../components/UI/ToastContext';
 import { downloadBlob } from '../utilities/download';
 import { useProperties } from './useProperties';
@@ -14,24 +15,24 @@ import { filterByProperty, filterByRelated, statementPropertyId } from '../utili
 
 // ── Pure derivation helpers (unit-testable without React) ───────────────────
 
+// Share of required certificates that are in place and in date. A certificate
+// not uploaded yet counts as missing (it used to count as compliant → 100%).
 const computeCompliance = (properties) => {
   let expiredCertifications = 0;
   let totalCertificationsTracked = 0;
+  let validCertifications = 0;
   properties.forEach((p) => {
     ['gasCompliance', 'eicrCompliance', 'epcCompliance'].forEach((key) => {
-      if (p[key]) {
+      if (p[key] && p[key] !== 'not_required') {
         totalCertificationsTracked++;
         if (p[key] === 'expired') expiredCertifications++;
+        if (p[key] === 'compliant' || p[key] === 'expiring_soon') validCertifications++;
       }
     });
   });
   const overallCompliancePct = totalCertificationsTracked
-    ? Math.round(
-        ((totalCertificationsTracked - expiredCertifications) /
-          totalCertificationsTracked) *
-          100,
-      )
-    : 100;
+    ? Math.round((validCertifications / totalCertificationsTracked) * 100)
+    : 0;
   return { expiredCertifications, totalCertificationsTracked, overallCompliancePct };
 };
 
@@ -258,12 +259,13 @@ export const useDashboard = () => {
     const fetchDashboardData = async () => {
       setLoading(true);
       try {
-        const [stmtRes, tenancyRes, checklistRes] = await Promise.all([
-          api.get('/statements/my'),
+        const [myStatements, tenancyRes, checklistRes] = await Promise.all([
+          // Every statement (Roca Living, Rent Cycle, Historic) — one list everywhere.
+          fetchMyStatements(),
           api.get('/tenancies/my'),
           api.get('/landlords/my/checklist').catch(() => null),
         ]);
-        setStatementsList(stmtRes.data.data || []);
+        setStatementsList(myStatements);
         setTenanciesList(tenancyRes.data.data || []);
         if (checklistRes) {
           setChecklist({
@@ -460,7 +462,7 @@ export const useDashboard = () => {
       return;
     }
     try {
-      const response = await api.get(`/statements/${latestStatement.id}/pdf`, {
+      const response = await api.get(statementPdfUrl(latestStatement.id), {
         responseType: 'blob',
       });
       const period = latestStatement.period_start

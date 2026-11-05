@@ -34,15 +34,6 @@ export const PLANNED_PAGES = [
     related: [{ label: 'Settings', path: '/settings', note: 'VAT returns are filed from Xero.' }],
   },
   {
-    slug: 'statements-payments',
-    title: 'Statements & Payments',
-    subtitle: 'Landlord statements and payments in one place.',
-    related: [
-      { label: 'Statements', path: '/statements', note: 'Generate, email and mark statements as paid.' },
-      { label: 'Rent Cycle', path: '/rent-cycle', note: 'Approve rent, pay the landlord, make the statement.' },
-    ],
-  },
-  {
     slug: 'communications',
     title: 'Communications',
     subtitle: 'Messages to landlords and tenants.',

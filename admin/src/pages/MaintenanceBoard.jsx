@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { DndContext, useDraggable, useDroppable } from '@dnd-kit/core';
 import { Plus, X, Ban, List, LayoutGrid, Mail, ClipboardList, UserCheck, Hammer, CheckCircle2, HardHat, Calendar } from 'lucide-react';
 import { useToast } from '../components/UI/ToastContext';
@@ -200,6 +200,8 @@ export const MaintenanceBoard = () => {
   };
   const [stage, setStage] = useState('All');
   const [search, setSearch] = useState('');
+  // ?ticket=ID (e.g. from a property page) opens that ticket once the board has loaded.
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const fetchTickets = async () => {
     setLoading(true);
@@ -263,6 +265,17 @@ export const MaintenanceBoard = () => {
       // Ticket may have no images — the section just stays empty.
     }
   };
+
+  useEffect(() => {
+    const wanted = searchParams.get('ticket');
+    if (!wanted || loading) return;
+    const t = tickets.find((x) => String(x.raw?.id ?? x.id) === String(wanted));
+    Promise.resolve().then(() => {
+      if (t) openDetail(t);
+      setSearchParams({}, { replace: true });
+    });
+  }, [searchParams, loading, tickets]);
+
 
   const closeDetail = () => {
     detailImages.forEach((img) => { if (img.url) window.URL.revokeObjectURL(img.url); });

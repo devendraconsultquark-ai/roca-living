@@ -157,13 +157,12 @@ export const getPropertyById = catchAsync(async (req, res, next) => {
     };
   }
 
-  // Recent maintenance tickets (last 5)
+  // Every maintenance ticket of the flat, newest first.
   const maintenanceTickets = await db('maintenance_tickets')
     .leftJoin('contractors', 'maintenance_tickets.contractor_id', 'contractors.id')
     .select('maintenance_tickets.*', 'contractors.company_name as contractor_name')
     .where('maintenance_tickets.property_id', id)
-    .orderBy('maintenance_tickets.created_at', 'desc')
-    .limit(5);
+    .orderBy('maintenance_tickets.created_at', 'desc');
 
   const propertyImages = await db('property_images')
     .where('property_id', id)
@@ -491,6 +490,51 @@ export const updateCertificate = catchAsync(async (req, res, next) => {
       updated_at: updatedCert.updated_at ? new Date(updatedCert.updated_at).toISOString() : null
     }
   });
+});
+
+// Mark a certificate "Not Required" for this flat (e.g. no gas supply) or
+// required again. Only a certificate with nothing uploaded can be marked Not
+// Required; it is then left out of every compliance %. Its checklist item (if
+// it has one) becomes N/A, and goes back to pending when required again.
+const CHECKLIST_CODE = { GAS: 'GAS_CERT', EICR: 'EICR_CERT', EPC: 'EPC_CERT', SMOKE_CO: 'SMOKE_CO' };
+export const setCertificateRequired = catchAsync(async (req, res, next) => {
+  const { id, certType } = req.params;
+  const required = req.body?.required;
+  if (!PROPERTY_CERT_TYPES.includes(certType)) throw new ApiError(400, 'Invalid certificate type');
+  if (typeof required !== 'boolean') throw new ApiError(400, 'required must be true or false');
+  const cert = await db('property_certificates').where({ property_id: id, cert_type: certType }).first();
+  if (!cert) throw new ApiError(404, 'Certificate not found');
+
+  if (!required) {
+    if (cert.status === 'not_required') return res.json({ success: true, data: { ...cert, issued_at: toYmd(cert.issued_at), expires_at: toYmd(cert.expires_at) } });
+    if (cert.issued_at || cert.expires_at || cert.document_path) {
+      throw new ApiError(400, 'This certificate has dates or a file — clear them in ROCA Estates first');
+    }
+  } else if (cert.status !== 'not_required') {
+    return res.json({ success: true, data: { ...cert, issued_at: toYmd(cert.issued_at), expires_at: toYmd(cert.expires_at) } });
+  }
+
+  const status = required ? 'not_uploaded' : 'not_required';
+  await db.transaction(async (trx) => {
+    await trx('property_certificates').where('id', cert.id).update({ status, updated_at: trx.fn.now() });
+    const code = CHECKLIST_CODE[certType];
+    if (code) {
+      const q = trx('compliance_checklist').where({ scope: 'property', entity_id: id, item_code: code });
+      if (required) await q.clone().where('status', 'not_applicable').update({ status: 'pending', applicable: 1, verified_at: null, verified_by: null });
+      else await q.clone().update({ status: 'not_applicable', applicable: 0, verified_at: trx.fn.now(), verified_by: req.user.id });
+    }
+    await trx('audit_log').insert({
+      actor_id: req.user.id,
+      actor_role: req.user.role,
+      action: required ? 'PROPERTY_CERTIFICATE_REQUIRED' : 'PROPERTY_CERTIFICATE_NOT_REQUIRED',
+      entity_type: 'property',
+      entity_id: id,
+      meta: JSON.stringify({ cert_type: certType, status }),
+      ip_address: req.ip || null
+    });
+  });
+  const updated = await db('property_certificates').where('id', cert.id).first();
+  res.json({ success: true, data: { ...updated, issued_at: toYmd(updated.issued_at), expires_at: toYmd(updated.expires_at) } });
 });
 
 export const getMyProperties = catchAsync(async (req, res, next) => {

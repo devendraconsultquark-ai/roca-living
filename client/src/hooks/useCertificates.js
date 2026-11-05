@@ -26,6 +26,7 @@ const STATUS_LABELS = {
   expiring_soon: 'Expiring Soon',
   expired: 'Expired',
   not_uploaded: 'Not Uploaded',
+  not_required: 'Not Required',
 };
 
 const formatDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB') : '—');
@@ -69,7 +70,9 @@ const buildCertificates = (certs) =>
             ? 'bg-status-warning/10 text-status-warning'
             : status === 'Compliant'
               ? 'bg-status-success-bg text-status-success'
-              : 'bg-gray-100 text-gray-400',
+              : status === 'Not Required'
+                ? 'bg-status-info-bg text-status-info'
+                : 'bg-gray-100 text-gray-400',
     };
   });
 

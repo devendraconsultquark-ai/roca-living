@@ -146,15 +146,17 @@ export const useComplianceOverview = () => {
     [scopedTenancies],
   );
 
-  // Certificates that exist (uploaded) are "tracked"; the compliance figure is
-  // the share of tracked certificates that are not expired.
-  const trackedCerts = certificatesData.filter((c) => c.status !== 'Not Uploaded');
+  // Compliance = share of all required certificates that are in place and in
+  // date. Not uploaded counts as missing (it used to be left out → 100% with none).
+  // "Not Required" certificates (e.g. no gas) are listed but left out of the %.
+  const requiredCerts = certificatesData.filter((c) => c.status !== 'Not Required');
   const expiredCertifications = certificatesData.filter((c) => c.status === 'Expired').length;
   const expiringSoonCount = certificatesData.filter((c) => c.status === 'Expiring Soon').length;
+  const validCerts = certificatesData.filter((c) => c.status === 'Compliant' || c.status === 'Expiring Soon').length;
 
-  const certCompliancePct = trackedCerts.length
-    ? Math.round(((trackedCerts.length - expiredCertifications) / trackedCerts.length) * 100)
-    : 100;
+  const certCompliancePct = requiredCerts.length
+    ? Math.round((validCerts / requiredCerts.length) * 100)
+    : 0;
 
   // Tenant compliance: share of tenant rows currently marked Compliant.
   const tenantRows = [...moveInCompliance, ...ongoingTenantCompliance];
@@ -170,14 +172,10 @@ export const useComplianceOverview = () => {
     (i) => i.applicable && i.rawStatus !== 'not_applicable',
   );
   const checklistComplete = applicableChecklist.filter((i) => i.rawStatus === 'complete').length;
-  const landlordDenominator = applicableChecklist.length + trackedCerts.length;
+  const landlordDenominator = applicableChecklist.length + requiredCerts.length;
   const landlordCompliancePct = landlordDenominator
-    ? Math.round(
-        ((checklistComplete + (trackedCerts.length - expiredCertifications)) /
-          landlordDenominator) *
-          100,
-      )
-    : 100;
+    ? Math.round(((checklistComplete + validCerts) / landlordDenominator) * 100)
+    : 0;
 
   const pendingChecklistCount = applicableChecklist.length - checklistComplete;
 

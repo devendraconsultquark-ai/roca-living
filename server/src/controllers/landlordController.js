@@ -250,7 +250,10 @@ export const getLandlordById = catchAsync(async (req, res, next) => {
   // only the fallback when ROCA Estates has none or can't be reached.
   let estatesNrl = null;
   if (landlord.rocaem_user_id) {
-    try { estatesNrl = estateNrlOf(await fetchEstateLandlord(landlord.rocaem_user_id)); } catch { estatesNrl = null; }
+    try {
+      const el = await fetchEstateLandlord(landlord.rocaem_user_id);
+      estatesNrl = el ? { ...estateNrlOf(el), is_company: el.ownership_type === 'COMPANY' } : null;
+    } catch { estatesNrl = null; }
   }
 
   res.json({

@@ -307,6 +307,17 @@ export const PropertyDetailPage = () => {
     }
   };
 
+  // Not Required (e.g. no gas supply) ⇄ Required Again — only for a certificate with nothing uploaded.
+  const handleCertRequired = async (cert, required) => {
+    try {
+      await api.patch(`/properties/${id}/certificates/${cert.cert_type}/required`, { required });
+      addToast(`${cert.cert_type} marked ${required ? 'required again' : 'not required'}`, 'success');
+      setReloadKey((k) => k + 1);
+    } catch (err) {
+      addToast(err.response?.data?.message || 'Failed to update certificate', 'error');
+    }
+  };
+
   const handleCertDownload = async (cert) => {
     try {
       const res = await api.get(`/properties/${id}/certificates/${cert.cert_type}/document`, {
@@ -512,10 +523,13 @@ export const PropertyDetailPage = () => {
         {activeTab === 'maintenance' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
-              <Card title="Recent Maintenance">
+              <Card title={`Maintenance (${data.maintenance_tickets?.length || 0})`}>
                 <div className="flex flex-col gap-3">
                   {data.maintenance_tickets?.length > 0 ? data.maintenance_tickets.map(t => (
-                    <div key={t.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-gray-50/50 border border-card-border rounded-xl p-4 gap-4 hover:border-brand-accent transition-colors cursor-pointer">
+                    <div key={t.id} role="button" tabIndex={0} title="Open on the Maintenance board"
+                      onClick={() => navigate(`/maintenance?ticket=${t.id}`)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/maintenance?ticket=${t.id}`); }}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between bg-gray-50/50 border border-card-border rounded-xl p-4 gap-4 hover:border-brand-accent transition-colors cursor-pointer">
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-full bg-surface-hover flex items-center justify-center text-status-muted">
                           <Wrench size={20} />
@@ -562,7 +576,7 @@ export const PropertyDetailPage = () => {
                           {cert.expires_at ? (
                             <p className="text-xs font-semibold text-status-muted mt-0.5">Expires: {new Date(cert.expires_at).toLocaleDateString('en-GB')}</p>
                           ) : (
-                            <p className="text-xs text-gray-400 mt-0.5">No expiry date set</p>
+                            <p className="text-xs text-gray-400 mt-0.5">{cert.status === 'not_required' ? 'Not needed for this flat' : 'No expiry date set'}</p>
                           )}
                         </div>
                       </div>
@@ -573,9 +587,22 @@ export const PropertyDetailPage = () => {
                             View
                           </Button>
                         )}
-                        <Button variant="ghost" size="sm" onClick={() => openCertModal(cert)}>
-                          Update
-                        </Button>
+                        {cert.status === 'not_required' ? (
+                          <Button variant="ghost" size="sm" onClick={() => handleCertRequired(cert, true)}>
+                            Required Again
+                          </Button>
+                        ) : (
+                          <>
+                            {cert.status === 'not_uploaded' && !cert.document_path && !cert.expires_at && !cert.issued_at && (
+                              <Button variant="ghost" size="sm" onClick={() => handleCertRequired(cert, false)}>
+                                Not Required
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="sm" onClick={() => openCertModal(cert)}>
+                              Update
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -595,17 +622,20 @@ export const PropertyDetailPage = () => {
                         <span className={`text-2xs capitalize font-bold px-2 py-0.5 rounded-sm border ${
                           item.status === 'complete'
                             ? 'bg-status-success-bg text-status-success border-status-success/15'
-                            : 'bg-status-warning/10 text-status-warning border-status-warning/15'
+                            : item.status === 'not_applicable'
+                              ? 'bg-status-info-bg text-status-info border-status-info/15'
+                              : 'bg-status-warning/10 text-status-warning border-status-warning/15'
                         }`}>
-                          {item.status}
+                          {item.status === 'not_applicable' ? 'Not Required' : item.status}
                         </span>
-                        <button
+                        {/* N/A follows the certificate's Not Required (set on the left) */}
+                        {item.status !== 'not_applicable' && <button
                           onClick={() => handleChecklistToggle(item)}
                           className="text-2xs font-bold text-brand-accent hover:underline cursor-pointer"
                           title={item.status === 'complete' ? 'Reopen this item' : 'Mark this item complete'}
                         >
                           {item.status === 'complete' ? 'Reopen' : 'Mark Complete'}
-                        </button>
+                        </button>}
                       </div>
                     </div>
                   ))}

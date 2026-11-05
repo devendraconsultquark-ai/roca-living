@@ -4,6 +4,8 @@ import { Skeleton } from './Skeleton';
 import { Card } from './DetailComponents';
 import { PropertyStatementCard } from './PropertyStatementCard';
 import api from '../../utilities/api';
+import { AllStatementsTable } from './AllStatementsTable';
+import { useAllStatements } from '../../hooks/useAllStatements';
 
 const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
@@ -20,13 +22,14 @@ const TYPE_LABELS = {
   deduction: 'Deduction',
   other: 'Other',
 };
-const INCOME_TYPES = ['rent_in'];
-const COST_TYPES = ['mgmt_fee', 'vat', 'agent_letting_fee', 'roca_letting_fee', 'contractor_cost', 'deduction', 'nrl_withholding', 'other'];
 
-// Per-property financials tab: YTD summary + monthly chart + transaction list,
-// all from the existing transactions ledger filtered by property.
+// Per-property financials tab. Money = this flat's statements (Roca Living,
+// Rent Cycle, Historic) from /all-statements — the same figures as the landlord
+// page, the Statements page and the portal. The bookkeeping entries (Generate
+// Statement / recorded rent) are listed below as detail only.
 export const PropertyFinancials = ({ propertyId, unit }) => {
   const [transactions, setTransactions] = useState(null);
+  const { rows: statements, totalsYear, reload } = useAllStatements({ property_id: propertyId });
 
   useEffect(() => {
     api.get('/transactions', { params: { property_id: propertyId } })
@@ -34,45 +37,42 @@ export const PropertyFinancials = ({ propertyId, unit }) => {
       .catch(() => setTransactions([]));
   }, [propertyId]);
 
-  if (transactions === null) {
+  if (transactions === null || statements === null) {
     return <Skeleton radius="card" className="h-64 w-full" />;
   }
 
   const year = new Date().getFullYear();
-  const ytd = transactions.filter((t) => t.transaction_date && new Date(t.transaction_date).getFullYear() === year);
-  const sumOf = (list, types) => list
-    .filter((t) => types.includes(t.type))
-    .reduce((s, t) => s + parseFloat(t.amount || 0), 0);
+  const t = totalsYear || {};
 
-  const rentYtd = sumOf(ytd, INCOME_TYPES);
-  const costsYtd = sumOf(ytd, COST_TYPES);
-  const payoutsYtd = sumOf(ytd, ['landlord_payout']);
-  const netYtd = rentYtd - costsYtd;
-
-  // Trailing 12-month income vs costs
+  // Trailing 12 months, by statement period start (drafts left out).
   const now = new Date();
+  const issued = statements.filter((st) => st.status !== 'draft');
   const monthly = Array.from({ length: 12 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
     const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const inMonth = transactions.filter((t) => (t.transaction_date || '').startsWith(ym));
+    const inMonth = issued.filter((st) => String(st.period_start || '').startsWith(ym));
     return {
       name: d.toLocaleDateString('en-GB', { month: 'short' }),
-      Income: +sumOf(inMonth, INCOME_TYPES).toFixed(2),
-      Costs: +sumOf(inMonth, COST_TYPES).toFixed(2),
+      Income: +inMonth.reduce((a, st) => a + st.rent, 0).toFixed(2),
+      Costs: +inMonth.reduce((a, st) => a + st.fees, 0).toFixed(2),
     };
   });
   const hasChartData = monthly.some((m) => m.Income > 0 || m.Costs > 0);
 
   const summary = [
-    { label: `Rent Received (${year})`, value: money(rentYtd), cls: 'text-status-success' },
-    { label: `Fees & Costs (${year})`, value: money(costsYtd), cls: 'text-status-danger' },
-    { label: `Net (${year})`, value: money(netYtd), cls: netYtd >= 0 ? 'text-status-success' : 'text-status-danger' },
-    { label: `Paid to Landlord (${year})`, value: money(payoutsYtd), cls: 'text-brand-primary' },
+    { label: `Rent (${year})`, value: money(t.rent), cls: 'text-status-success' },
+    { label: `Fees & Costs (${year})`, value: money(t.fees), cls: 'text-status-danger' },
+    { label: `Net (${year})`, value: money(t.net), cls: (t.net || 0) >= 0 ? 'text-status-success' : 'text-status-danger' },
+    { label: `Paid to Landlord (${year})`, value: money(t.paid_out), cls: 'text-brand-primary' },
   ];
 
   return (
     <div className="flex flex-col gap-6">
       <PropertyStatementCard propertyId={propertyId} unit={unit} />
+
+      <Card title={`Statements (${statements.length})`}>
+        <AllStatementsTable rows={statements} showLandlord={false} onChanged={reload} emptyText="No statements for this flat yet." />
+      </Card>
 
       {/* YTD summary */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
@@ -100,12 +100,12 @@ export const PropertyFinancials = ({ propertyId, unit }) => {
               </BarChart>
             </div>
           ) : (
-            <p className="text-xs text-gray-400 font-semibold py-8 text-center">No ledger activity in the last 12 months.</p>
+            <p className="text-xs text-gray-400 font-semibold py-8 text-center">No statements in the last 12 months.</p>
           )}
         </Card>
 
-        {/* Transactions */}
-        <Card title={`Transactions (${transactions.length})`}>
+        {/* Bookkeeping entries (detail only) */}
+        <Card title={`Bookkeeping Entries (${transactions.length})`}>
           {transactions.length === 0 ? (
             <p className="text-xs text-gray-400 font-semibold py-8 text-center">
               No transactions recorded for this property yet.

@@ -208,7 +208,9 @@ export const pullCertificates = async () => {
       patch.estates_file = emFile;
       patch.document_path = docPath;
     }
-    const status = certStatusFor({ issued, expires, hasFile: !!docPath });
+    let status = certStatusFor({ issued, expires, hasFile: !!docPath });
+    // "Not Required" (set by admin) stays while nothing is uploaded for it.
+    if (status === 'not_uploaded' && c.status === 'not_required') status = 'not_required';
     if (status !== c.status) patch.status = status;
     if (Object.keys(patch).length) {
       await db('property_certificates').where('id', c.id).update({ ...patch, updated_at: db.fn.now() });

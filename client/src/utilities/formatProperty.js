@@ -4,7 +4,8 @@ export const formatProperty = (p, t = null, openTicketsCount = 0, netPaid = 0) =
   const address = `${p.address_line1}${p.address_line2 ? `, ${p.address_line2}` : ''}, ${p.city} ${p.postcode}`;
   
   // Compliance calculation: percentage of compliant certs among Gas, EPC, EICR
-  const certStatuses = [p.gasCompliance, p.epcCompliance, p.eicrCompliance];
+  // ("Not Required" for this flat, e.g. no gas, is left out.)
+  const certStatuses = [p.gasCompliance, p.epcCompliance, p.eicrCompliance].filter((s) => s !== 'not_required');
   const compliantCount = certStatuses.filter(s => s === 'compliant').length;
   const compliancePct = certStatuses.length > 0 
     ? Math.round((compliantCount / certStatuses.length) * 100) 

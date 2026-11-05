@@ -5,6 +5,7 @@ import { SectionCard, Pill, Avatar, NotTracked, KeyValues } from './DesignKit';
 import { PropertyThumb } from './PropertyImage';
 import { gbp, shortDate, daysUntil } from '../../utilities/designTokens';
 import api from '../../utilities/api';
+import { useAllStatements } from '../../hooks/useAllStatements';
 
 // Design p5 (property Overview): Property Summary, Compliance Overview, Tenant
 // Information, Financial Snapshot, Maintenance Overview, Important Documents
@@ -20,6 +21,7 @@ const CERTS = {
 };
 
 const certState = (c) => {
+  if (c.status === 'not_required') return { label: 'Not Required', tone: 'blue' };
   if (!c.expires_at) return { label: 'Not uploaded', tone: 'grey' };
   const d = daysUntil(c.expires_at);
   if (d < 0) return { label: 'Expired', tone: 'red' };
@@ -54,7 +56,8 @@ const nextRentDue = (tenancy) => {
 export const PropertyOverview = ({ data, documents, onTab, onDownloadDoc, onPreviewDoc, onUploadDoc, onEditNotes }) => {
   const navigate = useNavigate();
   const [estate, setEstate] = useState(null);
-  const [transactions, setTransactions] = useState(null);
+  // Money from this flat's statements (all kinds) — same figures as the Financials tab.
+  const { rows: statements, totalsYear } = useAllStatements({ property_id: data.id });
 
   useEffect(() => {
     if (!data.rocaem_property_id) return;
@@ -63,24 +66,16 @@ export const PropertyOverview = ({ data, documents, onTab, onDownloadDoc, onPrev
       .catch(() => setEstate(null));
   }, [data.rocaem_property_id]);
 
-  useEffect(() => {
-    api.get('/transactions', { params: { property_id: data.id }, skipInterceptorError: true })
-      .then((res) => setTransactions(res.data.data || []))
-      .catch(() => setTransactions([]));
-  }, [data.id]);
-
   const t = data.active_tenancy;
   const lead = t?.tenants?.find((x) => x.is_lead_tenant) || t?.tenants?.[0] || null;
   const dep = t?.deposit;
   const floorPlan = (data.images || []).find((i) => i.image_type === 'floor_plan');
 
-  // Financial snapshot (this year, from the transactions ledger)
+  // Financial snapshot (this year, from the flat's statements)
   const year = new Date().getFullYear();
-  const ytd = (transactions || []).filter((x) => x.transaction_date && new Date(x.transaction_date).getFullYear() === year);
-  const sum = (list, types) => list.filter((x) => types.includes(x.type)).reduce((s, x) => s + parseFloat(x.amount || 0), 0);
-  const rentYtd = sum(ytd, ['rent_in']);
-  const costsYtd = sum(ytd, ['mgmt_fee', 'vat', 'agent_letting_fee', 'roca_letting_fee', 'contractor_cost', 'deduction', 'nrl_withholding', 'other']);
-  const lastRent = (transactions || []).filter((x) => x.type === 'rent_in').sort((a, b) => String(b.transaction_date).localeCompare(String(a.transaction_date)))[0];
+  const rentYtd = totalsYear?.rent || 0;
+  const costsYtd = totalsYear?.fees || 0;
+  const lastStatement = (statements || []).find((x) => x.status !== 'draft') || null;
   const nextDue = nextRentDue(t);
 
   const tickets = data.maintenance_tickets || [];
@@ -141,7 +136,7 @@ export const PropertyOverview = ({ data, documents, onTab, onDownloadDoc, onPrev
                     <span className="w-8 h-8 rounded-lg bg-status-success/10 text-status-success flex items-center justify-center shrink-0"><Icon size={15} /></span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-xs font-bold text-brand-primary truncate">{meta.label}</span>
-                      <span className="block text-[11px] text-gray-400 font-semibold">{c.expires_at ? `Valid until ${shortDate(c.expires_at)}` : 'No certificate on file'}</span>
+                      <span className="block text-[11px] text-gray-400 font-semibold">{c.expires_at ? `Valid until ${shortDate(c.expires_at)}` : c.status === 'not_required' ? 'Not needed for this flat' : 'No certificate on file'}</span>
                     </span>
                     <Pill tone={st.tone}>{st.label}</Pill>
                   </div>
@@ -193,10 +188,10 @@ export const PropertyOverview = ({ data, documents, onTab, onDownloadDoc, onPrev
               <NotTracked what="A per-property client balance" />
             </div>
             <KeyValues rows={[
-              [`Rent Received (${year})`, transactions ? gbp(rentYtd) : '…'],
-              [`Expenditure (${year})`, transactions ? `-${gbp(costsYtd)}` : '…', 'red'],
-              [`Net Income (${year})`, transactions ? gbp(rentYtd - costsYtd) : '…', rentYtd - costsYtd >= 0 ? 'green' : 'red'],
-              ['Last Rent Received', lastRent ? shortDate(lastRent.transaction_date) : '—'],
+              [`Rent (${year})`, statements ? gbp(rentYtd) : '…'],
+              [`Fees & Costs (${year})`, statements ? `-${gbp(costsYtd)}` : '…', 'red'],
+              [`Net Income (${year})`, statements ? gbp(rentYtd - costsYtd) : '…', rentYtd - costsYtd >= 0 ? 'green' : 'red'],
+              ['Last Statement', lastStatement ? `${lastStatement.statement_number}${lastStatement.paid_on ? ` · paid ${shortDate(lastStatement.paid_on)}` : ''}` : '—'],
               ['Next Rent Due', nextDue ? shortDate(nextDue) : '—'],
             ]} />
           </div>

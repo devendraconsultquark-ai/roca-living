@@ -32,6 +32,7 @@ import { Utilities } from './pages/Utilities';
 import { Reports } from './pages/Reports';
 import { RentReviews } from './pages/RentReviews';
 import { PaymentsReceived } from './pages/PaymentsReceived';
+import { StatementsPayments } from './pages/StatementsPayments';
 import { LandlordOnboarding } from './pages/LandlordOnboarding';
 import { TenancyLifecycle } from './pages/TenancyLifecycle';
 import { Renewals } from './pages/Renewals';
@@ -100,6 +101,7 @@ function App() {
               <Route path="/reports" element={<Reports />} />
               <Route path="/rent-reviews" element={<RentReviews />} />
               <Route path="/payments-received" element={<PaymentsReceived />} />
+              <Route path="/statements-payments" element={<StatementsPayments />} />
               <Route path="/landlord-onboarding" element={<LandlordOnboarding />} />
               <Route path="/tenancy-lifecycle" element={<TenancyLifecycle />} />
               <Route path="/renewals" element={<Renewals />} />
