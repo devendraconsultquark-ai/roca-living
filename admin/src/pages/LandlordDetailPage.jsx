@@ -32,6 +32,7 @@ import { InfoTip } from '../components/UI/InfoTip';
 import { AllStatementsTable } from '../components/UI/AllStatementsTable';
 import { TYPE_LABEL } from '../utilities/statementTypes';
 import { realEmail, realPhone } from '../utilities/contact';
+import { RecordTasks } from '../components/UI/RecordTasks';
 
 const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
@@ -967,6 +968,7 @@ export const LandlordDetailPage = () => {
               </Card>
             </div>
           </div>
+            <RecordTasks filter={{ landlord_id: id }} prefill={{ assignee_type: 'landlord', assignee_id: Number(id) }} />
           </div>
         )}
 
@@ -1225,7 +1227,7 @@ export const LandlordDetailPage = () => {
                 />
                 <DataRow icon={CheckCircle2} label="Ownership Confirmed" value={data.ownership_confirmed ? 'Yes' : 'No'} />
                 <DataRow icon={Flag} label="NRL Number (HMRC)" value={nrlShown} />
-                <DataRow icon={Hash} label="NRL Withholding" value={data.nrl_withhold_pct != null ? `${data.nrl_withhold_pct}%` : '—'} />
+                <DataRow icon={Hash} label="NRL Withholding" value={nrlWithholding} />
                 <button
                   onClick={() => setActiveTab('settings')}
                   className="text-2xs font-bold text-brand-accent hover:text-brand-accent-hover pt-3 cursor-pointer"

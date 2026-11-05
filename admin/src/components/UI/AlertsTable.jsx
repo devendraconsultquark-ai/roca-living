@@ -7,6 +7,7 @@ const ALERT_TYPES = {
   deposit: { label: 'Deposit', cls: 'bg-brand-accent/10 text-brand-accent' },
   maintenance: { label: 'Maintenance', cls: 'bg-status-warning/10 text-status-warning' },
   landlord_payment: { label: 'Landlord Payment', cls: 'bg-status-success-bg text-status-success' },
+  task: { label: 'Task', cls: 'bg-status-info-bg text-status-info' },
 };
 const ALERT_STATUSES = {
   open: { label: 'Open', cls: 'bg-status-danger-bg text-status-danger' },

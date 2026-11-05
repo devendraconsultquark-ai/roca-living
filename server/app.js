@@ -33,6 +33,7 @@ import { pullFromEstatesOnRead } from './src/utils/estatesSync.js';
 import previewRouter from './src/routes/previewRoutes.js';
 import transactionRouter from './src/routes/transactionRoutes.js';
 import contactRouter from './src/routes/contactRoutes.js';
+import taskRouter from './src/routes/taskRoutes.js';
 
 
 const app = express();
@@ -144,6 +145,7 @@ app.use('/api/v1/all-statements', allStatementsRouter);
 app.use('/api/v1/estates', estatesRouter);
 app.use('/api/v1/transactions', transactionRouter);
 app.use('/api/v1/contact', contactRouter);
+app.use('/api/v1/tasks', taskRouter);
 
 
 // DEV-ONLY: Live HTML preview for PDF templates — never mounted in production

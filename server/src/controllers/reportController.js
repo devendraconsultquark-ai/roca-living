@@ -4,6 +4,7 @@ import { catchAsync } from '../utils/catchAsync.js';
 import { toYmd, todayYmd } from '../utils/dateHelpers.js';
 import { buildPropertyStatement } from '../utils/propertyStatement.js';
 import { listStatements } from '../utils/statementsIndex.js';
+import { dueTasks } from './taskController.js';
 import { propertyStatementPdfHtml } from '../templates/propertyStatementTemplate.js';
 import { generatePortraitPDFWithPuppeteer } from '../utils/puppeteerGenerator.js';
 
@@ -235,7 +236,7 @@ export const getDepositsNeedingAttention = catchAsync(async (req, res, next) => 
 // landlord payments to run. Used by the Dashboard and the header bell.
 const loadAlerts = async () => {
   const int = (v) => parseInt(v || 0, 10);
-  const [certAlerts, depositAlerts, maintenanceAlerts, paymentAlerts] = await Promise.all([
+  const [certAlerts, depositAlerts, maintenanceAlerts, paymentAlerts, taskAlerts] = await Promise.all([
     db('property_certificates')
       .join('properties', 'property_certificates.property_id', 'properties.id')
       .select(
@@ -276,7 +277,9 @@ const loadAlerts = async () => {
       .select('landlord_statements.status', 'users.name as related_to')
       .whereNot('landlord_statements.status', 'paid')
       .orderBy('landlord_statements.period_end', 'asc')
-      .limit(25)
+      .limit(25),
+    // Open tasks due today or overdue (Tasks & Alerts page)
+    dueTasks()
   ]);
 
   const CERT_LABELS = {
@@ -318,6 +321,19 @@ const loadAlerts = async () => {
       status: m.status,
       _sort: m.urgency === 'emergency' ? -1000 : 1
     })),
+    ...taskAlerts.map((t) => {
+      const days = int(t.days_left);
+      const flat = t.block_name && t.apartment_number ? `${t.block_name}-${t.apartment_number}` : null;
+      return {
+        type: 'task',
+        description: t.title,
+        related_to: [t.assignee_name, flat].filter(Boolean).join(' · '),
+        due: dueLabel(days),
+        priority: days < 0 || t.priority === 'high' ? 'high' : 'medium',
+        status: 'open',
+        _sort: days
+      };
+    }),
     ...paymentAlerts.map((p) => ({
       type: 'landlord_payment',
       description: 'Landlord payment ready to run',

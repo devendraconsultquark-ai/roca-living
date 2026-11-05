@@ -11,6 +11,7 @@ import { Input } from '../components/UI/Input';
 import { DatePicker } from '../components/UI/DatePicker';
 import { Dropdown } from '../components/UI/Dropdown';
 import api from '../utilities/api';
+import { RecordTasks } from '../components/UI/RecordTasks';
 
 export const ContractorDetailPage = () => {
   const { id } = useParams();
@@ -177,6 +178,7 @@ export const ContractorDetailPage = () => {
                 </div>
               </Card>
             </div>
+            <RecordTasks className="lg:col-span-3" filter={{ assignee_type: 'contractor', assignee_id: id }} prefill={{ assignee_type: 'contractor', assignee_id: Number(id) }} />
           </div>
         )}
 

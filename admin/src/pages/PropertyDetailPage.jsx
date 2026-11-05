@@ -27,6 +27,7 @@ import { useEstatesEditable } from '../utilities/useEstatesEditable';
 import { EstatesDeleteModal } from '../components/UI/EstatesDeleteModal';
 import api from '../utilities/api';
 import { InfoTip } from '../components/UI/InfoTip';
+import { RecordTasks } from '../components/UI/RecordTasks';
 
 export const PropertyDetailPage = () => {
   const { id } = useParams();
@@ -461,6 +462,7 @@ export const PropertyDetailPage = () => {
               onUploadDoc={() => fileInputRef.current?.click()}
               onEditNotes={openEditModal}
             />
+            <RecordTasks filter={{ property_id: id }} prefill={{ property_id: Number(id) }} />
             {/* What the ROCA Estates pop-up on the Properties list used to show */}
             <Card title="Apartment (ROCA Estates)">
               <EstatesApartmentInfo

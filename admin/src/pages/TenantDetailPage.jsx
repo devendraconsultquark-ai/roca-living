@@ -19,6 +19,7 @@ import { RentDuePreview } from '../components/UI/RentDuePreview';
 import { EditTenantModal } from '../components/UI/EditTenantModal';
 import { RentAccountCard } from '../components/UI/RentAccountCard';
 import { InfoTip } from '../components/UI/InfoTip';
+import { RecordTasks } from '../components/UI/RecordTasks';
 
 const money = (v) => `£${Number(v || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -377,6 +378,7 @@ export const TenantDetailPage = () => {
                 </SectionCard>
               </div>
             </div>
+            <RecordTasks filter={{ assignee_type: 'tenant', assignee_id: id }} prefill={{ assignee_type: 'tenant', assignee_id: Number(id), property_id: data.tenancy?.property_id || null }} />
           </div>
         )}
 
